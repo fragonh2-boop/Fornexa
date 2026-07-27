@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 const copy = {
@@ -103,7 +104,6 @@ const shipments = [
 
 export default function Home() {
   const [language, setLanguage] = useState<Language>("es");
-  const [showLogin, setShowLogin] = useState(false);
   const [solutionIndex, setSolutionIndex] = useState(0);
   const t = copy[language];
 
@@ -130,7 +130,7 @@ export default function Home() {
               <option value="fr">FR</option>
             </select>
           </label>
-          <button className="login-trigger" onClick={() => setShowLogin(true)}>{t.login}</button>
+          <Link className="login-trigger" href="/login">{t.login}</Link>
         </nav>
       </header>
 
@@ -144,7 +144,7 @@ export default function Home() {
           </div>
           <p className="lead">{t.lead}</p>
           <div className="actions">
-            <button onClick={() => setShowLogin(true)}>{t.login}</button>
+            <Link className="login-trigger" href="/login">{t.login}</Link>
             <a href="#dashboard">{t.demo}</a>
           </div>
         </div>
@@ -155,8 +155,8 @@ export default function Home() {
           <p>{t.secure}</p>
           <label>{t.email}<input type="email" placeholder="nombre@empresa.com" /></label>
           <label>{t.password}<input type="password" placeholder="••••••••" /></label>
-          <button>{t.access}</button>
-          <a href="#">{t.forgot}</a>
+          <Link className="login-trigger" href="/login">{t.access}</Link>
+          <Link href="/login">{t.forgot}</Link>
         </aside>
       </section>
 
@@ -186,20 +186,6 @@ export default function Home() {
       <section id="modules" className="modules-strip">
         {["TMS", "CRM", "POD & CMR", "Tracking", "Tarifas", "Colaboradores"].map((module) => <span key={module}>{module}</span>)}
       </section>
-
-      {showLogin && (
-        <div className="modal-backdrop" onClick={() => setShowLogin(false)}>
-          <div className="modal" onClick={(event) => event.stopPropagation()}>
-            <button className="close" onClick={() => setShowLogin(false)}>×</button>
-            <span className="card-kicker">FORNEXA ACCESS</span>
-            <h2>{t.login}</h2>
-            <label>{t.email}<input type="email" placeholder="nombre@empresa.com" /></label>
-            <label>{t.password}<input type="password" placeholder="••••••••" /></label>
-            <button>{t.access}</button>
-            <small>Demo visual. La autenticación real se conectará a Supabase.</small>
-          </div>
-        </div>
-      )}
     </main>
   );
 }
