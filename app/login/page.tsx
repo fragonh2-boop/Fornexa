@@ -83,12 +83,12 @@ export default function LoginPage() {
         <div className="auth-brand-copy">
           <span className="card-kicker">SUPPLY CHAIN SUITE</span>
           <h1>Una plataforma; control total</h1>
-          <p>Acceso seguro para usuarios registrados y seguimiento público de expediciones sin iniciar sesión.</p>
+          <p>Acceso seguro para usuarios registrados de FORNEXA.</p>
         </div>
         <div className="auth-security-list">
           <span>✓ Acceso por empresa, usuario y permisos</span>
           <span>✓ Primera activación y recuperación segura</span>
-          <span>✓ Tracking público mediante URL, código o QR</span>
+          <span>✓ Preparado para MFA y SSO</span>
         </div>
       </section>
 
@@ -96,7 +96,6 @@ export default function LoginPage() {
         <div className="auth-card">
           <div className="auth-top-links">
             <Link href="/" className="auth-back">← Volver a FORNEXA</Link>
-            <Link href="/tracking" className="tracking-access">Consultar tracking →</Link>
           </div>
 
           <div className="auth-tabs auth-tabs-three" role="tablist" aria-label="Opciones de acceso">
@@ -159,12 +158,6 @@ export default function LoginPage() {
             <button className="auth-submit" type="submit">{currentCopy.submit}</button>
             {message && <p className="auth-message" role="status">{message}</p>}
           </form>
-
-          <div className="public-tracking-note">
-            <strong>¿Solo quieres consultar una expedición?</strong>
-            <p>No necesitas una cuenta. Accede mediante el enlace recibido, introduce el código de seguimiento o escanea el QR.</p>
-            <Link href="/tracking">Abrir tracking público</Link>
-          </div>
 
           <footer className="auth-footer">
             <span>Acceso protegido</span><span>Privacidad</span><span>Soporte</span>
