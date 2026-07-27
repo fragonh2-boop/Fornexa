@@ -147,10 +147,6 @@ export default function Home() {
             <strong key={solutionIndex}>{rotatingSolutions[solutionIndex]}</strong>
           </div>
           <p className="lead">{t.lead}</p>
-          <div className="actions">
-            <Link className="login-trigger" href="/login">{t.login}</Link>
-            <a href="#dashboard">{t.demo}</a>
-          </div>
         </div>
 
         <aside className="login-card">
