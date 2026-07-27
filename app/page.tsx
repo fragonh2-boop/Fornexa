@@ -5,7 +5,7 @@ import { useState } from "react";
 const copy = {
   es: {
     tagline: "Supply chain orchestration",
-    title: "Control operativo del transporte en una sola plataforma.",
+    title: "Una plataforma; control total",
     lead: "Gestiona expediciones, clientes, colaboradores, documentación y trazabilidad desde un único entorno.",
     login: "Iniciar sesión",
     demo: "Ver demo",
