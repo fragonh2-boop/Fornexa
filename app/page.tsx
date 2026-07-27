@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const copy = {
   es: {
     tagline: "Supply chain orchestration",
     title: "Una plataforma; control total",
-    lead: "Gestiona expediciones, clientes, colaboradores, documentación y trazabilidad desde un único entorno.",
+    lead: "Tecnología conectada para dirigir toda tu cadena de suministro.",
     login: "Iniciar sesión",
     demo: "Ver demo",
     modules: "Módulos",
@@ -31,8 +31,8 @@ const copy = {
   },
   en: {
     tagline: "Supply chain orchestration",
-    title: "Operational transport control in one platform.",
-    lead: "Manage shipments, customers, partners, documentation and traceability from a single environment.",
+    title: "One platform; total control",
+    lead: "Connected technology to manage your entire supply chain.",
     login: "Sign in",
     demo: "View demo",
     modules: "Modules",
@@ -57,8 +57,8 @@ const copy = {
   },
   fr: {
     tagline: "Supply chain orchestration",
-    title: "Le contrôle opérationnel du transport sur une seule plateforme.",
-    lead: "Gérez les expéditions, clients, partenaires, documents et la traçabilité depuis un environnement unique.",
+    title: "Une plateforme ; un contrôle total",
+    lead: "Une technologie connectée pour piloter toute votre supply chain.",
     login: "Se connecter",
     demo: "Voir la démo",
     modules: "Modules",
@@ -83,6 +83,16 @@ const copy = {
   }
 };
 
+const rotatingSolutions = [
+  "Supply Chain Suite",
+  "eCRM",
+  "ePODs",
+  "BI by AI",
+  "Reports by AI",
+  "Smart Blockchain",
+  "Smart Solutions"
+];
+
 type Language = keyof typeof copy;
 
 const shipments = [
@@ -94,7 +104,16 @@ const shipments = [
 export default function Home() {
   const [language, setLanguage] = useState<Language>("es");
   const [showLogin, setShowLogin] = useState(false);
+  const [solutionIndex, setSolutionIndex] = useState(0);
   const t = copy[language];
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setSolutionIndex((current) => (current + 1) % rotatingSolutions.length);
+    }, 2300);
+
+    return () => window.clearInterval(timer);
+  }, []);
 
   return (
     <main>
@@ -119,6 +138,10 @@ export default function Home() {
         <div className="hero-copy">
           <p className="eyebrow">{t.tagline}</p>
           <h1>{t.title}</h1>
+          <div className="rotating-message" aria-live="polite">
+            <span className="rotating-label">FORNEXA</span>
+            <strong key={solutionIndex}>{rotatingSolutions[solutionIndex]}</strong>
+          </div>
           <p className="lead">{t.lead}</p>
           <div className="actions">
             <button onClick={() => setShowLogin(true)}>{t.login}</button>
