@@ -9,6 +9,7 @@ const copy = {
     title: "Una plataforma; control total",
     lead: "Tecnología conectada para dirigir toda tu cadena de suministro.",
     login: "Iniciar sesión",
+    tracking: "Tracking",
     demo: "Ver demo",
     modules: "Módulos",
     language: "Idioma",
@@ -16,7 +17,7 @@ const copy = {
     password: "Contraseña",
     access: "Entrar en FORNEXA",
     forgot: "¿Has olvidado la contraseña?",
-    secure: "Acceso seguro para operadores, cargadores, transportistas y receptores.",
+    secure: "Acceso seguro para operadores, cargadores y receptores.",
     dashboard: "Vista operativa",
     shipments: "Expediciones activas",
     incidents: "Incidencias abiertas",
@@ -35,6 +36,7 @@ const copy = {
     title: "One platform; total control",
     lead: "Connected technology to manage your entire supply chain.",
     login: "Sign in",
+    tracking: "Tracking",
     demo: "View demo",
     modules: "Modules",
     language: "Language",
@@ -42,7 +44,7 @@ const copy = {
     password: "Password",
     access: "Enter FORNEXA",
     forgot: "Forgot your password?",
-    secure: "Secure access for operators, shippers, carriers and receivers.",
+    secure: "Secure access for operators, shippers and receivers.",
     dashboard: "Operational view",
     shipments: "Active shipments",
     incidents: "Open incidents",
@@ -61,6 +63,7 @@ const copy = {
     title: "Une plateforme ; un contrôle total",
     lead: "Une technologie connectée pour piloter toute votre supply chain.",
     login: "Se connecter",
+    tracking: "Suivi",
     demo: "Voir la démo",
     modules: "Modules",
     language: "Langue",
@@ -68,7 +71,7 @@ const copy = {
     password: "Mot de passe",
     access: "Accéder à FORNEXA",
     forgot: "Mot de passe oublié ?",
-    secure: "Accès sécurisé pour opérateurs, chargeurs, transporteurs et destinataires.",
+    secure: "Accès sécurisé pour opérateurs, chargeurs et destinataires.",
     dashboard: "Vue opérationnelle",
     shipments: "Expéditions actives",
     incidents: "Incidents ouverts",
@@ -122,6 +125,7 @@ export default function Home() {
         <nav className="topnav">
           <a href="#dashboard">{t.demo}</a>
           <a href="#modules">{t.modules}</a>
+          <Link className="tracking-nav" href="/tracking">{t.tracking}</Link>
           <label className="language-select">
             <span>{t.language}</span>
             <select value={language} onChange={(event) => setLanguage(event.target.value as Language)}>
