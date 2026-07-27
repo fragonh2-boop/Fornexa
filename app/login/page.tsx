@@ -1,16 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
 type AccessMode = "session" | "first-access" | "recover";
-type UserRole = "operator" | "shipper" | "receiver";
-
-const roles: Array<{ value: UserRole; label: string; description: string }> = [
-  { value: "operator", label: "Operador logístico", description: "Gestión integral de operaciones, transporte, clientes y colaboradores." },
-  { value: "shipper", label: "Cargador", description: "Solicitudes, expediciones, documentación, costes y seguimiento." },
-  { value: "receiver", label: "Receptor", description: "Entregas, confirmaciones, reservas, incidencias y ePOD." },
-];
 
 const modeCopy = {
   session: {
@@ -20,8 +14,8 @@ const modeCopy = {
   },
   "first-access": {
     title: "Primera vez en FORNEXA",
-    description: "Activa tu usuario con la invitación recibida por correo.",
-    submit: "Activar mi cuenta",
+    description: "Valida la invitación recibida por correo. Tu perfil y permisos ya estarán asociados a tu usuario.",
+    submit: "Continuar",
   },
   recover: {
     title: "Recuperar contraseña",
@@ -31,8 +25,8 @@ const modeCopy = {
 };
 
 export default function LoginPage() {
+  const router = useRouter();
   const [mode, setMode] = useState<AccessMode>("session");
-  const [role, setRole] = useState<UserRole>("operator");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [activationCode, setActivationCode] = useState("");
@@ -64,16 +58,18 @@ export default function LoginPage() {
       return;
     }
 
-    const resultMessages: Record<AccessMode, string> = {
-      session: "Datos validados. La autenticación real se conectará con Supabase Auth.",
-      "first-access": "Invitación validada. El siguiente paso permitirá crear tu contraseña y aceptar las condiciones.",
-      recover: "Solicitud validada. Se enviará un enlace de recuperación cuando activemos Supabase Auth.",
-    };
+    if (mode === "first-access") {
+      router.push("/onboarding");
+      return;
+    }
 
-    setMessage(resultMessages[mode]);
+    setMessage(
+      mode === "session"
+        ? "Datos validados. El perfil, la empresa y los permisos se cargarán automáticamente al autenticar al usuario."
+        : "Solicitud validada. Se enviará un enlace de recuperación cuando activemos Supabase Auth."
+    );
   }
 
-  const selectedRole = roles.find((item) => item.value === role)!;
   const currentCopy = modeCopy[mode];
 
   return (
@@ -86,8 +82,8 @@ export default function LoginPage() {
           <p>Acceso seguro para usuarios registrados de FORNEXA.</p>
         </div>
         <div className="auth-security-list">
-          <span>✓ Acceso por empresa, usuario y permisos</span>
-          <span>✓ Primera activación y recuperación segura</span>
+          <span>✓ Perfil, empresa y permisos asociados al usuario</span>
+          <span>✓ Primera activación guiada</span>
           <span>✓ Preparado para MFA y SSO</span>
         </div>
       </section>
@@ -111,21 +107,6 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={handleSubmit} noValidate>
-            {mode !== "recover" && (
-              <fieldset className="role-selector">
-                <legend>Perfil de acceso</legend>
-                <div className="role-grid role-grid-three">
-                  {roles.map((item) => (
-                    <label key={item.value} className={role === item.value ? "selected" : ""}>
-                      <input type="radio" name="role" value={item.value} checked={role === item.value} onChange={() => setRole(item.value)} />
-                      <span>{item.label}</span>
-                    </label>
-                  ))}
-                </div>
-                <small>{selectedRole.description}</small>
-              </fieldset>
-            )}
-
             <label className="auth-field">
               Correo electrónico
               <input type="email" autoComplete="email" placeholder="nombre@empresa.com" value={email} onChange={(event) => setEmail(event.target.value)} />
