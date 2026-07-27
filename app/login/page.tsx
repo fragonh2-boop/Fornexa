@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 type AccessMode = "session" | "first-access" | "recover";
 
@@ -14,8 +15,8 @@ const modeCopy = {
   },
   "first-access": {
     title: "Primera vez en FORNEXA",
-    description: "Valida la invitación recibida por correo. Tu perfil y permisos ya estarán asociados a tu usuario.",
-    submit: "Continuar",
+    description: "Te enviaremos un enlace seguro por correo para verificar tu identidad y continuar.",
+    submit: "Enviar email de verificación",
   },
   recover: {
     title: "Recuperar contraseña",
@@ -26,48 +27,84 @@ const modeCopy = {
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<AccessMode>("session");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [activationCode, setActivationCode] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(true);
   const [message, setMessage] = useState("");
+  const [isError, setIsError] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const callbackError = useMemo(() => {
+    const error = searchParams.get("error");
+    if (error === "missing_code") return "El enlace de acceso no contiene un código válido.";
+    if (error === "invalid_link") return "El enlace ha caducado o ya ha sido utilizado.";
+    return "";
+  }, [searchParams]);
 
   function changeMode(nextMode: AccessMode) {
     setMode(nextMode);
     setMessage("");
+    setIsError(false);
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
+    setIsError(false);
 
     if (!email.includes("@")) {
       setMessage("Introduce un correo electrónico válido.");
+      setIsError(true);
       return;
     }
 
     if (mode === "session" && password.length < 8) {
       setMessage("La contraseña debe contener al menos 8 caracteres.");
+      setIsError(true);
       return;
     }
 
-    if (mode === "first-access" && activationCode.trim().length < 6) {
-      setMessage("Introduce el código de activación recibido por correo.");
-      return;
-    }
+    setLoading(true);
 
-    if (mode === "first-access") {
-      router.push("/onboarding");
-      return;
-    }
+    try {
+      const supabase = createClient();
+      const origin = window.location.origin;
 
-    setMessage(
-      mode === "session"
-        ? "Datos validados. El perfil, la empresa y los permisos se cargarán automáticamente al autenticar al usuario."
-        : "Solicitud validada. Se enviará un enlace de recuperación cuando activemos Supabase Auth."
-    );
+      if (mode === "session") {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        router.push("/onboarding");
+        router.refresh();
+        return;
+      }
+
+      if (mode === "first-access") {
+        const { error } = await supabase.auth.signInWithOtp({
+          email,
+          options: {
+            emailRedirectTo: `${origin}/auth/callback?next=/onboarding`,
+            shouldCreateUser: true,
+          },
+        });
+        if (error) throw error;
+        setMessage("Email enviado. Revisa también la carpeta de spam o correo no deseado.");
+        return;
+      }
+
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${origin}/auth/callback?next=/reset-password`,
+      });
+      if (error) throw error;
+      setMessage("Te hemos enviado el enlace de recuperación. Revisa también la carpeta de spam.");
+    } catch (error) {
+      setIsError(true);
+      setMessage(error instanceof Error ? error.message : "No se ha podido completar la solicitud.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   const currentCopy = modeCopy[mode];
@@ -83,7 +120,7 @@ export default function LoginPage() {
         </div>
         <div className="auth-security-list">
           <span>✓ Perfil, empresa y permisos asociados al usuario</span>
-          <span>✓ Primera activación guiada</span>
+          <span>✓ Primera activación por correo</span>
           <span>✓ Preparado para MFA y SSO</span>
         </div>
       </section>
@@ -109,21 +146,14 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} noValidate>
             <label className="auth-field">
               Correo electrónico
-              <input type="email" autoComplete="email" placeholder="nombre@empresa.com" value={email} onChange={(event) => setEmail(event.target.value)} />
+              <input type="email" autoComplete="email" placeholder="nombre@empresa.com" value={email} onChange={(event) => setEmail(event.target.value)} disabled={loading} />
             </label>
-
-            {mode === "first-access" && (
-              <label className="auth-field">
-                Código de activación
-                <input type="text" autoComplete="one-time-code" placeholder="Código recibido por correo" value={activationCode} onChange={(event) => setActivationCode(event.target.value)} />
-              </label>
-            )}
 
             {mode === "session" && (
               <label className="auth-field">
                 Contraseña
                 <div className="password-field">
-                  <input type={showPassword ? "text" : "password"} autoComplete="current-password" placeholder="Mínimo 8 caracteres" value={password} onChange={(event) => setPassword(event.target.value)} />
+                  <input type={showPassword ? "text" : "password"} autoComplete="current-password" placeholder="Mínimo 8 caracteres" value={password} onChange={(event) => setPassword(event.target.value)} disabled={loading} />
                   <button type="button" onClick={() => setShowPassword((current) => !current)}>{showPassword ? "Ocultar" : "Mostrar"}</button>
                 </div>
               </label>
@@ -136,8 +166,8 @@ export default function LoginPage() {
               </div>
             )}
 
-            <button className="auth-submit" type="submit">{currentCopy.submit}</button>
-            {message && <p className="auth-message" role="status">{message}</p>}
+            <button className="auth-submit" type="submit" disabled={loading}>{loading ? "Procesando..." : currentCopy.submit}</button>
+            {(callbackError || message) && <p className={`auth-message${isError || callbackError ? " auth-message-error" : ""}`} role="status">{callbackError || message}</p>}
           </form>
 
           <footer className="auth-footer">
