@@ -70,7 +70,7 @@ function LoginForm() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
+      const supabase = await createClient();
       const origin = window.location.origin;
 
       if (mode === "session") {
