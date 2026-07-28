@@ -8,11 +8,22 @@ const metrics = [
   ["62", "Colaboradores disponibles", "11 en ruta"],
 ];
 
-const shipments = [
-  ["FX-260071", "Valencia → Lyon", "Mediterránea Retail", "En tránsito", "Hoy 18:30", "transit"],
-  ["FX-260070", "Barcelona → Marseille", "Nova Distribution", "Planificada", "Mañana 08:00", "planned"],
-  ["FX-260069", "Madrid → Toulouse", "Atlas Components", "Entregada", "Hoy 11:42", "delivered"],
-  ["FX-260068", "Alicante → Paris", "Nordic Home", "Incidencia", "Revisión", "incident"],
+const expeditions = [
+  ["EXP-260071", "Valencia → Lyon", "3 partidas", "En tránsito", "transit"],
+  ["EXP-260070", "Barcelona → Marseille", "2 partidas", "Planificada", "planned"],
+  ["EXP-260069", "Madrid → Toulouse", "4 partidas", "Entregada", "delivered"],
+];
+
+const myItems = [
+  ["PT-640171", "Mediterránea Retail", "Valencia → Lyon", "En expedición"],
+  ["PT-640170", "Nova Distribution", "Barcelona → Marseille", "Pendiente"],
+  ["PT-640169", "Atlas Components", "Madrid → Toulouse", "En expedición"],
+];
+
+const trips = [
+  ["VJ-260018", "Valencia → Lyon", "2 expediciones", "En ruta", "transit"],
+  ["VJ-260017", "Barcelona → Marseille", "1 expedición", "Planificado", "planned"],
+  ["VJ-260016", "Madrid → Toulouse", "3 expediciones", "Finalizado", "delivered"],
 ];
 
 export default function DashboardPage() {
@@ -22,7 +33,9 @@ export default function DashboardPage() {
         <Link href="/dashboard" className={styles.brand}>FORNEXA</Link>
         <nav className={styles.nav} aria-label="Navegación principal">
           <Link className={styles.active} href="/dashboard">Control Tower</Link>
+          <a href="#">Partidas</a>
           <a href="#">Expediciones</a>
+          <a href="#">Viajes</a>
           <a href="#">Ofertas y tarifas</a>
           <a href="#">Clientes</a>
           <a href="#">Colaboradores</a>
@@ -45,7 +58,7 @@ export default function DashboardPage() {
           </div>
           <div className={styles.actions}>
             <button type="button" className={styles.secondary}>Importar</button>
-            <button type="button">+ Nueva expedición</button>
+            <button type="button">+ Nueva partida</button>
             <div className={styles.avatar} aria-label="Perfil de usuario">FG</div>
           </div>
         </header>
@@ -59,23 +72,60 @@ export default function DashboardPage() {
           ))}
         </section>
 
-        <section className={styles.grid}>
-          <article className={`${styles.panel} ${styles.wide}`}>
+        <section className={styles.operationsGrid}>
+          <article className={styles.panel}>
             <div className={styles.panelTitle}>
               <div><p className={styles.eyebrow}>OPERATIVA</p><h2>Últimas expediciones</h2></div>
               <button type="button" className={styles.textButton}>Ver todas</button>
             </div>
-            <div className={styles.table}>
-              <div className={`${styles.row} ${styles.head}`}><span>ID</span><span>Ruta</span><span>Cliente</span><span>Estado</span><span>Previsión</span></div>
-              {shipments.map(([id, route, client, status, eta, statusClass]) => (
-                <div className={styles.row} key={id}>
-                  <strong>{id}</strong><span>{route}</span><span>{client}</span>
-                  <span className={`${styles.status} ${styles[statusClass]}`}>{status}</span><span>{eta}</span>
+            <p className={styles.panelHint}>Agrupaciones de una o varias partidas de cliente.</p>
+            <div className={styles.compactList}>
+              {expeditions.map(([id, route, count, status, statusClass]) => (
+                <div className={styles.compactRow} key={id}>
+                  <div><strong>{id}</strong><span>{route}</span></div>
+                  <span>{count}</span>
+                  <span className={`${styles.status} ${styles[statusClass]}`}>{status}</span>
                 </div>
               ))}
             </div>
           </article>
 
+          <article className={styles.panel}>
+            <div className={styles.panelTitle}>
+              <div><p className={styles.eyebrow}>MIS PEDIDOS</p><h2>Últimas partidas</h2></div>
+              <button type="button" className={styles.textButton}>Ver todas</button>
+            </div>
+            <p className={styles.panelHint}>Solo partidas grabadas por el usuario conectado.</p>
+            <div className={styles.compactList}>
+              {myItems.map(([id, client, route, status]) => (
+                <div className={styles.compactRow} key={id}>
+                  <div><strong>{id}</strong><span>{client}</span></div>
+                  <span>{route}</span>
+                  <span className={styles.itemState}>{status}</span>
+                </div>
+              ))}
+            </div>
+          </article>
+
+          <article className={styles.panel}>
+            <div className={styles.panelTitle}>
+              <div><p className={styles.eyebrow}>PLANIFICACIÓN</p><h2>Últimos viajes</h2></div>
+              <button type="button" className={styles.textButton}>Ver todos</button>
+            </div>
+            <p className={styles.panelHint}>Cada viaje contiene una o varias expediciones, nunca partidas sueltas.</p>
+            <div className={styles.compactList}>
+              {trips.map(([id, route, count, status, statusClass]) => (
+                <div className={styles.compactRow} key={id}>
+                  <div><strong>{id}</strong><span>{route}</span></div>
+                  <span>{count}</span>
+                  <span className={`${styles.status} ${styles[statusClass]}`}>{status}</span>
+                </div>
+              ))}
+            </div>
+          </article>
+        </section>
+
+        <section className={styles.grid}>
           <article className={styles.panel}>
             <div className={styles.panelTitle}><div><p className={styles.eyebrow}>ALERTAS</p><h2>Prioridades</h2></div></div>
             <div className={styles.alerts}>
