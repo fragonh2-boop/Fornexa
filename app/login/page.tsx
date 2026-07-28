@@ -76,7 +76,7 @@ function LoginForm() {
       if (mode === "session") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        router.push("/onboarding");
+        router.push("/dashboard");
         router.refresh();
         return;
       }
