@@ -30,7 +30,7 @@ export default function ResetPasswordPage() {
 
     setLoading(true);
     try {
-      const supabase = createClient();
+      const supabase = await createClient();
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
       setMessage("Contraseña actualizada. Ya puedes iniciar sesión.");
