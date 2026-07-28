@@ -1,87 +1,17 @@
 import Link from "next/link";
 import styles from "./dashboard.module.css";
 
-const metrics = [
-  ["128", "Expediciones activas", "+8,4%"],
-  ["34", "Entregas previstas hoy", "92% a tiempo"],
-  ["7", "Incidencias abiertas", "2 críticas"],
-  ["62", "Colaboradores disponibles", "11 en ruta"],
-];
+const metrics = [["128","Expediciones activas","+8,4%"],["34","Entregas previstas hoy","92% a tiempo"],["7","Incidencias abiertas","2 críticas"],["62","Colaboradores disponibles","11 en ruta"]];
+const shipments = [["EX-260071","Valencia → Lyon","3 partidas","En tránsito","Hoy 18:30","transit"],["EX-260070","Barcelona → Marseille","2 partidas","Planificada","Mañana 08:00","planned"],["EX-260069","Madrid → Toulouse","1 partida","Entregada","Hoy 11:42","delivered"]];
+const parts = [["PT-260184","Mediterránea Retail","Valencia → Lyon","Preparada"],["PT-260183","Nova Distribution","Barcelona → Marseille","Pendiente"],["PT-260182","Atlas Components","Madrid → Toulouse","Asignada"]];
+const trips = [["VJ-260041","2 expediciones","La Jonquera","En ruta"],["VJ-260040","1 expedición","Barcelona","Carga prevista"],["VJ-260039","1 expedición","Toulouse","Finalizado"]];
 
-const shipments = [
-  ["EX-260071", "Valencia → Lyon", "3 partidas", "En tránsito", "Hoy 18:30", "transit"],
-  ["EX-260070", "Barcelona → Marseille", "2 partidas", "Planificada", "Mañana 08:00", "planned"],
-  ["EX-260069", "Madrid → Toulouse", "1 partida", "Entregada", "Hoy 11:42", "delivered"],
-];
-
-const parts = [
-  ["PT-260184", "Mediterránea Retail", "Valencia → Lyon", "Preparada"],
-  ["PT-260183", "Nova Distribution", "Barcelona → Marseille", "Pendiente"],
-  ["PT-260182", "Atlas Components", "Madrid → Toulouse", "Asignada"],
-];
-
-const trips = [
-  ["VJ-260041", "2 expediciones", "La Jonquera", "En ruta"],
-  ["VJ-260040", "1 expedición", "Barcelona", "Carga prevista"],
-  ["VJ-260039", "1 expedición", "Toulouse", "Finalizado"],
-];
-
-export default function DashboardPage() {
-  return (
-    <main className={styles.shell}>
-      <aside className={styles.sidebar}>
-        <Link href="/dashboard" className={styles.brand}>FORNEXA</Link>
-        <nav className={styles.nav} aria-label="Navegación principal">
-          <Link className={styles.active} href="/dashboard">Control Tower</Link>
-          <Link href="/dashboard/partidas">Partidas</Link>
-          <Link href="/dashboard/expediciones">Expediciones</Link>
-          <Link href="/dashboard/viajes">Viajes</Link>
-          <Link href="/dashboard/ofertas-tarifas">Ofertas y tarifas</Link>
-          <Link href="/dashboard/clientes">Clientes</Link>
-          <Link href="/dashboard/colaboradores">Colaboradores</Link>
-          <Link href="/dashboard/tracking">Tracking</Link>
-          <Link href="/dashboard/epod-cmr">ePOD & CMR</Link>
-          <Link href="/dashboard/informes">Informes</Link>
-        </nav>
-        <div className={styles.sidebarFooter}><span>FORNEXA Suite</span><small>Entorno de demostración</small></div>
-      </aside>
-
-      <section className={styles.content}>
-        <header className={styles.header}>
-          <div><p className={styles.eyebrow}>CONTROL TOWER</p><h1>Buenos días, Fran</h1><p>Resumen operativo de tu cadena de suministro.</p></div>
-          <div className={styles.actions}><button type="button" className={styles.secondary}>Importar</button><Link href="/dashboard/partidas"><button type="button">+ Nueva partida</button></Link><div className={styles.avatar}>FG</div></div>
-        </header>
-
-        <section className={styles.metrics} aria-label="Indicadores operativos">
-          {metrics.map(([value, label, note]) => <article key={label}><div className={styles.metricTop}><span>{label}</span><strong>{note}</strong></div><b>{value}</b></article>)}
-        </section>
-
-        <section className={styles.operationsGrid}>
-          <article className={styles.panel}>
-            <div className={styles.panelTitle}><div><p className={styles.eyebrow}>MIS PEDIDOS</p><h2>Últimas partidas</h2></div><Link href="/dashboard/partidas" className={styles.textButton}>Ver todas</Link></div>
-            <div className={styles.table}>
-              <div className={`${styles.row} ${styles.head}`}><span>ID</span><span>Cliente</span><span>Ruta</span><span>Estado</span></div>
-              {parts.map(([id, client, route, status]) => <div className={styles.rowFour} key={id}><strong>{id}</strong><span>{client}</span><span>{route}</span><span className={styles.itemState}>{status}</span></div>)}
-            </div>
-          </article>
-
-          <article className={styles.panel}>
-            <div className={styles.panelTitle}><div><p className={styles.eyebrow}>OPERATIVA</p><h2>Últimas expediciones</h2></div><Link href="/dashboard/expediciones" className={styles.textButton}>Ver todas</Link></div>
-            <div className={styles.table}>
-              <div className={`${styles.row} ${styles.head}`}><span>ID</span><span>Ruta</span><span>Partidas</span><span>Estado</span><span>Previsión</span></div>
-              {shipments.map(([id, route, count, status, eta, statusClass]) => <div className={styles.row} key={id}><strong>{id}</strong><span>{route}</span><span>{count}</span><span className={`${styles.status} ${styles[statusClass]}`}>{status}</span><span>{eta}</span></div>)}
-            </div>
-          </article>
-
-          <article className={styles.panel}>
-            <div className={styles.panelTitle}><div><p className={styles.eyebrow}>TRANSPORTE</p><h2>Últimos viajes</h2></div><Link href="/dashboard/viajes" className={styles.textButton}>Ver todos</Link></div>
-            <div className={styles.table}>
-              <div className={`${styles.rowTrips} ${styles.head}`}><span>ID</span><span>Expediciones</span><span>Situación</span><span>Estado</span></div>
-              {trips.map(([id, exps, location, status]) => <div className={styles.rowTrips} key={id}><strong>{id}</strong><span>{exps}</span><span>{location}</span><span className={styles.itemState}>{status}</span></div>)}
-            </div>
-          </article>
-        </section>
-      </section>
-    </main>
-  );
-}
+export default function DashboardPage(){return <main className={styles.shell}>
+<aside className={styles.sidebar}><Link href="/dashboard" className={styles.brand}>FORNEXA</Link><nav className={styles.nav}><Link className={styles.active} href="/dashboard">Control Tower</Link><Link href="/dashboard/partidas">Partidas</Link><Link href="/dashboard/expediciones">Expediciones</Link><Link href="/dashboard/viajes">Viajes</Link><Link href="/dashboard/ofertas-tarifas">Ofertas y tarifas</Link><Link href="/dashboard/clientes">Clientes</Link><Link href="/dashboard/colaboradores">Colaboradores</Link><Link href="/dashboard/tracking">Tracking</Link><Link href="/dashboard/epod-cmr">ePOD & CMR</Link><Link href="/dashboard/informes">Informes</Link></nav><div className={styles.sidebarFooter}><span>FORNEXA Suite</span><small>Entorno de demostración</small></div></aside>
+<section className={styles.content}><header className={styles.header}><div><p className={styles.eyebrow}>CONTROL TOWER</p><h1>Buenos días, Fran</h1><p>Resumen operativo de tu cadena de suministro.</p></div><div className={styles.actions}><button type="button" className={styles.secondary}>Importar</button><Link href="/dashboard/nuevo/partida"><button type="button">+ Nueva partida</button></Link><div className={styles.avatar}>FG</div></div></header>
+<section className={styles.metrics}>{metrics.map(([v,l,n])=><article key={l}><div className={styles.metricTop}><span>{l}</span><strong>{n}</strong></div><b>{v}</b></article>)}</section>
+<section className={styles.operationsGrid}>
+<article className={styles.panel}><div className={styles.panelTitle}><div><p className={styles.eyebrow}>MIS PEDIDOS</p><h2>Últimas partidas</h2></div><Link href="/dashboard/partidas" className={styles.textButton}>Ver todas</Link></div><div className={styles.table}><div className={`${styles.rowFour} ${styles.head}`}><span>ID</span><span>Cliente</span><span>Ruta</span><span>Estado</span></div>{parts.map(([id,c,r,s])=><div className={styles.rowFour} key={id}><strong>{id}</strong><span>{c}</span><span>{r}</span><span className={styles.itemState}>{s}</span></div>)}</div></article>
+<article className={styles.panel}><div className={styles.panelTitle}><div><p className={styles.eyebrow}>OPERATIVA</p><h2>Últimas expediciones</h2></div><Link href="/dashboard/expediciones" className={styles.textButton}>Ver todas</Link></div><div className={styles.table}><div className={`${styles.row} ${styles.head}`}><span>ID</span><span>Ruta</span><span>Partidas</span><span>Estado</span><span>Previsión</span></div>{shipments.map(([id,r,c,s,e,sc])=><div className={styles.row} key={id}><strong>{id}</strong><span>{r}</span><span>{c}</span><span className={`${styles.status} ${styles[sc]}`}>{s}</span><span>{e}</span></div>)}</div></article>
+<article className={styles.panel}><div className={styles.panelTitle}><div><p className={styles.eyebrow}>TRANSPORTE</p><h2>Últimos viajes</h2></div><Link href="/dashboard/viajes" className={styles.textButton}>Ver todos</Link></div><div className={styles.table}><div className={`${styles.rowTrips} ${styles.head}`}><span>ID</span><span>Expediciones</span><span>Situación</span><span>Estado</span></div>{trips.map(([id,e,l,s])=><div className={styles.rowTrips} key={id}><strong>{id}</strong><span>{e}</span><span>{l}</span><span className={styles.itemState}>{s}</span></div>)}</div></article>
+</section></section></main>}
