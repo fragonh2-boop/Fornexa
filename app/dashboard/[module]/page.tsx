@@ -1,0 +1,134 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import styles from "./module.module.css";
+
+const nav = [
+  ["Control Tower", "/dashboard"],
+  ["Partidas", "/dashboard/partidas"],
+  ["Expediciones", "/dashboard/expediciones"],
+  ["Viajes", "/dashboard/viajes"],
+  ["Ofertas y tarifas", "/dashboard/ofertas-tarifas"],
+  ["Clientes", "/dashboard/clientes"],
+  ["Colaboradores", "/dashboard/colaboradores"],
+  ["Tracking", "/dashboard/tracking"],
+  ["ePOD & CMR", "/dashboard/epod-cmr"],
+  ["Informes", "/dashboard/informes"],
+] as const;
+
+const modules = {
+  partidas: {
+    eyebrow: "OPERATIVA",
+    title: "Partidas",
+    description: "Pedidos de cliente grabados en FORNEXA. Una partida debe incorporarse a una expedición antes de poder viajar.",
+    action: "+ Nueva partida",
+    stats: [["24", "Abiertas"], ["8", "Pendientes de expedición"], ["3", "Con incidencia"]],
+    columns: ["ID", "Cliente", "Origen / destino", "Mercancía", "Estado"],
+    rows: [["PT-260184", "Mediterránea Retail", "Valencia → Lyon", "2 palets · 840 kg", "Preparada"], ["PT-260183", "Nova Distribution", "Barcelona → Marseille", "4 palets · 1.240 kg", "Pendiente"], ["PT-260182", "Atlas Components", "Madrid → Toulouse", "1 palet ADR", "Asignada"]],
+  },
+  expediciones: {
+    eyebrow: "CONSOLIDACIÓN",
+    title: "Expediciones",
+    description: "Agrupaciones de una o varias partidas compatibles por ruta, servicio y planificación.",
+    action: "+ Nueva expedición",
+    stats: [["12", "Activas"], ["31", "Partidas agrupadas"], ["89%", "Ocupación media"]],
+    columns: ["ID", "Ruta", "Partidas", "Servicio", "Estado"],
+    rows: [["EX-260071", "Valencia → Lyon", "3 partidas", "Grupaje", "En tránsito"], ["EX-260070", "Barcelona → Marseille", "2 partidas", "LTL", "Planificada"], ["EX-260069", "Madrid → Toulouse", "1 partida", "Directo", "Entregada"]],
+  },
+  viajes: {
+    eyebrow: "TRANSPORTE",
+    title: "Viajes",
+    description: "Cada viaje contiene una o varias expediciones. Nunca admite partidas sueltas.",
+    action: "+ Nuevo viaje",
+    stats: [["7", "En curso"], ["4", "Planificados hoy"], ["92%", "Puntualidad"]],
+    columns: ["ID", "Expediciones", "Vehículo", "Conductor", "Estado"],
+    rows: [["VJ-260041", "EX-260071 · EX-260072", "1234 LBC", "J. Martínez", "En ruta"], ["VJ-260040", "EX-260070", "5678 MNP", "P. García", "Carga prevista"], ["VJ-260039", "EX-260069", "9012 RST", "L. Bernard", "Finalizado"]],
+  },
+  "ofertas-tarifas": {
+    eyebrow: "COMERCIAL",
+    title: "Ofertas y tarifas",
+    description: "Cotización, comparación de servicios, vigencias y control de rentabilidad.",
+    action: "+ Nueva oferta",
+    stats: [["18", "Ofertas abiertas"], ["6", "Pendientes de respuesta"], ["14,8%", "Margen medio"]],
+    columns: ["Referencia", "Cliente", "Ruta", "Importe", "Estado"],
+    rows: [["OF-260118", "Mediterránea Retail", "Valencia → Lyon", "1.280,00 €", "Enviada"], ["OF-260117", "Nova Distribution", "Barcelona → Nice", "945,00 €", "Borrador"], ["TF-ES-FR-04", "Tarifa general", "España → Francia", "Vigente", "Activa"]],
+  },
+  clientes: {
+    eyebrow: "CRM",
+    title: "Clientes",
+    description: "Fichas comerciales, contactos, direcciones, condiciones y actividad logística.",
+    action: "+ Nuevo cliente",
+    stats: [["146", "Clientes activos"], ["12", "Oportunidades"], ["4", "Revisiones pendientes"]],
+    columns: ["Cliente", "Ciudad", "Contacto", "Expediciones", "Estado"],
+    rows: [["Mediterránea Retail", "Valencia", "Laura Pérez", "28", "Activo"], ["Nova Distribution", "Barcelona", "Marc Vidal", "17", "Activo"], ["Atlas Components", "Madrid", "Ana Torres", "9", "Revisión"]],
+  },
+  colaboradores: {
+    eyebrow: "RED LOGÍSTICA",
+    title: "Colaboradores",
+    description: "Transportistas, almacenes, agentes y proveedores con capacidad, cobertura y valoración.",
+    action: "+ Nuevo colaborador",
+    stats: [["62", "Disponibles"], ["11", "En ruta"], ["4,6/5", "Valoración media"]],
+    columns: ["Colaborador", "Tipo", "Cobertura", "Capacidad", "Valoración"],
+    rows: [["Transports Rhône", "Transportista", "FR 69 / 01 / 38", "3,0 ml", "4,8"], ["Toralta", "Distribuidor", "Alicante", "Diaria", "4,6"], ["Montaverner", "Distribuidor", "Valencia sur", "Diaria", "4,5"]],
+  },
+  tracking: {
+    eyebrow: "VISIBILIDAD",
+    title: "Tracking",
+    description: "Seguimiento operativo de viajes y expediciones con hitos, ETA e incidencias.",
+    action: "Abrir mapa",
+    stats: [["18", "Unidades monitorizadas"], ["3", "Riesgos de demora"], ["96%", "Hitos recibidos"]],
+    columns: ["Viaje", "Último hito", "Ubicación", "ETA", "Estado"],
+    rows: [["VJ-260041", "Salida plataforma", "La Jonquera", "18:30", "En ruta"], ["VJ-260040", "Carga confirmada", "Barcelona", "Mañana 08:00", "Planificado"], ["VJ-260038", "Llegada destinatario", "Toulouse", "11:42", "Entregado"]],
+  },
+  "epod-cmr": {
+    eyebrow: "DOCUMENTACIÓN",
+    title: "ePOD & CMR",
+    description: "Pruebas de entrega, firmas, fotografías, reservas y cartas de porte digitales.",
+    action: "Subir documento",
+    stats: [["34", "POD recibidos"], ["3", "Pendientes de validar"], ["2", "Con reservas"]],
+    columns: ["Documento", "Expedición", "Destinatario", "Recepción", "Estado"],
+    rows: [["POD-260069", "EX-260069", "Atlas Components", "Hoy 11:45", "Validado"], ["CMR-260071", "EX-260071", "Mediterránea Retail", "En tránsito", "Pendiente"], ["POD-260066", "EX-260066", "Nordic Home", "Ayer 17:20", "Con reserva"]],
+  },
+  informes: {
+    eyebrow: "ANALÍTICA",
+    title: "Informes",
+    description: "Indicadores de servicio, rentabilidad, productividad, calidad y rendimiento de la red.",
+    action: "+ Nuevo informe",
+    stats: [["92%", "Entregas a tiempo"], ["14,8%", "Margen medio"], ["1,9%", "Incidencias"]],
+    columns: ["Informe", "Periodo", "Área", "Actualización", "Estado"],
+    rows: [["Rentabilidad por cliente", "Julio 2026", "Finanzas", "Hoy 20:10", "Disponible"], ["Calidad de servicio", "Últimos 30 días", "Operaciones", "Hoy 19:55", "Disponible"], ["Productividad usuarios", "Semana 31", "Dirección", "Ayer", "Programado"]],
+  },
+} as const;
+
+type ModuleKey = keyof typeof modules;
+
+export default async function ModulePage({ params }: { params: Promise<{ module: string }> }) {
+  const { module } = await params;
+  if (!(module in modules)) notFound();
+  const data = modules[module as ModuleKey];
+
+  return (
+    <main className={styles.shell}>
+      <aside className={styles.sidebar}>
+        <Link href="/dashboard" className={styles.brand}>FORNEXA</Link>
+        <nav className={styles.nav}>
+          {nav.map(([label, href]) => <Link key={href} className={href.endsWith(module) ? styles.active : ""} href={href}>{label}</Link>)}
+        </nav>
+        <div className={styles.footer}><span>FORNEXA Suite</span><small>Entorno de demostración</small></div>
+      </aside>
+      <section className={styles.content}>
+        <header className={styles.header}>
+          <div><p>{data.eyebrow}</p><h1>{data.title}</h1><span>{data.description}</span></div>
+          <div className={styles.actions}><button className={styles.secondary}>Importar</button><button>{data.action}</button><div className={styles.avatar}>FG</div></div>
+        </header>
+        <section className={styles.stats}>{data.stats.map(([value,label]) => <article key={label}><span>{label}</span><strong>{value}</strong></article>)}</section>
+        <section className={styles.panel}>
+          <div className={styles.toolbar}><div><input placeholder={`Buscar en ${data.title.toLowerCase()}...`} /><button className={styles.secondary}>Filtros</button></div><button className={styles.linkButton}>Exportar</button></div>
+          <div className={styles.table}>
+            <div className={`${styles.row} ${styles.head}`}>{data.columns.map(c => <span key={c}>{c}</span>)}</div>
+            {data.rows.map((row) => <div className={styles.row} key={row[0]}>{row.map((cell,index) => index === 0 ? <strong key={cell}>{cell}</strong> : <span key={`${cell}-${index}`}>{cell}</span>)}</div>)}
+          </div>
+        </section>
+      </section>
+    </main>
+  );
+}
