@@ -1,0 +1,22 @@
+.brand,
+.auth-logo {
+  display:inline-block;
+  overflow:hidden;
+  width:178px;
+  height:44px;
+  background:url('/branding/fornexa-wordmark.svg') left center / contain no-repeat;
+  color:transparent;
+  font-size:0;
+  line-height:0;
+  white-space:nowrap;
+}
+
+.auth-logo {
+  width:220px;
+  height:54px;
+}
+
+@media (max-width:700px) {
+  .brand { width:142px; height:36px; }
+  .auth-logo { width:180px; height:44px; }
+}
