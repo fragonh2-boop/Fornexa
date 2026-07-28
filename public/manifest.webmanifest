@@ -1,0 +1,17 @@
+{
+  "name": "FORNEXA Supply Chain Suite",
+  "short_name": "FORNEXA",
+  "description": "Plataforma logística y TMS para operaciones de transporte.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07111f",
+  "theme_color": "#07111f",
+  "icons": [
+    {
+      "src": "/branding/fornexa-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
