@@ -56,20 +56,29 @@ export default function DashboardPage() {
           {metrics.map(([value, label, note]) => <article key={label}><div className={styles.metricTop}><span>{label}</span><strong>{note}</strong></div><b>{value}</b></article>)}
         </section>
 
-        <section className={styles.grid}>
-          <article className={`${styles.panel} ${styles.wide}`}>
-            <div className={styles.panelTitle}><div><p className={styles.eyebrow}>OPERATIVA</p><h2>Últimas expediciones</h2></div><Link href="/dashboard/expediciones" className={styles.textButton}>Ver todas</Link></div>
-            <div className={styles.table}><div className={`${styles.row} ${styles.head}`}><span>ID</span><span>Ruta</span><span>Partidas</span><span>Estado</span><span>Previsión</span></div>{shipments.map(([id, route, count, status, eta, statusClass]) => <div className={styles.row} key={id}><strong>{id}</strong><span>{route}</span><span>{count}</span><span className={`${styles.status} ${styles[statusClass]}`}>{status}</span><span>{eta}</span></div>)}</div>
+        <section className={styles.operationsGrid}>
+          <article className={styles.panel}>
+            <div className={styles.panelTitle}><div><p className={styles.eyebrow}>MIS PEDIDOS</p><h2>Últimas partidas</h2></div><Link href="/dashboard/partidas" className={styles.textButton}>Ver todas</Link></div>
+            <div className={styles.table}>
+              <div className={`${styles.row} ${styles.head}`}><span>ID</span><span>Cliente</span><span>Ruta</span><span>Estado</span></div>
+              {parts.map(([id, client, route, status]) => <div className={styles.rowFour} key={id}><strong>{id}</strong><span>{client}</span><span>{route}</span><span className={styles.itemState}>{status}</span></div>)}
+            </div>
           </article>
 
           <article className={styles.panel}>
-            <div className={styles.panelTitle}><div><p className={styles.eyebrow}>MIS PEDIDOS</p><h2>Últimas partidas</h2></div><Link href="/dashboard/partidas" className={styles.textButton}>Ver todas</Link></div>
-            <div className={styles.compactList}>{parts.map(([id, client, route, status]) => <div key={id}><strong>{id}</strong><span>{client}</span><small>{route} · {status}</small></div>)}</div>
+            <div className={styles.panelTitle}><div><p className={styles.eyebrow}>OPERATIVA</p><h2>Últimas expediciones</h2></div><Link href="/dashboard/expediciones" className={styles.textButton}>Ver todas</Link></div>
+            <div className={styles.table}>
+              <div className={`${styles.row} ${styles.head}`}><span>ID</span><span>Ruta</span><span>Partidas</span><span>Estado</span><span>Previsión</span></div>
+              {shipments.map(([id, route, count, status, eta, statusClass]) => <div className={styles.row} key={id}><strong>{id}</strong><span>{route}</span><span>{count}</span><span className={`${styles.status} ${styles[statusClass]}`}>{status}</span><span>{eta}</span></div>)}
+            </div>
           </article>
 
           <article className={styles.panel}>
             <div className={styles.panelTitle}><div><p className={styles.eyebrow}>TRANSPORTE</p><h2>Últimos viajes</h2></div><Link href="/dashboard/viajes" className={styles.textButton}>Ver todos</Link></div>
-            <div className={styles.compactList}>{trips.map(([id, exps, location, status]) => <div key={id}><strong>{id}</strong><span>{exps}</span><small>{location} · {status}</small></div>)}</div>
+            <div className={styles.table}>
+              <div className={`${styles.rowTrips} ${styles.head}`}><span>ID</span><span>Expediciones</span><span>Situación</span><span>Estado</span></div>
+              {trips.map(([id, exps, location, status]) => <div className={styles.rowTrips} key={id}><strong>{id}</strong><span>{exps}</span><span>{location}</span><span className={styles.itemState}>{status}</span></div>)}
+            </div>
           </article>
         </section>
       </section>
