@@ -1,42 +1,177 @@
 "use client";
+
 import Link from "next/link";
-import { FormEvent,useEffect,useMemo,useRef,useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { CreationType } from "./page";
-import { deliveryPoints,fullAddress,pickupPoints } from "./testPoints";
+import { deliveryPoints, fullAddress, pickupPoints } from "./testPoints";
 import styles from "./creation.module.css";
 
-type Partida={id:string;codigoCliente?:string;cliente:string;origen:string;destino:string;codigoOrigen?:string;codigoDestino?:string;direccionOrigen?:string;direccionDestino?:string;remitente?:string;destinatario?:string;bultos:string;peso:string;servicio:string;estado:string;expedicionId?:string};
-type Expedicion={id:string;origen:string;destino:string;servicio:string;fecha:string;partidas:string[];estado:string;viajeId?:string};
-type Viaje={id:string;fecha:string;vehiculo:string;conductor:string;expediciones:string[];estado:string};
-type Cliente={codigo:string;nombre:string};
+type Partida = {
+  id: string;
+  codigoCliente?: string;
+  cliente: string;
+  origen: string;
+  destino: string;
+  codigoOrigen?: string;
+  codigoDestino?: string;
+  direccionOrigen?: string;
+  direccionDestino?: string;
+  remitente?: string;
+  destinatario?: string;
+  bultos: string;
+  peso: string;
+  servicio: string;
+  estado: string;
+  expedicionId?: string;
+};
 
-const clientes:Cliente[]=[
-["10001","Bosch España"],["10002","Ford España"],["10003","Stadler Rail Valencia"],["10004","Power Electronics"],["10005","Porcelanosa Grupo"],["10006","Keraben Grupo"],["10007","Pamesa Cerámica"],["10008","Roca Corporación"],["10009","Gestamp"],["10010","CIE Automotive"],["10011","Ficosa"],["10012","Grupo Antolin"],["10013","Faurecia Automotive"],["10014","Michelin España"],["10015","Bridgestone Hispania"],["10016","Airbus España"],["10017","Navantia"],["10018","CAF"],["10019","Talgo"],["10020","Siemens Mobility"],["10021","Schneider Electric"],["10022","ABB España"],["10023","Saint-Gobain"],["10024","ArcelorMittal España"],["10025","Acerinox"],["10026","Celsa Group"],["10027","Sidenor"],["10028","Tubacex"],["10029","Repsol Química"],["10030","Cepsa Química"],["10031","BASF Española"],["10032","Bayer Hispania"],["10033","Henkel Ibérica"],["10034","Procter & Gamble España"],["10035","Unilever España"],["10036","Nestlé España"],["10037","Danone España"],["10038","Mahou San Miguel"],["10039","Heineken España"],["10040","Damm"],["10041","Campofrío"],["10042","El Pozo Alimentación"],["10043","Grupo Siro"],["10044","Gullón"],["10045","Mango Logística"],["10046","Inditex Logística"],["10047","Mercadona Logística"],["10048","Consum Cooperativa"],["10049","SPB Global"],["10050","Importaco"]
-].map(([codigo,nombre])=>({codigo,nombre}));
+type Expedicion = { id: string; origen: string; destino: string; servicio: string; fecha: string; partidas: string[]; estado: string; viajeId?: string };
+type Viaje = { id: string; fecha: string; vehiculo: string; conductor: string; expediciones: string[]; estado: string };
+type Cliente = { codigo: string; nombre: string };
 
-const demoPartidas:Partida[]=[{id:"PT-260184",codigoCliente:"10001",cliente:"Bosch España",origen:"Valencia",destino:"Lyon",bultos:"2 palets",peso:"840",servicio:"Grupaje",estado:"Preparada"},{id:"PT-260183",codigoCliente:"10005",cliente:"Porcelanosa Grupo",origen:"Barcelona",destino:"Marseille",bultos:"4 palets",peso:"1240",servicio:"LTL",estado:"Preparada"}];
-const demoExpediciones:Expedicion[]=[{id:"EX-260071",origen:"Valencia",destino:"Lyon",servicio:"Grupaje",fecha:"2026-07-30",partidas:["PT-260184"],estado:"Planificada"}];
-const nav=[["Control Tower","/dashboard"],["Partidas","/dashboard/partidas"],["Expediciones","/dashboard/expediciones"],["Viajes","/dashboard/viajes"],["Ofertas y tarifas","/dashboard/ofertas-tarifas"],["Clientes","/dashboard/clientes"],["Colaboradores","/dashboard/colaboradores"],["Almacenes","/dashboard/almacenes"],["Tracking","/dashboard/tracking"],["ePOD & CMR","/dashboard/epod-cmr"],["Informes","/dashboard/informes"]] as const;
-function readStore<T>(key:string,fallback:T):T{try{const v=localStorage.getItem(key);return v?JSON.parse(v):fallback}catch{return fallback}}
-function nextId(prefix:string,n:number){return `${prefix}-${String(n).slice(-6)}`}
-function iso(d:Date){return d.toISOString().slice(0,10)}
-function validDateParts(day:number,month:number,year:number){const d=new Date(year,month-1,day);return d.getFullYear()===year&&d.getMonth()===month-1&&d.getDate()===day}
-function toIsoDate(day:number,month:number,year:number){return validDateParts(day,month,year)?`${String(year).padStart(4,"0")}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`:""}
-function parseSmartDate(raw:string){const v=raw.trim().toLowerCase();if(!v)return "";const d=new Date();d.setHours(12,0,0,0);if(v==="h"||v==="hoy")return iso(d);const rel=v.match(/^([+-])(\d+)$/);if(rel){d.setDate(d.getDate()+(rel[1]==="+"?1:-1)*Number(rel[2]));return iso(d)}const isoMatch=v.match(/^(\d{4})-(\d{2})-(\d{2})$/);if(isoMatch)return toIsoDate(Number(isoMatch[3]),Number(isoMatch[2]),Number(isoMatch[1]));const compact6=v.match(/^(\d{2})(\d{2})(\d{2})$/);if(compact6)return toIsoDate(Number(compact6[1]),Number(compact6[2]),2000+Number(compact6[3]));const compact8=v.match(/^(\d{2})(\d{2})(\d{4})$/);if(compact8)return toIsoDate(Number(compact8[1]),Number(compact8[2]),Number(compact8[3]));const slash=v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);if(slash){const year=slash[3].length===2?2000+Number(slash[3]):Number(slash[3]);return toIsoDate(Number(slash[1]),Number(slash[2]),year)}return ""}
-function SmartDate({name,label,required=false}:{name:string;label:string;required?:boolean}){const [value,setValue]=useState("");const [error,setError]=useState("");function normalize(){if(!value.trim()){setError("");return}const parsed=parseSmartDate(value);if(parsed){setValue(parsed);setError("")}else setError("Fecha no válida")}return <label>{label}<input name={name} required={required} value={value} placeholder="010226, 01/02/2026, h, +n o -n" onChange={e=>{setValue(e.target.value);setError("")}} onBlur={normalize} aria-invalid={Boolean(error)}/>{error&&<small role="alert">{error}</small>}</label>}
-function Combo({name,label,options,shortcut}:{name:string;label:string;options:string[];shortcut:string}){const ref=useRef<HTMLSelectElement>(null);useEffect(()=>{const fn=(e:KeyboardEvent)=>{if(e.altKey&&e.key.toLowerCase()===shortcut.toLowerCase()){e.preventDefault();ref.current?.focus()}};window.addEventListener("keydown",fn);return()=>window.removeEventListener("keydown",fn)},[shortcut]);return <label>{label} <small>(Alt+{shortcut.toUpperCase()})</small><select ref={ref} name={name} accessKey={shortcut}>{options.map(x=><option key={x}>{x}</option>)}</select></label>}
+const clientes: Cliente[] = pickupPoints.map((point) => ({
+  codigo: point.customerCode ?? point.code,
+  nombre: point.name.replace(" · Sede / planta principal", ""),
+}));
 
-export default function CreationForm({type}:{type:CreationType}){
-const [partidas,setPartidas]=useState<Partida[]>([]),[expediciones,setExpediciones]=useState<Expedicion[]>([]),[viajes,setViajes]=useState<Viaje[]>([]),[selected,setSelected]=useState<string[]>([]),[message,setMessage]=useState("");
-const [codigo,setCodigo]=useState(""),[cliente,setCliente]=useState(""),[remitente,setRemitente]=useState("");
-const [codigoOrigen,setCodigoOrigen]=useState(""),[direccionOrigen,setDireccionOrigen]=useState(""),[codigoDestino,setCodigoDestino]=useState(""),[direccionDestino,setDireccionDestino]=useState("");
-useEffect(()=>{setPartidas(readStore("fornexa-partidas",demoPartidas));setExpediciones(readStore("fornexa-expediciones",demoExpediciones));setViajes(readStore("fornexa-viajes",[]));localStorage.setItem("fornexa-clientes",JSON.stringify(clientes));localStorage.setItem("fornexa-puntos-recogida",JSON.stringify(pickupPoints));localStorage.setItem("fornexa-puntos-entrega",JSON.stringify(deliveryPoints))},[]);
-useEffect(()=>{const matches=clientes.filter(c=>c.codigo.startsWith(codigo));if(matches.length===1){setCodigo(matches[0].codigo);setCliente(matches[0].nombre);setRemitente(matches[0].codigo)}},[codigo]);
-function selectPickup(raw:string){setCodigoOrigen(raw);const p=pickupPoints.find(x=>x.code===raw);if(p){setDireccionOrigen(fullAddress(p));if(p.customerCode&&!codigo){setCodigo(p.customerCode);setRemitente(p.customerCode)}}}
-function selectDelivery(raw:string){setCodigoDestino(raw);const p=deliveryPoints.find(x=>x.code===raw);if(p)setDireccionDestino(fullAddress(p))}
-const availablePartidas=useMemo(()=>partidas.filter(p=>!p.expedicionId),[partidas]),availableExpediciones=useMemo(()=>expediciones.filter(e=>!e.viajeId),[expediciones]);
-const config=type==="partida"?{eyebrow:"PEDIDO DE CLIENTE",title:"Nueva partida",help:"Alta rápida orientada a teclado. Tab avanza por campos.",back:"/dashboard/partidas"}:type==="expedicion"?{eyebrow:"CONSOLIDACIÓN",title:"Nueva expedición",help:"Selecciona partidas disponibles.",back:"/dashboard/expediciones"}:{eyebrow:"PLANIFICACIÓN",title:"Nuevo viaje",help:"Selecciona expediciones; nunca partidas sueltas.",back:"/dashboard/viajes"};
-function toggle(id:string){setSelected(v=>v.includes(id)?v.filter(x=>x!==id):[...v,id])}
-function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();const fd=new FormData(e.currentTarget);if(type==="partida"){if(!direccionOrigen.trim()||!direccionDestino.trim())return setMessage("Las direcciones de recogida y entrega son obligatorias, aunque no se utilice un código maestro.");const pickup=pickupPoints.find(p=>p.code===codigoOrigen),delivery=deliveryPoints.find(p=>p.code===codigoDestino);const item:Partida={id:nextId("PT",Date.now()),codigoCliente:String(fd.get("codigoCliente")||""),cliente:String(fd.get("cliente")||""),codigoOrigen,codigoDestino,direccionOrigen,direccionDestino,remitente:String(fd.get("remitente")||""),destinatario:String(fd.get("destinatario")||""),origen:pickup?`${pickup.code} · ${pickup.city}`:direccionOrigen,destino:delivery?`${delivery.code} · ${delivery.city}`:direccionDestino,bultos:String(fd.get("bultos")||""),peso:String(fd.get("peso")||""),servicio:String(fd.get("servicio")||"Varios"),estado:"Preparada"};const n=[item,...partidas];setPartidas(n);localStorage.setItem("fornexa-partidas",JSON.stringify(n));setMessage(`Partida ${item.id} creada.`);return}if(type==="expedicion"){if(!selected.length)return setMessage("Selecciona al menos una partida.");const chosen=partidas.filter(p=>selected.includes(p.id));const item:Expedicion={id:nextId("EX",Date.now()),origen:String(fd.get("origen")||chosen[0]?.origen||""),destino:String(fd.get("destino")||chosen[0]?.destino||""),servicio:String(fd.get("servicio")||"Varios"),fecha:parseSmartDate(String(fd.get("fecha")||"")),partidas:selected,estado:"Planificada"};const ne=[item,...expediciones],np=partidas.map(p=>selected.includes(p.id)?{...p,expedicionId:item.id,estado:"Asignada"}:p);setExpediciones(ne);setPartidas(np);localStorage.setItem("fornexa-expediciones",JSON.stringify(ne));localStorage.setItem("fornexa-partidas",JSON.stringify(np));setMessage(`Expedición ${item.id} creada.`);return}if(!selected.length)return setMessage("Selecciona al menos una expedición.");const item:Viaje={id:nextId("VJ",Date.now()),fecha:parseSmartDate(String(fd.get("fecha")||"")),vehiculo:String(fd.get("vehiculo")||""),conductor:String(fd.get("conductor")||""),expediciones:selected,estado:"Planificado"};const nv=[item,...viajes],ne=expediciones.map(x=>selected.includes(x.id)?{...x,viajeId:item.id,estado:"Asignada a viaje"}:x);setViajes(nv);setExpediciones(ne);localStorage.setItem("fornexa-viajes",JSON.stringify(nv));localStorage.setItem("fornexa-expediciones",JSON.stringify(ne));setMessage(`Viaje ${item.id} creado.`)}
-const selector=type==="expedicion"?availablePartidas:availableExpediciones;
-return <main className={styles.shell}><aside className={styles.sidebar}><Link href="/dashboard" className={styles.brand}>FORNEXA</Link><nav className={styles.nav}>{nav.map(([l,h])=><Link key={h} href={h}>{l}</Link>)}</nav></aside><section className={styles.content}><header className={styles.header}><div><p>{config.eyebrow}</p><h1>{config.title}</h1><span>{config.help}</span></div><Link href={config.back}>Cancelar</Link></header><form className={styles.form} onSubmit={submit}>{type==="partida"?<><section className={styles.card}><h2>Cliente y servicio</h2><div className={styles.grid}><label>Código cliente<input autoFocus name="codigoCliente" value={codigo} onChange={e=>setCodigo(e.target.value.replace(/\D/g,""))} placeholder="Código" list="clientes-codigo" required/></label><label>Cliente<input name="cliente" value={cliente} onChange={e=>{setCliente(e.target.value);const m=clientes.filter(c=>c.nombre.toLowerCase().startsWith(e.target.value.toLowerCase()));if(m.length===1){setCodigo(m[0].codigo);setRemitente(m[0].codigo)}}} list="clientes-nombre" required/></label><datalist id="clientes-codigo">{clientes.map(c=><option key={c.codigo} value={c.codigo}>{c.nombre}</option>)}</datalist><datalist id="clientes-nombre">{clientes.map(c=><option key={c.codigo} value={c.nombre}>{c.codigo}</option>)}</datalist><label>Referencia cliente<input name="referencia" placeholder="Pedido / referencia"/></label><Combo name="servicio" label="Servicio" shortcut="s" options={["Grupaje","LTL","Carga completa","Paquetería","Directo","Varios"]}/><SmartDate name="fecha" label="Fecha prevista"/></div></section><section className={styles.card}><h2>Ruta</h2><div className={styles.grid}><label>Código punto de recogida<input name="codigoOrigen" value={codigoOrigen} onChange={e=>selectPickup(e.target.value.toUpperCase())} list="puntos-recogida" placeholder="REC-001"/></label><label>Código punto de entrega<input name="codigoDestino" value={codigoDestino} onChange={e=>selectDelivery(e.target.value.toUpperCase())} list="puntos-entrega" placeholder="ENT-001"/></label><datalist id="puntos-recogida">{pickupPoints.map(p=><option key={p.code} value={p.code}>{p.name} · {p.city}</option>)}</datalist><datalist id="puntos-entrega">{deliveryPoints.map(p=><option key={p.code} value={p.code}>{p.name} · {p.city}</option>)}</datalist><label>Dirección de recogida<input name="direccionOrigen" value={direccionOrigen} onChange={e=>setDireccionOrigen(e.target.value)} required placeholder="Obligatoria si no hay código"/></label><label>Dirección de entrega<input name="direccionDestino" value={direccionDestino} onChange={e=>setDireccionDestino(e.target.value)} required placeholder="Obligatoria si no hay código"/></label><label>Remitente<input name="remitente" value={remitente} onChange={e=>setRemitente(e.target.value)} placeholder="Código cliente editable"/></label><label>Destinatario<input name="destinatario" placeholder="Código o nombre del destinatario"/></label></div></section><section className={styles.card}><h2>Mercancía</h2><div className={styles.grid}><label>Bultos / embalaje<input name="bultos" required/></label><label>Peso total (kg)<input name="peso" type="number" min="0" required/></label><label>Volumen (m³)<input name="volumen" type="number" min="0" step="0.01"/></label><label>Metros lineales<input name="metros" type="number" min="0" step="0.01"/></label></div></section></>:<><section className={styles.card}><h2>{type==="expedicion"?"Planificación de la expedición":"Datos del viaje"}</h2><div className={styles.grid}>{type==="expedicion"?<><label>Origen<input name="origen"/></label><label>Destino<input name="destino"/></label><Combo name="servicio" label="Servicio" shortcut="s" options={["Grupaje","LTL","Carga completa","Directo","Varios"]}/><SmartDate name="fecha" label="Fecha de salida" required/></>:<><SmartDate name="fecha" label="Fecha de salida" required/><label>Vehículo / matrícula<input name="vehiculo" required/></label><label>Conductor<input name="conductor" required/></label><Combo name="tipoVehiculo" label="Tipo de vehículo" shortcut="v" options={["Tráiler","Rígido","Furgón","Camión con plataforma","Varios"]}/></>}</div></section><section className={styles.card}><h2>{type==="expedicion"?"Partidas disponibles":"Expediciones disponibles"}</h2><div className={styles.selector}>{selector.map((x:any)=><label key={x.id}><input type="checkbox" checked={selected.includes(x.id)} onChange={()=>toggle(x.id)}/><div><b>{x.id}</b><span>{type==="expedicion"?`${x.cliente} · ${x.origen} → ${x.destino}`:`${x.origen} → ${x.destino}`}</span></div></label>)}</div></section></>}{message&&<p className={styles.message}>{message}</p>}<div className={styles.submitBar}><Link href={config.back}>Volver</Link><button type="submit">Guardar {type}</button></div></form></section></main>}
+const demoPartidas: Partida[] = [
+  { id: "PT-260184", codigoCliente: "10001", cliente: "Bosch España", origen: "Valencia", destino: "Lyon", bultos: "2 palets", peso: "840", servicio: "Grupaje", estado: "Preparada" },
+  { id: "PT-260183", codigoCliente: "10005", cliente: "Porcelanosa Grupo", origen: "Barcelona", destino: "Marseille", bultos: "4 palets", peso: "1240", servicio: "LTL", estado: "Preparada" },
+];
+const demoExpediciones: Expedicion[] = [{ id: "EX-260071", origen: "Valencia", destino: "Lyon", servicio: "Grupaje", fecha: "2026-07-30", partidas: ["PT-260184"], estado: "Planificada" }];
+const nav = [["Control Tower", "/dashboard"], ["Partidas", "/dashboard/partidas"], ["Expediciones", "/dashboard/expediciones"], ["Viajes", "/dashboard/viajes"], ["Ofertas y tarifas", "/dashboard/ofertas-tarifas"], ["Clientes", "/dashboard/clientes"], ["Colaboradores", "/dashboard/colaboradores"], ["Almacenes", "/dashboard/almacenes"], ["Tracking", "/dashboard/tracking"], ["ePOD & CMR", "/dashboard/epod-cmr"], ["Informes", "/dashboard/informes"]] as const;
+
+function readStore<T>(key: string, fallback: T): T { try { const value = localStorage.getItem(key); return value ? JSON.parse(value) : fallback; } catch { return fallback; } }
+function nextId(prefix: string, value: number) { return `${prefix}-${String(value).slice(-6)}`; }
+function iso(date: Date) { return date.toISOString().slice(0, 10); }
+function validDateParts(day: number, month: number, year: number) { const date = new Date(year, month - 1, day); return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day; }
+function toIsoDate(day: number, month: number, year: number) { return validDateParts(day, month, year) ? `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}` : ""; }
+function parseSmartDate(raw: string) {
+  const value = raw.trim().toLowerCase();
+  if (!value) return "";
+  const date = new Date(); date.setHours(12, 0, 0, 0);
+  if (value === "h" || value === "hoy") return iso(date);
+  const relative = value.match(/^([+-])(\d+)$/);
+  if (relative) { date.setDate(date.getDate() + (relative[1] === "+" ? 1 : -1) * Number(relative[2])); return iso(date); }
+  const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) return toIsoDate(Number(isoMatch[3]), Number(isoMatch[2]), Number(isoMatch[1]));
+  const compact6 = value.match(/^(\d{2})(\d{2})(\d{2})$/);
+  if (compact6) return toIsoDate(Number(compact6[1]), Number(compact6[2]), 2000 + Number(compact6[3]));
+  const compact8 = value.match(/^(\d{2})(\d{2})(\d{4})$/);
+  if (compact8) return toIsoDate(Number(compact8[1]), Number(compact8[2]), Number(compact8[3]));
+  const slash = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+  if (slash) return toIsoDate(Number(slash[1]), Number(slash[2]), slash[3].length === 2 ? 2000 + Number(slash[3]) : Number(slash[3]));
+  return "";
+}
+
+function SmartDate({ name, label, required = false }: { name: string; label: string; required?: boolean }) {
+  const [value, setValue] = useState("");
+  const [error, setError] = useState("");
+  function normalize() { if (!value.trim()) { setError(""); return; } const parsed = parseSmartDate(value); if (parsed) { setValue(parsed); setError(""); } else setError("Fecha no válida"); }
+  return <label>{label}<input name={name} required={required} value={value} placeholder="010226, 01/02/2026, h, +n o -n" onChange={(event) => { setValue(event.target.value); setError(""); }} onBlur={normalize} aria-invalid={Boolean(error)} />{error && <small role="alert">{error}</small>}</label>;
+}
+
+function Combo({ name, label, options, shortcut }: { name: string; label: string; options: string[]; shortcut: string }) {
+  const ref = useRef<HTMLSelectElement>(null);
+  useEffect(() => { const listener = (event: KeyboardEvent) => { if (event.altKey && event.key.toLowerCase() === shortcut.toLowerCase()) { event.preventDefault(); ref.current?.focus(); } }; window.addEventListener("keydown", listener); return () => window.removeEventListener("keydown", listener); }, [shortcut]);
+  return <label>{label} <small>(Alt+{shortcut.toUpperCase()})</small><select ref={ref} name={name} accessKey={shortcut}>{options.map((option) => <option key={option}>{option}</option>)}</select></label>;
+}
+
+export default function CreationForm({ type }: { type: CreationType }) {
+  const [partidas, setPartidas] = useState<Partida[]>([]);
+  const [expediciones, setExpediciones] = useState<Expedicion[]>([]);
+  const [viajes, setViajes] = useState<Viaje[]>([]);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [message, setMessage] = useState("");
+  const [codigo, setCodigo] = useState("");
+  const [cliente, setCliente] = useState("");
+  const [remitente, setRemitente] = useState("");
+  const [destinatario, setDestinatario] = useState("");
+  const [codigoOrigen, setCodigoOrigen] = useState("");
+  const [direccionOrigen, setDireccionOrigen] = useState("");
+  const [codigoDestino, setCodigoDestino] = useState("");
+  const [direccionDestino, setDireccionDestino] = useState("");
+
+  const pickupSelected = pickupPoints.find((point) => point.code === codigoOrigen);
+  const deliverySelected = deliveryPoints.find((point) => point.code === codigoDestino);
+
+  useEffect(() => {
+    setPartidas(readStore("fornexa-partidas", demoPartidas));
+    setExpediciones(readStore("fornexa-expediciones", demoExpediciones));
+    setViajes(readStore("fornexa-viajes", []));
+    localStorage.setItem("fornexa-clientes", JSON.stringify(clientes));
+    localStorage.setItem("fornexa-puntos-recogida", JSON.stringify(pickupPoints));
+    localStorage.setItem("fornexa-puntos-entrega", JSON.stringify(deliveryPoints));
+  }, []);
+
+  useEffect(() => {
+    const matches = clientes.filter((item) => item.codigo.startsWith(codigo));
+    if (matches.length === 1) { setCodigo(matches[0].codigo); setCliente(matches[0].nombre); if (!pickupSelected) setRemitente(matches[0].codigo); }
+  }, [codigo, pickupSelected]);
+
+  function selectPickup(raw: string) {
+    const value = raw.toUpperCase();
+    setCodigoOrigen(value);
+    const point = pickupPoints.find((item) => item.code === value);
+    if (point) {
+      setDireccionOrigen(fullAddress(point));
+      setRemitente(point.customerCode ?? point.code);
+      setMessage(`El remitente queda vinculado al punto de recogida ${point.code}. Para cambiarlo, selecciona otro punto de recogida.`);
+    } else {
+      setRemitente(codigo);
+    }
+  }
+
+  function selectDelivery(raw: string) {
+    const value = raw.toUpperCase();
+    setCodigoDestino(value);
+    const point = deliveryPoints.find((item) => item.code === value);
+    if (point) {
+      setDireccionDestino(fullAddress(point));
+      setDestinatario(point.customerCode ?? point.code);
+      setMessage(`El destinatario queda vinculado al punto de entrega ${point.code}. Para cambiarlo, selecciona otro punto de entrega.`);
+    } else {
+      setDestinatario("");
+    }
+  }
+
+  function warnLocked(kind: "remitente" | "destinatario") {
+    const code = kind === "remitente" ? pickupSelected?.code : deliverySelected?.code;
+    if (code) setMessage(`No se puede modificar el ${kind}: existe el código de punto ${code}. Cambia el código de punto para usar otro ${kind}.`);
+  }
+
+  const availablePartidas = useMemo(() => partidas.filter((item) => !item.expedicionId), [partidas]);
+  const availableExpediciones = useMemo(() => expediciones.filter((item) => !item.viajeId), [expediciones]);
+  const config = type === "partida" ? { eyebrow: "PEDIDO DE CLIENTE", title: "Nueva partida", help: "Alta rápida orientada a teclado. Tab avanza por campos.", back: "/dashboard/partidas" } : type === "expedicion" ? { eyebrow: "CONSOLIDACIÓN", title: "Nueva expedición", help: "Selecciona partidas disponibles.", back: "/dashboard/expediciones" } : { eyebrow: "PLANIFICACIÓN", title: "Nuevo viaje", help: "Selecciona expediciones; nunca partidas sueltas.", back: "/dashboard/viajes" };
+
+  function toggle(id: string) { setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]); }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    if (type === "partida") {
+      if (!direccionOrigen.trim() || !direccionDestino.trim()) return setMessage("Las direcciones de recogida y entrega son obligatorias, aunque no se utilice un código maestro.");
+      const pickup = pickupPoints.find((point) => point.code === codigoOrigen);
+      const delivery = deliveryPoints.find((point) => point.code === codigoDestino);
+      const item: Partida = { id: nextId("PT", Date.now()), codigoCliente: String(data.get("codigoCliente") || ""), cliente: String(data.get("cliente") || ""), codigoOrigen, codigoDestino, direccionOrigen, direccionDestino, remitente, destinatario, origen: pickup ? `${pickup.code} · ${pickup.city}` : direccionOrigen, destino: delivery ? `${delivery.code} · ${delivery.city}` : direccionDestino, bultos: String(data.get("bultos") || ""), peso: String(data.get("peso") || ""), servicio: String(data.get("servicio") || "Varios"), estado: "Preparada" };
+      const updated = [item, ...partidas]; setPartidas(updated); localStorage.setItem("fornexa-partidas", JSON.stringify(updated)); setMessage(`Partida ${item.id} creada.`); return;
+    }
+    if (type === "expedicion") {
+      if (!selected.length) return setMessage("Selecciona al menos una partida.");
+      const chosen = partidas.filter((item) => selected.includes(item.id));
+      const item: Expedicion = { id: nextId("EX", Date.now()), origen: String(data.get("origen") || chosen[0]?.origen || ""), destino: String(data.get("destino") || chosen[0]?.destino || ""), servicio: String(data.get("servicio") || "Varios"), fecha: parseSmartDate(String(data.get("fecha") || "")), partidas: selected, estado: "Planificada" };
+      const updatedExpediciones = [item, ...expediciones];
+      const updatedPartidas = partidas.map((partida) => selected.includes(partida.id) ? { ...partida, expedicionId: item.id, estado: "Asignada" } : partida);
+      setExpediciones(updatedExpediciones); setPartidas(updatedPartidas); localStorage.setItem("fornexa-expediciones", JSON.stringify(updatedExpediciones)); localStorage.setItem("fornexa-partidas", JSON.stringify(updatedPartidas)); setMessage(`Expedición ${item.id} creada.`); return;
+    }
+    if (!selected.length) return setMessage("Selecciona al menos una expedición.");
+    const item: Viaje = { id: nextId("VJ", Date.now()), fecha: parseSmartDate(String(data.get("fecha") || "")), vehiculo: String(data.get("vehiculo") || ""), conductor: String(data.get("conductor") || ""), expediciones: selected, estado: "Planificado" };
+    const updatedViajes = [item, ...viajes];
+    const updatedExpediciones = expediciones.map((expedicion) => selected.includes(expedicion.id) ? { ...expedicion, viajeId: item.id, estado: "Asignada a viaje" } : expedicion);
+    setViajes(updatedViajes); setExpediciones(updatedExpediciones); localStorage.setItem("fornexa-viajes", JSON.stringify(updatedViajes)); localStorage.setItem("fornexa-expediciones", JSON.stringify(updatedExpediciones)); setMessage(`Viaje ${item.id} creado.`);
+  }
+
+  const selector = type === "expedicion" ? availablePartidas : availableExpediciones;
+
+  return <main className={styles.shell}><aside className={styles.sidebar}><Link href="/dashboard" className={styles.brand}>FORNEXA</Link><nav className={styles.nav}>{nav.map(([label, href]) => <Link key={href} href={href}>{label}</Link>)}</nav></aside><section className={styles.content}><header className={styles.header}><div><p>{config.eyebrow}</p><h1>{config.title}</h1><span>{config.help}</span></div><Link href={config.back}>Cancelar</Link></header><form className={styles.form} onSubmit={submit}>{type === "partida" ? <><section className={styles.card}><h2>Cliente y servicio</h2><div className={styles.grid}><label>Código cliente<input autoFocus name="codigoCliente" value={codigo} onChange={(event) => setCodigo(event.target.value.replace(/\D/g, ""))} placeholder="Código" list="clientes-codigo" required /></label><label>Cliente<input name="cliente" value={cliente} onChange={(event) => { setCliente(event.target.value); const matches = clientes.filter((item) => item.nombre.toLowerCase().startsWith(event.target.value.toLowerCase())); if (matches.length === 1) setCodigo(matches[0].codigo); }} list="clientes-nombre" required /></label><datalist id="clientes-codigo">{clientes.map((item) => <option key={item.codigo} value={item.codigo}>{item.nombre}</option>)}</datalist><datalist id="clientes-nombre">{clientes.map((item) => <option key={item.codigo} value={item.nombre}>{item.codigo}</option>)}</datalist><label>Referencia cliente<input name="referencia" placeholder="Pedido / referencia" /></label><Combo name="servicio" label="Servicio" shortcut="s" options={["Grupaje", "LTL", "Carga completa", "Paquetería", "Directo", "Varios"]} /><SmartDate name="fecha" label="Fecha prevista" /></div></section><section className={styles.card}><h2>Ruta</h2><div className={styles.grid}><label>Código punto de recogida<input name="codigoOrigen" value={codigoOrigen} onChange={(event) => selectPickup(event.target.value)} list="puntos-recogida" placeholder="REC-001" /></label><label>Código punto de entrega<input name="codigoDestino" value={codigoDestino} onChange={(event) => selectDelivery(event.target.value)} list="puntos-entrega" placeholder="ENT-001" /></label><datalist id="puntos-recogida">{pickupPoints.map((point) => <option key={point.code} value={point.code}>{point.name} · {point.city}</option>)}</datalist><datalist id="puntos-entrega">{deliveryPoints.map((point) => <option key={point.code} value={point.code}>{point.name} · {point.city}</option>)}</datalist><label>Dirección de recogida<input name="direccionOrigen" value={direccionOrigen} onChange={(event) => setDireccionOrigen(event.target.value)} readOnly={Boolean(pickupSelected)} required placeholder="Obligatoria si no hay código" /></label><label>Dirección de entrega<input name="direccionDestino" value={direccionDestino} onChange={(event) => setDireccionDestino(event.target.value)} readOnly={Boolean(deliverySelected)} required placeholder="Obligatoria si no hay código" /></label><label>Remitente<input name="remitente" value={remitente} readOnly={Boolean(pickupSelected)} onClick={() => warnLocked("remitente")} onKeyDown={() => warnLocked("remitente")} onChange={(event) => setRemitente(event.target.value)} placeholder="Código cliente editable" />{pickupSelected && <small>Vinculado a {pickupSelected.code}; no editable.</small>}</label><label>Destinatario<input name="destinatario" value={destinatario} readOnly={Boolean(deliverySelected)} onClick={() => warnLocked("destinatario")} onKeyDown={() => warnLocked("destinatario")} onChange={(event) => setDestinatario(event.target.value)} placeholder="Código o nombre del destinatario" />{deliverySelected && <small>Vinculado a {deliverySelected.code}; no editable.</small>}</label></div></section><section className={styles.card}><h2>Mercancía</h2><div className={styles.grid}><label>Bultos / embalaje<input name="bultos" required /></label><label>Peso total (kg)<input name="peso" type="number" min="0" required /></label><label>Volumen (m³)<input name="volumen" type="number" min="0" step="0.01" /></label><label>Metros lineales<input name="metros" type="number" min="0" step="0.01" /></label></div></section></> : <><section className={styles.card}><h2>{type === "expedicion" ? "Planificación de la expedición" : "Datos del viaje"}</h2><div className={styles.grid}>{type === "expedicion" ? <><label>Origen<input name="origen" /></label><label>Destino<input name="destino" /></label><Combo name="servicio" label="Servicio" shortcut="s" options={["Grupaje", "LTL", "Carga completa", "Directo", "Varios"]} /><SmartDate name="fecha" label="Fecha de salida" required /></> : <><SmartDate name="fecha" label="Fecha de salida" required /><label>Vehículo / matrícula<input name="vehiculo" required /></label><label>Conductor<input name="conductor" required /></label><Combo name="tipoVehiculo" label="Tipo de vehículo" shortcut="v" options={["Tráiler", "Rígido", "Furgón", "Camión con plataforma", "Varios"]} /></>}</div></section><section className={styles.card}><h2>{type === "expedicion" ? "Partidas disponibles" : "Expediciones disponibles"}</h2><div className={styles.selector}>{selector.map((item: any) => <label key={item.id}><input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggle(item.id)} /><div><b>{item.id}</b><span>{type === "expedicion" ? `${item.cliente} · ${item.origen} → ${item.destino}` : `${item.origen} → ${item.destino}`}</span></div></label>)}</div></section></>}{message && <p className={styles.message}>{message}</p>}<div className={styles.submitBar}><Link href={config.back}>Volver</Link><button type="submit">Guardar {type}</button></div></form></section></main>;
+}
