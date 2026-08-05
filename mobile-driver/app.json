@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "FORNEXA Driver",
+    "slug": "fornexa-driver",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "android": {
+      "package": "com.fornexa.driver",
+      "permissions": ["CAMERA", "ACCESS_FINE_LOCATION", "READ_MEDIA_IMAGES"]
+    },
+    "plugins": [
+      ["expo-camera", {"cameraPermission": "FORNEXA Driver necesita la cámara para escanear QR y documentar recogidas y entregas."}],
+      ["expo-image-picker", {"photosPermission": "FORNEXA Driver necesita acceso a las fotos para adjuntar evidencias."}],
+      ["expo-location", {"locationWhenInUsePermission": "FORNEXA Driver usa la ubicación para registrar evidencias operativas."}]
+    ]
+  }
+}
