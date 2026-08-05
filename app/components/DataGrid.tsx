@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./DataGrid.module.css";
 
 export type GridColumn = { key: string; label: string };
@@ -35,9 +35,11 @@ export default function DataGrid({ storageKey, columns, rows, rowHrefs, searchPl
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortState>(null);
   const [filters, setFilters] = useState<Record<string, string>>({});
+  const [filterDraft, setFilterDraft] = useState("");
   const [visible, setVisible] = useState<string[]>(columns.map(column => column.key));
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [filterOpen, setFilterOpen] = useState<string | null>(null);
+  const filterMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     try {
@@ -53,7 +55,17 @@ export default function DataGrid({ storageKey, columns, rows, rowHrefs, searchPl
     try { localStorage.setItem(`fornexa-grid-${storageKey}`, JSON.stringify({ visible })); } catch {}
   }, [storageKey, visible]);
 
+  useEffect(() => {
+    function closeOnOutsideClick(event: MouseEvent) {
+      if (filterOpen && filterMenuRef.current && !filterMenuRef.current.contains(event.target as Node)) setFilterOpen(null);
+    }
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    return () => document.removeEventListener("mousedown", closeOnOutsideClick);
+  }, [filterOpen]);
+
   const visibleColumns = columns.filter(column => visible.includes(column.key));
+  const activeFilters = Object.entries(filters).filter(([, value]) => value.trim());
+
   const processed = useMemo(() => {
     const global = query.trim().toLocaleLowerCase("es-ES");
     const result = rows.map((row, index) => ({ row, index })).filter(({ row }) => {
@@ -66,6 +78,27 @@ export default function DataGrid({ storageKey, columns, rows, rowHrefs, searchPl
 
   function toggleSort(key: string) {
     setSort(current => current?.key === key ? { key, direction: current.direction === "asc" ? "desc" : "asc" } : { key, direction: "asc" });
+  }
+
+  function openFilter(key: string) {
+    if (filterOpen === key) {
+      setFilterOpen(null);
+      return;
+    }
+    setFilterDraft(filters[key] ?? "");
+    setFilterOpen(key);
+    setColumnsOpen(false);
+  }
+
+  function applyFilter(key: string) {
+    setFilters(current => ({ ...current, [key]: filterDraft.trim() }));
+    setFilterOpen(null);
+  }
+
+  function clearFilter(key: string) {
+    setFilters(current => ({ ...current, [key]: "" }));
+    setFilterDraft("");
+    setFilterOpen(null);
   }
 
   function toggleColumn(key: string) {
@@ -88,25 +121,57 @@ export default function DataGrid({ storageKey, columns, rows, rowHrefs, searchPl
     <div className={styles.toolbar}>
       <input value={query} onChange={event => setQuery(event.target.value)} placeholder={searchPlaceholder} />
       <div className={styles.menuWrap}>
-        <button type="button" className={styles.secondary} onClick={() => setColumnsOpen(open => !open)}>⚙ Columnas</button>
+        <button type="button" className={styles.secondary} onClick={() => { setColumnsOpen(open => !open); setFilterOpen(null); }}>⚙ Columnas</button>
         {columnsOpen && <div className={styles.columnsMenu}>
           <strong>Personalizar vista</strong>
           {columns.map(column => <label key={column.key}><input type="checkbox" checked={visible.includes(column.key)} onChange={() => toggleColumn(column.key)} />{column.label}</label>)}
           <button type="button" onClick={() => setVisible(columns.map(column => column.key))}>Restablecer</button>
         </div>}
       </div>
-      <button type="button" className={styles.secondary} onClick={() => { setQuery(""); setFilters({}); setSort(null); }}>Limpiar filtros</button>
+      <button type="button" className={styles.secondary} onClick={() => { setQuery(""); setFilters({}); setSort(null); setFilterOpen(null); }}>Limpiar filtros</button>
       <button type="button" className={styles.export} onClick={exportCsv}>Exportar</button>
       <span className={styles.count}>{processed.length} resultado{processed.length === 1 ? "" : "s"}</span>
     </div>
+
+    {activeFilters.length > 0 && <div className={styles.activeFilters} aria-label="Filtros activos">
+      <span className={styles.activeFiltersLabel}>Filtros activos</span>
+      {activeFilters.map(([key, value]) => {
+        const column = columns.find(item => item.key === key);
+        return <button type="button" key={key} className={styles.filterChip} onClick={() => clearFilter(key)} title="Quitar filtro">
+          <span>{column?.label ?? key}: <strong>{value}</strong></span><b>×</b>
+        </button>;
+      })}
+      <button type="button" className={styles.clearAll} onClick={() => setFilters({})}>Limpiar todos</button>
+    </div>}
 
     <div className={styles.tableWrap}>
       <div className={styles.table} style={{ "--grid-columns": `repeat(${visibleColumns.length}, minmax(150px, 1fr))` } as React.CSSProperties}>
         <div className={`${styles.row} ${styles.head}`}>
           {visibleColumns.map(column => <div className={styles.headerCell} key={column.key}>
-            <button type="button" onClick={() => toggleSort(column.key)}>{column.label}<span>{sort?.key === column.key ? (sort.direction === "asc" ? "▲" : "▼") : "↕"}</span></button>
-            <button type="button" className={filters[column.key] ? styles.filterActive : styles.filterButton} onClick={() => setFilterOpen(filterOpen === column.key ? null : column.key)}>⌄</button>
-            {filterOpen === column.key && <div className={styles.filterMenu}><input autoFocus value={filters[column.key] ?? ""} onChange={event => setFilters(current => ({ ...current, [column.key]: event.target.value }))} placeholder={`Filtrar ${column.label}`} /><button type="button" onClick={() => setFilters(current => ({ ...current, [column.key]: "" }))}>Quitar filtro</button></div>}
+            <button type="button" className={styles.sortButton} onClick={() => toggleSort(column.key)}>
+              <span className={styles.headerLabel}>{column.label}</span>
+              {filters[column.key]?.trim() && <small>{filters[column.key]}</small>}
+              <span className={styles.sortIcon}>{sort?.key === column.key ? (sort.direction === "asc" ? "▲" : "▼") : "↕"}</span>
+            </button>
+            <button type="button" aria-label={`Filtrar ${column.label}`} className={filters[column.key]?.trim() ? styles.filterActive : styles.filterButton} onClick={() => openFilter(column.key)}>⌄</button>
+            {filterOpen === column.key && <div ref={filterMenuRef} className={styles.filterMenu}>
+              <label>Filtrar {column.label}</label>
+              <input
+                autoFocus
+                value={filterDraft}
+                onChange={event => setFilterDraft(event.target.value)}
+                onKeyDown={event => {
+                  if (event.key === "Enter") { event.preventDefault(); applyFilter(column.key); }
+                  if (event.key === "Escape") { event.preventDefault(); setFilterOpen(null); }
+                }}
+                placeholder={`Escribe y pulsa Enter`}
+              />
+              <div className={styles.filterActions}>
+                <button type="button" onClick={() => clearFilter(column.key)}>Quitar filtro</button>
+                <button type="button" className={styles.applyFilter} onClick={() => applyFilter(column.key)}>Aplicar</button>
+              </div>
+              <small>Enter aplica · Esc cierra</small>
+            </div>}
           </div>)}
         </div>
         {processed.map(({ row, index }) => {
