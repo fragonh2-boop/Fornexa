@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { companyMaster } from "../../../lib/company-master";
 import styles from "./cmr-document.module.css";
 
 const documents: Record<string, {
@@ -96,13 +97,13 @@ export default function CmrDocumentPage() {
       </div>
 
       <section className={styles.signatures}>
-        <article><span>22</span><h2>Firma y sello del expedidor</h2><div className={styles.signatureState}>Firmado electrónicamente</div></article>
+        <article><span>22</span><h2>Firma y sello del expedidor</h2><div className={styles.stamp} aria-label={`Sello de ${companyMaster.legalName}`}><strong>{companyMaster.cmrStamp.title}</strong><b>{companyMaster.cmrStamp.legalName}</b><small>{companyMaster.cmrStamp.taxId}</small><small>{companyMaster.cmrStamp.location}</small><em>{companyMaster.cmrStamp.registration}</em></div></article>
         <article><span>23</span><h2>Firma y sello del transportista</h2><div className={styles.signatureState}>Firmado electrónicamente</div></article>
         <article><span>24</span><h2>Firma y sello del destinatario</h2><div className={styles.signatureState}>{doc.firmas}</div></article>
       </section>
 
       <footer className={styles.paperFooter}>
-        <span>Generado por FORNEXA · Documento electrónico con trazabilidad</span>
+        <span>Generado por {companyMaster.tradeName} · Documento electrónico con trazabilidad</span>
         <span>{doc.fecha} · {cmr}</span>
       </footer>
     </section>
