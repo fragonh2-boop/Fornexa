@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
+import OfferEmailEditor from "./OfferEmailEditor";
 import styles from "./record.module.css";
 
 const nav=[["Control Tower","/dashboard"],["Decision Center","/dashboard/decision-center"],["Partidas","/dashboard/partidas"],["Expediciones","/dashboard/expediciones"],["Viajes","/dashboard/viajes"],["Ofertas y tarifas","/dashboard/ofertas-tarifas"],["Clientes","/dashboard/clientes"],["Colaboradores","/dashboard/colaboradores"],["Almacenes","/dashboard/almacenes"],["Tracking","/dashboard/tracking"],["ePOD & CMR","/dashboard/epod-cmr"],["Informes","/dashboard/informes"]] as const;
 
 type Item=Record<string,unknown>;
 export default function RecordEditor({module,id}:{module:string;id:string}){
+ if(module==="ofertas-tarifas"&&id!=="nuevo")return <OfferEmailEditor id={id}/>;
  const [item,setItem]=useState<Item>({id:id==="nuevo"?"":id});
  const [message,setMessage]=useState("");
  useEffect(()=>{const list=JSON.parse(localStorage.getItem(`fornexa-${module}`)||"[]") as Item[];const found=list.find(x=>String(x.id||x.nombre||x.referencia)===id);if(found)setItem(found);},[module,id]);
