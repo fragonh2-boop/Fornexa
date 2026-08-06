@@ -14,6 +14,7 @@ type Props = {
   rowHrefs?: string[];
   searchPlaceholder?: string;
   emptyMessage?: string;
+  openLinksInNewTab?: boolean;
 };
 
 type SortState = { key: string; direction: "asc" | "desc" } | null;
@@ -31,7 +32,7 @@ function compare(a: GridRow[string], b: GridRow[string]) {
   return aText.localeCompare(bText, "es", { numeric: true, sensitivity: "base" });
 }
 
-export default function DataGrid({ storageKey, columns, rows, rowHrefs, searchPlaceholder = "Buscar...", emptyMessage = "No hay resultados." }: Props) {
+export default function DataGrid({ storageKey, columns, rows, rowHrefs, searchPlaceholder = "Buscar...", emptyMessage = "No hay resultados.", openLinksInNewTab = false }: Props) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortState>(null);
   const [filters, setFilters] = useState<Record<string, string>>({});
@@ -177,7 +178,7 @@ export default function DataGrid({ storageKey, columns, rows, rowHrefs, searchPl
         {processed.map(({ row, index }) => {
           const href = rowHrefs?.[index];
           const cells = visibleColumns.map((column, columnIndex) => <div key={column.key} className={styles.cell}>{columnIndex === 0 ? <strong>{text(row[column.key]) || "—"}</strong> : text(row[column.key]) || "—"}</div>);
-          return href ? <Link href={href} className={styles.row} key={`${index}-${text(row[columns[0]?.key])}`}>{cells}</Link> : <div className={styles.row} key={`${index}-${text(row[columns[0]?.key])}`}>{cells}</div>;
+          return href ? <Link href={href} target={openLinksInNewTab ? "_blank" : undefined} rel={openLinksInNewTab ? "noopener noreferrer" : undefined} className={styles.row} key={`${index}-${text(row[columns[0]?.key])}`}>{cells}</Link> : <div className={styles.row} key={`${index}-${text(row[columns[0]?.key])}`}>{cells}</div>;
         })}
         {!processed.length && <div className={styles.empty}>{emptyMessage}</div>}
       </div>

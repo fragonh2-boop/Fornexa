@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useMemo, useState } from "react";
+import { getCustomer } from "../../../../../lib/customer-master";
 import styles from "./client-master.module.css";
 
 type Address = {
@@ -43,16 +44,17 @@ function customerCode(id: string) {
 }
 
 export default function ClientMasterEditor({ id }: { id: string }) {
-  const example = customerExamples[id] ?? { legalName: "", tradeName: id === "nuevo" ? "" : id, taxId: "", city: "" };
+  const master = getCustomer(id);
+  const example = master ?? customerExamples[id] ?? { legalName: "", tradeName: id === "nuevo" ? "" : id, taxId: "", city: "" };
   const code = useMemo(() => customerCode(id), [id]);
   const [notice, setNotice] = useState("");
   const [partyCountry, setPartyCountry] = useState<CountryCode>("ES");
   const [taxId, setTaxId] = useState(example.taxId);
   const [billingEmail, setBillingEmail] = useState("");
-  const [salesEmail, setSalesEmail] = useState("");
+  const [salesEmail, setSalesEmail] = useState(master?.salesEmail ?? "");
   const [postalPlaces, setPostalPlaces] = useState<Record<string, string[]>>({});
   const [postalErrors, setPostalErrors] = useState<Record<string, string>>({});
-  const [addresses, setAddresses] = useState<Address[]>(id === "nuevo" ? [] : [{ id: `${code}-DIR-001`, name: `Centro principal · ${example.city}`, type: "Fiscal y operativa", street: "", postalCode: "", city: example.city, province: "Valencia", country: "ES", contact: "", phone: "", email: "", schedule: "L–V · 08:00–18:00", restrictions: "", defaultFor: "Fiscal", active: true }]);
+  const [addresses, setAddresses] = useState<Address[]>(id === "nuevo" ? [] : Array.from({ length: master?.addresses ?? 1 }, (_, addressIndex) => ({ id: `${code}-DIR-${String(addressIndex + 1).padStart(3, "0")}`, name: addressIndex ? `Centro operativo ${addressIndex + 1}` : `Centro principal · ${example.city}`, type: addressIndex ? "Operativa" : "Fiscal y operativa", street: addressIndex ? `Polígono logístico, nave ${addressIndex + 1}` : "Avenida principal, 1", postalCode: "", city: "", province: master?.province ?? "Valencia", country: master?.country ?? "ES", contact: addressIndex ? "Responsable de almacén" : master?.accountManager ?? "", phone: master?.phone ?? "", email: master?.salesEmail ?? "", schedule: "L–V · 08:00–18:00", restrictions: addressIndex ? "Acceso con cita previa" : "", defaultFor: addressIndex ? "Entrega" : "Fiscal", active: true })));
   const countryRules = countries.find(country => country.code === partyCountry)!;
   const taxValid = taxId ? countryRules.taxPattern.test(normalizeTaxId(taxId)) : null;
 
@@ -117,8 +119,8 @@ export default function ClientMasterEditor({ id }: { id: string }) {
         <label>Razón social<input name="legalName" defaultValue={example.legalName} required minLength={3} /></label><label>Nombre comercial<input name="tradeName" defaultValue={example.tradeName} required minLength={2} /></label><label>Idioma<select name="language"><option>Español</option><option>Francés</option><option>Inglés</option></select></label><label>Moneda<select name="currency"><option>EUR</option><option>GBP</option><option>USD</option></select></label>
       </div></section>
       <section className={styles.card}><div className={styles.cardTitle}><span>02</span><div><h2>Condiciones comerciales y fiscales</h2><p>Configuración utilizada en ofertas, tarifas y facturación.</p></div></div><div className={styles.grid4}>
-        <label>Forma de pago<select name="paymentMethod"><option>Transferencia</option><option>Domiciliación</option><option>Tarjeta</option></select></label><label>Vencimiento<select name="paymentTerms"><option>30 días</option><option>60 días</option><option>Contado</option></select></label><label>Límite de crédito<input name="creditLimit" defaultValue="25.000,00 €" /></label><label>Tarifa asignada<input name="rate" defaultValue="TF-ES-FR-04" /></label>
-        <label>Email facturación<input type="email" name="billingEmail" value={billingEmail} onChange={event => setBillingEmail(event.target.value)} placeholder="facturacion@cliente.com" className={validationClass(billingEmail ? emailPattern.test(billingEmail) : null)} /><Check valid={billingEmail ? emailPattern.test(billingEmail) : null} hint="Formato usuario@dominio" /></label><label>Email comercial<input type="email" name="salesEmail" value={salesEmail} onChange={event => setSalesEmail(event.target.value)} placeholder="compras@cliente.com" className={validationClass(salesEmail ? emailPattern.test(salesEmail) : null)} /><Check valid={salesEmail ? emailPattern.test(salesEmail) : null} hint="Formato usuario@dominio" /></label><label>Responsable comercial<input name="accountManager" defaultValue="Francisco González" /></label><label>Estado<select name="status"><option>Activo</option><option>En revisión</option><option>Bloqueado</option><option>Inactivo</option></select></label>
+        <label>Forma de pago<select name="paymentMethod"><option>Transferencia</option><option>Domiciliación</option><option>Tarjeta</option></select></label><label>Vencimiento<select name="paymentTerms" defaultValue={master?.paymentTerms ?? "30 días"}><option>30 días</option><option>60 días</option><option>Contado</option></select></label><label>Límite de crédito<input name="creditLimit" defaultValue={master?.creditLimit ?? "25.000,00 €"} /></label><label>Tarifa asignada<input name="rate" defaultValue={master?.rate ?? "TF-ES-FR-04"} /></label>
+        <label>Email facturación<input type="email" name="billingEmail" value={billingEmail} onChange={event => setBillingEmail(event.target.value)} placeholder="facturacion@cliente.com" className={validationClass(billingEmail ? emailPattern.test(billingEmail) : null)} /><Check valid={billingEmail ? emailPattern.test(billingEmail) : null} hint="Formato usuario@dominio" /></label><label>Email comercial<input type="email" name="salesEmail" value={salesEmail} onChange={event => setSalesEmail(event.target.value)} placeholder="compras@cliente.com" className={validationClass(salesEmail ? emailPattern.test(salesEmail) : null)} /><Check valid={salesEmail ? emailPattern.test(salesEmail) : null} hint="Formato usuario@dominio" /></label><label>Responsable comercial<input name="accountManager" defaultValue={master?.accountManager ?? "Francisco González"} /></label><label>Estado<select name="status" defaultValue={master?.status ?? "Activo"}><option>Activo</option><option>En revisión</option><option>Bloqueado</option><option>Inactivo</option></select></label>
       </div></section>
       <section className={styles.card}><div className={styles.addressHeader}><div className={styles.cardTitle}><span>03</span><div><h2>Maestro de direcciones</h2><p>Toda dirección está vinculada a {code} y recibe un código automático no reutilizable.</p></div></div><button type="button" onClick={addAddress}>+ Añadir dirección</button></div>
         <div className={styles.addresses}>{addresses.map((address, index) => <article key={address.id} className={styles.address}>
