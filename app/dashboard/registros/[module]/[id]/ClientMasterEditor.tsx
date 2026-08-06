@@ -22,6 +22,10 @@ const geography: Record<CountryCode, Record<string, string[]>> = {
 };
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phonePattern = /^\+?[0-9][0-9\s()-]{7,18}$/;
+const spanishProvinces = [
+  ["01","Álava"],["02","Albacete"],["03","Alicante"],["04","Almería"],["05","Ávila"],["06","Badajoz"],["07","Illes Balears"],["08","Barcelona"],["09","Burgos"],["10","Cáceres"],["11","Cádiz"],["12","Castellón"],["13","Ciudad Real"],["14","Córdoba"],["15","A Coruña"],["16","Cuenca"],["17","Girona"],["18","Granada"],["19","Guadalajara"],["20","Gipuzkoa"],["21","Huelva"],["22","Huesca"],["23","Jaén"],["24","León"],["25","Lleida"],["26","La Rioja"],["27","Lugo"],["28","Madrid"],["29","Málaga"],["30","Murcia"],["31","Navarra"],["32","Ourense"],["33","Asturias"],["34","Palencia"],["35","Las Palmas"],["36","Pontevedra"],["37","Salamanca"],["38","Santa Cruz de Tenerife"],["39","Cantabria"],["40","Segovia"],["41","Sevilla"],["42","Soria"],["43","Tarragona"],["44","Teruel"],["45","Toledo"],["46","Valencia"],["47","Valladolid"],["48","Bizkaia"],["49","Zamora"],["50","Zaragoza"],["51","Ceuta"],["52","Melilla"],
+] as const;
+const spanishProvinceByPrefix = Object.fromEntries(spanishProvinces);
 
 function normalizeTaxId(value: string) { return value.toUpperCase().replace(/[\s.-]/g, ""); }
 function validationClass(valid: boolean | null) { return valid === null ? "" : valid ? styles.valid : styles.invalid; }
@@ -46,6 +50,8 @@ export default function ClientMasterEditor({ id }: { id: string }) {
   const [taxId, setTaxId] = useState(example.taxId);
   const [billingEmail, setBillingEmail] = useState("");
   const [salesEmail, setSalesEmail] = useState("");
+  const [postalPlaces, setPostalPlaces] = useState<Record<string, string[]>>({});
+  const [postalErrors, setPostalErrors] = useState<Record<string, string>>({});
   const [addresses, setAddresses] = useState<Address[]>(id === "nuevo" ? [] : [{ id: `${code}-DIR-001`, name: `Centro principal · ${example.city}`, type: "Fiscal y operativa", street: "", postalCode: "", city: example.city, province: "Valencia", country: "ES", contact: "", phone: "", email: "", schedule: "L–V · 08:00–18:00", restrictions: "", defaultFor: "Fiscal", active: true }]);
   const countryRules = countries.find(country => country.code === partyCountry)!;
   const taxValid = taxId ? countryRules.taxPattern.test(normalizeTaxId(taxId)) : null;
@@ -61,7 +67,34 @@ export default function ClientMasterEditor({ id }: { id: string }) {
 
   function addressValid(address: Address) {
     const rules = countries.find(country => country.code === address.country)!;
-    return Boolean(address.name.trim() && address.street.trim().length >= 5 && rules.postalPattern.test(address.postalCode) && address.province && address.city && (!address.email || emailPattern.test(address.email)) && (!address.phone || phonePattern.test(address.phone)));
+    const provinceMatches = address.country !== "ES" || spanishProvinceByPrefix[address.postalCode.slice(0, 2)] === address.province;
+    const allowedPlaces = postalPlaces[address.id] ?? [];
+    return Boolean(address.name.trim() && address.street.trim().length >= 5 && rules.postalPattern.test(address.postalCode) && provinceMatches && address.province && address.city && (!allowedPlaces.length || allowedPlaces.includes(address.city)) && !postalErrors[address.id] && (!address.email || emailPattern.test(address.email)) && (!address.phone || phonePattern.test(address.phone)));
+  }
+
+  function provinceOptions(address: Address) {
+    return address.country === "ES" ? spanishProvinces.map(([, name]) => name) : Object.keys(geography[address.country as CountryCode]);
+  }
+
+  async function resolvePostal(index: number) {
+    const address = addresses[index];
+    const rules = countries.find(country => country.code === address.country)!;
+    if (!rules.postalPattern.test(address.postalCode)) return;
+    if (address.country === "ES" && spanishProvinceByPrefix[address.postalCode.slice(0, 2)] !== address.province) {
+      setPostalErrors(current => ({ ...current, [address.id]: `El CP ${address.postalCode} pertenece a ${spanishProvinceByPrefix[address.postalCode.slice(0, 2)] ?? "otra provincia"}, no a ${address.province || "la provincia seleccionada"}.` }));
+      setPostalPlaces(current => ({ ...current, [address.id]: [] }));
+      return;
+    }
+    try {
+      const response = await fetch(`/api/postal/${address.country}/${encodeURIComponent(address.postalCode)}`);
+      const result = await response.json() as { places?: string[]; error?: string };
+      if (!response.ok || !result.places?.length) throw new Error(result.error || "Código postal no encontrado.");
+      setPostalPlaces(current => ({ ...current, [address.id]: result.places! }));
+      setPostalErrors(current => ({ ...current, [address.id]: "" }));
+      if (result.places.length === 1) updateAddress(index, "city", result.places[0]);
+    } catch (error) {
+      setPostalErrors(current => ({ ...current, [address.id]: error instanceof Error ? error.message : "No se pudo validar el código postal." }));
+    }
   }
 
   function save(event: FormEvent<HTMLFormElement>) {
@@ -90,8 +123,8 @@ export default function ClientMasterEditor({ id }: { id: string }) {
       <section className={styles.card}><div className={styles.addressHeader}><div className={styles.cardTitle}><span>03</span><div><h2>Maestro de direcciones</h2><p>Toda dirección está vinculada a {code} y recibe un código automático no reutilizable.</p></div></div><button type="button" onClick={addAddress}>+ Añadir dirección</button></div>
         <div className={styles.addresses}>{addresses.map((address, index) => <article key={address.id} className={styles.address}>
           <div className={styles.addressTop}><div><small>CÓDIGO DE DIRECCIÓN</small><strong>{address.id}</strong></div><label className={styles.switch}><input type="checkbox" checked={address.active} onChange={event => updateAddress(index, "active", event.target.checked)} /> Activa</label></div>
-          <div className={styles.grid3}><label>País<select value={address.country} onChange={event => updateAddress(index, "country", event.target.value)}><option value="ES">España</option><option value="FR">Francia</option><option value="PT">Portugal</option></select><Check valid={true} hint="Selecciona primero el país" /></label><label>Nombre del centro<input value={address.name} minLength={3} onChange={event => updateAddress(index, "name", event.target.value)} /></label><label>Tipo<select value={address.type} onChange={event => updateAddress(index, "type", event.target.value)}><option>Fiscal y operativa</option><option>Fiscal</option><option>Facturación</option><option>Recogida</option><option>Entrega</option><option>Almacén</option><option>Oficina</option><option>Operativa</option></select></label><label>Predeterminada para<select value={address.defaultFor} onChange={event => updateAddress(index, "defaultFor", event.target.value)}><option>Ninguna</option><option>Fiscal</option><option>Facturación</option><option>Recogida</option><option>Entrega</option></select></label>
-            <label>Provincia / región<select value={address.province} onChange={event => updateAddress(index, "province", event.target.value)}><option value="">Seleccionar…</option>{Object.keys(geography[address.country as CountryCode]).map(province => <option key={province}>{province}</option>)}</select></label><label>Población<select value={address.city} disabled={!address.province} onChange={event => updateAddress(index, "city", event.target.value)}><option value="">Seleccionar…</option>{(geography[address.country as CountryCode][address.province] ?? []).map(city => <option key={city}>{city}</option>)}</select></label><label>CP<input value={address.postalCode} onChange={event => updateAddress(index, "postalCode", event.target.value.toUpperCase())} className={validationClass(address.postalCode ? countries.find(country => country.code === address.country)!.postalPattern.test(address.postalCode) : null)} /><Check valid={address.postalCode ? countries.find(country => country.code === address.country)!.postalPattern.test(address.postalCode) : null} hint={countries.find(country => country.code === address.country)!.postalHint} /></label><label className={styles.span2}>Dirección<input value={address.street} minLength={5} onChange={event => updateAddress(index, "street", event.target.value)} placeholder="Calle, número, nave…" /><Check valid={address.street ? address.street.trim().length >= 5 : null} hint="Mínimo calle y número" /></label>
+          <div className={styles.grid3}><label>País<select value={address.country} onChange={event => updateAddress(index, "country", event.target.value)}><option value="ES">España</option><option value="FR">Francia</option><option value="PT">Portugal</option></select><Check valid={true} hint="Selecciona primero el país" /></label><label>Tipo<select value={address.type} onChange={event => updateAddress(index, "type", event.target.value)}><option>Fiscal y operativa</option><option>Fiscal</option><option>Facturación</option><option>Recogida</option><option>Entrega</option><option>Almacén</option><option>Oficina</option><option>Operativa</option></select></label><label>Nombre del centro<input value={address.name} minLength={3} onChange={event => updateAddress(index, "name", event.target.value)} /></label><label>Predeterminada para<select value={address.defaultFor} onChange={event => updateAddress(index, "defaultFor", event.target.value)}><option>Ninguna</option><option>Fiscal</option><option>Facturación</option><option>Recogida</option><option>Entrega</option></select></label>
+            <label>Provincia / región<select value={address.province} onChange={event => { updateAddress(index, "province", event.target.value); setPostalErrors(current => ({ ...current, [address.id]: "" })); }}><option value="">Seleccionar…</option>{provinceOptions(address).map(province => <option key={province}>{province}</option>)}</select></label><label>CP<input value={address.postalCode} onChange={event => { updateAddress(index, "postalCode", event.target.value.toUpperCase()); setPostalErrors(current => ({ ...current, [address.id]: "" })); }} onBlur={() => resolvePostal(index)} className={validationClass(address.postalCode ? countries.find(country => country.code === address.country)!.postalPattern.test(address.postalCode) && !postalErrors[address.id] : null)} /><Check valid={address.postalCode ? countries.find(country => country.code === address.country)!.postalPattern.test(address.postalCode) && !postalErrors[address.id] : null} hint={postalErrors[address.id] || countries.find(country => country.code === address.country)!.postalHint} /></label><label>Población<select value={address.city} disabled={!address.province || !(postalPlaces[address.id]?.length)} onChange={event => updateAddress(index, "city", event.target.value)}><option value="">{address.postalCode ? "Validar CP para cargar…" : "Introduce primero el CP…"}</option>{(postalPlaces[address.id] ?? []).map(city => <option key={city}>{city}</option>)}</select><Check valid={address.city ? (postalPlaces[address.id] ?? []).includes(address.city) : null} hint="Población devuelta por el código postal" /></label><label>Dirección<input value={address.street} minLength={5} onChange={event => updateAddress(index, "street", event.target.value)} placeholder="Calle, número, nave…" /><Check valid={address.street ? address.street.trim().length >= 5 : null} hint="Mínimo calle y número" /></label>
             <label>Contacto<input value={address.contact} onChange={event => updateAddress(index, "contact", event.target.value)} /></label><label>Teléfono<input value={address.phone} onChange={event => updateAddress(index, "phone", event.target.value)} className={validationClass(address.phone ? phonePattern.test(address.phone) : null)} /><Check valid={address.phone ? phonePattern.test(address.phone) : null} hint="Incluye prefijo internacional" /></label><label>Email<input type="email" value={address.email} onChange={event => updateAddress(index, "email", event.target.value)} className={validationClass(address.email ? emailPattern.test(address.email) : null)} /><Check valid={address.email ? emailPattern.test(address.email) : null} hint="Formato usuario@dominio" /></label><label>Horario<select value={address.schedule} onChange={event => updateAddress(index, "schedule", event.target.value)}><option value="">Seleccionar…</option><option>L–V · 08:00–18:00</option><option>L–V · 06:00–14:00</option><option>L–S · 08:00–20:00</option><option>24 horas</option><option>Solo con cita previa</option></select></label><label className={styles.span2}>Restricciones e instrucciones<input value={address.restrictions} onChange={event => updateAddress(index, "restrictions", event.target.value)} placeholder="Acceso, vehículo, muelle, cita previa…" /></label>
           </div>
         </article>)}</div>{!addresses.length && <div className={styles.empty}>Este tercero todavía no tiene direcciones. Añade al menos una antes de utilizarlo en operaciones.</div>}
