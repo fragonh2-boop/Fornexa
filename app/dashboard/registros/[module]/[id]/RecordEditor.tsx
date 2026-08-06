@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
+import ClientMasterEditor from "./ClientMasterEditor";
 import OfferEmailEditor from "./OfferEmailEditor";
 import styles from "./record.module.css";
 
@@ -9,6 +10,7 @@ const nav=[["Control Tower","/dashboard"],["Decision Center","/dashboard/decisio
 
 type Item=Record<string,unknown>;
 export default function RecordEditor({module,id}:{module:string;id:string}){
+ if(module==="clientes")return <ClientMasterEditor id={id}/>;
  if(module==="ofertas-tarifas"&&id!=="nuevo")return <OfferEmailEditor id={id}/>;
  const [item,setItem]=useState<Item>({id:id==="nuevo"?"":id});
  const [message,setMessage]=useState("");
