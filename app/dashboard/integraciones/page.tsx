@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import EmailWorkspace from "./EmailWorkspace";
 import styles from "./integraciones.module.css";
 
 type Connector = {
@@ -76,6 +77,8 @@ export default function IntegracionesPage() {
       <article><span>Errores</span><strong>{errors}</strong><small>Requieren revisión</small></article>
       <article><span>Eventos hoy</span><strong>1.284</strong><small>Entrada + salida</small></article>
     </section>
+
+    <EmailWorkspace />
 
     <section className={styles.split}>
       <article className={styles.panel}>
