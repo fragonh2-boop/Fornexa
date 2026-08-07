@@ -54,7 +54,14 @@ export default function DashboardSidebar() {
         {navigation.map(([label, href]) => {
           const active = href === currentHref;
           return (
-            <Link key={href} href={href} className={active ? styles.active : ""} aria-current={active ? "page" : undefined}>
+            <Link
+              key={href}
+              href={href}
+              scroll
+              className={active ? styles.active : ""}
+              aria-current={active ? "page" : undefined}
+              onClick={() => window.scrollTo(0, 0)}
+            >
               {label}
             </Link>
           );
