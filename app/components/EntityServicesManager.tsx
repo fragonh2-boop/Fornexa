@@ -24,7 +24,7 @@ function cleanEntityId(value: string) {
 }
 
 export default function EntityServicesManager({ entityId, entityType }: Props) {
-  const storageKey = `fornexa-${entityType}-servicios-${cleanEntityId(entityId)}`;
+  const storageKey = `fornexa-v1-${entityType}-servicios-${cleanEntityId(entityId)}`;
   const [assignments, setAssignments] = useState<Record<string, Assignment>>({});
   const [search, setSearch] = useState("");
   const [country, setCountry] = useState("Todos");
