@@ -9,7 +9,7 @@ const navigation = [
   ["Decision Center", "/dashboard/decision-center"],
   ["Partidas", "/dashboard/partidas"],
   ["Expediciones", "/dashboard/expediciones"],
-  ["Viajes", "/dashboard/viajes"],
+  ["Viajes", "/dashboard/viajes"],\n  ["Aduanas", "/dashboard/aduanas"],
   ["Ofertas y tarifas", "/dashboard/ofertas-tarifas"],
   ["Clientes", "/dashboard/clientes"],
   ["Colaboradores", "/dashboard/colaboradores"],
