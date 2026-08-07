@@ -127,7 +127,7 @@
 }
 
 /* El retorno de Integraciones queda cubierto por la navegación persistente. */
-.stage > :global(main) > :global(header:first-child) > :global(div:first-child) > :global(a:first-child) {
+.stage > :global(main) > :global(header:first-child) > :global(div:first-child) > :global(a:first-child[href="/dashboard"]) {
   display: none !important;
 }
 
