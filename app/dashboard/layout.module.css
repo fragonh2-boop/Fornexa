@@ -109,6 +109,28 @@
   max-width: none !important;
 }
 
+/* La primera línea de cada módulo comparte tipografía y coordenada vertical. */
+.stage > :global(main) > :global(section) > :global(header:first-child) :global(p:first-of-type),
+.stage > :global(main) > :global(header:first-child) :global(p:first-of-type) {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  font-size: 11px !important;
+  line-height: 14px !important;
+}
+
+.stage > :global(main) > :global(section) > :global(header:first-child) :global(h1),
+.stage > :global(main) > :global(header:first-child) :global(h1) {
+  margin-top: 7px !important;
+  margin-bottom: 10px !important;
+  font-size: 42px !important;
+  line-height: 1.05 !important;
+}
+
+/* El retorno de Integraciones queda cubierto por la navegación persistente. */
+.stage > :global(main) > :global(header:first-child) > :global(div:first-child) > :global(a:first-child) {
+  display: none !important;
+}
+
 @media (max-width: 760px) {
   :global(html) {
     overflow-y: auto;
@@ -146,5 +168,10 @@
 
   .footer {
     display: none;
+  }
+
+  .stage > :global(main) > :global(section) > :global(header:first-child) :global(h1),
+  .stage > :global(main) > :global(header:first-child) :global(h1) {
+    font-size: 34px !important;
   }
 }
