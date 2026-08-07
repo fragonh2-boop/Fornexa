@@ -56,7 +56,7 @@ export default function CustomsPage() {
     return matchesDirection && haystack.includes(query.trim().toLowerCase());
   }), [direction, query]);
 
-  const selected = files.find((file) => file.id === selectedId) ?? files[0];
+  const selected = filtered.find((file) => file.id === selectedId) ?? filtered[0] ?? files[0];
 
   return (
     <main className={styles.shell}>
