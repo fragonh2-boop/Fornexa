@@ -1,0 +1,150 @@
+:global(html) {
+  scrollbar-gutter: stable;
+  overflow-y: scroll;
+}
+
+.frame {
+  --dashboard-sidebar-width: 250px;
+  display: grid;
+  grid-template-columns: var(--dashboard-sidebar-width) minmax(0, 1fr);
+  min-height: 100vh;
+  background: #07111f;
+  color: #f7f9fc;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  width: var(--dashboard-sidebar-width);
+  height: 100vh;
+  padding: 30px 22px;
+  overflow-y: auto;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  background: #081321;
+}
+
+.brand {
+  flex: 0 0 auto;
+  color: #f7f9fc;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 0.24em;
+}
+
+.nav {
+  display: grid;
+  gap: 7px;
+  margin-top: 44px;
+}
+
+.nav a {
+  min-height: 42px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  color: #91a4ba;
+  font-size: 14px;
+  line-height: 18px;
+  transition: color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+}
+
+.nav a:hover,
+.nav a:focus-visible,
+.nav a.active {
+  color: #f7f9fc;
+  background: rgba(105, 230, 180, 0.09);
+}
+
+.nav a:focus-visible {
+  outline: 2px solid rgba(105, 230, 180, 0.72);
+  outline-offset: 2px;
+}
+
+.nav a.active {
+  box-shadow: inset 2px 0 #69e6b4;
+}
+
+.footer {
+  display: grid;
+  gap: 5px;
+  margin-top: auto;
+  padding-top: 24px;
+  color: #91a4ba;
+  font-size: 12px;
+}
+
+.footer small {
+  color: #61758b;
+}
+
+.stage {
+  min-width: 0;
+  min-height: 100vh;
+  overflow: clip;
+}
+
+/* Las pantallas antiguas conservan su contenido, pero delegan el marco al layout persistente. */
+.stage :global(main:has(> aside:first-child nav)) {
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+}
+
+.stage :global(main > aside:first-child:has(nav)) {
+  display: none !important;
+}
+
+.stage :global(main:has(> aside:first-child nav) > section) {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+}
+
+.stage > :global(main) {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+}
+
+@media (max-width: 760px) {
+  :global(html) {
+    overflow-y: auto;
+  }
+
+  .frame {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sidebar {
+    position: sticky;
+    width: 100%;
+    height: auto;
+    max-height: none;
+    padding: 16px 18px;
+    overflow: hidden;
+    border-right: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .nav {
+    display: flex;
+    gap: 6px;
+    margin-top: 14px;
+    padding-bottom: 2px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .nav a {
+    flex: 0 0 auto;
+    min-height: 38px;
+    padding: 10px 12px;
+  }
+
+  .footer {
+    display: none;
+  }
+}
