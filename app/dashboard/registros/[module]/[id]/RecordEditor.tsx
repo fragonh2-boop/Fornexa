@@ -13,6 +13,10 @@ type Item=Record<string,unknown>;
 export default function RecordEditor({module,id}:{module:string;id:string}){
  if(module==="clientes")return <div className={styles.clientStack}><ClientMasterEditor id={id}/><div className={styles.clientServices}><EntityServicesManager entityType="cliente" entityId={id}/></div></div>;
  if(module==="ofertas-tarifas"&&id!=="nuevo")return <OfferEmailEditor id={id}/>;
+ return <GenericRecordEditor module={module} id={id}/>;
+}
+
+function GenericRecordEditor({module,id}:{module:string;id:string}){
  const [item,setItem]=useState<Item>({id:id==="nuevo"?"":id});
  const [message,setMessage]=useState("");
  useEffect(()=>{const list=JSON.parse(localStorage.getItem(`fornexa-${module}`)||"[]") as Item[];const found=list.find(x=>String(x.id||x.nombre||x.referencia)===id);if(found)setItem(found);},[module,id]);
