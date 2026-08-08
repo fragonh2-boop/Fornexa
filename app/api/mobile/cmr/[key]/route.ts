@@ -25,9 +25,27 @@ export async function GET(_request: Request, context: { params: Promise<{ key: s
     const evidenceCount = new Map<string, number>();
     for (const item of evidence ?? []) evidenceCount.set(item.stop_id, (evidenceCount.get(item.stop_id) ?? 0) + 1);
 
+    const metadata = asRecord(document.metadata);
+    const stopDetails = Array.isArray(metadata.stopDetails) ? metadata.stopDetails.map(asRecord) : [];
+
     return NextResponse.json({
       document: publicDocument(document),
-      stops: (stops ?? []).map(stop => ({ ...stop, evidenceCount: evidenceCount.get(stop.id) ?? 0, contactMissing: !stop.contact_phone })),
+      stops: (stops ?? []).map(stop => {
+        const detail = stopDetails.find(item => Number(item.sequence) === Number(stop.sequence)) ?? {};
+        const contactPhone = text(detail.contactPhone) || stop.contact_phone || "";
+        return {
+          ...stop,
+          address: text(detail.fullAddress) || stop.address,
+          contact_name: text(detail.contactName),
+          contact_phone: contactPhone,
+          reference: text(detail.reference),
+          window_start: text(detail.windowStart) || stop.window_start,
+          window_end: text(detail.windowEnd) || stop.window_end,
+          orders: Array.isArray(detail.orders) ? detail.orders : [],
+          evidenceCount: evidenceCount.get(stop.id) ?? 0,
+          contactMissing: !contactPhone,
+        };
+      }),
       events,
       sync: { serverTime: new Date().toISOString(), pollAfterSeconds: 15 },
     }, { headers: { "Cache-Control": "no-store" } });
@@ -35,4 +53,12 @@ export async function GET(_request: Request, context: { params: Promise<{ key: s
     console.error("Mobile import error", error);
     return NextResponse.json({ error: "No se pudo importar el transporte." }, { status: 500 });
   }
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function text(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
 }

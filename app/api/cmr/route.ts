@@ -30,6 +30,26 @@ type CmrInput = {
   packingGroup?: string;
   tunnelCode?: string;
   adrDescription?: string;
+  stopDetails?: StopDetailInput[];
+};
+
+type StopOrderInput = {
+  id?: string;
+  customerId?: string;
+  description?: string;
+  packages?: string | number;
+  weight?: string | number;
+};
+
+type StopDetailInput = {
+  sequence?: number;
+  contactName?: string;
+  contactPhone?: string;
+  reference?: string;
+  fullAddress?: string;
+  windowStart?: string;
+  windowEnd?: string;
+  orders?: StopOrderInput[];
 };
 
 const required: Array<[keyof CmrInput, string]> = [
@@ -93,6 +113,9 @@ export async function POST(request: NextRequest) {
       tunnelCode: input.tunnelCode || "",
       description: input.adrDescription || "",
     },
+    metadata: {
+      stopDetails: normalizeStopDetails(input),
+    },
   };
 
   const { data: document, error: documentError } = await supabase
@@ -135,6 +158,34 @@ export async function POST(request: NextRequest) {
     qrUrl: `/api/cmr/${encodeURIComponent(cmrNumber)}/qr?key=${encodeURIComponent(cmrKey)}`,
     qrPayload: `${origin}/api/mobile/cmr/${encodeURIComponent(cmrKey)}`,
   }, { status: 201, headers: { "Cache-Control": "no-store" } });
+}
+
+function normalizeStopDetails(input: CmrInput) {
+  return [1, 2].map(sequence => {
+    const source = input.stopDetails?.find(item => item.sequence === sequence);
+    const orders = Array.isArray(source?.orders) ? source.orders.slice(0, 100).map(order => ({
+      id: clean(order.id, 80),
+      customerId: clean(order.customerId, 80),
+      description: clean(order.description, 160),
+      packages: numericValue(order.packages),
+      weight: numericValue(order.weight),
+    })).filter(order => order.id) : [];
+
+    return {
+      sequence,
+      contactName: clean(source?.contactName, 120),
+      contactPhone: clean(source?.contactPhone, 40),
+      reference: clean(source?.reference, 120),
+      fullAddress: clean(source?.fullAddress, 240) || (sequence === 1 ? input.carga!.trim() : input.entrega!.trim()),
+      windowStart: clean(source?.windowStart, 60),
+      windowEnd: clean(source?.windowEnd, 60),
+      orders,
+    };
+  });
+}
+
+function clean(value: unknown, maximum: number) {
+  return String(value ?? "").trim().slice(0, maximum);
 }
 
 function failure(error: unknown) {
