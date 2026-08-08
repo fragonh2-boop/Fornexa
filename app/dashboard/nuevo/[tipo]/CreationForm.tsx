@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { customers } from "../../../../../lib/customer-master";
+import { customers } from "../../../../lib/customer-master";
 import type { CreationType } from "./page";
 import { deliveryPoints, fullAddress, pickupPoints } from "./testPoints";
 import styles from "./creation.module.css";
