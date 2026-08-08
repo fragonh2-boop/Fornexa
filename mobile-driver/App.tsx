@@ -54,7 +54,29 @@ export default function App(){
   catch(error){Alert.alert("Foto pendiente",error instanceof Error?error.message:"No se pudo sincronizar.")}finally{setLoading(false)}
  }
 
- function openRoute(){if(!transport?.stops.length)return;const ordered=[...transport.stops].sort((a,b)=>a.sequence-b.sequence),first=ordered[0],last=ordered.at(-1);if(!first||!last)return;const origin=first.address,destination=last.address,waypoints=ordered.slice(1,-1).map(item=>item.address).join("|");const url=`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}${waypoints?`&waypoints=${encodeURIComponent(waypoints)}`:""}&travelmode=driving`;Linking.openURL(url)}
+ async function openRoute(){
+  if(!transport?.stops.length)return;
+  const ordered=[...transport.stops].sort((a,b)=>a.sequence-b.sequence);
+  try{
+   setLoading(true);
+   if(ordered.some(stop=>!storedCoordinate(stop))){
+    const permissionResult=await Location.requestForegroundPermissionsAsync();
+    if(permissionResult.status!=="granted")throw new Error("Autoriza la ubicación para convertir las direcciones operativas en coordenadas.");
+   }
+   const points=await Promise.all(ordered.map(async stop=>{
+    const stored=storedCoordinate(stop);if(stored)return stored;
+    const address=navigationAddress(stop.address),results=await Location.geocodeAsync(address),point=results[0];
+    if(!point)throw new Error(`No se pudo localizar ${stop.company} (${address}).`);
+    return `${point.latitude.toFixed(6)},${point.longitude.toFixed(6)}`;
+   }));
+   const origin=points[0],destination=points.at(-1);if(!origin||!destination)return;
+   const waypoints=points.slice(1,-1).join("|");
+   const url=`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}${waypoints?`&waypoints=${encodeURIComponent(waypoints)}`:""}&travelmode=driving`;
+   if(!(await Linking.canOpenURL(url)))throw new Error("No hay una aplicación de mapas disponible en este dispositivo.");
+   await Linking.openURL(url);
+  }catch(error){Alert.alert("Ruta no disponible",error instanceof Error?error.message:"No se pudieron resolver las coordenadas de la ruta.")}
+  finally{setLoading(false)}
+ }
 
  if(screen==="scanner"){
   if(!permission?.granted)return <SafeAreaView style={styles.safe}><View style={styles.centered}><Text style={styles.title}>Permiso de cámara</Text><Text style={styles.muted}>Necesitamos la cámara para leer el QR del CMR.</Text><PrimaryButton label="Permitir cámara" onPress={requestPermission}/><SecondaryButton label="Volver" onPress={()=>setScreen("home")}/></View></SafeAreaView>;
@@ -74,6 +96,8 @@ export default function App(){
 }
 
 function normalizeKey(value:string){const clean=(value.trim().split("?").at(0)??"").replace(/\/$/,"");const last=clean.includes("/")?clean.split("/").pop()??"":clean;return last.toUpperCase()}
+function storedCoordinate(stop:Stop){const latitude=Number(stop.latitude),longitude=Number(stop.longitude);if(!Number.isFinite(latitude)||!Number.isFinite(longitude)||Math.abs(latitude)>90||Math.abs(longitude)>180)return null;return `${latitude.toFixed(6)},${longitude.toFixed(6)}`}
+function navigationAddress(value:string){const parts=value.split("·").map(part=>part.trim()).filter(Boolean);return parts.at(-1)??value.trim()}
 function PrimaryButton({label,onPress}:{label:string;onPress:()=>void}){return <TouchableOpacity style={styles.primaryButton} onPress={onPress}><Text style={styles.primaryButtonText}>{label}</Text></TouchableOpacity>}
 function SecondaryButton({label,onPress}:{label:string;onPress:()=>void}){return <TouchableOpacity style={styles.secondaryButton} onPress={onPress}><Text style={styles.secondaryButtonText}>{label}</Text></TouchableOpacity>}
 function SmallButton({label,onPress}:{label:string;onPress:()=>void}){return <TouchableOpacity style={styles.smallButton} onPress={onPress}><Text style={styles.smallButtonText}>{label}</Text></TouchableOpacity>}

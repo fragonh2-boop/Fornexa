@@ -3,12 +3,13 @@
     "name": "FORNEXA Driver",
     "slug": "fornexasc",
     "owner": "fornexas-team",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "fornexa-driver",
     "android": {
       "package": "com.fornexa.driver",
+      "versionCode": 2,
       "permissions": ["CAMERA", "ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
     },
     "plugins": [
