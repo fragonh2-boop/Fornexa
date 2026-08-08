@@ -56,7 +56,7 @@ button { background:var(--accent); color:#ffffff; border:0; border-radius:10px; 
 .close { position:absolute; right:16px; top:12px; width:auto!important; margin:0!important; padding:4px 10px; color:var(--text); background:transparent; font-size:28px; }
 .modal small { display:block; color:var(--muted); line-height:1.4; }
 .auth-page { display:grid; grid-template-columns:minmax(420px,1fr) minmax(560px,1fr); min-height:100vh; }
-.auth-brand-panel { position:relative; display:flex; flex-direction:column; justify-content:space-between; min-height:100vh; padding:48px; overflow:hidden; border-right:1px solid var(--line); background:radial-gradient(circle at 20% 20%,rgba(0,93,143,.1),transparent 36%),linear-gradient(160deg,#101216,#eef3f9 65%); }
+.auth-brand-panel { position:relative; display:flex; flex-direction:column; justify-content:space-between; min-height:100vh; padding:48px; overflow:hidden; border-right:1px solid var(--line); background:radial-gradient(circle at 20% 20%,rgba(0,93,143,.1),transparent 36%),linear-gradient(160deg,#f5f7fb,#eef3f9 65%); }
 .auth-brand-panel::after { content:""; position:absolute; right:-150px; bottom:-180px; width:440px; height:440px; border:1px solid rgba(0,93,143,.2); border-radius:50%; box-shadow:0 0 0 70px rgba(0,93,143,.025),0 0 0 140px rgba(0,93,143,.018); }
 .auth-logo { position:relative; z-index:1; width:max-content; font-weight:900; letter-spacing:.22em; }
 .auth-brand-copy { position:relative; z-index:1; max-width:620px; }
@@ -68,7 +68,7 @@ button { background:var(--accent); color:#ffffff; border:0; border-radius:10px; 
 .auth-top-links { display:flex; justify-content:space-between; gap:20px; align-items:center; margin-bottom:30px; }
 .auth-back { color:var(--muted); font-size:14px; }
 .tracking-access { color:var(--accent); font-size:14px; font-weight:800; }
-.auth-tabs { display:grid; grid-template-columns:1fr 1fr; gap:5px; padding:5px; background:#101216; border:1px solid var(--line); border-radius:14px; }
+.auth-tabs { display:grid; grid-template-columns:1fr 1fr; gap:5px; padding:5px; background:#f5f7fb; border:1px solid var(--line); border-radius:14px; }
 .auth-tabs-three { grid-template-columns:repeat(3,1fr); }
 .auth-tabs button { padding:12px 10px; color:var(--muted); background:transparent; font-size:13px; }
 .auth-tabs button.active { color:#ffffff; background:var(--accent); }
@@ -79,7 +79,7 @@ button { background:var(--accent); color:#ffffff; border:0; border-radius:10px; 
 .role-selector legend { margin-bottom:10px; color:#344256; font-size:13px; font-weight:800; }
 .role-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 .role-grid-three { grid-template-columns:repeat(3,1fr); }
-.role-grid label { position:relative; display:flex; align-items:center; min-height:54px; padding:12px 14px; color:var(--muted); background:#101216; border:1px solid var(--line); border-radius:11px; cursor:pointer; }
+.role-grid label { position:relative; display:flex; align-items:center; min-height:54px; padding:12px 14px; color:var(--muted); background:#f7f9fc; border:1px solid var(--line); border-radius:11px; cursor:pointer; }
 .role-grid label.selected { color:var(--text); border-color:rgba(0,93,143,.75); background:rgba(0,93,143,.08); }
 .role-grid input { position:absolute; opacity:0; pointer-events:none; }
 .role-grid span { font-size:13px; font-weight:800; }
@@ -97,7 +97,7 @@ button { background:var(--accent); color:#ffffff; border:0; border-radius:10px; 
 .auth-options button { padding:0; color:var(--accent); background:transparent; font-weight:700; }
 .auth-submit { width:100%; min-height:50px; margin-top:4px; }
 .auth-message { margin:14px 0 0; padding:12px 14px; color:#cbeede; background:rgba(0,93,143,.08); border:1px solid rgba(0,93,143,.2); border-radius:10px; font-size:13px; line-height:1.45; }
-.public-tracking-note { margin-top:24px; padding:18px; background:#101216; border:1px solid var(--line); border-radius:14px; }
+.public-tracking-note { margin-top:24px; padding:18px; background:#f7f9fc; border:1px solid var(--line); border-radius:14px; }
 .public-tracking-note strong { display:block; margin-bottom:7px; }
 .public-tracking-note p { margin:0 0 12px; color:var(--muted); font-size:13px; line-height:1.5; }
 .public-tracking-note a { color:var(--accent); font-size:13px; font-weight:800; }
