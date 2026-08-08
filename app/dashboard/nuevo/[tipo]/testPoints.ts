@@ -1,4 +1,4 @@
-import { customers as masterCustomers } from "../../../../../lib/customer-master";
+import { customers as masterCustomers } from "../../../../lib/customer-master";
 
 export type LogisticsPoint={code:string;name:string;customerId?:string;customerCode?:string;partyCode:string;partyName:string;address:string;postalCode:string;city:string;country:string};
 
