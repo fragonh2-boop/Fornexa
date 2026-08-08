@@ -1,18 +1,23 @@
 {
   "expo": {
     "name": "FORNEXA Driver",
-    "slug": "fornexa-driver",
-    "version": "0.1.0",
+    "slug": "fornexasc",
+    "owner": "fornexas-team",
+    "version": "0.2.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
+    "scheme": "fornexa-driver",
     "android": {
       "package": "com.fornexa.driver",
-      "permissions": ["CAMERA", "ACCESS_FINE_LOCATION", "READ_MEDIA_IMAGES"]
+      "permissions": ["CAMERA", "ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
     },
     "plugins": [
-      ["expo-camera", {"cameraPermission": "FORNEXA Driver necesita la cámara para escanear QR y documentar recogidas y entregas."}],
-      ["expo-image-picker", {"photosPermission": "FORNEXA Driver necesita acceso a las fotos para adjuntar evidencias."}],
-      ["expo-location", {"locationWhenInUsePermission": "FORNEXA Driver usa la ubicación para registrar evidencias operativas."}]
-    ]
+      ["expo-camera", {"cameraPermission": "FORNEXA Driver necesita la cámara para escanear el QR del CMR.", "recordAudioAndroid": false}],
+      ["expo-image-picker", {"cameraPermission": "FORNEXA Driver necesita la cámara para documentar recogidas y entregas.", "photosPermission": "FORNEXA Driver puede adjuntar evidencias existentes.", "microphonePermission": false}],
+      ["expo-location", {"locationWhenInUsePermission": "FORNEXA Driver usa la ubicación para registrar llegadas y evidencias operativas."}]
+    ],
+    "extra": {
+      "eas": {"projectId": "eb11d50d-b179-4fff-8010-85a3c18d4479"}
+    }
   }
 }

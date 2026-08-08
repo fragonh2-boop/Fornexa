@@ -3,9 +3,11 @@
   "build": {
     "preview": {
       "distribution": "internal",
+      "env": { "EXPO_PUBLIC_FORNEXA_API_URL": "https://fornexasc.com" },
       "android": { "buildType": "apk" }
     },
     "production": {
+      "env": { "EXPO_PUBLIC_FORNEXA_API_URL": "https://fornexasc.com" },
       "android": { "buildType": "app-bundle" }
     }
   }
