@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { routeFeasibilityDemo } from "../../../lib/telematics/providers";
 import styles from "./decision-center.module.css";
+import routeStyles from "./route-planning.module.css";
 
 const recommendations = [
   { priority:"Crítica", title:"Reasignar la expedición EX-260071", summary:"El colaborador actual compromete la entrega en Lyon.", action:"Revisar alternativa", confidence:94, impact:"+8 puntos OTIF", cost:"+86 €", reason:["Disponibilidad confirmada","Capacidad ADR válida","ETA ajustada por tacógrafo"] },
@@ -26,7 +27,7 @@ export default function DecisionCenterPage(){
     <section className={styles.content}>
       <header className={styles.header}>
         <div><p className={styles.eyebrow}>DECISION INTELLIGENCE</p><h1>Centro de decisiones</h1><p>Información mínima para decidir rápido: viabilidad, riesgo, conducción disponible, ETA y bloqueos.</p></div>
-        <div className={styles.headerActions}><Link className={styles.telematicsLink} href="/dashboard/integraciones/telematica">Configurar telemática</Link><button className={styles.secondary}>Actualizar análisis</button><div className={styles.avatar}>FG</div></div>
+        <div className={styles.headerActions}><Link className={routeStyles.telematicsLink} href="/dashboard/integraciones/telematica">Configurar telemática</Link><button className={styles.secondary}>Actualizar análisis</button><div className={styles.avatar}>FG</div></div>
       </header>
 
       <section className={styles.metrics}>
@@ -36,21 +37,21 @@ export default function DecisionCenterPage(){
         <article><span>Fuentes telemáticas</span><b>3</b><small>+ 1 ruta sin autorización</small></article>
       </section>
 
-      <article className={`${styles.panel} ${styles.routePanel}`}>
+      <article className={`${styles.panel} ${routeStyles.routePanel}`}>
         <div className={styles.panelHeading}><div><p className={styles.eyebrow}>PLANIFICACIÓN · TACÓGRAFO + ADR + ETA</p><h2>Viabilidad rápida de ruta</h2></div><span className={styles.live}>Modelo normalizado</span></div>
-        <div className={styles.routeTable}>
-          <div className={`${styles.routeRow} ${styles.routeHead}`}><span>Expedición / ruta</span><span>Vehículo · conductor</span><span>Conducción</span><span>Pausa</span><span>ETA</span><span>ADR</span><span>Decisión</span></div>
-          {routeFeasibilityDemo.map(r=><div className={styles.routeRow} key={r.expedition}>
+        <div className={routeStyles.routeTable}>
+          <div className={`${routeStyles.routeRow} ${routeStyles.routeHead}`}><span>Expedición / ruta</span><span>Vehículo · conductor</span><span>Conducción</span><span>Pausa</span><span>ETA</span><span>ADR</span><span>Decisión</span></div>
+          {routeFeasibilityDemo.map(r=><div className={routeStyles.routeRow} key={r.expedition}>
             <span><strong>{r.expedition}</strong><small>{r.route}</small></span>
             <span><strong>{r.vehicle}</strong><small>{r.driver} · {r.provider}</small></span>
             <span><strong>{r.remainingDriving}</strong><small>restante</small></span>
             <span><strong>{r.nextBreak}</strong><small>hasta pausa</small></span>
             <span><strong>{r.adjustedEta}</strong><small>nav. {r.navigationEta}</small></span>
             <span><strong>{r.adr}</strong></span>
-            <span><b className={`${styles.status} ${r.status==="VIABLE"?styles.ok:r.status==="RIESGO"?styles.warn:styles.blocked}`}>{r.status}</b><small>{r.reason}</small></span>
+            <span><b className={`${routeStyles.status} ${r.status==="VIABLE"?routeStyles.ok:r.status==="RIESGO"?routeStyles.warn:routeStyles.blocked}`}>{r.status}</b><small>{r.reason}</small></span>
           </div>)}
         </div>
-        <p className={styles.routeNote}>* Si no hay datos telemáticos autorizados, Fornexa mantiene la ETA de navegación pero la marca como no validada contra tiempos de conducción.</p>
+        <p className={routeStyles.routeNote}>* Si no hay datos telemáticos autorizados, Fornexa mantiene la ETA de navegación pero la marca como no validada contra tiempos de conducción.</p>
       </article>
 
       <section className={styles.layout}>
