@@ -69,8 +69,8 @@ export default function DashboardSidebar() {
         })}
       </nav>
       <div className={styles.footer}>
-        <span>FORNEXA Suite</span>
-        <small>Navegación unificada</small>
+        <span>FORNEXA</span>
+        <small>Supply Chain Suite</small>
       </div>
     </aside>
   );
