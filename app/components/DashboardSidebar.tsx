@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useEffect } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import styles from "../dashboard/layout.module.css";
 
 const navigation = [
@@ -46,7 +47,34 @@ function activeHref(pathname: string) {
 
 export default function DashboardSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const currentHref = activeHref(pathname);
+
+  useEffect(() => {
+    function openNewOrder(event: KeyboardEvent) {
+      if (
+        event.code !== "NumpadAdd" ||
+        event.repeat ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey
+      ) return;
+
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable || Boolean(target.closest("input, textarea, select, [contenteditable='true']")))
+      ) return;
+
+      event.preventDefault();
+      window.scrollTo(0, 0);
+      router.push("/dashboard/nuevo/partida");
+    }
+
+    window.addEventListener("keydown", openNewOrder);
+    return () => window.removeEventListener("keydown", openNewOrder);
+  }, [router]);
 
   return (
     <aside className={styles.sidebar}>
