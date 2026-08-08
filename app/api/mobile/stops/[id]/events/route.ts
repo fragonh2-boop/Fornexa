@@ -30,6 +30,15 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     if (stopError) throw stopError;
     if (!stop) return NextResponse.json({ error: "La parada no pertenece a este CMR." }, { status: 403 });
 
+    const overwriteArrival = body.overwrite === true;
+    if (type === "arrival" && stop.arrived_at && !overwriteArrival) {
+      return NextResponse.json({
+        error: "La llegada ya estaba registrada.",
+        code: "ARRIVAL_ALREADY_RECORDED",
+        previousArrival: stop.arrived_at,
+      }, { status: 409 });
+    }
+
     if (type === "complete") {
       const { count, error: evidenceError } = await supabase
         .from("transport_evidence")
@@ -44,6 +53,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const longitude = numericValue(body.longitude);
     const eventType = { arrival: "stop_arrived", complete: "stop_completed", incident: "incident_reported", signature: "signature_added" }[type];
 
+    const payload = body.payload && typeof body.payload === "object" ? body.payload : {};
     const { error: eventError } = await supabase.from("transport_events").upsert({
       cmr_id: document.id,
       stop_id: stopId,
@@ -51,7 +61,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       occurred_at: occurredAt,
       latitude,
       longitude,
-      payload: body.payload && typeof body.payload === "object" ? body.payload : {},
+      payload: type === "arrival"
+        ? { ...payload, overwrite: overwriteArrival, previousArrival: overwriteArrival ? stop.arrived_at : null }
+        : payload,
       idempotency_key: idempotencyKey,
     }, { onConflict: "idempotency_key", ignoreDuplicates: true });
     if (eventError) throw eventError;
@@ -77,7 +89,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       await supabase.from("cmr_documents").update({ status, updated_at: occurredAt }).eq("id", document.id);
     }
 
-    return NextResponse.json({ ok: true, eventType });
+    return NextResponse.json({ ok: true, eventType, overwritten: type === "arrival" && overwriteArrival });
   } catch (error) {
     console.error("Mobile stop event error", error);
     return NextResponse.json({ error: "No se pudo registrar el evento." }, { status: 500 });
