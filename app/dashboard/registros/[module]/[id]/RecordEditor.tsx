@@ -5,15 +5,25 @@ import { FormEvent, useEffect, useState } from "react";
 import EntityServicesManager from "../../../../components/EntityServicesManager";
 import ClientMasterEditor from "./ClientMasterEditor";
 import OfferEmailEditor from "./OfferEmailEditor";
+import { getCustomer } from "../../../../../lib/customer-master";
 import styles from "./record.module.css";
 
 const nav=[["Control Tower","/dashboard"],["Decision Center","/dashboard/decision-center"],["Partidas","/dashboard/partidas"],["Expediciones","/dashboard/expediciones"],["Viajes","/dashboard/viajes"],["Ofertas y tarifas","/dashboard/ofertas-tarifas"],["Clientes","/dashboard/clientes"],["Colaboradores","/dashboard/colaboradores"],["Almacenes","/dashboard/almacenes"],["Tracking","/dashboard/tracking"],["ePOD & CMR","/dashboard/epod-cmr"],["Informes","/dashboard/informes"]] as const;
 
 type Item=Record<string,unknown>;
 export default function RecordEditor({module,id}:{module:string;id:string}){
- if(module==="clientes")return <div className={styles.clientStack}><ClientMasterEditor id={id}/><div className={styles.clientServices}><EntityServicesManager entityType="cliente" entityId={id}/></div></div>;
+ if(module==="clientes")return <div className={styles.clientStack}><ClientMasterEditor id={id}/><div className={styles.clientServices}><CustomerAdrSettings id={id}/><EntityServicesManager entityType="cliente" entityId={id}/></div></div>;
  if(module==="ofertas-tarifas"&&id!=="nuevo")return <OfferEmailEditor id={id}/>;
  return <GenericRecordEditor module={module} id={id}/>;
+}
+
+function CustomerAdrSettings({id}:{id:string}){
+ const master=getCustomer(id);
+ const [value,setValue]=useState<"S"|"N">(master?.adrControl??"N");
+ const [saved,setSaved]=useState(false);
+ useEffect(()=>{try{const stored=localStorage.getItem(`fornexa-customer-adr-${id}`);if(stored==="S"||stored==="N")setValue(stored)}catch{}},[id]);
+ function save(){try{localStorage.setItem(`fornexa-customer-adr-${id}`,value);if(master?.tradeName)localStorage.setItem(`fornexa-customer-adr-name-${master.tradeName}`,value)}catch{}setSaved(true)}
+ return <section className={styles.card}><h2>Control ADR</h2><p>Si ADR = S, cada pedido de este cliente deberá indicar obligatoriamente si la mercancía concreta es ADR S o N.</p><div className={styles.grid}><label>ADR cliente<select value={value} onChange={e=>{setValue(e.target.value as "S"|"N");setSaved(false)}}><option value="N">N · No exigir declaración ADR en cada pedido</option><option value="S">S · Exigir ADR S/N en cada pedido</option></select></label></div><div className={styles.submit}><button type="button" onClick={save}>Guardar configuración ADR</button></div>{saved&&<p className={styles.message}>Configuración ADR guardada para {id}.</p>}</section>;
 }
 
 function GenericRecordEditor({module,id}:{module:string;id:string}){
