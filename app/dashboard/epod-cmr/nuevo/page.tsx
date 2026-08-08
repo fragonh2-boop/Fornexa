@@ -9,15 +9,31 @@ type FormState = {
   transportista:string;matricula:string;remolque:string;mercancia:string;bultos:string;embalaje:string;peso:string;volumen:string;instrucciones:string;
   adr:string;adrRegime:string;unNumber:string;adrClass:string;packingGroup:string;tunnelCode:string;adrDescription:string;
 };
-type StoredPartida={id:string;customerId?:string;codigoCliente?:string;cliente?:string;remitente?:string;destinatario?:string;origen?:string;destino?:string;bultos?:string;peso?:string;volumen?:string;adr?:string;adrRegime?:string;unNumber?:string;adrClass?:string;packingGroup?:string;tunnelCode?:string;adrDescription?:string};
+type StopOrderDraft={id:string;customerId?:string;description?:string;packages?:string;weight?:string};
+type StopDetailDraft={sequence:1|2;contactName:string;contactPhone:string;reference:string;fullAddress:string;windowStart:string;windowEnd:string;orders:StopOrderDraft[]};
+type StoredPartida={id:string;customerId?:string;codigoCliente?:string;cliente?:string;remitente?:string;destinatario?:string;origen?:string;destino?:string;bultos?:string;peso?:string;volumen?:string;mercancia?:string;descripcion?:string;contacto?:string;telefono?:string;contactoRecogida?:string;telefonoRecogida?:string;contactoEntrega?:string;telefonoEntrega?:string;referenciaCarga?:string;referenciaDescarga?:string;direccionRecogida?:string;direccionEntrega?:string;ventanaCargaInicio?:string;ventanaCargaFin?:string;ventanaEntregaInicio?:string;ventanaEntregaFin?:string;adr?:string;adrRegime?:string;unNumber?:string;adrClass?:string;packingGroup?:string;tunnelCode?:string;adrDescription?:string};
 type StoredExpedicion={id:string;customerIds?:string[];partidas?:string[];viajeId?:string};
 type IssuedCmr={id:string;cmrNumber:string;cmrKey:string;status:string;issuedAt:string;detailUrl:string;qrUrl:string;qrPayload:string};
 type AuditEvent={id:string;event_type:string;occurred_at:string;payload?:Record<string,unknown>};
 
 const initial:FormState={source:"expedicion",expedicion:"EX-260071",viaje:"VJ-260041",customerIds:["CLI-000146"],expedidor:"Mediterránea Retail · Valencia",destinatario:"Rhône Distribution · Lyon",carga:"REC-001 · Valencia",entrega:"ENT-014 · Lyon",transportista:"Velocity Transinternacional, S.L.",matricula:"1234 LBC",remolque:"R-9876 BCD",mercancia:"Componentes de automoción",bultos:"10",embalaje:"Palet EUR",peso:"5840",volumen:"18,40",instrucciones:"No apilable · Avisar antes de entregar",adr:"S",adrRegime:"1.1.3.6",unNumber:"UN 1263",adrClass:"3",packingGroup:"II",tunnelCode:"D/E",adrDescription:"PINTURA, 3, II"};
+const initialStopDetails:StopDetailDraft[]=[
+ {sequence:1,contactName:"",contactPhone:"",reference:"",fullAddress:initial.carga,windowStart:"",windowEnd:"",orders:[]},
+ {sequence:2,contactName:"",contactPhone:"",reference:"",fullAddress:initial.entrega,windowStart:"",windowEnd:"",orders:[]},
+];
+
+function detailsFromPartidas(lines:StoredPartida[]):StopDetailDraft[]{
+ const first=lines[0];
+ const orders=lines.map(line=>({id:line.id,customerId:line.customerId||line.codigoCliente,description:line.mercancia||line.descripcion,packages:line.bultos,weight:line.peso}));
+ return [
+  {sequence:1,contactName:first?.contactoRecogida||first?.contacto||"",contactPhone:first?.telefonoRecogida||first?.telefono||"",reference:first?.referenciaCarga||"",fullAddress:first?.direccionRecogida||first?.origen||"",windowStart:first?.ventanaCargaInicio||"",windowEnd:first?.ventanaCargaFin||"",orders},
+  {sequence:2,contactName:first?.contactoEntrega||first?.contacto||"",contactPhone:first?.telefonoEntrega||first?.telefono||"",reference:first?.referenciaDescarga||"",fullAddress:first?.direccionEntrega||first?.destino||"",windowStart:first?.ventanaEntregaInicio||"",windowEnd:first?.ventanaEntregaFin||"",orders},
+ ];
+}
 
 export default function NuevoCmrPage(){
  const [form,setForm]=useState(initial),[notice,setNotice]=useState(""),[inheritance,setInheritance]=useState(""),[issuing,setIssuing]=useState(false);
+ const [stopDetails,setStopDetails]=useState<StopDetailDraft[]>(initialStopDetails);
  const [issued,setIssued]=useState<IssuedCmr|null>(null),[showQr,setShowQr]=useState(false),[audit,setAudit]=useState<AuditEvent[]|null>(null);
  const missing=useMemo(()=>[!form.customerIds.length&&"Customer ID",!form.expedidor&&"Expedidor",!form.destinatario&&"Destinatario",!form.carga&&"Lugar de carga",!form.entrega&&"Lugar de entrega",!form.transportista&&"Transportista",!form.mercancia&&"Mercancía",!form.peso&&"Peso bruto",form.adr==="S"&&!form.adrRegime&&"Régimen ADR"].filter(Boolean) as string[],[form]);
  const completeness=Math.round(((9-missing.length)/9)*100),locked=Boolean(issued);
@@ -30,21 +46,23 @@ export default function NuevoCmrPage(){
   const customerIds=expedition.customerIds?.length?expedition.customerIds:[...new Set(lines.map(x=>x.customerId||x.codigoCliente).filter(Boolean))] as string[];
   const adrLines=lines.filter(x=>x.adr==="S"),first=adrLines[0],declared=lines.filter(x=>x.adr==="S"||x.adr==="N");
   setForm(current=>({...current,customerIds,viaje:expedition.viajeId||current.viaje,expedidor:lines[0].cliente||lines[0].remitente||current.expedidor,carga:lines[0].origen||current.carga,entrega:lines[0].destino||current.entrega,bultos:String(lines.reduce((sum,x)=>sum+Number(x.bultos||0),0)||current.bultos),peso:String(lines.reduce((sum,x)=>sum+Number(x.peso||0),0)||current.peso),volumen:String(lines.reduce((sum,x)=>sum+Number(x.volumen||0),0)||current.volumen),adr:adrLines.length?"S":declared.length===lines.length?"N":"",adrRegime:first?.adrRegime||"",unNumber:first?.unNumber||"",adrClass:first?.adrClass||"",packingGroup:first?.packingGroup||"",tunnelCode:first?.tunnelCode||"",adrDescription:first?.adrDescription||""}));
+  setStopDetails(detailsFromPartidas(lines));
   setInheritance(`Customer ID heredado: ${customerIds.join(", ")}.${adrLines.length?` ADR heredado de ${first.id}.`:" Sin partidas ADR declaradas."}`);
  }catch{setInheritance("")}}
  useEffect(()=>{inheritFromExpedition(form.expedicion)},[]);
 
- function saveDraft(){try{const current=JSON.parse(localStorage.getItem("fornexa-cmr-documents")||"[]");const document={id:`BORRADOR-${Date.now()}`,...form,status:"Borrador",createdAt:new Date().toISOString()};localStorage.setItem("fornexa-cmr-documents",JSON.stringify([document,...(Array.isArray(current)?current:[])]));setNotice("CMR guardado como borrador local.")}catch{setNotice("No se pudo guardar el borrador en este navegador.")}}
+ function saveDraft(){try{const current=JSON.parse(localStorage.getItem("fornexa-cmr-documents")||"[]");const document={id:`BORRADOR-${Date.now()}`,...form,stopDetails,status:"Borrador",createdAt:new Date().toISOString()};localStorage.setItem("fornexa-cmr-documents",JSON.stringify([document,...(Array.isArray(current)?current:[])]));setNotice("CMR guardado como borrador local.")}catch{setNotice("No se pudo guardar el borrador en este navegador.")}}
  async function emit(){
   if(missing.length||issuing||issued)return;
   if(!window.confirm("Se validará el documento, se asignará el número definitivo y los campos principales quedarán bloqueados. ¿Emitir CMR?"))return;
   setIssuing(true);setNotice("");
   try{
-   const response=await fetch("/api/cmr",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(form)});
+   const communicatedStops=stopDetails.map(detail=>({...detail,fullAddress:detail.sequence===1?form.carga:form.entrega}));
+   const response=await fetch("/api/cmr",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({...form,stopDetails:communicatedStops})});
    const result=await response.json();if(!response.ok)throw new Error(result.error||"No se pudo emitir el CMR.");
    setIssued(result);setNotice(`${result.cmrNumber} emitido. La CMR Key y el QR ya están disponibles.`);
    const current=JSON.parse(localStorage.getItem("fornexa-cmr-documents")||"[]");
-   localStorage.setItem("fornexa-cmr-documents",JSON.stringify([{id:result.cmrNumber,...form,status:"Emitido",cmrKey:result.cmrKey,createdAt:result.issuedAt},...(Array.isArray(current)?current:[])]));
+   localStorage.setItem("fornexa-cmr-documents",JSON.stringify([{id:result.cmrNumber,...form,stopDetails:communicatedStops,status:"Emitido",cmrKey:result.cmrKey,createdAt:result.issuedAt},...(Array.isArray(current)?current:[])]));
   }catch(error){setNotice(error instanceof Error?error.message:"No se pudo emitir el CMR.")}finally{setIssuing(false)}
  }
  async function shareQr(){if(!issued)return;setShowQr(true);try{if(navigator.share)await navigator.share({title:issued.cmrNumber,text:`CMR Key: ${issued.cmrKey}`,url:issued.qrPayload});else{await navigator.clipboard.writeText(`${issued.cmrNumber} · ${issued.cmrKey} · ${issued.qrPayload}`);setNotice("Enlace y CMR Key copiados al portapapeles.")}}catch{/* El usuario puede cerrar el diálogo nativo. */}}
