@@ -22,7 +22,7 @@
   height: 100vh;
   padding: 30px 22px;
   overflow: hidden;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 1px solid rgba(18, 32, 52, 0.1);
   background: #ffffff;
 }
 
@@ -54,11 +54,11 @@
 .nav a:focus-visible,
 .nav a.active {
   color: #101216;
-  background: rgba(105, 230, 180, 0.09);
+  background: rgba(0, 93, 143, 0.08);
 }
 
 .nav a:focus-visible {
-  outline: 2px solid rgba(105, 230, 180, 0.72);
+  outline: 2px solid rgba(0, 93, 143, 0.62);
   outline-offset: 2px;
 }
 
@@ -170,7 +170,7 @@
     padding: 16px 18px;
     overflow: hidden;
     border-right: 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid rgba(18, 32, 52, 0.1);
   }
 
   .nav {
