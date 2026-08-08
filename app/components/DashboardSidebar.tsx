@@ -32,6 +32,17 @@ const recordModules: Record<string, string> = {
   almacenes: "/dashboard/almacenes",
 };
 
+const createRoutes: Record<string, string> = {
+  "/dashboard/partidas": "/dashboard/nuevo/partida",
+  "/dashboard/expediciones": "/dashboard/nuevo/expedicion",
+  "/dashboard/viajes": "/dashboard/nuevo/viaje",
+  "/dashboard/ofertas-tarifas": "/dashboard/registros/ofertas-tarifas/nuevo",
+  "/dashboard/clientes": "/dashboard/registros/clientes/nuevo",
+  "/dashboard/colaboradores": "/dashboard/registros/colaboradores/nuevo",
+  "/dashboard/almacenes": "/dashboard/registros/almacenes/nuevo",
+  "/dashboard/epod-cmr": "/dashboard/epod-cmr/nuevo",
+};
+
 function activeHref(pathname: string) {
   const recordModule = pathname.match(/^\/dashboard\/registros\/([^/]+)/)?.[1];
   if (recordModule) return recordModules[recordModule];
@@ -39,10 +50,32 @@ function activeHref(pathname: string) {
   const newModule = pathname.match(/^\/dashboard\/nuevo\/([^/]+)/)?.[1];
   if (newModule === "partida") return "/dashboard/partidas";
   if (newModule === "expedicion") return "/dashboard/expediciones";
+  if (newModule === "viaje") return "/dashboard/viajes";
 
   return navigation
     .slice(1)
     .find(([, href]) => pathname === href || pathname.startsWith(`${href}/`))?.[1] ?? "/dashboard";
+}
+
+function createHref(pathname: string, currentHref: string) {
+  if (
+    pathname.startsWith("/dashboard/nuevo/") ||
+    pathname.endsWith("/nuevo")
+  ) return null;
+
+  return createRoutes[currentHref] ?? null;
+}
+
+function isPlusShortcut(event: KeyboardEvent) {
+  if (event.code === "NumpadAdd") {
+    return !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+  }
+
+  if (event.key === "+") {
+    return !event.altKey && !event.ctrlKey && !event.metaKey;
+  }
+
+  return false;
 }
 
 export default function DashboardSidebar() {
@@ -51,15 +84,8 @@ export default function DashboardSidebar() {
   const currentHref = activeHref(pathname);
 
   useEffect(() => {
-    function openNewOrder(event: KeyboardEvent) {
-      if (
-        event.code !== "NumpadAdd" ||
-        event.repeat ||
-        event.altKey ||
-        event.ctrlKey ||
-        event.metaKey ||
-        event.shiftKey
-      ) return;
+    function openNewRecord(event: KeyboardEvent) {
+      if (!isPlusShortcut(event) || event.repeat) return;
 
       const target = event.target;
       if (
@@ -67,14 +93,17 @@ export default function DashboardSidebar() {
         (target.isContentEditable || Boolean(target.closest("input, textarea, select, [contenteditable='true']")))
       ) return;
 
+      const href = createHref(pathname, currentHref);
+      if (!href) return;
+
       event.preventDefault();
       window.scrollTo(0, 0);
-      router.push("/dashboard/nuevo/partida");
+      router.push(href);
     }
 
-    window.addEventListener("keydown", openNewOrder);
-    return () => window.removeEventListener("keydown", openNewOrder);
-  }, [router]);
+    window.addEventListener("keydown", openNewRecord);
+    return () => window.removeEventListener("keydown", openNewRecord);
+  }, [router, pathname, currentHref]);
 
   return (
     <aside className={styles.sidebar}>
