@@ -81,15 +81,17 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       if (updateError) throw updateError;
     }
 
+    let allStopsCompleted = false;
     if (type === "arrival") await supabase.from("cmr_documents").update({ status: "En tránsito", updated_at: occurredAt }).eq("id", document.id);
     if (type === "complete") {
       const { data: states, error: statesError } = await supabase.from("transport_stops").select("status").eq("cmr_id", document.id);
       if (statesError) throw statesError;
-      const status = states?.every(item => item.status === "Completada") ? "Entregado" : "En tránsito";
+      allStopsCompleted = Boolean(states?.length && states.every(item => item.status === "Completada"));
+      const status = allStopsCompleted ? "Entregado" : "En tránsito";
       await supabase.from("cmr_documents").update({ status, updated_at: occurredAt }).eq("id", document.id);
     }
 
-    return NextResponse.json({ ok: true, eventType, overwritten: type === "arrival" && overwriteArrival });
+    return NextResponse.json({ ok: true, eventType, overwritten: type === "arrival" && overwriteArrival, allStopsCompleted });
   } catch (error) {
     console.error("Mobile stop event error", error);
     return NextResponse.json({ error: "No se pudo registrar el evento." }, { status: 500 });

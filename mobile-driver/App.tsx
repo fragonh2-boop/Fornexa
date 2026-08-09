@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Linking,
+  Platform,
   RefreshControl,
-  SafeAreaView,
+  SafeAreaView as NativeSafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -12,11 +13,13 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  type StyleProp,
+  type ViewStyle,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
-import SignatureScreen from "react-native-signature-canvas";
+import SignatureScreen, { type SignatureViewRef } from "react-native-signature-canvas";
 
 const API_URL = process.env.EXPO_PUBLIC_FORNEXA_API_URL ?? "https://fornexasc.com";
 const INCIDENT_OPTIONS = ["Falta mercancía", "Sobra mercancía", "Rotura", "Mojado", "Otros"] as const;
@@ -39,6 +42,7 @@ export default function App(){
   const [detailOrigin,setDetailOrigin]=useState<"transport"|"history">("transport");
   const [incidentType,setIncidentType]=useState<(typeof INCIDENT_OPTIONS)[number]|null>(null);
   const [incidentNote,setIncidentNote]=useState("");
+  const signatureRef=useRef<SignatureViewRef|null>(null);
   const [permission,requestPermission]=useCameraPermissions();
   const normalizedKey=useMemo(()=>normalizeKey(key),[key]);
 
@@ -81,6 +85,14 @@ export default function App(){
       }
       if(!response.ok)throw new Error(result.error||"No se pudo registrar el evento.");
       await loadTransport(key,true);
+      if(type==="complete"&&result.allStopsCompleted){
+        Alert.alert(
+          "Todas las paradas están completadas",
+          "¿Deseas finalizar el trabajo y cerrar este transporte?",
+          [{text:"Cancelar",style:"cancel"},{text:"Finalizar",onPress:finishWork}],
+        );
+        return;
+      }
       Alert.alert("Sincronizado",eventConfirmation(type,overwriteArrival));
     }catch(error){Alert.alert("Pendiente",messageFor(error,"No se pudo sincronizar."))}
     finally{setLoading(false)}
@@ -98,6 +110,21 @@ export default function App(){
   function markArrival(stop:Stop){
     if(stop.arrived_at){confirmArrivalOverwrite(stop);return}
     postEvent(stop,"arrival");
+  }
+
+  async function finishWork(){
+    try{
+      setLoading(true);
+      const response=await fetch(`${API_URL}/api/mobile/cmr/${encodeURIComponent(key)}/finish`,{
+        method:"POST",
+        headers:{"x-fornexa-key":key,"x-idempotency-key":`finish-${key}-${Date.now()}`},
+      });
+      const result=await response.json();
+      if(!response.ok)throw new Error(result.error||"No se pudo finalizar el trabajo.");
+      await loadTransport(key,true);
+      Alert.alert("Trabajo finalizado","El transporte se ha cerrado y el evento queda registrado en el histórico.");
+    }catch(error){Alert.alert("No se pudo finalizar",messageFor(error,"Comprueba la conexión."))}
+    finally{setLoading(false)}
   }
 
   async function addPhoto(stop:Stop){
@@ -137,7 +164,6 @@ export default function App(){
       const origin=points[0],destination=points.at(-1);if(!origin||!destination)return;
       const waypoints=points.slice(1,-1).join("|");
       const url=`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}${waypoints?`&waypoints=${encodeURIComponent(waypoints)}`:""}&travelmode=driving`;
-      if(!(await Linking.canOpenURL(url)))throw new Error("No hay una aplicación de mapas disponible en este dispositivo.");
       await Linking.openURL(url);
     }catch(error){Alert.alert("Ruta no disponible",messageFor(error,"No se pudieron resolver las coordenadas de la ruta."))}
     finally{setLoading(false)}
@@ -164,7 +190,7 @@ export default function App(){
   }
 
   if(screen==="signature"&&selectedStop){
-    return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content"/><View style={styles.compactHeader}><Text style={styles.eyebrow}>POD DIGITAL</Text><Text style={styles.modalTitle}>Firma del destinatario</Text><Text style={styles.compactMeta}>{selectedStop.company}</Text></View><View style={styles.signatureCanvas}><SignatureScreen onOK={()=>{setScreen("transport");postEvent(selectedStop,"signature",{captured:true})}} onEmpty={()=>Alert.alert("Firma vacía","Introduce una firma antes de confirmar.")} descriptionText="" clearText="Borrar" confirmText="Aceptar firma" autoClear webStyle={signatureWebStyle}/></View><View style={styles.signatureBottom}><Text style={styles.signatureHint}>Firma dentro del recuadro y usa “Aceptar firma”.</Text><SecondaryButton label="Cancelar" onPress={()=>setScreen("transport")}/></View></SafeAreaView>;
+    return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" backgroundColor="#eef3f9" translucent/><View style={styles.compactHeader}><TouchableOpacity onPress={()=>setScreen("transport")}><Text style={styles.back}>← Volver</Text></TouchableOpacity><Text style={styles.eyebrow}>POD DIGITAL</Text><Text style={styles.modalTitle}>Firma del destinatario</Text><Text style={styles.compactMeta}>{selectedStop.company}</Text></View><View style={styles.signatureCanvas}><SignatureScreen ref={signatureRef} onOK={()=>{setScreen("transport");postEvent(selectedStop,"signature",{captured:true})}} onEmpty={()=>Alert.alert("Firma vacía","Introduce una firma antes de confirmar.")} descriptionText="" clearText="" confirmText="" autoClear webStyle={signatureWebStyle}/></View><View style={styles.signatureBottom}><Text style={styles.signatureHint}>Firma dentro del recuadro. Los controles permanecen siempre visibles.</Text><View style={styles.signatureActions}><TouchableOpacity style={styles.signatureClear} onPress={()=>signatureRef.current?.clearSignature()}><Text style={styles.signatureClearText}>Borrar</Text></TouchableOpacity><TouchableOpacity style={styles.signatureAccept} onPress={()=>signatureRef.current?.readSignature()}><Text style={styles.signatureAcceptText}>Aceptar firma</Text></TouchableOpacity></View></View></SafeAreaView>;
   }
 
   if(screen==="incident"&&selectedStop){
@@ -181,10 +207,16 @@ export default function App(){
     const document=transport.document;
     const completed=transport.stops.filter(stop=>stop.status==="Completada");
     const active=transport.stops.filter(stop=>stop.status!=="Completada");
-    return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content"/><ScrollView contentContainerStyle={styles.scroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{setRefreshing(true);loadTransport(key,true)}}/>}><View style={styles.topbar}><TouchableOpacity onPress={()=>setScreen("home")}><Text style={styles.back}>← Inicio</Text></TouchableOpacity><Text style={styles.sync}>● Sincronizado</Text></View><View style={styles.tabs}><TouchableOpacity onPress={()=>setScreen("transport")} style={screen==="transport"?styles.tabActive:styles.tab}><Text style={screen==="transport"?styles.tabTextActive:styles.tabText}>Transporte</Text></TouchableOpacity><TouchableOpacity onPress={()=>setScreen("history")} style={screen==="history"?styles.tabActive:styles.tab}><Text style={screen==="history"?styles.tabTextActive:styles.tabText}>Histórico</Text></TouchableOpacity></View>{screen==="history"?<><Text style={styles.eyebrow}>TRAZABILIDAD OPERATIVA</Text><Text style={styles.title}>Paradas finalizadas</Text><Text style={styles.muted}>Las paradas pasan de “En progreso” a “Finalizadas” sin poder eliminarse.</Text><View style={styles.kanban}><View style={styles.kanbanColumn}><Text style={styles.kanbanLabel}>EN PROGRESO</Text><Text style={styles.kanbanCount}>{active.length}</Text></View><Text style={styles.kanbanArrow}>→</Text><View style={[styles.kanbanColumn,styles.kanbanDone]}><Text style={styles.kanbanLabel}>FINALIZADAS</Text><Text style={styles.kanbanCount}>{completed.length}</Text></View></View>{completed.length?completed.map((stop,index)=><CompletedStopCard key={stop.id} stop={stop} index={index} onPress={()=>openStop(stop,"history")}/>):<View style={styles.emptyCard}><Text style={styles.emptyTitle}>Todavía no hay paradas finalizadas</Text><Text style={styles.emptyText}>Cuando una parada tenga foto POD y se complete, aparecerá aquí.</Text></View>}</>:<><Text style={styles.eyebrow}>CMR IMPORTADO · {document.status}</Text><Text style={styles.title}>{document.cmr_number}</Text><Text style={styles.route}>{document.pickup_location} → {document.delivery_location}</Text><View style={styles.summaryCard}><Summary label="Expedición" value={document.expedition_id||"—"}/><Summary label="Viaje" value={document.trip_id||"—"}/><Summary label="Mercancía" value={`${document.packages??"—"} · ${document.goods_description}`}/><Summary label="Peso" value={document.gross_weight?`${Number(document.gross_weight).toLocaleString("es-ES")} kg`:"—"}/></View><PrimaryButton label="Proyectar ruta en Maps" onPress={openRoute}/><Text style={styles.sectionTitle}>Paradas</Text>{transport.stops.map((stop,index)=><View key={stop.id} style={styles.stopCard}><TouchableOpacity style={styles.stopTop} onPress={()=>openStop(stop,"transport")}><View style={styles.stopIndex}><Text style={styles.stopIndexText}>{index+1}</Text></View><View style={styles.stopBody}><Text style={styles.stopType}>{stop.stop_type}</Text><Text style={styles.stopCompany}>{stop.company}</Text><Text style={styles.stopMeta}>{stop.address}</Text><Text style={styles.stopMeta}>{windowLabel(stop)}</Text>{stop.arrived_at&&<Text style={styles.arrivalRecorded}>● Llegada: {new Date(stop.arrived_at).toLocaleString("es-ES")}</Text>}<Text style={stop.contactMissing?styles.contactMissing:styles.contactOk}>{stop.contactMissing?"● Sin teléfono de contacto":`● ${stop.contact_phone}`}</Text></View><View><Text style={stop.status==="Completada"?styles.done:styles.pending}>{stop.status}</Text><Text style={styles.chevron}>›</Text></View></TouchableOpacity><View style={styles.stopActions}><SmallButton label={stop.arrived_at?"Actualizar llegada":"He llegado"} onPress={()=>markArrival(stop)}/><SmallButton label={`Foto POD (${stop.evidenceCount})`} onPress={()=>addPhoto(stop)}/><SmallButton label="Firmar" onPress={()=>{setSelectedStop(stop);setScreen("signature")}}/><SmallButton label="Completar" onPress={()=>postEvent(stop,"complete")}/><SmallButton label="Incidencia" onPress={()=>openIncident(stop)}/></View></View>)}</>}{loading&&<View style={styles.loading}><ActivityIndicator color="#005d8f"/><Text>Sincronizando…</Text></View>}</ScrollView></SafeAreaView>;
+    const canFinish=transport.stops.length>0&&active.length===0&&document.status!=="Cerrado";
+    return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" backgroundColor="#eef3f9" translucent/><ScrollView contentContainerStyle={styles.scroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{setRefreshing(true);loadTransport(key,true)}}/>}><View style={styles.topbar}><TouchableOpacity onPress={()=>setScreen("home")}><Text style={styles.back}>← Inicio</Text></TouchableOpacity><Text style={styles.sync}>● Sincronizado</Text></View><View style={styles.tabs}><TouchableOpacity onPress={()=>setScreen("transport")} style={screen==="transport"?styles.tabActive:styles.tab}><Text style={screen==="transport"?styles.tabTextActive:styles.tabText}>Transporte</Text></TouchableOpacity><TouchableOpacity onPress={()=>setScreen("history")} style={screen==="history"?styles.tabActive:styles.tab}><Text style={screen==="history"?styles.tabTextActive:styles.tabText}>Histórico</Text></TouchableOpacity></View>{screen==="history"?<><Text style={styles.eyebrow}>TRAZABILIDAD OPERATIVA</Text><Text style={styles.title}>Paradas finalizadas</Text><Text style={styles.muted}>Las paradas pasan de “En progreso” a “Finalizadas” sin poder eliminarse.</Text><View style={styles.kanban}><View style={styles.kanbanColumn}><Text style={styles.kanbanLabel}>EN PROGRESO</Text><Text style={styles.kanbanCount}>{active.length}</Text></View><Text style={styles.kanbanArrow}>→</Text><View style={[styles.kanbanColumn,styles.kanbanDone]}><Text style={styles.kanbanLabel}>FINALIZADAS</Text><Text style={styles.kanbanCount}>{completed.length}</Text></View></View>{completed.length?completed.map((stop,index)=><CompletedStopCard key={stop.id} stop={stop} index={index} onPress={()=>openStop(stop,"history")}/>):<View style={styles.emptyCard}><Text style={styles.emptyTitle}>Todavía no hay paradas finalizadas</Text><Text style={styles.emptyText}>Cuando una parada tenga foto POD y se complete, aparecerá aquí.</Text></View>}</>:<><Text style={styles.eyebrow}>CMR IMPORTADO · {document.status}</Text><Text style={styles.title}>{document.cmr_number}</Text><Text style={styles.route}>{document.pickup_location} → {document.delivery_location}</Text><View style={styles.summaryCard}><Summary label="Expedición" value={document.expedition_id||"—"}/><Summary label="Viaje" value={document.trip_id||"—"}/><Summary label="Mercancía" value={`${document.packages??"—"} · ${document.goods_description}`}/><Summary label="Peso" value={document.gross_weight?`${Number(document.gross_weight).toLocaleString("es-ES")} kg`:"—"}/></View><PrimaryButton label="Proyectar ruta en Maps" onPress={openRoute}/>{canFinish&&<PrimaryButton label="Finalizar trabajo" onPress={()=>Alert.alert("Finalizar trabajo","¿Deseas cerrar este transporte?",[{text:"Cancelar",style:"cancel"},{text:"Finalizar",onPress:finishWork}])}/>}<Text style={styles.sectionTitle}>Paradas</Text>{transport.stops.map((stop,index)=><View key={stop.id} style={styles.stopCard}><TouchableOpacity style={styles.stopTop} onPress={()=>openStop(stop,"transport")}><View style={styles.stopIndex}><Text style={styles.stopIndexText}>{index+1}</Text></View><View style={styles.stopBody}><Text style={styles.stopType}>{stop.stop_type}</Text><Text style={styles.stopCompany}>{stop.company}</Text><Text style={styles.stopMeta}>{stop.address}</Text><Text style={styles.stopMeta}>{windowLabel(stop)}</Text>{stop.arrived_at&&<Text style={styles.arrivalRecorded}>● Llegada: {new Date(stop.arrived_at).toLocaleString("es-ES")}</Text>}<Text style={stop.contactMissing?styles.contactMissing:styles.contactOk}>{stop.contactMissing?"● Sin teléfono de contacto":`● ${stop.contact_phone}`}</Text></View><View><Text style={stop.status==="Completada"?styles.done:styles.pending}>{stop.status}</Text><Text style={styles.chevron}>›</Text></View></TouchableOpacity>{stop.status!=="Completada"&&<View style={styles.stopActions}><SmallButton label={stop.arrived_at?"Actualizar llegada":"He llegado"} onPress={()=>markArrival(stop)}/><SmallButton label={`Foto POD (${stop.evidenceCount})`} onPress={()=>addPhoto(stop)}/><SmallButton label="Firmar" onPress={()=>{setSelectedStop(stop);setScreen("signature")}}/><SmallButton label="Completar" onPress={()=>postEvent(stop,"complete")}/><SmallButton label="Incidencia" onPress={()=>openIncident(stop)}/></View>}</View>)}</>}{loading&&<View style={styles.loading}><ActivityIndicator color="#005d8f"/><Text>Sincronizando…</Text></View>}</ScrollView></SafeAreaView>;
   }
 
-  return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content"/><ScrollView contentContainerStyle={styles.home} keyboardShouldPersistTaps="handled"><View style={styles.logoMark}><Text style={styles.logoMarkText}>4NXA</Text></View><Text style={styles.brand}>FORNEXA DRIVER</Text><Text style={styles.hero}>Tu transporte, sin papeles.</Text><Text style={styles.muted}>Importa un CMR real y sincroniza ruta, llegadas, fotografías POD, firmas e incidencias.</Text><PrimaryButton label="Escanear QR" onPress={()=>setScreen("scanner")}/><View style={styles.divider}><View/><Text>o introduce el código</Text><View/></View><TextInput value={key} onChangeText={setKey} autoCapitalize="characters" autoCorrect={false} placeholder="XXXX-XXXX-XXXX" placeholderTextColor="#8290a3" style={styles.input} returnKeyType="go" onSubmitEditing={()=>loadTransport()}/><SecondaryButton label={loading?"Importando…":"Importar CMR"} onPress={()=>loadTransport()}/>{loading&&<ActivityIndicator color="#005d8f" style={{marginTop:18}}/>}</ScrollView></SafeAreaView>;
+  return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" backgroundColor="#eef3f9" translucent/><ScrollView contentContainerStyle={styles.home} keyboardShouldPersistTaps="handled"><View style={styles.logoMark}><Text style={styles.logoMarkText}>4NXA</Text></View><Text style={styles.brand}>FORNEXA MOBILE</Text><Text style={styles.hero}>Tu transporte, sin papeles.</Text><Text style={styles.muted}>Importa un CMR real y sincroniza ruta, llegadas, fotografías POD, firmas e incidencias.</Text><PrimaryButton label="Escanear QR" onPress={()=>setScreen("scanner")}/><View style={styles.divider}><View/><Text>o introduce el código</Text><View/></View><TextInput value={key} onChangeText={setKey} autoCapitalize="characters" autoCorrect={false} placeholder="XXXX-XXXX-XXXX" placeholderTextColor="#8290a3" style={styles.input} returnKeyType="go" onSubmitEditing={()=>loadTransport()}/><SecondaryButton label={loading?"Importando…":"Importar CMR"} onPress={()=>loadTransport()}/>{loading&&<ActivityIndicator color="#005d8f" style={{marginTop:18}}/>}</ScrollView></SafeAreaView>;
+}
+
+function SafeAreaView({children,style}:{children:ReactNode;style?:StyleProp<ViewStyle>}){
+  const androidInsets=Platform.OS==="android"?{paddingTop:StatusBar.currentHeight??24,paddingBottom:12}:undefined;
+  return <NativeSafeAreaView style={[style,androidInsets]}>{children}</NativeSafeAreaView>;
 }
 
 function normalizeKey(value:string){const clean=(value.trim().split("?").at(0)??"").replace(/\/$/,"");const last=clean.includes("/")?clean.split("/").pop()??"":clean;return last.toUpperCase()}
@@ -203,12 +235,16 @@ function CompletedStopCard({stop,index,onPress}:{stop:Stop;index:number;onPress:
 
 const signatureWebStyle=`
   .m-signature-pad { box-shadow:none; border:none; }
-  .m-signature-pad--body { top:8px; left:8px; right:8px; bottom:66px; border:1px solid #dbe2ea; border-radius:12px; }
-  .m-signature-pad--footer { height:54px; bottom:4px; display:flex; align-items:center; justify-content:center; gap:10px; }
-  .m-signature-pad--footer .button { position:static; margin:0; min-width:120px; height:42px; border-radius:10px; font-weight:700; }
-  .m-signature-pad--footer .save { background:#005d8f; color:white; }
+  .m-signature-pad--body { top:8px; left:8px; right:8px; bottom:8px; border:1px solid #dbe2ea; border-radius:12px; }
+  .m-signature-pad--footer { display:none; }
 `;
 
-const styles=StyleSheet.create({
+const styles=Object.assign(StyleSheet.create({
   safe:{flex:1,backgroundColor:"#eef3f9"},home:{flexGrow:1,padding:28,justifyContent:"center"},scroll:{padding:22,paddingBottom:44},centered:{flex:1,justifyContent:"center",padding:28,gap:16},modalPage:{padding:22,paddingBottom:40},compactHeader:{paddingHorizontal:22,paddingTop:14,paddingBottom:8},compactMeta:{color:"#607086",fontSize:14,marginTop:4},modalTitle:{color:"#101216",fontSize:24,fontWeight:"900",marginTop:4},logoMark:{width:70,height:70,borderRadius:20,backgroundColor:"#005d8f",alignItems:"center",justifyContent:"center",marginBottom:18},logoMarkText:{color:"white",fontWeight:"900",fontSize:18},brand:{color:"#005d8f",fontSize:13,fontWeight:"900",letterSpacing:2},hero:{color:"#101216",fontSize:34,lineHeight:39,fontWeight:"900",marginTop:12,marginBottom:10},title:{color:"#101216",fontSize:30,fontWeight:"900",marginTop:4},route:{color:"#526174",fontSize:17,marginTop:5,marginBottom:20},muted:{color:"#607086",fontSize:15,lineHeight:22,marginBottom:24},eyebrow:{color:"#005d8f",fontSize:11,fontWeight:"900",letterSpacing:1.8},primaryButton:{backgroundColor:"#005d8f",borderRadius:16,minHeight:58,alignItems:"center",justifyContent:"center",marginTop:18},primaryButtonText:{color:"white",fontWeight:"900",fontSize:16},secondaryButton:{borderWidth:1,borderColor:"#d6dde7",backgroundColor:"white",borderRadius:16,minHeight:56,alignItems:"center",justifyContent:"center",marginTop:12},secondaryButtonText:{color:"#263343",fontWeight:"800",fontSize:15},divider:{flexDirection:"row",alignItems:"center",gap:10,marginVertical:22},input:{backgroundColor:"white",borderWidth:1,borderColor:"#cbd5e1",borderRadius:16,minHeight:58,paddingHorizontal:18,color:"#101216",textAlign:"center",fontSize:18,fontWeight:"800",letterSpacing:1.4},scannerOverlay:{flex:1,padding:26,alignItems:"center",justifyContent:"space-between",backgroundColor:"rgba(16,18,22,.28)"},scannerTitle:{color:"white",fontSize:20,fontWeight:"900",marginTop:34},scanFrame:{width:260,height:260,borderWidth:3,borderColor:"#4cb5e8",borderRadius:28},topbar:{flexDirection:"row",justifyContent:"space-between",alignItems:"center",marginBottom:18},back:{color:"#005d8f",fontWeight:"800",marginBottom:16},sync:{color:"#168657",fontSize:11,fontWeight:"800"},tabs:{flexDirection:"row",padding:4,backgroundColor:"#dfe7f0",borderRadius:14,marginBottom:24},tab:{flex:1,padding:11,alignItems:"center"},tabActive:{flex:1,padding:11,alignItems:"center",backgroundColor:"white",borderRadius:11},tabText:{color:"#607086",fontWeight:"800"},tabTextActive:{color:"#005d8f",fontWeight:"900"},summaryCard:{flexDirection:"row",flexWrap:"wrap",backgroundColor:"white",borderRadius:18,padding:18,borderWidth:1,borderColor:"#dbe2ea"},summaryItem:{width:"50%",marginVertical:8},summaryLabel:{color:"#718096",fontSize:11,textTransform:"uppercase",fontWeight:"800"},summaryValue:{color:"#101216",fontWeight:"800",marginTop:4},sectionTitle:{color:"#101216",fontSize:18,fontWeight:"900",marginTop:28,marginBottom:12},stopCard:{padding:16,borderRadius:17,backgroundColor:"white",marginBottom:12,borderWidth:1,borderColor:"#dbe2ea"},stopTop:{flexDirection:"row",alignItems:"flex-start"},stopIndex:{width:36,height:36,borderRadius:18,backgroundColor:"#dcecf5",alignItems:"center",justifyContent:"center",marginRight:12},stopIndexText:{color:"#005d8f",fontWeight:"900"},stopBody:{flex:1},stopType:{color:"#005d8f",fontSize:11,textTransform:"uppercase",fontWeight:"900"},stopCompany:{color:"#101216",fontWeight:"900",marginTop:3},stopMeta:{color:"#607086",fontSize:12,marginTop:3},arrivalRecorded:{color:"#6d5b00",fontSize:11,fontWeight:"800",marginTop:6},contactMissing:{color:"#c43d4d",fontSize:11,fontWeight:"900",marginTop:7},contactOk:{color:"#168657",fontSize:11,fontWeight:"900",marginTop:7},pending:{color:"#b56b00",fontSize:10,fontWeight:"900",textAlign:"right"},done:{color:"#168657",fontSize:10,fontWeight:"900",textAlign:"right"},chevron:{color:"#8290a3",fontSize:30,textAlign:"right",lineHeight:34},stopActions:{flexDirection:"row",flexWrap:"wrap",gap:8,marginTop:14},smallButton:{paddingVertical:9,paddingHorizontal:11,borderRadius:10,backgroundColor:"#eef3f9",borderWidth:1,borderColor:"#d5dee8"},smallButtonText:{color:"#005d8f",fontSize:11,fontWeight:"900"},loading:{position:"absolute",left:22,right:22,bottom:12,flexDirection:"row",gap:10,justifyContent:"center",alignItems:"center",padding:12,backgroundColor:"white",borderRadius:14,borderWidth:1,borderColor:"#dbe2ea"},signatureCanvas:{height:360,marginHorizontal:18,borderRadius:18,overflow:"hidden",backgroundColor:"white",borderWidth:1,borderColor:"#dbe2ea"},signatureBottom:{paddingHorizontal:18,paddingBottom:14},signatureHint:{color:"#607086",fontSize:12,textAlign:"center",marginTop:10},optionList:{gap:10},option:{minHeight:58,borderRadius:15,borderWidth:1,borderColor:"#d6dde7",backgroundColor:"white",paddingHorizontal:16,flexDirection:"row",alignItems:"center",justifyContent:"space-between"},optionSelected:{borderColor:"#005d8f",backgroundColor:"#e1eff7"},optionText:{color:"#263343",fontWeight:"800"},optionTextSelected:{color:"#005d8f"},optionCheck:{color:"#005d8f",fontSize:18},fieldLabel:{color:"#263343",fontWeight:"800",marginTop:18,marginBottom:8},noteInput:{minHeight:92,borderRadius:15,borderWidth:1,borderColor:"#cbd5e1",backgroundColor:"white",padding:14,color:"#101216",textAlignVertical:"top"},counter:{color:"#718096",fontSize:11,textAlign:"right",marginTop:5},detailCard:{backgroundColor:"white",borderRadius:18,borderWidth:1,borderColor:"#dbe2ea",paddingHorizontal:17},detailRow:{paddingVertical:14,borderBottomWidth:StyleSheet.hairlineWidth,borderBottomColor:"#dbe2ea"},detailLabel:{color:"#718096",fontSize:11,textTransform:"uppercase",fontWeight:"800"},detailValue:{color:"#101216",fontWeight:"700",marginTop:5,lineHeight:20},detailWarning:{color:"#c43d4d",fontWeight:"900",marginTop:5},orderCard:{backgroundColor:"white",borderRadius:15,borderWidth:1,borderColor:"#dbe2ea",padding:16,marginBottom:10},orderId:{color:"#101216",fontWeight:"900",fontSize:16},orderMeta:{color:"#607086",fontSize:12,marginTop:4},orderDescription:{color:"#263343",fontWeight:"700",marginTop:8},emptyCard:{backgroundColor:"white",borderRadius:17,borderWidth:1,borderColor:"#dbe2ea",padding:20},emptyTitle:{color:"#101216",fontWeight:"900"},emptyText:{color:"#607086",fontSize:13,lineHeight:19,marginTop:7},kanban:{flexDirection:"row",alignItems:"center",gap:9,marginBottom:20},kanbanColumn:{flex:1,backgroundColor:"white",borderRadius:15,borderWidth:1,borderColor:"#dbe2ea",padding:14},kanbanDone:{borderColor:"#92d1b4",backgroundColor:"#eaf7f0"},kanbanLabel:{color:"#607086",fontSize:10,fontWeight:"900"},kanbanCount:{color:"#101216",fontSize:25,fontWeight:"900",marginTop:3},kanbanArrow:{color:"#005d8f",fontSize:22,fontWeight:"900"},completedCard:{flexDirection:"row",alignItems:"flex-start",backgroundColor:"white",borderRadius:17,borderWidth:1,borderColor:"#b8dfcb",padding:16,marginBottom:11},completedIcon:{width:36,height:36,borderRadius:18,backgroundColor:"#168657",alignItems:"center",justifyContent:"center",marginRight:12},completedIconText:{color:"white",fontWeight:"900"},completedDate:{color:"#168657",fontSize:11,fontWeight:"900",marginTop:7},sequenceLabel:{color:"#607086",fontSize:10,fontWeight:"800",textAlign:"right"}
-});
+}),StyleSheet.create({
+  signatureActions:{flexDirection:"row",gap:10,marginTop:12},
+  signatureClear:{flex:1,minHeight:54,borderRadius:14,borderWidth:1,borderColor:"#cbd5e1",backgroundColor:"white",alignItems:"center",justifyContent:"center"},
+  signatureClearText:{color:"#263343",fontWeight:"900",fontSize:15},
+  signatureAccept:{flex:1.4,minHeight:54,borderRadius:14,backgroundColor:"#005d8f",alignItems:"center",justifyContent:"center"},
+  signatureAcceptText:{color:"white",fontWeight:"900",fontSize:15},
+}));
