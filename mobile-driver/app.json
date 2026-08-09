@@ -1,21 +1,36 @@
 {
   "expo": {
-    "name": "FORNEXA Driver",
+    "name": "FORNEXA Mobile",
     "slug": "fornexasc",
     "owner": "fornexas-team",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "fornexa-driver",
+    "icon": "./assets/icon.png",
+    "androidStatusBar": {
+      "backgroundColor": "#eef3f9",
+      "barStyle": "dark-content",
+      "translucent": true
+    },
+    "androidNavigationBar": {
+      "backgroundColor": "#eef3f9",
+      "barStyle": "dark-content",
+      "enforceContrast": true
+    },
     "android": {
       "package": "com.fornexa.driver",
-      "versionCode": 3,
+      "versionCode": 4,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#0b2a66"
+      },
       "permissions": ["CAMERA", "ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
     },
     "plugins": [
-      ["expo-camera", {"cameraPermission": "FORNEXA Driver necesita la cámara para escanear el QR del CMR.", "recordAudioAndroid": false}],
-      ["expo-image-picker", {"cameraPermission": "FORNEXA Driver necesita la cámara para documentar recogidas y entregas.", "photosPermission": "FORNEXA Driver puede adjuntar evidencias existentes.", "microphonePermission": false}],
-      ["expo-location", {"locationWhenInUsePermission": "FORNEXA Driver usa la ubicación para registrar llegadas y evidencias operativas."}]
+      ["expo-camera", {"cameraPermission": "FORNEXA Mobile necesita la cámara para escanear el QR del CMR.", "recordAudioAndroid": false}],
+      ["expo-image-picker", {"cameraPermission": "FORNEXA Mobile necesita la cámara para documentar recogidas y entregas.", "photosPermission": "FORNEXA Mobile puede adjuntar evidencias existentes.", "microphonePermission": false}],
+      ["expo-location", {"locationWhenInUsePermission": "FORNEXA Mobile usa la ubicación para registrar llegadas y evidencias operativas."}]
     ],
     "extra": {
       "eas": {"projectId": "eb11d50d-b179-4fff-8010-85a3c18d4479"}
