@@ -3,7 +3,7 @@
     "name": "FORNEXA Mobile",
     "slug": "fornexasc",
     "owner": "fornexas-team",
-    "version": "0.4.0",
+    "version": "0.4.1",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "fornexa-driver",
@@ -20,7 +20,7 @@
     },
     "android": {
       "package": "com.fornexa.driver",
-      "versionCode": 4,
+      "versionCode": 5,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#0b2a66"

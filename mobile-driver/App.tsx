@@ -36,6 +36,7 @@ export default function App(){
   const [screen,setScreen]=useState<Screen>("home");
   const [key,setKey]=useState("");
   const [transport,setTransport]=useState<TransportPayload|null>(null);
+  const [completedStops,setCompletedStops]=useState<Stop[]>([]);
   const [loading,setLoading]=useState(false);
   const [refreshing,setRefreshing]=useState(false);
   const [selectedStop,setSelectedStop]=useState<Stop|null>(null);
@@ -54,7 +55,9 @@ export default function App(){
       const response=await fetch(`${API_URL}/api/mobile/cmr/${encodeURIComponent(accessKey)}`,{headers:{Accept:"application/json"}});
       const result=await response.json();
       if(!response.ok)throw new Error(result.error||"No se pudo importar el transporte.");
-      setKey(accessKey);setTransport(result);if(!quiet)setScreen("transport");
+      const stops=Array.isArray(result.stops)?result.stops as Stop[]:[];
+      setCompletedStops(stops.filter(stop=>stop.status==="Completada"));
+      setKey(accessKey);setTransport({...result,stops:stops.filter(stop=>stop.status!=="Completada")});if(!quiet)setScreen("transport");
     }catch(error){if(!quiet)Alert.alert("No se pudo importar",messageFor(error,"Comprueba tu conexión."))}
     finally{if(!quiet)setLoading(false);setRefreshing(false)}
   },[normalizedKey]);
@@ -127,6 +130,16 @@ export default function App(){
     finally{setLoading(false)}
   }
 
+  function startNewWork(){
+    setTransport(null);
+    setCompletedStops([]);
+    setKey("");
+    setSelectedStop(null);
+    setIncidentType(null);
+    setIncidentNote("");
+    setScreen("home");
+  }
+
   async function addPhoto(stop:Stop){
     const cameraPermission=await ImagePicker.requestCameraPermissionsAsync();
     if(!cameraPermission.granted){Alert.alert("Permiso de cámara","La fotografía es obligatoria para cerrar la parada.");return}
@@ -147,8 +160,10 @@ export default function App(){
   }
 
   async function openRoute(){
-    if(!transport?.stops.length)return;
-    const ordered=[...transport.stops].sort((a,b)=>a.sequence-b.sequence);
+    if(!transport)return;
+    const routeStops=[...completedStops,...transport.stops];
+    if(!routeStops.length)return;
+    const ordered=routeStops.sort((a,b)=>a.sequence-b.sequence);
     try{
       setLoading(true);
       if(ordered.some(stop=>!storedCoordinate(stop))){
@@ -203,11 +218,43 @@ export default function App(){
     return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content"/><ScrollView contentContainerStyle={styles.modalPage}><TouchableOpacity onPress={()=>setScreen(detailOrigin)}><Text style={styles.back}>← Volver</Text></TouchableOpacity><Text style={styles.eyebrow}>{selectedStop.stop_type.toUpperCase()} · PARADA {selectedStop.sequence}</Text><Text style={styles.title}>{selectedStop.company}</Text><Text style={styles.route}>{selectedStop.address}</Text><View style={styles.detailCard}><DetailRow label="Persona de contacto" value={selectedStop.contact_name||"No informada"}/><DetailRow label="Teléfono" value={selectedStop.contact_phone||"No informado"} warning={!selectedStop.contact_phone}/><DetailRow label="Referencia de carga/descarga" value={selectedStop.reference||"No informada"}/><DetailRow label="Dirección postal completa" value={selectedStop.address}/><DetailRow label="Ventana horaria" value={windowLabel(selectedStop)}/><DetailRow label="Llegada" value={selectedStop.arrived_at?new Date(selectedStop.arrived_at).toLocaleString("es-ES"):"Pendiente"}/></View>{selectedStop.contact_phone&&<SecondaryButton label="Llamar al contacto" onPress={()=>Linking.openURL(`tel:${selectedStop.contact_phone}`)}/>}<Text style={styles.sectionTitle}>Pedidos / partidas relacionados</Text>{orders.length?orders.map(order=><View key={order.id} style={styles.orderCard}><Text style={styles.orderId}>{order.id}</Text><Text style={styles.orderMeta}>{order.customerId||"Sin Customer ID"}</Text>{order.description&&<Text style={styles.orderDescription}>{order.description}</Text>}<Text style={styles.orderMeta}>{order.packages??"—"} bultos · {order.weight?`${Number(order.weight).toLocaleString("es-ES")} kg`:"peso no informado"}</Text></View>):<View style={styles.emptyCard}><Text style={styles.emptyTitle}>Sin pedidos comunicados</Text><Text style={styles.emptyText}>Esta relación se incorporará desde las partidas de la expedición al emitir nuevos CMR.</Text></View>}</ScrollView></SafeAreaView>;
   }
 
+  if(screen==="transport"&&transport&&transport.stops.length===0&&completedStops.length>0){
+    const document=transport.document;
+    const isClosed=document.status==="Cerrado";
+    return (
+      <SafeAreaView style={styles.safe}>
+        <StatusBar barStyle="dark-content" backgroundColor="#eef3f9" translucent/>
+        <ScrollView contentContainerStyle={styles.scroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{setRefreshing(true);loadTransport(key,true)}}/>}>
+          <View style={styles.topbar}>
+            <TouchableOpacity onPress={isClosed?startNewWork:()=>setScreen("home")}><Text style={styles.back}>← Inicio</Text></TouchableOpacity>
+            <Text style={styles.sync}>● Sincronizado</Text>
+          </View>
+          <View style={styles.tabs}>
+            <View style={styles.tabActive}><Text style={styles.tabTextActive}>Transporte</Text></View>
+            <TouchableOpacity onPress={()=>setScreen("history")} style={styles.tab}><Text style={styles.tabText}>Histórico</Text></TouchableOpacity>
+          </View>
+          <Text style={styles.eyebrow}>{isClosed?"CMR FINALIZADO":"TODAS LAS PARADAS COMPLETADAS"}</Text>
+          <Text style={styles.title}>{document.cmr_number}</Text>
+          <Text style={styles.route}>{document.pickup_location} → {document.delivery_location}</Text>
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyTitle}>{isClosed?"Trabajo finalizado":"Transporte sin paradas pendientes"}</Text>
+            <Text style={styles.emptyText}>{isClosed?"La pantalla de transporte ya no contiene paradas. Todas las tarjetas completadas están disponibles en Histórico.":"Todas las tarjetas han pasado a Histórico. Finaliza el trabajo para cerrar este transporte."}</Text>
+          </View>
+          {isClosed
+            ?<PrimaryButton label="Nuevo trabajo" onPress={startNewWork}/>
+            :<PrimaryButton label="Finalizar trabajo" onPress={()=>Alert.alert("Finalizar trabajo","¿Deseas cerrar este transporte?",[{text:"Cancelar",style:"cancel"},{text:"Finalizar",onPress:finishWork}])}/>
+          }
+          {loading&&<View style={styles.loading}><ActivityIndicator color="#005d8f"/><Text>Sincronizando…</Text></View>}
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
   if((screen==="transport"||screen==="history")&&transport){
     const document=transport.document;
-    const completed=transport.stops.filter(stop=>stop.status==="Completada");
-    const active=transport.stops.filter(stop=>stop.status!=="Completada");
-    const canFinish=transport.stops.length>0&&active.length===0&&document.status!=="Cerrado";
+    const completed=completedStops;
+    const active=transport.stops;
+    const canFinish=completed.length+active.length>0&&active.length===0&&document.status!=="Cerrado";
     return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" backgroundColor="#eef3f9" translucent/><ScrollView contentContainerStyle={styles.scroll} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{setRefreshing(true);loadTransport(key,true)}}/>}><View style={styles.topbar}><TouchableOpacity onPress={()=>setScreen("home")}><Text style={styles.back}>← Inicio</Text></TouchableOpacity><Text style={styles.sync}>● Sincronizado</Text></View><View style={styles.tabs}><TouchableOpacity onPress={()=>setScreen("transport")} style={screen==="transport"?styles.tabActive:styles.tab}><Text style={screen==="transport"?styles.tabTextActive:styles.tabText}>Transporte</Text></TouchableOpacity><TouchableOpacity onPress={()=>setScreen("history")} style={screen==="history"?styles.tabActive:styles.tab}><Text style={screen==="history"?styles.tabTextActive:styles.tabText}>Histórico</Text></TouchableOpacity></View>{screen==="history"?<><Text style={styles.eyebrow}>TRAZABILIDAD OPERATIVA</Text><Text style={styles.title}>Paradas finalizadas</Text><Text style={styles.muted}>Las paradas pasan de “En progreso” a “Finalizadas” sin poder eliminarse.</Text><View style={styles.kanban}><View style={styles.kanbanColumn}><Text style={styles.kanbanLabel}>EN PROGRESO</Text><Text style={styles.kanbanCount}>{active.length}</Text></View><Text style={styles.kanbanArrow}>→</Text><View style={[styles.kanbanColumn,styles.kanbanDone]}><Text style={styles.kanbanLabel}>FINALIZADAS</Text><Text style={styles.kanbanCount}>{completed.length}</Text></View></View>{completed.length?completed.map((stop,index)=><CompletedStopCard key={stop.id} stop={stop} index={index} onPress={()=>openStop(stop,"history")}/>):<View style={styles.emptyCard}><Text style={styles.emptyTitle}>Todavía no hay paradas finalizadas</Text><Text style={styles.emptyText}>Cuando una parada tenga foto POD y se complete, aparecerá aquí.</Text></View>}</>:<><Text style={styles.eyebrow}>CMR IMPORTADO · {document.status}</Text><Text style={styles.title}>{document.cmr_number}</Text><Text style={styles.route}>{document.pickup_location} → {document.delivery_location}</Text><View style={styles.summaryCard}><Summary label="Expedición" value={document.expedition_id||"—"}/><Summary label="Viaje" value={document.trip_id||"—"}/><Summary label="Mercancía" value={`${document.packages??"—"} · ${document.goods_description}`}/><Summary label="Peso" value={document.gross_weight?`${Number(document.gross_weight).toLocaleString("es-ES")} kg`:"—"}/></View><PrimaryButton label="Proyectar ruta en Maps" onPress={openRoute}/>{canFinish&&<PrimaryButton label="Finalizar trabajo" onPress={()=>Alert.alert("Finalizar trabajo","¿Deseas cerrar este transporte?",[{text:"Cancelar",style:"cancel"},{text:"Finalizar",onPress:finishWork}])}/>}<Text style={styles.sectionTitle}>Paradas</Text>{transport.stops.map((stop,index)=><View key={stop.id} style={styles.stopCard}><TouchableOpacity style={styles.stopTop} onPress={()=>openStop(stop,"transport")}><View style={styles.stopIndex}><Text style={styles.stopIndexText}>{index+1}</Text></View><View style={styles.stopBody}><Text style={styles.stopType}>{stop.stop_type}</Text><Text style={styles.stopCompany}>{stop.company}</Text><Text style={styles.stopMeta}>{stop.address}</Text><Text style={styles.stopMeta}>{windowLabel(stop)}</Text>{stop.arrived_at&&<Text style={styles.arrivalRecorded}>● Llegada: {new Date(stop.arrived_at).toLocaleString("es-ES")}</Text>}<Text style={stop.contactMissing?styles.contactMissing:styles.contactOk}>{stop.contactMissing?"● Sin teléfono de contacto":`● ${stop.contact_phone}`}</Text></View><View><Text style={stop.status==="Completada"?styles.done:styles.pending}>{stop.status}</Text><Text style={styles.chevron}>›</Text></View></TouchableOpacity>{stop.status!=="Completada"&&<View style={styles.stopActions}><SmallButton label={stop.arrived_at?"Actualizar llegada":"He llegado"} onPress={()=>markArrival(stop)}/><SmallButton label={`Foto POD (${stop.evidenceCount})`} onPress={()=>addPhoto(stop)}/><SmallButton label="Firmar" onPress={()=>{setSelectedStop(stop);setScreen("signature")}}/><SmallButton label="Completar" onPress={()=>postEvent(stop,"complete")}/><SmallButton label="Incidencia" onPress={()=>openIncident(stop)}/></View>}</View>)}</>}{loading&&<View style={styles.loading}><ActivityIndicator color="#005d8f"/><Text>Sincronizando…</Text></View>}</ScrollView></SafeAreaView>;
   }
 
