@@ -28,10 +28,18 @@
 
 .brand {
   flex: 0 0 auto;
-  color: #101216;
-  font-size: 18px;
-  font-weight: 900;
-  letter-spacing: 0.24em;
+  display: block;
+  width: 158px;
+  height: 58px;
+  color: #0067ad;
+  overflow: visible;
+}
+
+.brandLogo {
+  display: block;
+  width: 158px;
+  height: 58px;
+  overflow: visible;
 }
 
 .nav {
@@ -80,24 +88,10 @@
 }
 
 @media (max-height: 760px) and (min-width: 761px) {
-  .sidebar {
-    padding: 20px 18px;
-  }
-
-  .nav {
-    gap: 2px;
-    margin-top: 20px;
-  }
-
-  .nav a {
-    min-height: 32px;
-    padding: 7px 12px;
-    font-size: 13px;
-  }
-
-  .footer {
-    padding-top: 12px;
-  }
+  .sidebar { padding: 20px 18px; }
+  .nav { gap: 2px; margin-top: 20px; }
+  .nav a { min-height: 32px; padding: 7px 12px; font-size: 13px; }
+  .footer { padding-top: 12px; }
 }
 
 .stage {
@@ -106,7 +100,6 @@
   overflow: clip;
 }
 
-/* Las pantallas antiguas conservan su contenido, pero delegan el marco al layout persistente. */
 .stage :global(main:has(> aside:first-child nav)) {
   display: block !important;
   width: 100% !important;
@@ -114,9 +107,7 @@
   max-width: none !important;
 }
 
-.stage :global(main > aside:first-child:has(nav)) {
-  display: none !important;
-}
+.stage :global(main > aside:first-child:has(nav)) { display: none !important; }
 
 .stage :global(main:has(> aside:first-child nav) > section) {
   width: 100% !important;
@@ -131,7 +122,6 @@
   max-width: none !important;
 }
 
-/* La primera línea de cada módulo comparte tipografía y coordenada vertical. */
 .stage > :global(main) > :global(section) > :global(header:first-child) :global(p:first-of-type),
 .stage > :global(main) > :global(header:first-child) :global(p:first-of-type) {
   margin-top: 0 !important;
@@ -148,20 +138,11 @@
   line-height: 1.05 !important;
 }
 
-/* El retorno de Integraciones queda cubierto por la navegación persistente. */
-.stage > :global(main) > :global(header:first-child) > :global(div:first-child) > :global(a:first-child[href="/dashboard"]) {
-  display: none !important;
-}
+.stage > :global(main) > :global(header:first-child) > :global(div:first-child) > :global(a:first-child[href="/dashboard"]) { display: none !important; }
 
 @media (max-width: 760px) {
-  :global(html) {
-    overflow-y: auto;
-  }
-
-  .frame {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
+  :global(html) { overflow-y: auto; }
+  .frame { grid-template-columns: minmax(0, 1fr); }
   .sidebar {
     position: sticky;
     width: 100%;
@@ -172,7 +153,7 @@
     border-right: 0;
     border-bottom: 1px solid rgba(18, 32, 52, 0.1);
   }
-
+  .brand,.brandLogo { width: 145px; height: 54px; }
   .nav {
     display: flex;
     gap: 6px;
@@ -181,19 +162,8 @@
     overflow-x: auto;
     scrollbar-width: thin;
   }
-
-  .nav a {
-    flex: 0 0 auto;
-    min-height: 38px;
-    padding: 10px 12px;
-  }
-
-  .footer {
-    display: none;
-  }
-
+  .nav a { flex: 0 0 auto; min-height: 38px; padding: 10px 12px; }
+  .footer { display: none; }
   .stage > :global(main) > :global(section) > :global(header:first-child) :global(h1),
-  .stage > :global(main) > :global(header:first-child) :global(h1) {
-    font-size: 34px !important;
-  }
+  .stage > :global(main) > :global(header:first-child) :global(h1) { font-size: 34px !important; }
 }
