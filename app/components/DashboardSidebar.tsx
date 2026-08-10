@@ -46,36 +46,35 @@ const createRoutes: Record<string, string> = {
 function activeHref(pathname: string) {
   const recordModule = pathname.match(/^\/dashboard\/registros\/([^/]+)/)?.[1];
   if (recordModule) return recordModules[recordModule];
-
   const newModule = pathname.match(/^\/dashboard\/nuevo\/([^/]+)/)?.[1];
   if (newModule === "partida") return "/dashboard/partidas";
   if (newModule === "expedicion") return "/dashboard/expediciones";
   if (newModule === "viaje") return "/dashboard/viajes";
-
-  return navigation
-    .slice(1)
-    .find(([, href]) => pathname === href || pathname.startsWith(`${href}/`))?.[1] ?? "/dashboard";
+  return navigation.slice(1).find(([, href]) => pathname === href || pathname.startsWith(`${href}/`))?.[1] ?? "/dashboard";
 }
 
 function createHref(pathname: string, currentHref: string) {
-  if (
-    pathname.startsWith("/dashboard/nuevo/") ||
-    pathname.endsWith("/nuevo")
-  ) return null;
-
+  if (pathname.startsWith("/dashboard/nuevo/") || pathname.endsWith("/nuevo")) return null;
   return createRoutes[currentHref] ?? null;
 }
 
 function isPlusShortcut(event: KeyboardEvent) {
-  if (event.code === "NumpadAdd") {
-    return !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
-  }
-
-  if (event.key === "+") {
-    return !event.altKey && !event.ctrlKey && !event.metaKey;
-  }
-
+  if (event.code === "NumpadAdd") return !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+  if (event.key === "+") return !event.altKey && !event.ctrlKey && !event.metaKey;
   return false;
+}
+
+function FornexaLogo() {
+  return (
+    <svg viewBox="0 0 190 62" role="img" aria-label="4NXA FORNEXA" className={styles.brandLogo}>
+      <g fill="none" stroke="currentColor" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 36 37 10c3-3 7-1 7 3v23H22" />
+        <path d="M44 36v14" />
+      </g>
+      <text x="54" y="39" fill="currentColor" fontSize="30" fontWeight="800" letterSpacing="1.5">NXA</text>
+      <text x="55" y="55" fill="currentColor" fontSize="8" fontWeight="800" letterSpacing="5">FORNEXA</text>
+    </svg>
+  );
 }
 
 export default function DashboardSidebar() {
@@ -86,49 +85,28 @@ export default function DashboardSidebar() {
   useEffect(() => {
     function openNewRecord(event: KeyboardEvent) {
       if (!isPlusShortcut(event) || event.repeat) return;
-
       const target = event.target;
-      if (
-        target instanceof HTMLElement &&
-        (target.isContentEditable || Boolean(target.closest("input, textarea, select, [contenteditable='true']")))
-      ) return;
-
+      if (target instanceof HTMLElement && (target.isContentEditable || Boolean(target.closest("input, textarea, select, [contenteditable='true']")))) return;
       const href = createHref(pathname, currentHref);
       if (!href) return;
-
       event.preventDefault();
       window.scrollTo(0, 0);
       router.push(href);
     }
-
     window.addEventListener("keydown", openNewRecord);
     return () => window.removeEventListener("keydown", openNewRecord);
   }, [router, pathname, currentHref]);
 
   return (
     <aside className={styles.sidebar}>
-      <Link href="/dashboard" className={styles.brand}>FORNEXA</Link>
+      <Link href="/dashboard" className={styles.brand}><FornexaLogo /></Link>
       <nav className={styles.nav} aria-label="Navegación principal">
         {navigation.map(([label, href]) => {
           const active = href === currentHref;
-          return (
-            <Link
-              key={href}
-              href={href}
-              scroll
-              className={active ? styles.active : ""}
-              aria-current={active ? "page" : undefined}
-              onClick={() => window.scrollTo(0, 0)}
-            >
-              {label}
-            </Link>
-          );
+          return <Link key={href} href={href} scroll className={active ? styles.active : ""} aria-current={active ? "page" : undefined} onClick={() => window.scrollTo(0, 0)}>{label}</Link>;
         })}
       </nav>
-      <div className={styles.footer}>
-        <span>FORNEXA</span>
-        <small>Supply Chain Suite</small>
-      </div>
+      <div className={styles.footer}><span>FORNEXA</span><small>Supply Chain Suite</small></div>
     </aside>
   );
 }
