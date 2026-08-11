@@ -5,24 +5,24 @@ type Props = {
 };
 
 export default function FornexaLogo({ className, compact = false, title = "4NXA FORNEXA" }: Props) {
-  const viewBox = compact ? "0 0 220 128" : "0 0 300 150";
   return (
     <svg
       className={className}
-      viewBox={viewBox}
+      viewBox="0 0 760 180"
       role="img"
       aria-label={title}
       xmlns="http://www.w3.org/2000/svg"
       preserveAspectRatio="xMidYMid meet"
+      data-compact={compact ? "true" : "false"}
     >
       <title>{title}</title>
-      <g fill="none" stroke="#0067ad" strokeWidth="18" strokeLinecap="butt" strokeLinejoin="miter">
-        <path d="M28 88 L78 24 L78 116" />
-        <path d="M28 88 H114" />
+      <g fill="none" stroke="#0067ad" strokeLinecap="butt" strokeLinejoin="miter">
+        <path d="M30 108 L95 28 L95 142" strokeWidth="20" />
+        <path d="M30 108 H138" strokeWidth="20" />
       </g>
       <g fill="#0067ad" fontFamily="Arial, Helvetica, sans-serif" fontWeight="800">
-        <text x="116" y="92" fontSize="52" letterSpacing="2">NXA</text>
-        <text x="116" y="121" fontSize="16" letterSpacing="8">FORNEXA</text>
+        <text x="155" y="116" fontSize="94" letterSpacing="8">NXA</text>
+        <text x="160" y="160" fontSize="22" letterSpacing="12">FORNEXA</text>
       </g>
     </svg>
   );
