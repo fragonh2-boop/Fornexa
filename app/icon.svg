@@ -1,13 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="4NXA FORNEXA">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="4 FORNEXA">
   <rect width="256" height="256" rx="48" fill="#ffffff"/>
-  <g transform="translate(18 72) scale(.29)">
-    <g fill="none" stroke="#0067ad" stroke-linecap="butt" stroke-linejoin="miter">
-      <path d="M30 108 L95 28 L95 142" stroke-width="20"/>
-      <path d="M30 108 H138" stroke-width="20"/>
-    </g>
-    <g fill="#0067ad" font-family="Arial, Helvetica, sans-serif" font-weight="800">
-      <text x="155" y="116" font-size="94" letter-spacing="8">NXA</text>
-      <text x="160" y="160" font-size="22" letter-spacing="12">FORNEXA</text>
-    </g>
+  <g fill="none" stroke="#0067ad" stroke-linecap="butt" stroke-linejoin="miter" stroke-width="25">
+    <path d="M54 139 L125 51 L125 201"/>
+    <path d="M54 139 H174"/>
   </g>
 </svg>
