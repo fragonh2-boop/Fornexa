@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import styles from "../dashboard/layout.module.css";
+import FornexaLogo from "./FornexaLogo";
 
 const navigation = [
   ["Control Tower", "/dashboard"],
@@ -64,19 +65,6 @@ function isPlusShortcut(event: KeyboardEvent) {
   return false;
 }
 
-function FornexaLogo() {
-  return (
-    <svg viewBox="0 0 190 62" role="img" aria-label="4NXA FORNEXA" className={styles.brandLogo}>
-      <g fill="none" stroke="currentColor" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 36 37 10c3-3 7-1 7 3v23H22" />
-        <path d="M44 36v14" />
-      </g>
-      <text x="54" y="39" fill="currentColor" fontSize="30" fontWeight="800" letterSpacing="1.5">NXA</text>
-      <text x="55" y="55" fill="currentColor" fontSize="8" fontWeight="800" letterSpacing="5">FORNEXA</text>
-    </svg>
-  );
-}
-
 export default function DashboardSidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -99,7 +87,7 @@ export default function DashboardSidebar() {
 
   return (
     <aside className={styles.sidebar}>
-      <Link href="/dashboard" className={styles.brand}><FornexaLogo /></Link>
+      <Link href="/dashboard" className={styles.brand}><FornexaLogo className={styles.brandLogo} /></Link>
       <nav className={styles.nav} aria-label="Navegación principal">
         {navigation.map(([label, href]) => {
           const active = href === currentHref;
