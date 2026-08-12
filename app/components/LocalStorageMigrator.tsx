@@ -9,6 +9,7 @@ import {
 } from "@/lib/local-storage-migration";
 
 const markerKey = "fornexa-local-storage-sync";
+const migrationVersion = "2026-08-12.2";
 const scheduledEvents = ["fornexa:local-storage-updated", "storage"] as const;
 let syncPromise: Promise<void> | null = null;
 
@@ -16,7 +17,8 @@ async function migrateLocalStorage() {
   const entries = collectFornexaLocalStorage();
   if (!entries.length) return;
   const fingerprint = localStorageFingerprint(entries);
-  if (window.localStorage.getItem(markerKey) === fingerprint) return;
+  const marker = `${migrationVersion}:${fingerprint}`;
+  if (window.localStorage.getItem(markerKey) === marker) return;
   const body = JSON.stringify({ sourceOrigin: window.location.origin, entries });
   if (body.length > FORNEXA_LOCAL_STORAGE_MAX_BYTES) {
     console.warn("La migración local de FORNEXA supera el tamaño permitido.");
@@ -30,7 +32,7 @@ async function migrateLocalStorage() {
   });
   if (!response.ok) throw new Error("No se pudo migrar el almacenamiento local de FORNEXA.");
   const result = await response.json() as LocalStorageMigrationResult;
-  if (result.status === "COMPLETED") window.localStorage.setItem(markerKey, fingerprint);
+  if (result.status === "COMPLETED") window.localStorage.setItem(markerKey, marker);
 }
 
 function scheduleMigration() {

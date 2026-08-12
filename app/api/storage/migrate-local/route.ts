@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
   try {
     await archiveEntries(supabase, sourceOrigin, entries);
     const summary = await normalizeEntries(supabase, entries, run.id);
-    const normalizedRecords = Object.values(summary).reduce((total, count) => total + count, 0);
+    const normalizedRecords = Object.entries(summary).filter(([key]) => key !== "archivedKeys").reduce((total, [, count]) => total + count, 0);
     const { error: finishError } = await supabase.from("local_storage_sync_runs").update({
       status: "COMPLETED",
       normalized_records: normalizedRecords,
@@ -102,6 +102,15 @@ async function normalizeEntries(supabase: SupabaseClient, entries: LocalStorageE
   for (const item of records(byKey.get("fornexa-clientes"))) addParty(parties, item, "CUSTOMER");
   for (const item of records(byKey.get("fornexa-colaboradores"))) addParty(parties, item, "SUPPLIER");
   for (const item of records(byKey.get("fornexa-terceros-logisticos"))) addParty(parties, item, "LOGISTICS");
+
+  for (const entry of entries) {
+    const serviceKey = parseServiceAssignmentKey(entry.key);
+    if (!serviceKey || parties.has(serviceKey.entityCode)) continue;
+    addParty(parties, {
+      code: serviceKey.entityCode,
+      nombre: titleFromSlug(serviceKey.entityCode),
+    }, serviceKey.entityType === "cliente" ? "CUSTOMER" : "SUPPLIER");
+  }
 
   for (const entry of entries) {
     if (entry.key.startsWith("fornexa-party-") && asRecord(entry.value)) {
@@ -378,7 +387,7 @@ async function ensureServices(supabase: SupabaseClient, entries: LocalStorageEnt
     if (name && !ids.has(normalized(name))) missing.set(serviceCode(name), { code: serviceCode(name), name, service_type: name.toUpperCase(), metadata: { source: "localStorage" } });
   }
   for (const entry of entries) {
-    if (!entry.key.startsWith("fornexa-v1-") || !entry.key.includes("-servicios-")) continue;
+    if (!parseServiceAssignmentKey(entry.key)) continue;
     const assignmentMap = asRecord(entry.value) ?? {};
     for (const [serviceCodeValue] of Object.entries(assignmentMap)) {
       if (!ids.has(normalized(serviceCodeValue))) missing.set(serviceCodeValue, { code: serviceCodeValue, name: serviceCodeValue, service_type: "LEGACY", metadata: { source: "localStorage assignment" } });
@@ -395,16 +404,15 @@ async function ensureServices(supabase: SupabaseClient, entries: LocalStorageEnt
 async function importServiceAssignments(supabase: SupabaseClient, entries: LocalStorageEntry[], partyIds: Map<string, string>, serviceIds: Map<string, string>) {
   const rows: JsonRecord[] = [];
   for (const entry of entries) {
-    const match = entry.key.match(/^fornexa-v1-(cliente|proveedor)-servicios-(.+)$/);
-    if (!match) continue;
-    const entityCode = match[2].toUpperCase();
-    const partyId = partyIds.get(entityCode) ?? [...partyIds.entries()].find(([code]) => normalized(code) === normalized(match[2]))?.[1];
+    const serviceKey = parseServiceAssignmentKey(entry.key);
+    if (!serviceKey) continue;
+    const partyId = partyIds.get(serviceKey.entityCode) ?? [...partyIds.entries()].find(([code]) => normalized(code) === normalized(serviceKey.entityCode))?.[1];
     if (!partyId) continue;
     for (const [serviceCodeValue, raw] of Object.entries(asRecord(entry.value) ?? {})) {
       const assignment = asRecord(raw) ?? {};
       const serviceId = serviceIds.get(normalized(serviceCodeValue));
       if (!serviceId) continue;
-      rows.push({ tenant_id: TENANT_ID, party_id: partyId, service_id: serviceId, relationship_type: match[1] === "cliente" ? "CONTRACTED" : "OFFERED", reference: clean(assignment.reference), conditions: jsonValue({ status: assignment.status, notes: assignment.notes }), is_active: clean(assignment.status).toLowerCase() !== "inactivo" });
+      rows.push({ tenant_id: TENANT_ID, party_id: partyId, service_id: serviceId, relationship_type: serviceKey.entityType === "cliente" ? "CONTRACTED" : "OFFERED", reference: clean(assignment.reference), conditions: jsonValue({ status: assignment.status, notes: assignment.notes }), is_active: clean(assignment.status).toLowerCase() !== "inactivo" });
     }
   }
   await upsertReturning(supabase, "party_services", rows, "party_id,service_id,relationship_type", "id");
@@ -536,6 +544,11 @@ function localCode(prefix: string, value: unknown) { return `${prefix}-LOCAL-${h
 function normalized(value: string) { return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
 function serviceCode(value: string) { return `LOCAL-${value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 50)}`; }
 function serviceIdFor(value: unknown, ids: Map<string, string>) { return ids.get(normalized(clean(value))) ?? ids.get(normalized(serviceCode(clean(value)))); }
+function parseServiceAssignmentKey(key: string) {
+  const match = key.match(/^fornexa-(?:v1-)?(cliente|proveedor)-servicios-(.+)$/);
+  return match ? { entityType: match[1] as "cliente" | "proveedor", entityCode: match[2].toUpperCase() } : null;
+}
+function titleFromSlug(value: string) { return value.toLowerCase().split(/[-_]+/).filter(Boolean).map(part => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`).join(" ") || value; }
 function country(value: unknown) { const result = clean(value).toUpperCase().slice(0, 2); return /^[A-Z]{2}$/.test(result) ? result : "ES"; }
 function language(value: unknown) { const result = clean(value).toLowerCase(); return result.startsWith("fr") ? "fr" : result.startsWith("en") || result.startsWith("in") ? "en" : "es"; }
 function yes(value: unknown) { return value === true || ["s", "si", "sí", "true", "1"].includes(clean(value).toLowerCase()); }
