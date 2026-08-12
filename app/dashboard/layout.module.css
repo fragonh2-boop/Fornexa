@@ -1,8 +1,3 @@
-:global(html) {
-  scrollbar-gutter: stable;
-  overflow-y: scroll;
-}
-
 .frame {
   --dashboard-sidebar-width: 250px;
   display: grid;
@@ -141,7 +136,6 @@
 .stage > :global(main) > :global(header:first-child) > :global(div:first-child) > :global(a:first-child[href="/dashboard"]) { display: none !important; }
 
 @media (max-width: 760px) {
-  :global(html) { overflow-y: auto; }
   .frame { grid-template-columns: minmax(0, 1fr); }
   .sidebar {
     position: sticky;

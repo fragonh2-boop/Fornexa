@@ -1044,7 +1044,7 @@ function FornexaApp() {
         keyboardShouldPersistTaps="handled"
       >
         <Image
-          accessibilityLabel="4NEXA"
+          accessibilityLabel="4NXA"
           source={require("./assets/wordmark-zen.png")}
           style={styles.logoMark}
           resizeMode="contain"
