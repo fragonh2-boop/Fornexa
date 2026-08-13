@@ -97,7 +97,9 @@ button { background:var(--accent); color:#ffffff; border:0; border-radius:10px; 
 .auth-options input { accent-color:var(--accent); }
 .auth-options button { padding:0; color:var(--accent); background:transparent; font-weight:700; }
 .auth-submit { width:100%; min-height:50px; margin-top:4px; }
-.auth-message { margin:14px 0 0; padding:12px 14px; color:#cbeede; background:rgba(0,93,143,.08); border:1px solid rgba(0,93,143,.2); border-radius:10px; font-size:13px; line-height:1.45; }
+.auth-message { margin:14px 0 0; padding:12px 14px; color:#12304a; background:#e7f1f8; border:1px solid #8eb6cf; border-radius:10px; font-size:13px; font-weight:700; line-height:1.45; }
+.auth-message-error { color:#7f1d1d; background:#fff1f1; border-color:#e4a4a4; }
+.auth-message-success { color:#14532d; background:#ecfdf3; border-color:#86c99a; }
 .public-tracking-note { margin-top:24px; padding:18px; background:#f7f9fc; border:1px solid var(--line); border-radius:14px; }
 .public-tracking-note strong { display:block; margin-bottom:7px; }
 .public-tracking-note p { margin:0 0 12px; color:var(--muted); font-size:13px; line-height:1.5; }

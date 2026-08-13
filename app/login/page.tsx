@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FormEvent, Suspense, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import FornexaLogo from "../components/FornexaLogo";
 
@@ -10,7 +10,7 @@ type AccessMode = "session" | "first-access" | "recover";
 
 const modeCopy = {
   session: { title: "Mi sesión", description: "Accede con tus credenciales corporativas.", submit: "Entrar en FORNEXA" },
-  "first-access": { title: "Primera vez en FORNEXA", description: "Te enviaremos un enlace seguro por correo para verificar tu identidad y continuar.", submit: "Enviar email de verificación" },
+  "first-access": { title: "Primera vez en FORNEXA", description: "Te enviaremos un enlace seguro para verificar tu identidad y crear tu contraseña.", submit: "Enviar email de verificación" },
   recover: { title: "Recuperar contraseña", description: "Te enviaremos un enlace seguro para crear una nueva contraseña.", submit: "Enviar enlace de recuperación" },
 };
 
@@ -33,10 +33,17 @@ function LoginForm() {
     return "";
   }, [searchParams]);
 
+  useEffect(() => {
+    if (!callbackError) return;
+    const timeout = window.setTimeout(() => router.replace("/login"), 8000);
+    return () => window.clearTimeout(timeout);
+  }, [callbackError, router]);
+
   function changeMode(nextMode: AccessMode) {
     setMode(nextMode);
     setMessage("");
     setIsError(false);
+    if (callbackError) router.replace("/login");
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -51,13 +58,13 @@ function LoginForm() {
       const origin = window.location.origin;
       if (mode === "session") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        if (error) throw new Error(loginErrorMessage(error.message));
         router.push("/dashboard");
         router.refresh();
         return;
       }
       if (mode === "first-access") {
-        const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${origin}/auth/callback?next=/onboarding`, shouldCreateUser: true } });
+        const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${origin}/auth/callback?next=/reset-password?firstAccess=1`, shouldCreateUser: true } });
         if (error) throw error;
         setMessage("Email enviado. Revisa también la carpeta de spam o correo no deseado.");
         return;
@@ -102,13 +109,19 @@ function LoginForm() {
             {mode === "session" && <label className="auth-field">Contraseña<div className="password-field"><input type={showPassword ? "text" : "password"} autoComplete="current-password" placeholder="Mínimo 8 caracteres" value={password} onChange={(event) => setPassword(event.target.value)} disabled={loading} /><button type="button" onClick={() => setShowPassword((current) => !current)}>{showPassword ? "Ocultar" : "Mostrar"}</button></div></label>}
             {mode === "session" && <div className="auth-options"><label><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} /> Mantener mi sesión iniciada</label><button type="button" onClick={() => changeMode("recover")}>¿Has olvidado la contraseña?</button></div>}
             <button className="auth-submit" type="submit" disabled={loading}>{loading ? "Procesando..." : currentCopy.submit}</button>
-            {(callbackError || message) && <p className={`auth-message${isError || callbackError ? " auth-message-error" : ""}`} role="status">{callbackError || message}</p>}
+            {(message || callbackError) && <p className={`auth-message${isError || (!message && callbackError) ? " auth-message-error" : " auth-message-success"}`} role="status">{message || callbackError}</p>}
           </form>
           <footer className="auth-footer"><span>Acceso protegido</span><span>Privacidad</span><span>Soporte</span></footer>
         </div>
       </section>
     </main>
   );
+}
+
+function loginErrorMessage(message: string) {
+  if (message === "Invalid login credentials") return "El correo o la contraseña no son correctos. Si es tu primer acceso, abre el enlace de verificación y crea primero una contraseña.";
+  if (message === "Email not confirmed") return "Debes confirmar primero el correo electrónico desde el enlace que te hemos enviado.";
+  return message;
 }
 
 export default function LoginPage() {

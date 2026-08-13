@@ -11,7 +11,8 @@ type CookieToSet = {
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  const next = requestUrl.searchParams.get("next") || "/onboarding";
+  const requestedNext = requestUrl.searchParams.get("next") || "/onboarding";
+  const next = requestedNext.startsWith("/") && !requestedNext.startsWith("//") ? requestedNext : "/onboarding";
 
   if (!code) {
     return NextResponse.redirect(new URL("/login?error=missing_code", requestUrl.origin));
