@@ -25,6 +25,7 @@ function LoginForm() {
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [dismissedCallbackError, setDismissedCallbackError] = useState(false);
 
   const callbackError = useMemo(() => {
     const error = searchParams.get("error");
@@ -32,18 +33,25 @@ function LoginForm() {
     if (error === "invalid_link") return "El enlace ha caducado o ya ha sido utilizado.";
     return "";
   }, [searchParams]);
+  const visibleCallbackError = dismissedCallbackError ? "" : callbackError;
 
   useEffect(() => {
     if (!callbackError) return;
-    const timeout = window.setTimeout(() => router.replace("/login"), 8000);
+    const timeout = window.setTimeout(() => {
+      setDismissedCallbackError(true);
+      window.history.replaceState(null, "", "/login");
+    }, 8000);
     return () => window.clearTimeout(timeout);
-  }, [callbackError, router]);
+  }, [callbackError]);
 
   function changeMode(nextMode: AccessMode) {
     setMode(nextMode);
     setMessage("");
     setIsError(false);
-    if (callbackError) router.replace("/login");
+    if (callbackError) {
+      setDismissedCallbackError(true);
+      window.history.replaceState(null, "", "/login");
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -109,7 +117,7 @@ function LoginForm() {
             {mode === "session" && <label className="auth-field">Contraseña<div className="password-field"><input type={showPassword ? "text" : "password"} autoComplete="current-password" placeholder="Mínimo 8 caracteres" value={password} onChange={(event) => setPassword(event.target.value)} disabled={loading} /><button type="button" onClick={() => setShowPassword((current) => !current)}>{showPassword ? "Ocultar" : "Mostrar"}</button></div></label>}
             {mode === "session" && <div className="auth-options"><label><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} /> Mantener mi sesión iniciada</label><button type="button" onClick={() => changeMode("recover")}>¿Has olvidado la contraseña?</button></div>}
             <button className="auth-submit" type="submit" disabled={loading}>{loading ? "Procesando..." : currentCopy.submit}</button>
-            {(message || callbackError) && <p className={`auth-message${isError || (!message && callbackError) ? " auth-message-error" : " auth-message-success"}`} role="status">{message || callbackError}</p>}
+            {(message || visibleCallbackError) && <p className={`auth-message${isError || (!message && visibleCallbackError) ? " auth-message-error" : " auth-message-success"}`} role="status">{message || visibleCallbackError}</p>}
           </form>
           <footer className="auth-footer"><span>Acceso protegido</span><span>Privacidad</span><span>Soporte</span></footer>
         </div>
