@@ -5,6 +5,35 @@ import { createSupabaseAdmin, numericValue } from "@/lib/supabase-admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+type GoodsLineInput = {
+  marks?: string;
+  packages?: string | number;
+  packaging?: string;
+  description?: string;
+  statisticalNumber?: string;
+  weight?: string | number;
+  volume?: string | number;
+  unNumber?: string;
+  adrClass?: string;
+  labels?: string;
+  packingGroup?: string;
+  tunnelCode?: string;
+  adrDescription?: string;
+};
+
+type SuccessiveCarrierInput = {
+  name?: string;
+  taxId?: string;
+  address?: string;
+  country?: string;
+};
+
+type AttachmentInput = {
+  type?: string;
+  title?: string;
+  reference?: string;
+};
+
 type CmrInput = {
   source?: string;
   expedicion?: string;
@@ -23,10 +52,22 @@ type CmrInput = {
   peso?: string;
   volumen?: string;
   instrucciones?: string;
+  senderInstructions?: string;
+  carrierReservations?: string;
+  particularTerms?: string;
+  attachedDocuments?: AttachmentInput[];
+  successiveCarriers?: SuccessiveCarrierInput[];
+  goodsLines?: GoodsLineInput[];
+  statisticalNumber?: string;
+  carriageCharges?: Record<string, unknown>;
+  cashOnDelivery?: Record<string, unknown>;
+  establishedAt?: string;
+  establishedOn?: string;
   adr?: string;
   adrRegime?: string;
   unNumber?: string;
   adrClass?: string;
+  adrLabels?: string;
   packingGroup?: string;
   tunnelCode?: string;
   adrDescription?: string;
@@ -74,15 +115,14 @@ export async function POST(request: NextRequest) {
   const missing = required.filter(([key]) => !String(input[key] ?? "").trim()).map(([, label]) => label);
   if (!input.customerIds?.length) missing.push("Customer ID");
   if (input.adr === "S" && !input.adrRegime?.trim()) missing.push("Régimen ADR");
-  if (missing.length) {
-    return NextResponse.json({ error: "El CMR está incompleto.", missing }, { status: 422 });
-  }
+  if (missing.length) return NextResponse.json({ error: "El CMR está incompleto.", missing }, { status: 422 });
 
   const supabase = createSupabaseAdmin();
   const { data: cmrNumber, error: numberError } = await supabase.rpc("next_cmr_number");
   if (numberError || !cmrNumber) return failure(numberError ?? new Error("No se pudo numerar el CMR."));
 
   const cmrKey = createCmrKey();
+  const goodsLines = normalizeGoodsLines(input);
   const documentPayload = {
     cmr_number: cmrNumber,
     access_key: cmrKey,
@@ -103,26 +143,37 @@ export async function POST(request: NextRequest) {
     packaging: input.embalaje?.trim() || null,
     gross_weight: numericValue(input.peso),
     volume: numericValue(input.volumen),
-    instructions: input.instrucciones?.trim() || null,
+    instructions: clean(input.instrucciones, 4000) || null,
     adr: {
       declared: input.adr || "",
       regime: input.adrRegime || "",
       unNumber: input.unNumber || "",
       class: input.adrClass || "",
+      labels: input.adrLabels || "",
       packingGroup: input.packingGroup || "",
       tunnelCode: input.tunnelCode || "",
       description: input.adrDescription || "",
     },
     metadata: {
+      schemaVersion: 2,
       stopDetails: normalizeStopDetails(input),
+      cmr: {
+        senderInstructions: clean(input.senderInstructions, 4000) || clean(input.instrucciones, 4000),
+        carrierReservations: clean(input.carrierReservations, 4000),
+        particularTerms: clean(input.particularTerms, 4000),
+        attachedDocuments: normalizeAttachments(input.attachedDocuments),
+        successiveCarriers: normalizeSuccessiveCarriers(input.successiveCarriers),
+        goodsLines,
+        statisticalNumber: clean(input.statisticalNumber, 120),
+        carriageCharges: sanitizeObject(input.carriageCharges),
+        cashOnDelivery: sanitizeObject(input.cashOnDelivery),
+        establishedAt: clean(input.establishedAt, 180),
+        establishedOn: clean(input.establishedOn, 40),
+      },
     },
   };
 
-  const { data: document, error: documentError } = await supabase
-    .from("cmr_documents")
-    .insert(documentPayload)
-    .select("*")
-    .single();
+  const { data: document, error: documentError } = await supabase.from("cmr_documents").insert(documentPayload).select("*").single();
   if (documentError) return failure(documentError);
 
   const { data: stops, error: stopsError } = await supabase
@@ -142,7 +193,15 @@ export async function POST(request: NextRequest) {
   const { error: eventError } = await supabase.from("transport_events").insert({
     cmr_id: document.id,
     event_type: "cmr_issued",
-    payload: { cmrNumber, source: input.source || "expedicion", actor: "FORNEXA Web" },
+    payload: {
+      cmrNumber,
+      source: input.source || "expedicion",
+      actor: "FORNEXA Web",
+      schemaVersion: 2,
+      goodsLines: goodsLines.length,
+      attachments: normalizeAttachments(input.attachedDocuments).length,
+      successiveCarriers: normalizeSuccessiveCarriers(input.successiveCarriers).length,
+    },
   });
   if (eventError) return failure(eventError);
 
@@ -158,6 +217,64 @@ export async function POST(request: NextRequest) {
     qrUrl: `/api/cmr/${encodeURIComponent(cmrNumber)}/qr?key=${encodeURIComponent(cmrKey)}`,
     qrPayload: `${origin}/api/mobile/cmr/${encodeURIComponent(cmrKey)}`,
   }, { status: 201, headers: { "Cache-Control": "no-store" } });
+}
+
+function normalizeGoodsLines(input: CmrInput) {
+  const raw = Array.isArray(input.goodsLines) && input.goodsLines.length ? input.goodsLines : [{
+    marks: input.expedicion || "",
+    packages: input.bultos,
+    packaging: input.embalaje,
+    description: input.mercancia,
+    statisticalNumber: input.statisticalNumber,
+    weight: input.peso,
+    volume: input.volumen,
+    unNumber: input.unNumber,
+    adrClass: input.adrClass,
+    labels: input.adrLabels,
+    packingGroup: input.packingGroup,
+    tunnelCode: input.tunnelCode,
+    adrDescription: input.adrDescription,
+  }];
+  return raw.slice(0, 100).map((line, index) => ({
+    sequence: index + 1,
+    marks: clean(line.marks, 120),
+    packages: numericValue(line.packages),
+    packaging: clean(line.packaging, 120),
+    description: clean(line.description, 500),
+    statisticalNumber: clean(line.statisticalNumber, 120),
+    weight: numericValue(line.weight),
+    volume: numericValue(line.volume),
+    adr: {
+      declared: input.adr === "S" || Boolean(line.unNumber || line.adrClass),
+      unNumber: clean(line.unNumber, 20),
+      class: clean(line.adrClass, 40),
+      labels: clean(line.labels, 80),
+      packingGroup: clean(line.packingGroup, 20),
+      tunnelCode: clean(line.tunnelCode, 20),
+      description: clean(line.adrDescription, 500),
+    },
+  })).filter(line => line.description);
+}
+
+function normalizeAttachments(value?: AttachmentInput[]) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 100).map((item, index) => ({
+    sequence: index + 1,
+    type: clean(item.type, 80) || "document",
+    title: clean(item.title, 200),
+    reference: clean(item.reference, 200),
+  })).filter(item => item.title);
+}
+
+function normalizeSuccessiveCarriers(value?: SuccessiveCarrierInput[]) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 20).map((item, index) => ({
+    sequence: index + 1,
+    name: clean(item.name, 180),
+    taxId: clean(item.taxId, 80),
+    address: clean(item.address, 240),
+    country: clean(item.country, 80),
+  })).filter(item => item.name);
 }
 
 function normalizeStopDetails(input: CmrInput) {
@@ -182,6 +299,11 @@ function normalizeStopDetails(input: CmrInput) {
       orders,
     };
   });
+}
+
+function sanitizeObject(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return JSON.parse(JSON.stringify(value));
 }
 
 function clean(value: unknown, maximum: number) {
