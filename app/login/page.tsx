@@ -89,8 +89,8 @@ function LoginForm() {
   const currentCopy = modeCopy[mode];
 
   return (
-    <main className="auth-page">
-      <section className="auth-brand-panel">
+    <main className="auth-page" style={{ width: "100%", maxWidth: "100vw", overflowX: "hidden" }}>
+      <section className="auth-brand-panel" style={{ minWidth: 0 }}>
         <Link href="/" className="auth-logo" aria-label="4NXA FORNEXA"><FornexaLogo /></Link>
         <div className="auth-brand-copy">
           <span className="card-kicker">SUPPLY CHAIN SUITE</span>
@@ -103,8 +103,8 @@ function LoginForm() {
           <span>✓ Preparado para MFA y SSO</span>
         </div>
       </section>
-      <section className="auth-form-panel">
-        <div className="auth-card">
+      <section className="auth-form-panel" style={{ minWidth: 0, width: "100%" }}>
+        <div className="auth-card" style={{ minWidth: 0, maxWidth: "100%" }}>
           <div className="auth-top-links"><Link href="/" className="auth-back">← Volver a FORNEXA</Link></div>
           <div className="auth-tabs auth-tabs-three" role="tablist" aria-label="Opciones de acceso">
             <button className={mode === "session" ? "active" : ""} onClick={() => changeMode("session")} type="button">Mi sesión</button>
