@@ -1,19 +1,27 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
+import { POST as createCmr } from "@/app/api/cmr/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const OPS_TOKEN = "5f3d8c7b-6a7f-41aa-8d44-4c5dc9fd6db3";
-const TARGET_ORIGIN = "https://fornexa-nlag8c62h-forexa.vercel.app";
-const VERCEL_SHARE = "Ec5q0ziWIjHVh8LueGEDTOXZsZga0tbB";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   if (url.searchParams.get("token") !== OPS_TOKEN) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  const supabase = createSupabaseAdmin();
+
+  const deleteIds = url.searchParams.get("delete")?.split(",").map(v => v.trim()).filter(Boolean) ?? [];
+  if (deleteIds.length) {
+    const { error } = await supabase.from("cmr_documents").delete().in("id", deleteIds);
+    return NextResponse.json({ ok: !error, deleted: deleteIds, error: error?.message ?? null });
+  }
+
   let stage = "init";
+  const created: string[] = [];
+  const persist = url.searchParams.get("persist") === "1";
   try {
-    const supabase = createSupabaseAdmin();
     stage = "load-expedition";
     const { data: expedition, error: expeditionError } = await supabase.from("expeditions").select("id,code").limit(1).maybeSingle();
     if (expeditionError) throw expeditionError;
@@ -28,34 +36,31 @@ export async function GET(request: Request) {
       successiveCarriers: [{ name: "Transport Sucesivo E2E SARL", taxId: "FR-E2E-001", address: "Paris, France", country: "FR" }]
     };
 
-    const created: string[] = [];
-    try {
-      stage = "issue-first";
-      const first = await issue(base); created.push(first.id);
-      stage = "inspect-first";
-      const firstCheck = await inspect(supabase, first);
-      stage = "issue-second";
-      const second = await issue({ ...base, viaje: "VJ-E2E-002", expedicion: expedition?.code ?? undefined, senderInstructions: "Segunda prueba con expedición real" }); created.push(second.id);
-      stage = "inspect-second";
-      const secondCheck = await inspect(supabase, second);
-      return NextResponse.json({ ok: true, targetOrigin: TARGET_ORIGIN, expeditionUsed: expedition ?? null, first: firstCheck, second: secondCheck });
-    } finally {
-      stage = "cleanup";
-      if (created.length) await supabase.from("cmr_documents").delete().in("id", created);
-    }
+    stage = "issue-first";
+    const first = await issue(url.origin, base); created.push(first.id);
+    stage = "inspect-first";
+    const firstCheck = await inspect(supabase, first);
+
+    stage = "issue-second";
+    const second = await issue(url.origin, { ...base, viaje: "VJ-E2E-002", expedicion: expedition?.code ?? undefined, senderInstructions: "Segunda prueba con expedición real" }); created.push(second.id);
+    stage = "inspect-second";
+    const secondCheck = await inspect(supabase, second);
+
+    return NextResponse.json({ ok: true, persist, expeditionUsed: expedition ?? null, first: firstCheck, second: secondCheck });
   } catch (error) {
-    return NextResponse.json({ ok: false, stage, error: serializeError(error) }, { status: 500 });
+    return NextResponse.json({ ok: false, stage, created, error: serializeError(error) }, { status: 500 });
+  } finally {
+    if (!persist && created.length) await supabase.from("cmr_documents").delete().in("id", created);
   }
 }
 
-function target(path: string) {
-  const url = new URL(path, TARGET_ORIGIN);
-  url.searchParams.set("_vercel_share", VERCEL_SHARE);
-  return url.toString();
-}
-
-async function issue(payload: Record<string, unknown>) {
-  const response = await fetch(target("/api/cmr"), { method: "POST", headers: { "content-type": "application/json", origin: TARGET_ORIGIN }, body: JSON.stringify(payload), cache: "no-store", redirect: "follow" });
+async function issue(origin: string, payload: Record<string, unknown>) {
+  const request = new NextRequest(`${origin}/api/cmr`, {
+    method: "POST",
+    headers: { "content-type": "application/json", origin },
+    body: JSON.stringify(payload),
+  });
+  const response = await createCmr(request);
   const text = await response.text();
   let json: unknown;
   try { json = JSON.parse(text); } catch { throw new Error(`POST /api/cmr ${response.status}: ${text.slice(0, 500)}`); }
@@ -74,16 +79,10 @@ async function inspect(supabase: ReturnType<typeof createSupabaseAdmin>, issued:
     supabase.from("cmr_expeditions").select("expedition_id,sequence").eq("cmr_id", issued.id).order("sequence")
   ]);
   for (const result of [parties, goods, attachments, clauses, stops, events, bridge]) if (result.error) throw result.error;
-  const detailUrl = new URL(`/api/cmr/${encodeURIComponent(issued.cmrNumber)}`, TARGET_ORIGIN); detailUrl.searchParams.set("_vercel_share", VERCEL_SHARE);
-  const detailResponse = await fetch(detailUrl, { headers: { "x-fornexa-key": issued.cmrKey }, cache: "no-store", redirect: "follow" }); const detail = await detailResponse.json();
-  const qrUrl = new URL(`/api/cmr/${encodeURIComponent(issued.cmrNumber)}/qr`, TARGET_ORIGIN); qrUrl.searchParams.set("key", issued.cmrKey); qrUrl.searchParams.set("_vercel_share", VERCEL_SHARE);
-  const qrResponse = await fetch(qrUrl, { cache: "no-store", redirect: "follow" });
-  const viewUrl = new URL(`/dashboard/epod-cmr/${encodeURIComponent(issued.cmrNumber)}`, TARGET_ORIGIN); viewUrl.searchParams.set("key", issued.cmrKey); viewUrl.searchParams.set("_vercel_share", VERCEL_SHARE);
-  const viewResponse = await fetch(viewUrl, { cache: "no-store", redirect: "follow" }); const viewHtml = await viewResponse.text();
-  return { issued, rows: { parties: parties.data, goods: goods.data, attachments: attachments.data, clauses: clauses.data, stops: stops.data, events: events.data, bridge: bridge.data }, projected: { status: detailResponse.status, body: detail }, qr: { status: qrResponse.status, contentType: qrResponse.headers.get("content-type"), bytes: (await qrResponse.arrayBuffer()).byteLength }, view: { status: viewResponse.status, containsCmrNumber: viewHtml.includes(issued.cmrNumber), containsCanonicalGoods: viewHtml.includes("Pintura") } };
+  return { issued, rows: { parties: parties.data, goods: goods.data, attachments: attachments.data, clauses: clauses.data, stops: stops.data, events: events.data, bridge: bridge.data } };
 }
 
 function serializeError(error: unknown) {
-  if (error instanceof Error) return { name: error.name, message: error.message, stack: error.stack?.split("\n").slice(0, 6) };
+  if (error instanceof Error) return { name: error.name, message: error.message, stack: error.stack?.split("\n").slice(0, 8) };
   try { return JSON.parse(JSON.stringify(error)); } catch { return String(error); }
 }
