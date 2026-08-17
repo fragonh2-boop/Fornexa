@@ -5,7 +5,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const OPS_TOKEN = "5f3d8c7b-6a7f-41aa-8d44-4c5dc9fd6db3";
-const TARGET_ORIGIN = "https://fornexa.vercel.app";
+const TARGET_ORIGIN = "https://fornexa-nlag8c62h-forexa.vercel.app";
+const VERCEL_SHARE = "Ec5q0ziWIjHVh8LueGEDTOXZsZga0tbB";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -32,9 +33,17 @@ export async function GET(request: Request) {
   } finally { if (created.length) await supabase.from("cmr_documents").delete().in("id", created); }
 }
 
+function target(path: string) {
+  const url = new URL(path, TARGET_ORIGIN);
+  url.searchParams.set("_vercel_share", VERCEL_SHARE);
+  return url.toString();
+}
+
 async function issue(payload: Record<string, unknown>) {
-  const response = await fetch(`${TARGET_ORIGIN}/api/cmr`, { method: "POST", headers: { "content-type": "application/json", origin: TARGET_ORIGIN }, body: JSON.stringify(payload), cache: "no-store" });
-  const json = await response.json();
+  const response = await fetch(target("/api/cmr"), { method: "POST", headers: { "content-type": "application/json", origin: TARGET_ORIGIN }, body: JSON.stringify(payload), cache: "no-store", redirect: "follow" });
+  const text = await response.text();
+  let json: unknown;
+  try { json = JSON.parse(text); } catch { throw new Error(`POST /api/cmr ${response.status}: ${text.slice(0, 500)}`); }
   if (!response.ok) throw new Error(`POST /api/cmr ${response.status}: ${JSON.stringify(json)}`);
   return json as { id: string; cmrNumber: string; cmrKey: string };
 }
@@ -50,8 +59,11 @@ async function inspect(supabase: ReturnType<typeof createSupabaseAdmin>, issued:
     supabase.from("cmr_expeditions").select("expedition_id,sequence").eq("cmr_id", issued.id).order("sequence")
   ]);
   for (const result of [parties, goods, attachments, clauses, stops, events, bridge]) if (result.error) throw result.error;
-  const detailResponse = await fetch(`${TARGET_ORIGIN}/api/cmr/${encodeURIComponent(issued.cmrNumber)}`, { headers: { "x-fornexa-key": issued.cmrKey }, cache: "no-store" }); const detail = await detailResponse.json();
-  const qrResponse = await fetch(`${TARGET_ORIGIN}/api/cmr/${encodeURIComponent(issued.cmrNumber)}/qr?key=${encodeURIComponent(issued.cmrKey)}`, { cache: "no-store" });
-  const viewResponse = await fetch(`${TARGET_ORIGIN}/dashboard/epod-cmr/${encodeURIComponent(issued.cmrNumber)}?key=${encodeURIComponent(issued.cmrKey)}`, { cache: "no-store" }); const viewHtml = await viewResponse.text();
+  const detailUrl = new URL(`/api/cmr/${encodeURIComponent(issued.cmrNumber)}`, TARGET_ORIGIN); detailUrl.searchParams.set("_vercel_share", VERCEL_SHARE);
+  const detailResponse = await fetch(detailUrl, { headers: { "x-fornexa-key": issued.cmrKey }, cache: "no-store", redirect: "follow" }); const detail = await detailResponse.json();
+  const qrUrl = new URL(`/api/cmr/${encodeURIComponent(issued.cmrNumber)}/qr`, TARGET_ORIGIN); qrUrl.searchParams.set("key", issued.cmrKey); qrUrl.searchParams.set("_vercel_share", VERCEL_SHARE);
+  const qrResponse = await fetch(qrUrl, { cache: "no-store", redirect: "follow" });
+  const viewUrl = new URL(`/dashboard/epod-cmr/${encodeURIComponent(issued.cmrNumber)}`, TARGET_ORIGIN); viewUrl.searchParams.set("key", issued.cmrKey); viewUrl.searchParams.set("_vercel_share", VERCEL_SHARE);
+  const viewResponse = await fetch(viewUrl, { cache: "no-store", redirect: "follow" }); const viewHtml = await viewResponse.text();
   return { issued, rows: { parties: parties.data, goods: goods.data, attachments: attachments.data, clauses: clauses.data, stops: stops.data, events: events.data, bridge: bridge.data }, projected: { status: detailResponse.status, body: detail }, qr: { status: qrResponse.status, contentType: qrResponse.headers.get("content-type"), bytes: (await qrResponse.arrayBuffer()).byteLength }, view: { status: viewResponse.status, containsCmrNumber: viewHtml.includes(issued.cmrNumber), containsCanonicalGoods: viewHtml.includes("Pintura") } };
 }
