@@ -2,8 +2,13 @@ const fs = require('node:fs');
 const { Client } = require('pg');
 
 async function main() {
-  const connectionString = process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_URL;
-  if (!connectionString) throw new Error('Postgres connection URL is not configured.');
+  const rawConnectionString = process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_URL;
+  if (!rawConnectionString) throw new Error('Postgres connection URL is not configured.');
+
+  const url = new URL(rawConnectionString);
+  url.searchParams.delete('sslmode');
+  url.searchParams.delete('uselibpqcompat');
+  const connectionString = url.toString();
 
   const sql = fs.readFileSync('supabase/migrations/20260818_fix_order_expedition_cardinality.sql', 'utf8');
   const client = new Client({ connectionString, ssl: { rejectUnauthorized: false } });
