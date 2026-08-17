@@ -3,6 +3,7 @@ import { createSupabaseAdmin } from "@/lib/supabase-admin";
 import { POST as createCmr } from "@/app/api/cmr/route";
 import { GET as getCmr } from "@/app/api/cmr/[cmr]/route";
 import { GET as getQr } from "@/app/api/cmr/[cmr]/qr/route";
+import { GET as getMobileCmr } from "@/app/api/mobile/cmr/[key]/route";
 
 export const dynamic = "force-static";
 export const revalidate = false;
@@ -70,6 +71,8 @@ export default async function CmrE2eFinalProofPage() {
     const detail = await detailResponse.json();
     const qrResponse = await getQr(new Request(`${ORIGIN}/api/cmr/${encodeURIComponent(cmrNumber)}/qr?key=${encodeURIComponent(cmrKey)}`), { params: Promise.resolve({ cmr: cmrNumber }) });
     const qrText = await qrResponse.text();
+    const mobileResponse = await getMobileCmr(new Request(`${ORIGIN}/api/mobile/cmr/${encodeURIComponent(cmrKey)}`), { params: Promise.resolve({ key: cmrKey }) });
+    const mobile = await mobileResponse.json();
 
     const checks = {
       fourParties: (parties.data?.length ?? 0) === 4,
@@ -79,14 +82,18 @@ export default async function CmrE2eFinalProofPage() {
       twoStops: (stops.data?.length ?? 0) === 2,
       issuedEvent: Boolean(events.data?.some((row) => row.event_type === "cmr_issued")),
       realExpeditionBridge: bridge.data?.[0]?.expedition_id === expedition.id,
+      decimalWeightPersisted: Number(document.data?.gross_weight) === 780.5,
+      decimalVolumePersisted: Number(document.data?.volume) === 4.25,
       adrPersisted: goods.data?.[0]?.un_number === "UN 1263" && goods.data?.[0]?.adr_declared === true,
       canonicalDetail200: detailResponse.status === 200,
       canonicalGoodsProjected: detail?.document?.metadata?.cmr?.goodsLines?.[0]?.description === "Pintura",
       canonicalAdrProjected: detail?.document?.metadata?.cmr?.goodsLines?.[0]?.adr?.unNumber === "UN 1263",
       canonicalAttachmentsProjected: detail?.canonical?.attachments?.length === 2,
       qr200: qrResponse.status === 200,
-      qrSvg: String(qrResponse.headers.get("content-type") ?? "").includes("image/svg+xml"),
-      qrTargetsMobileCmr: qrText.includes("/api/mobile/cmr/")
+      qrSvg: String(qrResponse.headers.get("content-type") ?? "").includes("image/svg+xml") && qrText.length > 100,
+      mobileImport200: mobileResponse.status === 200,
+      mobileImportsSameCmr: mobile?.document?.cmr_number === cmrNumber,
+      mobileHasTwoStops: Array.isArray(mobile?.stops) && mobile.stops.length === 2
     };
 
     const proof = { ok: Object.values(checks).every(Boolean), expeditionUsed: expedition, issued: { id: cmrId, cmrNumber, cmrKey, status: issued.status }, persisted: document.data,
