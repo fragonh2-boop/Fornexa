@@ -29,3 +29,6 @@ Una fila = un documento. Mostrar `N expedientes` y el viaje/tramo documental cua
 
 ## Modelo de datos
 Pedido 1:N Albaranes. Albarán 1:1 Expediente. Expediente N:M Viaje mediante secuencia de tramos. CMR N:M Expediente. Esta última N:M permite varios documentos a lo largo de distintos tramos sin destruir la identidad del expediente.
+
+### Invariante de implementación
+`expeditions.order_id` es un vínculo denormalizado para consulta y validación, **no** una relación única. La unicidad se aplica en `expedition_delivery_notes.delivery_note_id`: un albarán pertenece a un solo expediente, mientras que un pedido puede originar varios expedientes mediante sus distintos albaranes. La migración correctiva `20260818_fix_order_expedition_cardinality` sustituye la restricción 1:1 Pedido↔Expediente introducida temporalmente el 17/08/2026.
