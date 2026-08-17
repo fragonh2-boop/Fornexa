@@ -59,7 +59,7 @@ export default async function MultiExpeditionCmrProofPage() {
       metadataKeepsRefs: Array.isArray(document?.metadata?.expeditionRefs) && document.metadata.expeditionRefs.join("|") === CODES.join("|"),
       responseReturnsTwoIds: Array.isArray(issued.expeditionIds) && issued.expeditionIds.length === 2,
       detail200: detailResponse.status === 200,
-      detailHasTwoExpeditions: Array.isArray(detail?.expeditions) && detail.expeditions.length === 2,
+      detailHasTwoExpeditions: Array.isArray(detail?.canonical?.expeditions) && detail.canonical.expeditions.length === 2,
       decimalsPreserved: Number(document?.gross_weight) === 1200.5 && Number(document?.volume) === 6.75
     };
 
