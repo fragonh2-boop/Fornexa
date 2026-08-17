@@ -20,7 +20,24 @@ export function normalizeAccessKey(value: string) {
 export function numericValue(value: unknown) {
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
   if (typeof value !== "string") return null;
-  const normalized = value.trim().replace(/\./g, "").replace(",", ".");
+
+  const compact = value.trim().replace(/[\s\u00a0]/g, "");
+  if (!compact) return null;
+
+  const lastComma = compact.lastIndexOf(",");
+  const lastDot = compact.lastIndexOf(".");
+  let normalized = compact;
+
+  if (lastComma >= 0 && lastDot >= 0) {
+    if (lastComma > lastDot) {
+      normalized = compact.replace(/\./g, "").replace(/,/g, ".");
+    } else {
+      normalized = compact.replace(/,/g, "");
+    }
+  } else if (lastComma >= 0) {
+    normalized = compact.replace(/,/g, ".");
+  }
+
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : null;
 }
