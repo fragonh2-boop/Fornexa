@@ -27,9 +27,6 @@ export async function POST(request: NextRequest) {
   if (missing.length) return NextResponse.json({ error: "El CMR está incompleto.", missing }, { status: 422 });
 
   const supabase = createSupabaseAdmin();
-  const { data: cmrNumber, error: numberError } = await supabase.rpc("next_cmr_number");
-  if (numberError || !cmrNumber) return failure(numberError ?? new Error("No se pudo numerar el CMR."));
-
   const cmrKey = createCmrKey();
   const goodsLines = normalizeGoodsLines(input);
   const attachments = normalizeAttachments(input.attachedDocuments);
@@ -50,7 +47,6 @@ export async function POST(request: NextRequest) {
   }
 
   const documentPayload = {
-    cmr_number: cmrNumber,
     access_key: cmrKey,
     status: "Emitido",
     source: input.source || "expedicion",
@@ -81,8 +77,19 @@ export async function POST(request: NextRequest) {
     metadata: { schemaVersion: 3 },
   };
 
-  const { data: document, error: documentError } = await supabase.from("cmr_documents").insert(documentPayload).select("*").single();
-  if (documentError) return failure(documentError);
+  let document: { id: string; status: string; issued_at: string } | null = null;
+  let cmrNumber = "";
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    try {
+      cmrNumber = await nextPersistedCmrNumber(supabase);
+    } catch (error) {
+      return failure(error);
+    }
+    const { data, error } = await supabase.from("cmr_documents").insert({ ...documentPayload, cmr_number: cmrNumber }).select("id,status,issued_at").single();
+    if (!error && data) { document = data; break; }
+    if (!isCmrNumberCollision(error)) return failure(error);
+  }
+  if (!document || !cmrNumber) return failure(new Error("No se pudo reservar un número CMR único."));
 
   try {
     const partyRows = [
@@ -134,6 +141,25 @@ export async function POST(request: NextRequest) {
     await supabase.from("cmr_documents").delete().eq("id", document.id);
     return failure(error);
   }
+}
+
+async function nextPersistedCmrNumber(supabase: ReturnType<typeof createSupabaseAdmin>) {
+  const yy = String(new Date().getUTCFullYear()).slice(-2);
+  const prefix = `CMR-${yy}`;
+  const { data, error } = await supabase.from("cmr_documents").select("cmr_number").like("cmr_number", `${prefix}%`).order("cmr_number", { ascending: false }).limit(50);
+  if (error) throw error;
+  let maximum = 0;
+  const pattern = new RegExp(`^CMR-${yy}(\\d{6})$`);
+  for (const row of data ?? []) {
+    const match = String(row.cmr_number ?? "").match(pattern);
+    if (match) maximum = Math.max(maximum, Number(match[1]));
+  }
+  return `${prefix}${String(maximum + 1).padStart(6, "0")}`;
+}
+
+function isCmrNumberCollision(error: unknown) {
+  const value = error as { code?: string; details?: string; message?: string } | null;
+  return value?.code === "23505" && `${value.details ?? ""} ${value.message ?? ""}`.includes("cmr_number");
 }
 
 function normalizeGoodsLines(input: CmrInput) {
