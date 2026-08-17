@@ -86,28 +86,28 @@ export async function POST(request: NextRequest) {
 
   try {
     const partyRows = [
-      { cmr_id: document.id, role: "sender", sequence: 1, customer_id: input.customerIds?.[0] || null, legal_name: input.expedidor!.trim(), address: input.carga!.trim() },
-      { cmr_id: document.id, role: "consignee", sequence: 1, legal_name: input.destinatario!.trim(), address: input.entrega!.trim() },
+      { cmr_id: document.id, role: "sender", sequence: 1, customer_id: input.customerIds?.[0] || null, legal_name: input.expedidor!.trim(), address: input.carga!.trim(), metadata: {} },
+      { cmr_id: document.id, role: "consignee", sequence: 1, legal_name: input.destinatario!.trim(), address: input.entrega!.trim(), metadata: {} },
       { cmr_id: document.id, role: "carrier", sequence: 1, legal_name: input.transportista!.trim(), metadata: { vehicleRegistration: input.matricula?.trim() || null, trailerRegistration: input.remolque?.trim() || null } },
-      ...successiveCarriers.map(carrier => ({ cmr_id: document.id, role: "successive_carrier", sequence: carrier.sequence, legal_name: carrier.name, tax_id: carrier.taxId || null, address: carrier.address || null, country_code: carrier.country || null })),
+      ...successiveCarriers.map(carrier => ({ cmr_id: document.id, role: "successive_carrier", sequence: carrier.sequence, legal_name: carrier.name, tax_id: carrier.taxId || null, address: carrier.address || null, country_code: carrier.country || null, metadata: {} })),
     ];
     const { error: partiesError } = await supabase.from("cmr_parties").insert(partyRows);
     if (partiesError) throw partiesError;
 
     if (goodsLines.length) {
-      const { error } = await supabase.from("cmr_goods_lines").insert(goodsLines.map(line => ({ cmr_id: document.id, sequence: line.sequence, marks_numbers: line.marks || null, packages: line.packages == null ? null : Math.max(0, Math.trunc(line.packages)), packaging_description: line.packaging || null, goods_description: line.description, statistical_number: line.statisticalNumber || null, gross_weight: line.weight, volume: line.volume, adr_declared: Boolean(line.adr.declared), un_number: line.adr.unNumber || null, adr_class: line.adr.class || null, labels: line.adr.labels || null, packing_group: line.adr.packingGroup || null, tunnel_code: line.adr.tunnelCode || null, adr_description: line.adr.description || null })));
+      const { error } = await supabase.from("cmr_goods_lines").insert(goodsLines.map(line => ({ cmr_id: document.id, sequence: line.sequence, marks_numbers: line.marks || null, packages: line.packages == null ? null : Math.max(0, Math.trunc(line.packages)), packaging_description: line.packaging || null, goods_description: line.description, statistical_number: line.statisticalNumber || null, gross_weight: line.weight, volume: line.volume, adr_declared: Boolean(line.adr.declared), un_number: line.adr.unNumber || null, adr_class: line.adr.class || null, labels: line.adr.labels || null, packing_group: line.adr.packingGroup || null, tunnel_code: line.adr.tunnelCode || null, adr_description: line.adr.description || null, metadata: {} })));
       if (error) throw error;
     }
 
     if (attachments.length) {
-      const { error } = await supabase.from("cmr_attachments").insert(attachments.map(item => ({ cmr_id: document.id, sequence: item.sequence, document_type: item.type, title: item.title, external_reference: item.reference || null })));
+      const { error } = await supabase.from("cmr_attachments").insert(attachments.map(item => ({ cmr_id: document.id, sequence: item.sequence, document_type: item.type, title: item.title, external_reference: item.reference || null, metadata: {} })));
       if (error) throw error;
     }
 
     const clauses = [
-      senderInstructions && { cmr_id: document.id, clause_type: "sender_instruction", sequence: 1, text_value: senderInstructions, source: "web" },
-      carrierReservations && { cmr_id: document.id, clause_type: "carrier_reservation", sequence: 1, text_value: carrierReservations, source: "web" },
-      particularTerms && { cmr_id: document.id, clause_type: "particular_term", sequence: 1, text_value: particularTerms, source: "web" },
+      senderInstructions && { cmr_id: document.id, clause_type: "sender_instruction", sequence: 1, text_value: senderInstructions, source: "web", metadata: {} },
+      carrierReservations && { cmr_id: document.id, clause_type: "carrier_reservation", sequence: 1, text_value: carrierReservations, source: "web", metadata: {} },
+      particularTerms && { cmr_id: document.id, clause_type: "particular_term", sequence: 1, text_value: particularTerms, source: "web", metadata: {} },
     ].filter(Boolean);
     if (clauses.length) {
       const { error } = await supabase.from("cmr_clauses").insert(clauses);
@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (expeditionRecordId) {
-      const { error } = await supabase.from("cmr_expeditions").insert({ cmr_id: document.id, expedition_id: expeditionRecordId, sequence: 1 });
+      const { error } = await supabase.from("cmr_expeditions").insert({ cmr_id: document.id, expedition_id: expeditionRecordId, sequence: 1, metadata: {} });
       if (error) throw error;
     }
 
