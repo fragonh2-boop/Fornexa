@@ -1,5 +1,11 @@
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
+
+type CookieToSet = {
+  name: string;
+  value: string;
+  options?: CookieOptions;
+};
 
 export async function createServerSupabaseClient() {
   const cookieStore = await cookies();
@@ -13,13 +19,12 @@ export async function createServerSupabaseClient() {
       getAll() {
         return cookieStore.getAll();
       },
-      setAll(cookiesToSet) {
+      setAll(cookiesToSet: CookieToSet[]) {
         try {
           cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
         } catch {
           // Los Server Components no pueden escribir cookies. La renovación se
-          // delegará al proxy cuando se añada; la lectura de identidad sigue
-          // validándose contra Supabase Auth mediante getUser().
+          // delega al proxy; la identidad se valida contra Supabase Auth.
         }
       },
     },
