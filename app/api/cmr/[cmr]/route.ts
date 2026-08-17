@@ -16,14 +16,42 @@ export async function GET(request: Request, context: { params: Promise<{ cmr: st
     const supabase = createSupabaseAdmin();
     const document = publicDocument(accessDocument);
 
-    const [{ data: stops, error: stopsError }, { data: events, error: eventsError }] = await Promise.all([
+    const [
+      { data: stops, error: stopsError },
+      { data: events, error: eventsError },
+      { data: expeditions, error: expeditionsError },
+      { data: parties, error: partiesError },
+      { data: goodsLines, error: goodsLinesError },
+      { data: clauses, error: clausesError },
+      { data: attachments, error: attachmentsError },
+      { data: signatures, error: signaturesError },
+    ] = await Promise.all([
       supabase.from("transport_stops").select("*").eq("cmr_id", accessDocument.id).order("sequence"),
       supabase.from("transport_events").select("*").eq("cmr_id", accessDocument.id).order("occurred_at", { ascending: false }),
+      supabase.from("cmr_expeditions").select("sequence,expedition_id,expeditions(id,code,status)").eq("cmr_id", accessDocument.id).order("sequence"),
+      supabase.from("cmr_parties").select("*").eq("cmr_id", accessDocument.id).order("role").order("sequence"),
+      supabase.from("cmr_goods_lines").select("*").eq("cmr_id", accessDocument.id).order("sequence"),
+      supabase.from("cmr_clauses").select("*").eq("cmr_id", accessDocument.id).order("clause_type").order("sequence"),
+      supabase.from("cmr_attachments").select("*").eq("cmr_id", accessDocument.id).order("sequence"),
+      supabase.from("cmr_signatures").select("*").eq("cmr_id", accessDocument.id).order("signed_at"),
     ]);
-    if (stopsError) throw stopsError;
-    if (eventsError) throw eventsError;
 
-    return NextResponse.json({ document, stops, events }, { headers: { "Cache-Control": "no-store" } });
+    const error = stopsError || eventsError || expeditionsError || partiesError || goodsLinesError || clausesError || attachmentsError || signaturesError;
+    if (error) throw error;
+
+    return NextResponse.json({
+      document,
+      stops,
+      events,
+      canonical: {
+        expeditions: expeditions ?? [],
+        parties: parties ?? [],
+        goodsLines: goodsLines ?? [],
+        clauses: clauses ?? [],
+        attachments: attachments ?? [],
+        signatures: signatures ?? [],
+      },
+    }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("CMR detail API error", error);
     return NextResponse.json({ error: "No se pudo cargar el CMR." }, { status: 500 });
