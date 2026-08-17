@@ -16,6 +16,7 @@
 --   20260817_expedition_order_link.sql   (expeditions.order_id + trigger de consistencia)
 --   20260814_cmr_canonical_model.sql     (aplicada tal cual, sin conflicto de nombres)
 --   20260817_cmr_expeditions_bridge.sql  (cmr_expeditions N:M, expedition_record_id queda legacy)
+--   20260817_expeditions_order_id_unique.sql (UNIQUE parcial: fuerza 1:1 real order<->expedition)
 --
 -- Se conserva el archivo original (renombrado con sufijo .sql.obsolete) para no romper
 -- el historial de migraciones ni referencias externas. No se ejecuta porque ya no tiene
