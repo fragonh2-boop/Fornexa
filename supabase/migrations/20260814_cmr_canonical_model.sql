@@ -1,7 +1,4 @@
 -- FORNEXA canonical CMR model
--- Backward-compatible extension of cmr_documents. Existing columns remain valid while
--- parties, goods, documents, successive carriers and signatures become first-class entities.
-
 create table if not exists public.cmr_parties (
   id uuid primary key default gen_random_uuid(),
   cmr_id uuid not null references public.cmr_documents(id) on delete cascade,
@@ -115,3 +112,7 @@ comment on table public.cmr_goods_lines is 'Structured CMR boxes 6-12, including
 comment on table public.cmr_parties is 'Structured CMR parties: sender, consignee, contractual carrier and successive carriers.';
 comment on table public.cmr_clauses is 'CMR boxes 13, 18, 19 and payment instructions without conflating their semantics.';
 comment on table public.cmr_signatures is 'CMR signatures 22-24 with signer, timestamp, position and evidence metadata.';
+
+insert into public.fornexa_schema_migrations (version, description)
+values ('20260814_cmr_canonical_model', 'cmr_parties, cmr_goods_lines, cmr_attachments, cmr_clauses, cmr_signatures')
+on conflict (version) do nothing;
