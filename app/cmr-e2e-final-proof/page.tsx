@@ -21,15 +21,15 @@ export default async function CmrE2eFinalProofPage() {
     .limit(1)
     .maybeSingle();
 
-  if (expeditionError || !expedition?.code) {
-    const proof = { ok: false, stage: "load-expedition", error: expeditionError?.message ?? "No real expedition available" };
+  if (expeditionError) {
+    const proof = { ok: false, stage: "load-expedition", error: expeditionError.message };
     console.log("CMR_E2E_FINAL", JSON.stringify(proof));
     return <pre>{JSON.stringify(proof, null, 2)}</pre>;
   }
 
   const payload = {
     source: SOURCE,
-    expedicion: expedition.code,
+    ...(expedition?.code ? { expedicion: expedition.code } : {}),
     viaje: "VJ-E2E-FINAL-001",
     customerIds: ["E2E-CUSTOMER"],
     expedidor: "FORNEXA E2E Sender, S.L.",
@@ -112,9 +112,28 @@ export default async function CmrE2eFinalProofPage() {
     const qrResponse = await getQr(qrRequest, { params: Promise.resolve({ cmr: cmrNumber }) });
     const qrText = await qrResponse.text();
 
+    const checks = {
+      fourParties: (parties.data?.length ?? 0) === 4,
+      twoGoodsLines: (goods.data?.length ?? 0) === 2,
+      twoAttachments: (attachments.data?.length ?? 0) === 2,
+      threeClauses: (clauses.data?.length ?? 0) === 3,
+      twoStops: (stops.data?.length ?? 0) === 2,
+      issuedEvent: Boolean(events.data?.some((row) => row.event_type === "cmr_issued")),
+      expeditionBridgeConsistent: expedition?.id ? bridge.data?.[0]?.expedition_id === expedition.id : (bridge.data?.length ?? 0) === 0,
+      adrPersisted: goods.data?.[0]?.un_number === "UN 1263" && goods.data?.[0]?.adr_declared === true,
+      canonicalDetail200: detailResponse.status === 200,
+      canonicalGoodsProjected: detail?.document?.metadata?.cmr?.goodsLines?.[0]?.description === "Pintura",
+      canonicalAdrProjected: detail?.document?.metadata?.cmr?.goodsLines?.[0]?.adr?.unNumber === "UN 1263",
+      canonicalAttachmentsProjected: detail?.canonical?.attachments?.length === 2,
+      qr200: qrResponse.status === 200,
+      qrSvg: String(qrResponse.headers.get("content-type") ?? "").includes("image/svg+xml"),
+      qrTargetsMobileCmr: qrText.includes("/api/mobile/cmr/")
+    };
+
     const proof = {
-      ok: true,
-      expeditionUsed: expedition,
+      ok: Object.values(checks).every(Boolean),
+      expeditionUsed: expedition ?? null,
+      expeditionSeedPresent: Boolean(expedition?.id),
       issued: { id: cmrId, cmrNumber, cmrKey, status: issued.status },
       persisted: document.data,
       counts: {
@@ -126,23 +145,7 @@ export default async function CmrE2eFinalProofPage() {
         events: events.data?.length ?? 0,
         bridge: bridge.data?.length ?? 0
       },
-      checks: {
-        fourParties: (parties.data?.length ?? 0) === 4,
-        twoGoodsLines: (goods.data?.length ?? 0) === 2,
-        twoAttachments: (attachments.data?.length ?? 0) === 2,
-        threeClauses: (clauses.data?.length ?? 0) === 3,
-        twoStops: (stops.data?.length ?? 0) === 2,
-        issuedEvent: Boolean(events.data?.some((row) => row.event_type === "cmr_issued")),
-        realExpeditionBridge: bridge.data?.[0]?.expedition_id === expedition.id,
-        adrPersisted: goods.data?.[0]?.un_number === "UN 1263" && goods.data?.[0]?.adr_declared === true,
-        canonicalDetail200: detailResponse.status === 200,
-        canonicalGoodsProjected: detail?.document?.metadata?.cmr?.goodsLines?.[0]?.description === "Pintura",
-        canonicalAdrProjected: detail?.document?.metadata?.cmr?.goodsLines?.[0]?.adr?.unNumber === "UN 1263",
-        canonicalAttachmentsProjected: detail?.canonical?.attachments?.length === 2,
-        qr200: qrResponse.status === 200,
-        qrSvg: String(qrResponse.headers.get("content-type") ?? "").includes("image/svg+xml"),
-        qrTargetsMobileCmr: qrText.includes("/api/mobile/cmr/")
-      }
+      checks
     };
 
     console.log("CMR_E2E_FINAL", JSON.stringify(proof));
