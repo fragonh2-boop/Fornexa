@@ -13,6 +13,9 @@ export default async function CmrE2eBuildProofPage() {
   const supabase = createSupabaseAdmin();
   await supabase.from("cmr_documents").delete().eq("source", "e2e-build-proof");
 
+  const sequenceSync = await syncCmrSequence();
+  if (!sequenceSync.ok) return <pre id="cmr-e2e-proof">{JSON.stringify({ ok: false, stage: "sync-cmr-sequence", sequenceSync }, null, 2)}</pre>;
+
   const { data: expedition, error: expeditionError } = await supabase.from("expeditions").select("id,code").limit(1).maybeSingle();
   if (expeditionError) return <pre>{JSON.stringify({ ok: false, stage: "load-expedition", error: expeditionError.message }, null, 2)}</pre>;
 
@@ -64,10 +67,24 @@ export default async function CmrE2eBuildProofPage() {
     const second = await issue({ ...base, viaje: "VJ-E2E-BUILD-002", expedicion: expedition?.code ?? undefined, senderInstructions: "Segunda prueba con expedición real" });
     const firstProof = await prove(first);
     const secondProof = await prove(second);
-    return <pre id="cmr-e2e-proof">{JSON.stringify({ ok: true, expeditionUsed: expedition ?? null, first: firstProof, second: secondProof }, null, 2)}</pre>;
+    return <pre id="cmr-e2e-proof">{JSON.stringify({ ok: true, sequenceSync, expeditionUsed: expedition ?? null, first: firstProof, second: secondProof }, null, 2)}</pre>;
   } catch (error) {
-    return <pre id="cmr-e2e-proof">{JSON.stringify({ ok: false, error: serializeError(error) }, null, 2)}</pre>;
+    return <pre id="cmr-e2e-proof">{JSON.stringify({ ok: false, sequenceSync, error: serializeError(error) }, null, 2)}</pre>;
   }
+}
+
+async function syncCmrSequence() {
+  const supabase = createSupabaseAdmin();
+  const year = new Date().getUTCFullYear().toString().slice(-2);
+  const { data, error } = await supabase.from("cmr_documents").select("cmr_number").like("cmr_number", `CMR-${year}%`).limit(1000);
+  if (error) return { ok: false as const, error: error.message };
+  const existing = new Set((data ?? []).map(row => String(row.cmr_number)));
+  for (let attempt = 1; attempt <= 1000; attempt++) {
+    const { data: candidate, error: rpcError } = await supabase.rpc("next_cmr_number");
+    if (rpcError || !candidate) return { ok: false as const, error: rpcError?.message ?? "No se pudo avanzar la secuencia CMR." };
+    if (!existing.has(String(candidate))) return { ok: true as const, attempts: attempt, firstFreeConsumed: String(candidate), existingCount: existing.size };
+  }
+  return { ok: false as const, error: "La secuencia CMR no alcanzó un número libre en 1000 intentos." };
 }
 
 async function issue(payload: Record<string, unknown>) {
