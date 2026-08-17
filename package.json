@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npm install pg@8.16.3 --no-save --ignore-scripts && node scripts/apply-cardinality-migration.cjs && next build",
+    "build": "pnpm add pg@8.16.3 --lockfile=false --ignore-scripts && node scripts/apply-cardinality-migration.cjs && next build",
     "start": "next start",
     "lint": "eslint ."
   },
