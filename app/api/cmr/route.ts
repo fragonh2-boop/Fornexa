@@ -11,7 +11,7 @@ type AttachmentInput = { type?: string; title?: string; reference?: string };
 type StopOrderInput = { id?: string; customerId?: string; description?: string; packages?: string | number; weight?: string | number };
 type StopDetailInput = { sequence?: number; contactName?: string; contactPhone?: string; reference?: string; fullAddress?: string; windowStart?: string; windowEnd?: string; orders?: StopOrderInput[] };
 type CmrInput = {
-  source?: string; expedicion?: string; viaje?: string; customerIds?: string[]; expedidor?: string; destinatario?: string; carga?: string; entrega?: string; transportista?: string; matricula?: string; remolque?: string; mercancia?: string; bultos?: string; embalaje?: string; peso?: string; volumen?: string; instrucciones?: string; senderInstructions?: string; carrierReservations?: string; particularTerms?: string; attachedDocuments?: AttachmentInput[]; successiveCarriers?: SuccessiveCarrierInput[]; goodsLines?: GoodsLineInput[]; statisticalNumber?: string; carriageCharges?: Record<string, unknown>; cashOnDelivery?: Record<string, unknown>; establishedAt?: string; establishedOn?: string; adr?: string; adrRegime?: string; unNumber?: string; adrClass?: string; adrLabels?: string; packingGroup?: string; tunnelCode?: string; adrDescription?: string; stopDetails?: StopDetailInput[];
+  source?: string; expedicion?: string; expediciones?: string[]; viaje?: string; customerIds?: string[]; expedidor?: string; destinatario?: string; carga?: string; entrega?: string; transportista?: string; matricula?: string; remolque?: string; mercancia?: string; bultos?: string; embalaje?: string; peso?: string; volumen?: string; instrucciones?: string; senderInstructions?: string; carrierReservations?: string; particularTerms?: string; attachedDocuments?: AttachmentInput[]; successiveCarriers?: SuccessiveCarrierInput[]; goodsLines?: GoodsLineInput[]; statisticalNumber?: string; carriageCharges?: Record<string, unknown>; cashOnDelivery?: Record<string, unknown>; establishedAt?: string; establishedOn?: string; adr?: string; adrRegime?: string; unNumber?: string; adrClass?: string; adrLabels?: string; packingGroup?: string; tunnelCode?: string; adrDescription?: string; stopDetails?: StopDetailInput[];
 };
 
 const required: Array<[keyof CmrInput, string]> = [["expedidor", "Expedidor"], ["destinatario", "Destinatario"], ["carga", "Lugar de carga"], ["entrega", "Lugar de entrega"], ["transportista", "Transportista"], ["mercancia", "Mercancía"], ["peso", "Peso bruto"]];
@@ -35,22 +35,22 @@ export async function POST(request: NextRequest) {
   const senderInstructions = clean(input.senderInstructions, 4000) || clean(input.instrucciones, 4000);
   const carrierReservations = clean(input.carrierReservations, 4000);
   const particularTerms = clean(input.particularTerms, 4000);
+  const expeditionRefs = normalizeExpeditionRefs(input);
 
-  let expeditionRecordId: string | null = null;
-  if (clean(input.expedicion, 120)) {
-    const expeditionRef = clean(input.expedicion, 120);
-    let query = supabase.from("expeditions").select("id");
+  const expeditionRecords: Array<{ id: string; code: string }> = [];
+  for (const expeditionRef of expeditionRefs) {
+    let query = supabase.from("expeditions").select("id,code");
     query = isUuid(expeditionRef) ? query.eq("id", expeditionRef) : query.eq("code", expeditionRef);
     const { data: expedition, error: expeditionError } = await query.maybeSingle();
     if (expeditionError) return failure(expeditionError);
-    expeditionRecordId = expedition?.id ?? null;
+    if (expedition?.id && !expeditionRecords.some(item => item.id === expedition.id)) expeditionRecords.push(expedition as { id: string; code: string });
   }
 
   const documentPayload = {
     access_key: cmrKey,
     status: "Emitido",
     source: input.source || "expedicion",
-    expedition_id: input.expedicion || null,
+    expedition_id: expeditionRefs[0] || null,
     trip_id: input.viaje || null,
     customer_ids: input.customerIds,
     sender: input.expedidor!.trim(),
@@ -74,17 +74,13 @@ export async function POST(request: NextRequest) {
     cash_on_delivery: sanitizeObject(input.cashOnDelivery),
     established_at: clean(input.establishedAt, 180) || null,
     established_on: clean(input.establishedOn, 40) || null,
-    metadata: { schemaVersion: 3 },
+    metadata: { schemaVersion: 3, expeditionRefs },
   };
 
   let document: { id: string; status: string; issued_at: string } | null = null;
   let cmrNumber = "";
   for (let attempt = 0; attempt < 10; attempt += 1) {
-    try {
-      cmrNumber = await nextPersistedCmrNumber(supabase);
-    } catch (error) {
-      return failure(error);
-    }
+    try { cmrNumber = await nextPersistedCmrNumber(supabase); } catch (error) { return failure(error); }
     const { data, error } = await supabase.from("cmr_documents").insert({ ...documentPayload, cmr_number: cmrNumber }).select("id,status,issued_at").single();
     if (!error && data) { document = data; break; }
     if (!isCmrNumberCollision(error)) return failure(error);
@@ -121,8 +117,8 @@ export async function POST(request: NextRequest) {
       if (error) throw error;
     }
 
-    if (expeditionRecordId) {
-      const { error } = await supabase.from("cmr_expeditions").insert({ cmr_id: document.id, expedition_id: expeditionRecordId, sequence: 1, metadata: {} });
+    if (expeditionRecords.length) {
+      const { error } = await supabase.from("cmr_expeditions").insert(expeditionRecords.map((expedition, index) => ({ cmr_id: document!.id, expedition_id: expedition.id, sequence: index + 1, metadata: { code: expedition.code } })));
       if (error) throw error;
     }
 
@@ -132,11 +128,11 @@ export async function POST(request: NextRequest) {
     ]).select("*").order("sequence");
     if (stopsError) throw stopsError;
 
-    const { error: eventError } = await supabase.from("transport_events").insert({ cmr_id: document.id, event_type: "cmr_issued", payload: { cmrNumber, source: input.source || "expedicion", actor: "FORNEXA Web", schemaVersion: 3, goodsLines: goodsLines.length, attachments: attachments.length, successiveCarriers: successiveCarriers.length, canonical: true } });
+    const { error: eventError } = await supabase.from("transport_events").insert({ cmr_id: document.id, event_type: "cmr_issued", payload: { cmrNumber, source: input.source || "expedicion", actor: "FORNEXA Web", schemaVersion: 3, goodsLines: goodsLines.length, attachments: attachments.length, successiveCarriers: successiveCarriers.length, expeditions: expeditionRecords.length, canonical: true } });
     if (eventError) throw eventError;
 
     const origin = request.nextUrl.origin;
-    return NextResponse.json({ id: document.id, cmrNumber, cmrKey, status: document.status, issuedAt: document.issued_at, stops, detailUrl: `/dashboard/epod-cmr/${encodeURIComponent(cmrNumber)}`, qrUrl: `/api/cmr/${encodeURIComponent(cmrNumber)}/qr?key=${encodeURIComponent(cmrKey)}`, qrPayload: `${origin}/api/mobile/cmr/${encodeURIComponent(cmrKey)}` }, { status: 201, headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ id: document.id, cmrNumber, cmrKey, status: document.status, issuedAt: document.issued_at, stops, expeditionIds: expeditionRecords.map(item => item.id), detailUrl: `/dashboard/epod-cmr/${encodeURIComponent(cmrNumber)}`, qrUrl: `/api/cmr/${encodeURIComponent(cmrNumber)}/qr?key=${encodeURIComponent(cmrKey)}`, qrPayload: `${origin}/api/mobile/cmr/${encodeURIComponent(cmrKey)}` }, { status: 201, headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     await supabase.from("cmr_documents").delete().eq("id", document.id);
     return failure(error);
@@ -162,8 +158,18 @@ function isCmrNumberCollision(error: unknown) {
   return value?.code === "23505" && `${value.details ?? ""} ${value.message ?? ""}`.includes("cmr_number");
 }
 
+function normalizeExpeditionRefs(input: CmrInput) {
+  const raw = [...(Array.isArray(input.expediciones) ? input.expediciones : []), input.expedicion];
+  const refs: string[] = [];
+  for (const value of raw) {
+    const ref = clean(value, 120);
+    if (ref && !refs.includes(ref)) refs.push(ref);
+  }
+  return refs.slice(0, 100);
+}
+
 function normalizeGoodsLines(input: CmrInput) {
-  const raw = Array.isArray(input.goodsLines) && input.goodsLines.length ? input.goodsLines : [{ marks: input.expedicion || "", packages: input.bultos, packaging: input.embalaje, description: input.mercancia, statisticalNumber: input.statisticalNumber, weight: input.peso, volume: input.volumen, unNumber: input.unNumber, adrClass: input.adrClass, labels: input.adrLabels, packingGroup: input.packingGroup, tunnelCode: input.tunnelCode, adrDescription: input.adrDescription }];
+  const raw = Array.isArray(input.goodsLines) && input.goodsLines.length ? input.goodsLines : [{ marks: input.expedicion || input.expediciones?.[0] || "", packages: input.bultos, packaging: input.embalaje, description: input.mercancia, statisticalNumber: input.statisticalNumber, weight: input.peso, volume: input.volumen, unNumber: input.unNumber, adrClass: input.adrClass, labels: input.adrLabels, packingGroup: input.packingGroup, tunnelCode: input.tunnelCode, adrDescription: input.adrDescription }];
   return raw.slice(0, 100).map((line, index) => ({ sequence: index + 1, marks: clean(line.marks, 120), packages: numericValue(line.packages), packaging: clean(line.packaging, 120), description: clean(line.description, 500), statisticalNumber: clean(line.statisticalNumber, 120), weight: numericValue(line.weight), volume: numericValue(line.volume), adr: { declared: input.adr === "S" || Boolean(line.unNumber || line.adrClass), unNumber: clean(line.unNumber, 20), class: clean(line.adrClass, 40), labels: clean(line.labels, 80), packingGroup: clean(line.packingGroup, 20), tunnelCode: clean(line.tunnelCode, 20), description: clean(line.adrDescription, 500) } })).filter(line => line.description);
 }
 function normalizeAttachments(value?: AttachmentInput[]) { if (!Array.isArray(value)) return []; return value.slice(0, 100).map((item, index) => ({ sequence: index + 1, type: clean(item.type, 80) || "document", title: clean(item.title, 200), reference: clean(item.reference, 200) })).filter(item => item.title); }
