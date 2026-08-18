@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { POST as createCmr } from "@/app/api/cmr/route";
+import { GET as readCmr } from "@/app/api/cmr/[cmr]/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,16 +44,44 @@ export async function GET(request: NextRequest) {
     ]
   };
 
-  const internalRequest = new NextRequest(new URL("/api/cmr", request.url), {
+  const createRequest = new NextRequest(new URL("/api/cmr", request.url), {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      origin,
-    },
+    headers: { "content-type": "application/json", origin },
     body: JSON.stringify(payload),
   });
+  const createResponse = await createCmr(createRequest);
+  const created = await createResponse.json().catch(() => ({ error: "Invalid JSON response" })) as Record<string, unknown>;
+  if (!createResponse.ok) {
+    return NextResponse.json({ create: { status: createResponse.status, body: created } }, { status: 500 });
+  }
 
-  const response = await createCmr(internalRequest);
-  const body = await response.json().catch(() => ({ error: "Invalid JSON response" }));
-  return NextResponse.json({ status: response.status, ok: response.ok, body }, { status: response.ok ? 200 : 500 });
+  const cmrNumber = String(created.cmrNumber ?? "");
+  const cmrKey = String(created.cmrKey ?? "");
+  const readRequest = new Request(new URL(`/api/cmr/${encodeURIComponent(cmrNumber)}`, request.url), {
+    headers: { "x-fornexa-key": cmrKey },
+  });
+  const readResponse = await readCmr(readRequest, { params: Promise.resolve({ cmr: cmrNumber }) });
+  const detail = await readResponse.json().catch(() => ({ error: "Invalid JSON response" })) as Record<string, unknown>;
+
+  const canonical = (detail.canonical ?? {}) as Record<string, unknown>;
+  const list = (key: string) => Array.isArray(canonical[key]) ? canonical[key] as unknown[] : [];
+  const document = (detail.document ?? {}) as Record<string, unknown>;
+
+  return NextResponse.json({
+    create: { status: createResponse.status, id: created.id, cmrNumber, expeditionIds: created.expeditionIds },
+    read: {
+      status: readResponse.status,
+      cmrNumber: document.cmr_number,
+      schemaVersion: ((document.metadata ?? {}) as Record<string, unknown>).schemaVersion,
+      expeditions: list("expeditions").length,
+      parties: list("parties").length,
+      goodsLines: list("goodsLines").length,
+      clauses: list("clauses").length,
+      attachments: list("attachments").length,
+      signatures: list("signatures").length,
+      stops: Array.isArray(detail.stops) ? detail.stops.length : 0,
+      events: Array.isArray(detail.events) ? detail.events.length : 0,
+    },
+    ok: readResponse.ok,
+  }, { status: readResponse.ok ? 200 : 500 });
 }
