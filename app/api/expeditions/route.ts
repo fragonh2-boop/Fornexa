@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getAuthenticatedContext } from "@/lib/auth-context";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
@@ -15,6 +16,9 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export async function GET() {
+  const auth = await getAuthenticatedContext();
+  if (!auth) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+
   const supabase = createSupabaseAdmin();
   const { data, error } = await supabase
     .from("expeditions")
@@ -33,6 +37,7 @@ export async function GET() {
         trip:trips!trip_expeditions_trip_id_fkey ( code, status )
       )
     `)
+    .eq("tenant_id", auth.tenantId)
     .order("created_at", { ascending: false });
 
   if (error) {
