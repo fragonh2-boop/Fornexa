@@ -1,0 +1,11 @@
+-- OBSOLETA — NO APLICAR. Este cambio fue un error.
+--
+-- Esta migracion invirtio por error la cardinalidad Pedido<->Expediente de 1:1 a 1:N,
+-- basandose en la redaccion original del documento maestro ("Albaran 1:1 Expediente"),
+-- sin conocer que el usuario ya habia corregido ese punto directamente en conversacion
+-- con Claude antes de que esta migracion se aplicara.
+--
+-- El usuario confirmo explicitamente, dos veces: "1 pedido no puede estar en diferentes
+-- expedientes". La cardinalidad correcta y definitiva es Pedido 1:1 Expediente.
+--
+-- Revertida por: 20260818_restore_order_expedition_1to1.sql
