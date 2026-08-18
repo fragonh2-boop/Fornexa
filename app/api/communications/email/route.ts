@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getAuthenticatedContext } from "@/lib/auth-context";
 import { escapeEmailHtml, parseEmailList, sendEmail, validateEmailList, type EmailAttachment } from "../../../../lib/email-service";
 
 export const runtime = "nodejs";
@@ -19,6 +20,9 @@ type Payload = {
 const maxAttachmentBytes = 8 * 1024 * 1024;
 
 export async function POST(request: Request) {
+  const auth = await getAuthenticatedContext();
+  if (!auth) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+
   try {
     const payload = (await request.json()) as Payload;
     const to = parseEmailList(payload.to);
