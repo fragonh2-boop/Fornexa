@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { POST as createCmr } from "@/app/api/cmr/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -42,16 +43,16 @@ export async function GET(request: NextRequest) {
     ]
   };
 
-  const response = await fetch(`${origin}/api/cmr`, {
+  const internalRequest = new NextRequest(new URL("/api/cmr", request.url), {
     method: "POST",
     headers: {
       "content-type": "application/json",
       origin,
     },
     body: JSON.stringify(payload),
-    cache: "no-store",
   });
 
+  const response = await createCmr(internalRequest);
   const body = await response.json().catch(() => ({ error: "Invalid JSON response" }));
   return NextResponse.json({ status: response.status, ok: response.ok, body }, { status: response.ok ? 200 : 500 });
 }
