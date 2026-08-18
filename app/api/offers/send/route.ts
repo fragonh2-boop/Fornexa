@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getAuthenticatedContext } from "@/lib/auth-context";
 import { escapeEmailHtml, parseEmailList, sendEmail, validateEmailList } from "../../../../lib/email-service";
 
 type SendOfferPayload = {
@@ -14,6 +15,9 @@ type SendOfferPayload = {
 };
 
 export async function POST(request: Request) {
+  const auth = await getAuthenticatedContext();
+  if (!auth) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+
   const payload = (await request.json()) as SendOfferPayload;
   const to = parseEmailList(payload.to);
   const cc = parseEmailList(payload.cc);
