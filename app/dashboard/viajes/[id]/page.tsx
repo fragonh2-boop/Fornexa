@@ -1,125 +1,116 @@
 import Link from "next/link";
-import styles from "./trip-detail.module.css";
+import { notFound } from "next/navigation";
+import AppShell from "../../../components/AppShell";
+import DataGrid from "../../../components/DataGrid";
+import { createSupabaseAdmin } from "@/lib/supabase-admin";
+import styles from "../../expediciones/expediciones.module.css";
 
-const loads = [
-  { part: "64018749", expedition: "EX-260071", client: "Soler H.", packages: "2 PAL", weight: 477, volume: 2.928, linear: 0.8, billing: "Peso", status: "Cargada" },
-  { part: "64018761", expedition: "EX-260071", client: "Soler H.", packages: "1 PAL", weight: 185, volume: 0.672, linear: 0.2, billing: "Peso", status: "Cargada" },
-  { part: "64018765", expedition: "EX-260071", client: "Soler H.", packages: "1 PAL", weight: 213, volume: 1.027, linear: 0.3, billing: "Volumen", status: "Cargada" },
-  { part: "64018790", expedition: "EX-260072", client: "Vondom", packages: "2 PAL", weight: 168, volume: 4.21, linear: 1.2, billing: "Volumen", status: "Pendiente" },
-  { part: "64018793", expedition: "EX-260072", client: "Vondom", packages: "1 PAL", weight: 29, volume: 1.344, linear: 0.4, billing: "Volumen", status: "Pendiente" },
-  { part: "64018918", expedition: "EX-260073", client: "Textile", packages: "3 CRT", weight: 37, volume: 0.174, linear: 0.1, billing: "Mínimo", status: "Cargada" },
-  { part: "64018932", expedition: "EX-260073", client: "Soler H.", packages: "1 PAL", weight: 90, volume: 0.768, linear: 0.3, billing: "Peso", status: "Cargada" },
-];
+const STATUS_LABELS: Record<string, string> = {
+  DRAFT: "Borrador",
+  PLANNED: "Planificado",
+  READY: "Preparado",
+  IN_PROGRESS: "En curso",
+  COMPLETED: "Finalizado",
+  CANCELLED: "Cancelado",
+};
 
-const totalWeight = loads.reduce((sum, row) => sum + row.weight, 0);
-const totalVolume = loads.reduce((sum, row) => sum + row.volume, 0);
-const totalLinear = loads.reduce((sum, row) => sum + row.linear, 0);
-const maxWeight = 24000;
-const maxVolume = 90;
-const maxLinear = 13.6;
+const STOP_LABELS: Record<string, string> = {
+  PENDING: "Pendiente",
+  ARRIVED: "Llegada",
+  COMPLETED: "Completada",
+  INCIDENT: "Incidencia",
+  SKIPPED: "Omitida",
+};
 
-function pct(value: number, max: number) {
-  return Math.min(100, Math.round((value / max) * 100));
+function formatDate(value: string | null | undefined) {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "—" : new Intl.DateTimeFormat("es-ES", { dateStyle: "short", timeStyle: "short" }).format(date);
 }
 
 export default async function TripDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const weightPct = pct(totalWeight, maxWeight);
-  const volumePct = pct(totalVolume, maxVolume);
-  const linearPct = pct(totalLinear, maxLinear);
-  const limiting = volumePct >= weightPct && volumePct >= linearPct ? "volumen" : weightPct >= linearPct ? "peso" : "metros lineales";
+  const supabase = createSupabaseAdmin();
+  const { data: trip, error } = await supabase
+    .from("trips")
+    .select(`
+      id,
+      code,
+      status,
+      planned_start,
+      actual_start,
+      planned_end,
+      actual_end,
+      trailer_registration,
+      carrier:parties!trips_carrier_id_fkey ( trade_name, legal_name ),
+      vehicle:vehicles!trips_vehicle_id_fkey ( registration, vehicle_type, capacity_weight, capacity_volume ),
+      driver:drivers!trips_driver_id_fkey ( name, phone, adr_qualified ),
+      trip_expeditions (
+        sequence,
+        expedition:expeditions!trip_expeditions_expedition_id_fkey (
+          code,
+          status,
+          order:orders!expeditions_order_id_fkey ( code, packages, gross_weight, volume, linear_meters )
+        )
+      ),
+      trip_stops (
+        id,
+        sequence,
+        stop_type,
+        company_name,
+        full_address,
+        window_start,
+        window_end,
+        status,
+        operational_reference
+      )
+    `)
+    .eq("code", id)
+    .maybeSingle();
 
-  return (
-    <main className={styles.shell}>
-      <aside className={styles.sidebar}>
-        <Link href="/dashboard" className={styles.brand}>FORNEXA</Link>
-        <nav>
-          <Link href="/dashboard">Control Tower</Link>
-          <Link href="/dashboard/partidas">Partidas</Link>
-          <Link href="/dashboard/expediciones">Expediciones</Link>
-          <Link className={styles.active} href="/dashboard/viajes">Viajes</Link>
-          <Link href="/dashboard/ofertas-tarifas">Ofertas y tarifas</Link>
-          <Link href="/dashboard/clientes">Clientes</Link>
-          <Link href="/dashboard/colaboradores">Colaboradores</Link>
-          <Link href="/dashboard/almacenes">Almacenes</Link>
-          <Link href="/dashboard/tracking">Tracking</Link>
-          <Link href="/dashboard/epod-cmr">ePOD & CMR</Link>
-          <Link href="/dashboard/informes">Informes</Link>
-        </nav>
-      </aside>
+  if (error) {
+    console.error("Viaje detalle: error al leer Supabase", error);
+    notFound();
+  }
+  if (!trip) notFound();
 
-      <section className={styles.content}>
-        <header className={styles.header}>
-          <div>
-            <Link href="/dashboard/viajes" className={styles.back}>← Volver a viajes</Link>
-            <p>VIAJE · {id}</p>
-            <h1>Carga y optimización</h1>
-            <span>Detalle consolidado por expediciones y partidas. El viaje nunca admite partidas sueltas.</span>
-          </div>
-          <div className={styles.tripMeta}>
-            <strong>1234 LBC · Semirremolque lona</strong>
-            <span>Valencia → Lyon</span>
-            <span>Conductor: J. Martínez</span>
-          </div>
-        </header>
+  const t = trip as any;
+  const legs = [...(t.trip_expeditions ?? [])].sort((a: any, b: any) => (a.sequence ?? 0) - (b.sequence ?? 0));
+  const stops = [...(t.trip_stops ?? [])].sort((a: any, b: any) => (a.sequence ?? 0) - (b.sequence ?? 0));
+  const totals = legs.reduce((acc: { packages:number; weight:number; volume:number; linear:number }, leg: any) => {
+    const order = leg.expedition?.order;
+    acc.packages += Number(order?.packages || 0);
+    acc.weight += Number(order?.gross_weight || 0);
+    acc.volume += Number(order?.volume || 0);
+    acc.linear += Number(order?.linear_meters || 0);
+    return acc;
+  }, { packages: 0, weight: 0, volume: 0, linear: 0 });
 
-        <section className={styles.tabs}>
-          <button>Resumen</button>
-          <button>Expediciones</button>
-          <button className={styles.tabActive}>Carga / optimización</button>
-          <button>Ruta y paradas</button>
-          <button>Costes</button>
-          <button>Documentos</button>
-        </section>
+  const expeditionRows = legs.map((leg: any) => ({
+    secuencia: leg.sequence ?? "—",
+    expediente: leg.expedition?.code ?? "—",
+    pedido: leg.expedition?.order?.code ?? "—",
+    bultos: leg.expedition?.order?.packages ?? "—",
+    peso: leg.expedition?.order?.gross_weight != null ? `${Number(leg.expedition.order.gross_weight).toLocaleString("es-ES")} kg` : "—",
+    volumen: leg.expedition?.order?.volume != null ? `${Number(leg.expedition.order.volume).toLocaleString("es-ES")} m³` : "—",
+    metros: leg.expedition?.order?.linear_meters != null ? `${Number(leg.expedition.order.linear_meters).toLocaleString("es-ES")} ml` : "—",
+    estado: leg.expedition?.status ?? "—",
+  }));
+  const stopRows = stops.map((stop: any) => ({
+    secuencia: stop.sequence,
+    tipo: stop.stop_type,
+    empresa: stop.company_name || "—",
+    direccion: stop.full_address,
+    ventana: `${formatDate(stop.window_start)} → ${formatDate(stop.window_end)}`,
+    referencia: stop.operational_reference || "—",
+    estado: STOP_LABELS[stop.status] ?? stop.status,
+  }));
 
-        <section className={styles.kpis}>
-          {[
-            ["Peso", totalWeight.toLocaleString("es-ES") + " / " + maxWeight.toLocaleString("es-ES") + " kg", weightPct],
-            ["Volumen", totalVolume.toLocaleString("es-ES", { maximumFractionDigits: 3 }) + " / " + maxVolume + " m³", volumePct],
-            ["Metros lineales", totalLinear.toLocaleString("es-ES", { maximumFractionDigits: 2 }) + " / " + maxLinear + " ml", linearPct],
-          ].map(([label, value, percent]) => (
-            <article key={String(label)}>
-              <div><span>{label}</span><strong>{percent}%</strong></div>
-              <b>{value}</b>
-              <div className={styles.progress}><i style={{ width: `${percent}%` }} /></div>
-            </article>
-          ))}
-          <article className={styles.score}>
-            <div><span>Índice de ocupación</span><strong>{Math.max(weightPct, volumePct, linearPct)}%</strong></div>
-            <b>Factor limitante: {limiting}</b>
-            <small>Capacidad calculada con peso, volumen y metros lineales.</small>
-          </article>
-        </section>
-
-        <section className={styles.insight}>
-          <div>
-            <p>RECOMENDACIÓN OPERATIVA</p>
-            <h2>El camión está limitado principalmente por {limiting}</h2>
-            <span>Quedan {(maxWeight-totalWeight).toLocaleString("es-ES")} kg, {(maxVolume-totalVolume).toLocaleString("es-ES", {maximumFractionDigits: 2})} m³ y {(maxLinear-totalLinear).toLocaleString("es-ES", {maximumFractionDigits: 2})} ml disponibles.</span>
-          </div>
-          <button>Buscar expediciones compatibles</button>
-        </section>
-
-        <section className={styles.panel}>
-          <div className={styles.panelTitle}>
-            <div><p>MANIFIESTO</p><h2>Contenido del viaje por expediciones</h2></div>
-            <button>Exportar manifiesto</button>
-          </div>
-          <div className={styles.tableWrap}>
-            <div className={`${styles.row} ${styles.head}`}>
-              <span>Partida</span><span>Expedición</span><span>Cliente</span><span>Bultos</span><span>Peso</span><span>Volumen</span><span>M. lineal</span><span>Facturación</span><span>Estado</span>
-            </div>
-            {loads.map((row) => (
-              <div className={styles.row} key={row.part}>
-                <strong>{row.part}</strong><span>{row.expedition}</span><span>{row.client}</span><span>{row.packages}</span><span>{row.weight.toLocaleString("es-ES")} kg</span><span>{row.volume.toLocaleString("es-ES", {maximumFractionDigits: 3})} m³</span><span>{row.linear.toLocaleString("es-ES")} ml</span><span>{row.billing}</span><span className={row.status === "Cargada" ? styles.loaded : styles.pending}>{row.status}</span>
-              </div>
-            ))}
-            <div className={`${styles.row} ${styles.total}`}>
-              <strong>TOTALES</strong><span>3 expediciones</span><span>7 partidas</span><span>11 bultos</span><span>{totalWeight.toLocaleString("es-ES")} kg</span><span>{totalVolume.toLocaleString("es-ES", {maximumFractionDigits: 3})} m³</span><span>{totalLinear.toLocaleString("es-ES")} ml</span><span>—</span><span>—</span>
-            </div>
-          </div>
-        </section>
-      </section>
-    </main>
-  );
+  return <AppShell><div className={styles.page}>
+    <header className={styles.header}><div><Link href="/dashboard/viajes">← Volver a viajes</Link><p className={styles.eyebrow}>VIAJE · {t.code}</p><h1>{t.code}</h1><p>{STATUS_LABELS[t.status] ?? t.status} · {formatDate(t.planned_start)} → {formatDate(t.planned_end)}</p></div><div className={styles.actions}><div className={styles.avatar}>FG</div></div></header>
+    <section className={styles.metrics}><article><span>Expediciones</span><strong>{legs.length}</strong></article><article><span>Paradas</span><strong>{stops.length}</strong></article><article><span>Peso agregado</span><strong>{totals.weight.toLocaleString("es-ES")} kg</strong></article><article><span>Volumen agregado</span><strong>{totals.volume.toLocaleString("es-ES")} m³</strong></article></section>
+    <section className={styles.panel}><h2>Asignación</h2><p>Transportista: {t.carrier?.trade_name || t.carrier?.legal_name || "—"} · Vehículo: {t.vehicle?.registration || "—"} {t.vehicle?.vehicle_type ? `(${t.vehicle.vehicle_type})` : ""} · Remolque: {t.trailer_registration || "—"} · Conductor: {t.driver?.name || "—"}</p></section>
+    <section className={styles.panel}><h2>Expediciones del viaje</h2><DataGrid storageKey={`viaje-${t.code}-expediciones`} columns={[{key:"secuencia",label:"Secuencia"},{key:"expediente",label:"Expediente"},{key:"pedido",label:"Pedido"},{key:"bultos",label:"Bultos"},{key:"peso",label:"Peso"},{key:"volumen",label:"Volumen"},{key:"metros",label:"M. lineales"},{key:"estado",label:"Estado"}]} rows={expeditionRows} rowHrefs={legs.map((leg:any)=>`/dashboard/registros/expediciones/${leg.expedition?.code ?? ""}`)} emptyMessage="Este viaje no tiene expediciones asignadas." /></section>
+    <section className={styles.panel}><h2>Ruta y paradas</h2><DataGrid storageKey={`viaje-${t.code}-paradas`} columns={[{key:"secuencia",label:"Secuencia"},{key:"tipo",label:"Tipo"},{key:"empresa",label:"Empresa"},{key:"direccion",label:"Dirección"},{key:"ventana",label:"Ventana"},{key:"referencia",label:"Referencia"},{key:"estado",label:"Estado"}]} rows={stopRows} emptyMessage="Este viaje no tiene paradas configuradas." /></section>
+  </div></AppShell>;
 }
