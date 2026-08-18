@@ -1,8 +1,6 @@
-"use client";
-
 import Link from "next/link";
-import { useMemo, useState } from "react";
 import DataGrid, { type GridColumn, type GridRow } from "../../components/DataGrid";
+import { createSupabaseAdmin } from "@/lib/supabase-admin";
 import styles from "./cmr.module.css";
 
 const columns: GridColumn[] = [
@@ -16,12 +14,6 @@ const columns: GridColumn[] = [
   { key: "estado", label: "Estado" },
 ];
 
-const seed: GridRow[] = [
-  { cmr: "CMR-260128", expedicion: "EX-260071", viaje: "VJ-260041", ruta: "Valencia → Lyon", fecha: "05/08/2026", firmas: "2/3", reservas: "Sin reservas", estado: "Pendiente de firma" },
-  { cmr: "CMR-260127", expedicion: "EX-260069", viaje: "VJ-260039", ruta: "Madrid → Toulouse", fecha: "04/08/2026", firmas: "3/3", reservas: "1 reserva", estado: "Entregado con reservas" },
-  { cmr: "CMR-260126", expedicion: "EX-260070", viaje: "VJ-260040", ruta: "Barcelona → Marseille", fecha: "06/08/2026", firmas: "1/3", reservas: "Sin reservas", estado: "En tránsito" },
-];
-
 const nav = [
   ["Control Tower", "/dashboard"],
   ["Partidas", "/dashboard/partidas"],
@@ -32,13 +24,63 @@ const nav = [
   ["ePOD & CMR", "/dashboard/epod-cmr"],
 ] as const;
 
-export default function CmrPage() {
-  const [rows] = useState(seed);
-  const metrics = useMemo(() => ({
-    activos: rows.filter(row => !["Cerrado", "Entregado conforme"].includes(String(row.estado))).length,
+function formatDate(value: string | null | undefined) {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "—" : new Intl.DateTimeFormat("es-ES").format(date);
+}
+
+async function getDocuments() {
+  const supabase = createSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("cmr_documents")
+    .select(`
+      id,
+      cmr_number,
+      status,
+      pickup_location,
+      delivery_location,
+      carrier_reservations,
+      issued_at,
+      trip_id,
+      cmr_expeditions (
+        sequence,
+        expedition:expeditions!cmr_expeditions_expedition_id_fkey ( code )
+      ),
+      cmr_signatures ( role )
+    `)
+    .order("issued_at", { ascending: false });
+
+  if (error) {
+    console.error("CMR: error al leer Supabase", error);
+    return [];
+  }
+
+  return (data ?? []).map((document: any) => {
+    const expeditions = [...(document.cmr_expeditions ?? [])].sort((a: any, b: any) => (a.sequence ?? 0) - (b.sequence ?? 0));
+    const expeditionCodes = expeditions.map((item: any) => item.expedition?.code).filter(Boolean);
+    const signatures = document.cmr_signatures ?? [];
+    const reservations = String(document.carrier_reservations || "").trim();
+    return {
+      cmr: document.cmr_number as string,
+      expedicion: expeditionCodes.length ? expeditionCodes.join(", ") : "—",
+      viaje: document.trip_id || "—",
+      ruta: `${document.pickup_location || "—"} → ${document.delivery_location || "—"}`,
+      fecha: formatDate(document.issued_at),
+      firmas: `${signatures.length}/3`,
+      reservas: reservations ? reservations : "Sin reservas",
+      estado: document.status || "—",
+    } satisfies GridRow;
+  });
+}
+
+export default async function CmrPage() {
+  const rows = await getDocuments();
+  const metrics = {
+    activos: rows.filter(row => !["Cerrado", "Entregado"].includes(String(row.estado))).length,
     pendientes: rows.filter(row => String(row.firmas) !== "3/3").length,
     reservas: rows.filter(row => String(row.reservas) !== "Sin reservas").length,
-  }), [rows]);
+  };
 
   return <main className={styles.shell}>
     <aside className={styles.sidebar}>
@@ -68,7 +110,7 @@ export default function CmrPage() {
       <section className={styles.panel}>
         <div className={styles.panelHeader}>
           <div><span>CMR LIVE</span><h2>Documentos recientes</h2></div>
-          <p>Los datos se alimentan desde expediciones y viajes; solo se completan los campos que falten.</p>
+          <p>Datos reales del modelo canónico CMR en Supabase.</p>
         </div>
         <DataGrid
           storageKey="cmr-documents"
