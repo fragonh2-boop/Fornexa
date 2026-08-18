@@ -7,6 +7,18 @@ type CookieToSet = {
   options?: CookieOptions;
 };
 
+const protectedApiPaths = [
+  "/api/cmr",
+  "/api/expeditions",
+  "/api/storage/migrate-local",
+  "/api/communications/email",
+  "/api/offers/send",
+];
+
+function isProtectedApi(pathname: string) {
+  return protectedApiPaths.some(path => pathname === path);
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname, searchParams, origin } = request.nextUrl;
 
@@ -31,6 +43,7 @@ export async function proxy(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) {
+    if (isProtectedApi(pathname)) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
     if (pathname.startsWith("/dashboard")) return NextResponse.redirect(new URL("/login", origin));
     return NextResponse.next();
   }
@@ -49,9 +62,13 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  // getUser() validates the access token with Supabase Auth and refreshes the
-  // session cookies when necessary through the cookie adapter above.
   const { data: { user } } = await supabase.auth.getUser();
+
+  if (isProtectedApi(pathname) && !user) {
+    const unauthorized = NextResponse.json({ error: "No autorizado." }, { status: 401 });
+    response.cookies.getAll().forEach(cookie => unauthorized.cookies.set(cookie));
+    return unauthorized;
+  }
 
   if (pathname.startsWith("/dashboard") && !user) {
     const login = new URL("/login", origin);
@@ -73,5 +90,16 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/login", "/onboarding", "/reset-password", "/dashboard/:path*"],
+  matcher: [
+    "/",
+    "/login",
+    "/onboarding",
+    "/reset-password",
+    "/dashboard/:path*",
+    "/api/cmr",
+    "/api/expeditions",
+    "/api/storage/migrate-local",
+    "/api/communications/email",
+    "/api/offers/send",
+  ],
 };
