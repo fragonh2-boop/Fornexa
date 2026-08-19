@@ -29,6 +29,20 @@ type CanonicalTripStop = {
   operational_reference: string | null;
   metadata: Record<string, unknown> | null;
 };
+type TransportStopInsert = {
+  tenant_id: string;
+  cmr_id: string;
+  trip_stop_id: string | null;
+  sequence: number;
+  stop_type: string;
+  company: string | null;
+  address: string | null;
+  window_start: string | null;
+  window_end: string | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+  operational_reference: string | null;
+};
 
 const required: Array<[keyof CmrInput, string]> = [["expedidor", "Expedidor"], ["destinatario", "Destinatario"], ["carga", "Lugar de carga"], ["entrega", "Lugar de entrega"], ["transportista", "Transportista"], ["mercancia", "Mercancía"], ["peso", "Peso bruto"]];
 
@@ -234,7 +248,7 @@ export async function POST(request: NextRequest) {
       if (error) throw error;
     }
 
-    const transportStopRows = tripRecord
+    const transportStopRows: TransportStopInsert[] = tripRecord
       ? canonicalTransportStops.map((stop, index) => ({
           tenant_id: auth.tenantId,
           cmr_id: document!.id,
@@ -250,8 +264,8 @@ export async function POST(request: NextRequest) {
           operational_reference: stop.operational_reference,
         }))
       : [
-          { tenant_id: auth.tenantId, cmr_id: document.id, trip_stop_id: null, sequence: 1, stop_type: "Recogida", company: input.expedidor, address: stopDetails[0].fullAddress || input.carga, window_start: stopDetails[0].windowStart || null, window_end: stopDetails[0].windowEnd || null, contact_name: stopDetails[0].contactName || null, contact_phone: stopDetails[0].contactPhone || null, operational_reference: stopDetails[0].reference || null },
-          { tenant_id: auth.tenantId, cmr_id: document.id, trip_stop_id: null, sequence: 2, stop_type: "Entrega", company: input.destinatario, address: stopDetails[1].fullAddress || input.entrega, window_start: stopDetails[1].windowStart || null, window_end: stopDetails[1].windowEnd || null, contact_name: stopDetails[1].contactName || null, contact_phone: stopDetails[1].contactPhone || null, operational_reference: stopDetails[1].reference || null },
+          { tenant_id: auth.tenantId, cmr_id: document.id, trip_stop_id: null, sequence: 1, stop_type: "Recogida", company: input.expedidor ?? null, address: stopDetails[0].fullAddress || input.carga || null, window_start: stopDetails[0].windowStart || null, window_end: stopDetails[0].windowEnd || null, contact_name: stopDetails[0].contactName || null, contact_phone: stopDetails[0].contactPhone || null, operational_reference: stopDetails[0].reference || null },
+          { tenant_id: auth.tenantId, cmr_id: document.id, trip_stop_id: null, sequence: 2, stop_type: "Entrega", company: input.destinatario ?? null, address: stopDetails[1].fullAddress || input.entrega || null, window_start: stopDetails[1].windowStart || null, window_end: stopDetails[1].windowEnd || null, contact_name: stopDetails[1].contactName || null, contact_phone: stopDetails[1].contactPhone || null, operational_reference: stopDetails[1].reference || null },
         ];
 
     const { data: stops, error: stopsError } = await supabase.from("transport_stops").insert(transportStopRows).select("*").order("sequence");
