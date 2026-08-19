@@ -12,7 +12,9 @@ export async function GET(request: Request, context: { params: Promise<{ cmr: st
   try {
     const accessDocument = await documentForAccessKey(request.headers.get("x-fornexa-key") ?? "");
     if (!accessDocument) return NextResponse.json({ error: "CMR Key no válida o revocada." }, { status: 401 });
-    if (accessDocument.cmr_number !== cmrNumber) return NextResponse.json({ error: "La clave no pertenece a este CMR." }, { status: 403 });
+    if (accessDocument.cmr_number !== cmrNumber) return NextResponse.json({ error: "La clave no pertenece al CMR." }, { status: 403 });
+    const tenantId = String(accessDocument.tenant_id ?? "");
+    if (!tenantId) throw new Error("El CMR no tiene tenant asociado.");
     const supabase = createSupabaseAdmin();
 
     const [
@@ -25,8 +27,8 @@ export async function GET(request: Request, context: { params: Promise<{ cmr: st
       { data: attachments, error: attachmentsError },
       { data: signatures, error: signaturesError },
     ] = await Promise.all([
-      supabase.from("transport_stops").select("*").eq("cmr_id", accessDocument.id).order("sequence"),
-      supabase.from("transport_events").select("*").eq("cmr_id", accessDocument.id).order("occurred_at", { ascending: false }),
+      supabase.from("transport_stops").select("*").eq("cmr_id", accessDocument.id).eq("tenant_id", tenantId).order("sequence"),
+      supabase.from("transport_events").select("*").eq("cmr_id", accessDocument.id).eq("tenant_id", tenantId).order("occurred_at", { ascending: false }),
       supabase.from("cmr_expeditions").select("sequence,expedition_id,expeditions(id,code,status)").eq("cmr_id", accessDocument.id).order("sequence"),
       supabase.from("cmr_parties").select("*").eq("cmr_id", accessDocument.id).order("role").order("sequence"),
       supabase.from("cmr_goods_lines").select("*").eq("cmr_id", accessDocument.id).order("sequence"),
