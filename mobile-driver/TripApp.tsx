@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -81,8 +81,13 @@ type TripPayload = {
 type EventType = "arrival" | "complete" | "incident" | "signature";
 type StopAction = "incident" | "signature" | null;
 
-export default function TripApp({ onExit }: { onExit: () => void }) {
-  const [token, setToken] = useState("");
+type TripAppProps = {
+  onExit: () => void;
+  initialToken?: string;
+};
+
+export default function TripApp({ onExit, initialToken = "" }: TripAppProps) {
+  const [token, setToken] = useState(initialToken);
   const [trip, setTrip] = useState<TripPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -90,6 +95,7 @@ export default function TripApp({ onExit }: { onExit: () => void }) {
   const [selectedStop, setSelectedStop] = useState<TripStop | null>(null);
   const [stopAction, setStopAction] = useState<StopAction>(null);
   const [permission, requestPermission] = useCameraPermissions();
+  const consumedInitialToken = useRef("");
 
   const normalizedToken = normalizeToken(token);
 
@@ -135,6 +141,14 @@ export default function TripApp({ onExit }: { onExit: () => void }) {
       setRefreshing(false);
     }
   }, [normalizedToken]);
+
+  useEffect(() => {
+    const incoming = normalizeToken(initialToken);
+    if (!incoming || consumedInitialToken.current === incoming) return;
+    consumedInitialToken.current = incoming;
+    setToken(incoming);
+    void loadTrip(incoming);
+  }, [initialToken, loadTrip]);
 
   useEffect(() => {
     if (!trip || stopAction) return;
