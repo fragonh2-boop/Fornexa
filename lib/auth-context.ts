@@ -10,39 +10,30 @@ export type AuthenticatedContext = {
 
 export const REVIEW_COOKIE = "fornexa_review";
 export const REVIEW_TENANT_ID = "00000000-0000-4000-8000-000000000001";
-const REVIEW_TOKEN_HASH = "cd148e817c92d5ad79fdb958fa624024003189bf37fe51fb4823dff9d0401aca";
-
-async function sha256Bytes(value: string) {
-  const bytes = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return new Uint8Array(digest);
-}
-
-function hexToBytes(value: string) {
-  if (value.length % 2 !== 0) return new Uint8Array();
-  const bytes = new Uint8Array(value.length / 2);
-  for (let index = 0; index < bytes.length; index += 1) {
-    const byte = Number.parseInt(value.slice(index * 2, index * 2 + 2), 16);
-    if (!Number.isFinite(byte)) return new Uint8Array();
-    bytes[index] = byte;
-  }
-  return bytes;
-}
-
-function constantTimeEqual(left: Uint8Array, right: Uint8Array) {
-  if (left.length !== right.length) return false;
-  let difference = 0;
-  for (let index = 0; index < left.length; index += 1) {
-    difference |= left[index] ^ right[index];
-  }
-  return difference === 0;
-}
-
-const REVIEW_TOKEN_HASH_BYTES = hexToBytes(REVIEW_TOKEN_HASH);
 
 export async function isValidReviewToken(value?: string | null) {
-  if (!value || value.length < 32 || REVIEW_TOKEN_HASH_BYTES.length !== 32) return false;
-  return constantTimeEqual(await sha256Bytes(value), REVIEW_TOKEN_HASH_BYTES);
+  if (!value || value.length < 32) return false;
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return false;
+
+  try {
+    const response = await fetch(`${url}/rest/v1/rpc/fornexa_validate_review_token`, {
+      method: "POST",
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ p_token: value }),
+      cache: "no-store",
+    });
+    if (!response.ok) return false;
+    return (await response.json()) === true;
+  } catch {
+    return false;
+  }
 }
 
 export async function getReviewContext(): Promise<AuthenticatedContext | null> {
