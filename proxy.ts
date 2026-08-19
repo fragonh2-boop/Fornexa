@@ -10,13 +10,22 @@ type CookieToSet = {
 const protectedApiPaths = [
   "/api/cmr",
   "/api/expeditions",
+  "/api/storage/health",
   "/api/storage/migrate-local",
   "/api/communications/email",
   "/api/offers/send",
+  "/api/customs/messages",
+  "/api/telematics/live",
 ];
 
 function isProtectedApi(pathname: string) {
   return protectedApiPaths.some(path => pathname === path);
+}
+
+function loginRedirect(request: NextRequest, origin: string) {
+  const login = new URL("/login", origin);
+  login.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
+  return login;
 }
 
 export async function proxy(request: NextRequest) {
@@ -44,7 +53,7 @@ export async function proxy(request: NextRequest) {
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) {
     if (isProtectedApi(pathname)) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
-    if (pathname.startsWith("/dashboard")) return NextResponse.redirect(new URL("/login", origin));
+    if (pathname.startsWith("/dashboard") || pathname === "/onboarding") return NextResponse.redirect(loginRedirect(request, origin));
     return NextResponse.next();
   }
 
@@ -70,10 +79,8 @@ export async function proxy(request: NextRequest) {
     return unauthorized;
   }
 
-  if (pathname.startsWith("/dashboard") && !user) {
-    const login = new URL("/login", origin);
-    login.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
-    const redirectResponse = NextResponse.redirect(login);
+  if ((pathname.startsWith("/dashboard") || pathname === "/onboarding") && !user) {
+    const redirectResponse = NextResponse.redirect(loginRedirect(request, origin));
     response.cookies.getAll().forEach(cookie => redirectResponse.cookies.set(cookie));
     return redirectResponse;
   }
@@ -98,8 +105,11 @@ export const config = {
     "/dashboard/:path*",
     "/api/cmr",
     "/api/expeditions",
+    "/api/storage/health",
     "/api/storage/migrate-local",
     "/api/communications/email",
     "/api/offers/send",
+    "/api/customs/messages",
+    "/api/telematics/live",
   ],
 };
