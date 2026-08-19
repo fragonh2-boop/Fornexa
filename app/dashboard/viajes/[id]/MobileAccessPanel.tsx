@@ -11,6 +11,10 @@ type AccessRow = {
   last_used_at?: string | null;
 };
 
+function mobileAccessLink(token: string) {
+  return `fornexa-mobile://trip/${token}`;
+}
+
 export default function MobileAccessPanel({ tripCode, readOnly }: { tripCode: string; readOnly: boolean }) {
   const [accesses, setAccesses] = useState<AccessRow[]>([]);
   const [issuedToken, setIssuedToken] = useState("");
@@ -56,7 +60,7 @@ export default function MobileAccessPanel({ tripCode, readOnly }: { tripCode: st
 
   async function copyAccess() {
     if (!issuedToken) return;
-    const value = `fornexa-trip://access/${issuedToken}`;
+    const value = mobileAccessLink(issuedToken);
     try {
       await navigator.clipboard.writeText(value);
       setMessage("Acceso copiado al portapapeles.");
@@ -91,7 +95,7 @@ export default function MobileAccessPanel({ tripCode, readOnly }: { tripCode: st
       {issuedToken && (
         <div style={{ padding: 14, border: "1px solid #9ebbd0", borderRadius: 10, background: "#f4f9fc", display: "grid", gap: 8 }}>
           <strong>Acceso recién emitido</strong>
-          <code style={{ overflowWrap: "anywhere", userSelect: "all" }}>{`fornexa-trip://access/${issuedToken}`}</code>
+          <code style={{ overflowWrap: "anywhere", userSelect: "all" }}>{mobileAccessLink(issuedToken)}</code>
           {expiresAt && <small>Caduca: {new Date(expiresAt).toLocaleString("es-ES")}</small>}
           <button type="button" onClick={copyAccess} style={{ justifySelf: "start", padding: "8px 12px", borderRadius: 8, border: 0, background: "#005d8f", color: "white", fontWeight: 800, cursor: "pointer" }}>Copiar acceso</button>
         </div>
