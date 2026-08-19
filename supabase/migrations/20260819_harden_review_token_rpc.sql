@@ -1,3 +1,8 @@
+-- SECURITY REQUIREMENT: the `private` schema must remain excluded from Supabase
+-- Project Settings -> API -> Exposed schemas. The privileged implementation below
+-- is intentionally not part of the PostgREST surface; only the public SECURITY
+-- INVOKER wrapper is exposed. This setting cannot be reliably asserted from a SQL
+-- session, so it must be checked whenever API schema exposure is changed.
 grant usage on schema private to anon, authenticated;
 
 create or replace function private.fornexa_validate_review_token_impl(p_token text)
