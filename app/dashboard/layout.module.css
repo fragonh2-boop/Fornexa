@@ -82,6 +82,35 @@
   color: #718096;
 }
 
+.signOut {
+  margin-top: 8px;
+  padding: 9px 12px;
+  border: 1px solid rgba(18, 32, 52, 0.12);
+  border-radius: 9px;
+  color: #344256;
+  background: #ffffff;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.signOut:hover,
+.signOut:focus-visible {
+  color: #101216;
+  background: rgba(0, 93, 143, 0.06);
+}
+
+.signOut:focus-visible {
+  outline: 2px solid rgba(0, 93, 143, 0.62);
+  outline-offset: 2px;
+}
+
+.signOut:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
 @media (max-height: 760px) and (min-width: 761px) {
   .sidebar { padding: 20px 18px; }
   .nav { gap: 2px; margin-top: 20px; }
