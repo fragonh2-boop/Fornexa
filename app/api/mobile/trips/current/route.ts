@@ -47,8 +47,9 @@ export async function GET(request: NextRequest) {
   const { data: cmrs, error: cmrError } = expeditionIds.length
     ? await supabase
         .from("cmr_documents")
-        .select("id, cmr_number, status, expedition_record_id, sender, recipient, pickup_location, delivery_location, goods_description, packages, packaging, gross_weight, volume, adr")
+        .select("id, cmr_number, status, expedition_record_id, trip_record_id, sender, recipient, pickup_location, delivery_location, goods_description, packages, packaging, gross_weight, volume, adr")
         .eq("tenant_id", access.tenant_id)
+        .eq("trip_record_id", access.trip_id)
         .in("expedition_record_id", expeditionIds)
     : { data: [], error: null };
   if (cmrError) return noStore({ error: "No se pudieron cargar los CMR" }, { status: 500 });
