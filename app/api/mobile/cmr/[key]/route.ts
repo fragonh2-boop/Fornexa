@@ -11,12 +11,14 @@ export async function GET(_request: Request, context: { params: Promise<{ key: s
   try {
     const document = await documentForAccessKey(decodeURIComponent(key));
     if (!document) return NextResponse.json({ error: "CMR Key no válida o revocada." }, { status: 404 });
+    const tenantId = String(document.tenant_id ?? "");
+    if (!tenantId) throw new Error("El CMR no tiene tenant asociado.");
 
     const supabase = createSupabaseAdmin();
     const [{ data: stops, error: stopsError }, { data: events, error: eventsError }, { data: evidence, error: evidenceError }] = await Promise.all([
-      supabase.from("transport_stops").select("*").eq("cmr_id", document.id).order("sequence"),
-      supabase.from("transport_events").select("id,stop_id,event_type,occurred_at,latitude,longitude,payload").eq("cmr_id", document.id).order("occurred_at", { ascending: false }).limit(200),
-      supabase.from("transport_evidence").select("id,stop_id,kind,captured_at").eq("cmr_id", document.id).order("captured_at", { ascending: false }),
+      supabase.from("transport_stops").select("*").eq("cmr_id", document.id).eq("tenant_id", tenantId).order("sequence"),
+      supabase.from("transport_events").select("id,stop_id,event_type,occurred_at,latitude,longitude,payload").eq("cmr_id", document.id).eq("tenant_id", tenantId).order("occurred_at", { ascending: false }).limit(200),
+      supabase.from("transport_evidence").select("id,stop_id,kind,captured_at").eq("cmr_id", document.id).eq("tenant_id", tenantId).order("captured_at", { ascending: false }),
     ]);
     if (stopsError) throw stopsError;
     if (eventsError) throw eventsError;
