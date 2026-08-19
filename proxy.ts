@@ -53,7 +53,9 @@ export async function proxy(request: NextRequest) {
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) {
     if (isProtectedApi(pathname)) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
-    if (pathname.startsWith("/dashboard") || pathname === "/onboarding") return NextResponse.redirect(loginRedirect(request, origin));
+    if (pathname.startsWith("/dashboard") || pathname === "/onboarding" || pathname === "/reset-password") {
+      return NextResponse.redirect(loginRedirect(request, origin));
+    }
     return NextResponse.next();
   }
 
@@ -79,7 +81,7 @@ export async function proxy(request: NextRequest) {
     return unauthorized;
   }
 
-  if ((pathname.startsWith("/dashboard") || pathname === "/onboarding") && !user) {
+  if ((pathname.startsWith("/dashboard") || pathname === "/onboarding" || pathname === "/reset-password") && !user) {
     const redirectResponse = NextResponse.redirect(loginRedirect(request, origin));
     response.cookies.getAll().forEach(cookie => redirectResponse.cookies.set(cookie));
     return redirectResponse;
