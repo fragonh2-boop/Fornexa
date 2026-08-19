@@ -26,15 +26,26 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            mobile-driver/pnpm-lock.yaml
 
-      - name: Install dependencies
+      - name: Install web dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck
+      - name: Typecheck web
         run: pnpm typecheck
 
-      - name: Lint
+      - name: Lint web
         run: pnpm lint
 
-      - name: Build
+      - name: Build web
         run: pnpm build
+
+      - name: Install Mobile dependencies
+        working-directory: mobile-driver
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck Mobile
+        working-directory: mobile-driver
+        run: pnpm typecheck
