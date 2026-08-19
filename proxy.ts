@@ -81,6 +81,21 @@ export async function proxy(request: NextRequest) {
     return unauthorized;
   }
 
+  if (pathname === "/api/storage/migrate-local" && user) {
+    const { data: memberships, error } = await supabase
+      .from("tenant_members")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("status", "ACTIVE")
+      .limit(2);
+    const role = !error && memberships?.length === 1 ? memberships[0]?.role : null;
+    if (role !== "OWNER" && role !== "ADMIN") {
+      const forbidden = NextResponse.json({ error: "Permisos insuficientes." }, { status: 403 });
+      response.cookies.getAll().forEach(cookie => forbidden.cookies.set(cookie));
+      return forbidden;
+    }
+  }
+
   if ((pathname.startsWith("/dashboard") || pathname === "/onboarding" || pathname === "/reset-password") && !user) {
     const redirectResponse = NextResponse.redirect(loginRedirect(request, origin));
     response.cookies.getAll().forEach(cookie => redirectResponse.cookies.set(cookie));
