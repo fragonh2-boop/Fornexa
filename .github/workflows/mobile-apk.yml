@@ -6,6 +6,10 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/mobile-apk.yml"
+  pull_request:
+    paths:
+      - "mobile-driver/**"
+      - ".github/workflows/mobile-apk.yml"
 
 permissions:
   contents: read
