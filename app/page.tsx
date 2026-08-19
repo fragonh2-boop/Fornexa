@@ -13,11 +13,8 @@ const copy = {
     demo: "Ver demo",
     modules: "Módulos",
     language: "Idioma",
-    email: "Correo electrónico",
-    password: "Contraseña",
-    access: "Entrar en FORNEXA",
-    forgot: "¿Has olvidado la contraseña?",
-    secure: "Acceso seguro para operadores, cargadores y receptores.",
+    access: "Ir al acceso seguro",
+    secure: "El acceso a FORNEXA se realiza únicamente desde el portal seguro de autenticación.",
     dashboard: "Vista operativa",
     shipments: "Expediciones activas",
     incidents: "Incidencias abiertas",
@@ -40,11 +37,8 @@ const copy = {
     demo: "View demo",
     modules: "Modules",
     language: "Language",
-    email: "Email address",
-    password: "Password",
-    access: "Enter FORNEXA",
-    forgot: "Forgot your password?",
-    secure: "Secure access for operators, shippers and receivers.",
+    access: "Go to secure access",
+    secure: "FORNEXA access is available only through the secure authentication portal.",
     dashboard: "Operational view",
     shipments: "Active shipments",
     incidents: "Open incidents",
@@ -67,11 +61,8 @@ const copy = {
     demo: "Voir la démo",
     modules: "Modules",
     language: "Langue",
-    email: "Adresse e-mail",
-    password: "Mot de passe",
-    access: "Accéder à FORNEXA",
-    forgot: "Mot de passe oublié ?",
-    secure: "Accès sécurisé pour opérateurs, chargeurs et destinataires.",
+    access: "Accéder au portail sécurisé",
+    secure: "L’accès à FORNEXA s’effectue uniquement via le portail d’authentification sécurisé.",
     dashboard: "Vue opérationnelle",
     shipments: "Expéditions actives",
     incidents: "Incidents ouverts",
@@ -153,10 +144,7 @@ export default function Home() {
           <span className="card-kicker">FORNEXA ACCESS</span>
           <h2>{t.login}</h2>
           <p>{t.secure}</p>
-          <label>{t.email}<input type="email" placeholder="nombre@empresa.com" /></label>
-          <label>{t.password}<input type="password" placeholder="••••••••" /></label>
           <Link className="login-trigger" href="/login">{t.access}</Link>
-          <Link href="/login">{t.forgot}</Link>
         </aside>
       </section>
 
