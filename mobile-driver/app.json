@@ -3,7 +3,7 @@
     "name": "FORNEXA Mobile",
     "slug": "fornexasc",
     "owner": "fornexas-team",
-    "version": "0.6.0",
+    "version": "0.7.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "fornexa-mobile",
@@ -20,7 +20,7 @@
     },
     "android": {
       "package": "com.fornexa.driver",
-      "versionCode": 7,
+      "versionCode": 8,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -35,14 +35,14 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "FORNEXA Mobile necesita la cámara para escanear el QR del CMR.",
+          "cameraPermission": "FORNEXA Mobile necesita la cámara para escanear accesos de Viaje o CMR.",
           "recordAudioAndroid": false
         }
       ],
       [
         "expo-image-picker",
         {
-          "cameraPermission": "FORNEXA Mobile necesita la cámara para documentar recogidas y entregas.",
+          "cameraPermission": "FORNEXA Mobile necesita la cámara para documentar recogidas, entregas y POD.",
           "photosPermission": "FORNEXA Mobile puede adjuntar evidencias existentes.",
           "microphonePermission": false
         }
