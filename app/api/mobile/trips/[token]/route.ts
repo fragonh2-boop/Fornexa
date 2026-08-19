@@ -45,16 +45,27 @@ export async function GET(_request: Request, context: { params: Promise<{ token:
   if (cmrError) return NextResponse.json({ error: "No se pudieron cargar los CMR" }, { status: 500 });
 
   const cmrIds = (cmrs ?? []).map((cmr: any) => cmr.id);
-  const { data: stops, error: stopsError } = cmrIds.length
-    ? await supabase
-        .from("transport_stops")
-        .select("id, cmr_id, sequence, stop_type, company, address, window_start, window_end, contact_name, contact_phone, latitude, longitude, status, arrived_at, completed_at, operational_reference")
-        .eq("tenant_id", access.tenant_id)
-        .in("cmr_id", cmrIds)
-        .order("sequence", { ascending: true })
-    : { data: [], error: null };
+  const [{ data: stops, error: stopsError }, { data: evidence, error: evidenceError }] = cmrIds.length
+    ? await Promise.all([
+        supabase
+          .from("transport_stops")
+          .select("id, cmr_id, sequence, stop_type, company, address, window_start, window_end, contact_name, contact_phone, latitude, longitude, status, arrived_at, completed_at, operational_reference")
+          .eq("tenant_id", access.tenant_id)
+          .in("cmr_id", cmrIds)
+          .order("sequence", { ascending: true }),
+        supabase
+          .from("transport_evidence")
+          .select("id,stop_id")
+          .eq("tenant_id", access.tenant_id)
+          .in("cmr_id", cmrIds),
+      ])
+    : [{ data: [], error: null }, { data: [], error: null }];
 
   if (stopsError) return NextResponse.json({ error: "No se pudieron cargar las paradas" }, { status: 500 });
+  if (evidenceError) return NextResponse.json({ error: "No se pudo cargar el estado POD" }, { status: 500 });
+
+  const evidenceCount = new Map<string, number>();
+  for (const item of evidence ?? []) evidenceCount.set(item.stop_id, (evidenceCount.get(item.stop_id) ?? 0) + 1);
 
   const cmrsByExpedition = new Map<string, any[]>();
   for (const cmr of cmrs ?? []) {
@@ -63,7 +74,14 @@ export async function GET(_request: Request, context: { params: Promise<{ token:
     const bucket = cmrsByExpedition.get(key) ?? [];
     bucket.push({
       ...cmr,
-      stops: (stops ?? []).filter((stop: any) => stop.cmr_id === (cmr as any).id),
+      stops: (stops ?? [])
+        .filter((stop: any) => stop.cmr_id === (cmr as any).id)
+        .map((stop: any) => ({
+          ...stop,
+          reference: stop.operational_reference,
+          evidenceCount: evidenceCount.get(stop.id) ?? 0,
+          contactMissing: !String(stop.contact_phone ?? "").trim(),
+        })),
     });
     cmrsByExpedition.set(key, bucket);
   }
@@ -79,5 +97,5 @@ export async function GET(_request: Request, context: { params: Promise<{ token:
       expiresAt: access.expires_at,
       driverId: access.driver_id,
     },
-  });
+  }, { headers: { "Cache-Control": "private, no-cache, no-store, max-age=0, must-revalidate" } });
 }
