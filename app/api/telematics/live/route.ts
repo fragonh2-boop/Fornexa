@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAuthenticatedContext } from "@/lib/auth-context";
 import { normalizeSamsaraLive } from "@/lib/telematics/runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
+  const auth = await getAuthenticatedContext();
+  if (!auth) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+
   const provider = request.nextUrl.searchParams.get("provider") || "samsara";
   if (provider !== "samsara") {
     return NextResponse.json({ error: "Live normalizer not executable for this provider until its tenant-specific API contract is authorized.", provider }, { status: 501 });
@@ -27,5 +31,5 @@ export async function GET(request: NextRequest) {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) return NextResponse.json({ provider, upstreamStatus: response.status, error: payload }, { status: response.status });
 
-  return NextResponse.json({ provider, normalized: normalizeSamsaraLive(payload), source: "tachograph-live-data/latest" });
+  return NextResponse.json({ provider, normalized: normalizeSamsaraLive(payload), source: "tachograph-live-data/latest" }, { headers: { "Cache-Control": "no-store" } });
 }
