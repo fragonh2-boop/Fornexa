@@ -66,18 +66,18 @@ export async function POST(request: NextRequest) {
   const pending = stops.filter(stop => stop.status !== "Completada");
   if (pending.length) return noStore({ error: `Quedan ${pending.length} parada(s) sin completar.` }, { status: 409 });
 
-  const linkedTripStopIds = stops.map(stop => stop.trip_stop_id).filter((id): id is string => typeof id === "string");
-  if (linkedTripStopIds.length) {
-    const { data: canonicalStops, error: canonicalError } = await supabase
-      .from("trip_stops")
-      .select("id,status")
-      .eq("tenant_id", access.tenant_id)
-      .eq("trip_id", access.trip_id)
-      .in("id", linkedTripStopIds);
-    if (canonicalError) return noStore({ error: "No se pudieron validar las paradas canónicas." }, { status: 500 });
-    if (canonicalStops?.length !== linkedTripStopIds.length || canonicalStops.some(stop => stop.status !== "COMPLETED")) {
-      return noStore({ error: "Las paradas canónicas del viaje todavía no están completadas." }, { status: 409 });
-    }
+  const { data: canonicalStops, error: canonicalError } = await supabase
+    .from("trip_stops")
+    .select("id,status")
+    .eq("tenant_id", access.tenant_id)
+    .eq("trip_id", access.trip_id)
+    .order("sequence", { ascending: true });
+  if (canonicalError) return noStore({ error: "No se pudieron validar las paradas canónicas." }, { status: 500 });
+  if (!canonicalStops?.length) return noStore({ error: "El viaje no tiene paradas canónicas." }, { status: 409 });
+
+  const pendingCanonical = canonicalStops.filter(stop => stop.status !== "COMPLETED");
+  if (pendingCanonical.length) {
+    return noStore({ error: `Quedan ${pendingCanonical.length} parada(s) canónica(s) sin completar.` }, { status: 409 });
   }
 
   const now = new Date().toISOString();
