@@ -1,4 +1,4 @@
-import CmrDocumentPage from "../../dashboard/epod-cmr/[cmr]/page";
+import PublicCmrClient from "./PublicCmrClient";
 import { documentForAccessKey } from "@/lib/cmr-access";
 
 export const dynamic = "force-dynamic";
@@ -26,5 +26,5 @@ export default async function PublicCmrPage({
     );
   }
 
-  return <CmrDocumentPage />;
+  return <PublicCmrClient />;
 }
