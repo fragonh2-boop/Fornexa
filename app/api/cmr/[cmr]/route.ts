@@ -1,5 +1,11 @@
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { documentForAccessKey, publicDocument } from "@/lib/cmr-access";
+import {
+  CMR_VIEW_SESSION_COOKIE,
+  documentForAccessKey,
+  documentForViewSession,
+  publicDocument,
+} from "@/lib/cmr-access";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
@@ -10,9 +16,15 @@ export async function GET(request: Request, context: { params: Promise<{ cmr: st
   const cmrNumber = decodeURIComponent(cmr).toUpperCase();
 
   try {
-    const accessDocument = await documentForAccessKey(request.headers.get("x-fornexa-key") ?? "");
-    if (!accessDocument) return NextResponse.json({ error: "CMR Key no válida o revocada." }, { status: 401 });
-    if (accessDocument.cmr_number !== cmrNumber) return NextResponse.json({ error: "La clave no pertenece al CMR." }, { status: 403 });
+    const headerKey = request.headers.get("x-fornexa-key") ?? "";
+    const store = await cookies();
+    const sessionToken = store.get(CMR_VIEW_SESSION_COOKIE)?.value;
+    const accessDocument = headerKey
+      ? await documentForAccessKey(headerKey)
+      : await documentForViewSession(sessionToken, cmrNumber);
+
+    if (!accessDocument) return NextResponse.json({ error: "CMR Key o sesión no válida/revocada." }, { status: 401 });
+    if (accessDocument.cmr_number !== cmrNumber) return NextResponse.json({ error: "La capability no pertenece al CMR." }, { status: 403 });
     const tenantId = String(accessDocument.tenant_id ?? "");
     if (!tenantId) throw new Error("El CMR no tiene tenant asociado.");
     const supabase = createSupabaseAdmin();
