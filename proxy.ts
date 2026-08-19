@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
+import { isValidReviewToken, REVIEW_COOKIE } from "@/lib/auth-context";
 
 type CookieToSet = {
   name: string;
@@ -40,6 +41,41 @@ function loginRedirect(request: NextRequest, origin: string) {
 export async function proxy(request: NextRequest) {
   const { pathname, searchParams, origin } = request.nextUrl;
 
+  // Private review shortcut. The plaintext token is never stored in the repository;
+  // only its SHA-256 hash is used for validation. The token is removed from the URL
+  // immediately and persisted in an HttpOnly cookie for eight hours.
+  if (pathname === "/review") {
+    const token = searchParams.get("token");
+    if (!(await isValidReviewToken(token))) {
+      return noStore(new NextResponse("Not found", { status: 404 }));
+    }
+
+    const target = NextResponse.redirect(new URL("/dashboard", origin));
+    target.cookies.set(REVIEW_COOKIE, token!, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "strict",
+      path: "/",
+      maxAge: 60 * 60 * 8,
+    });
+    target.headers.set("Referrer-Policy", "no-referrer");
+    return noStore(target);
+  }
+
+  const reviewAccess = await isValidReviewToken(request.cookies.get(REVIEW_COOKIE)?.value);
+  if (reviewAccess && pathname.startsWith("/dashboard")) {
+    return noStore(NextResponse.next({ request }));
+  }
+  if (reviewAccess && isProtectedApi(pathname)) {
+    if (request.method !== "GET" && request.method !== "HEAD") {
+      return noStore(NextResponse.json({ error: "Modo revisión: solo lectura." }, { status: 403 }));
+    }
+    return noStore(NextResponse.next({ request }));
+  }
+  if (reviewAccess && pathname === "/login") {
+    return noStore(NextResponse.redirect(new URL("/dashboard", origin)));
+  }
+
   // Preserve the legacy first-access/recovery redirect used by emailed links.
   if (pathname === "/" && searchParams.has("code")) {
     const code = searchParams.get("code");
@@ -62,7 +98,7 @@ export async function proxy(request: NextRequest) {
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) {
     if (isProtectedApi(pathname)) return noStore(NextResponse.json({ error: "No autorizado." }, { status: 401 }));
-    if (pathname.startsWith("/dashboard") || pathname === "/review" || pathname === "/onboarding" || pathname === "/reset-password") {
+    if (pathname.startsWith("/dashboard") || pathname === "/onboarding" || pathname === "/reset-password") {
       return noStore(NextResponse.redirect(loginRedirect(request, origin)));
     }
     return NextResponse.next();
@@ -90,13 +126,13 @@ export async function proxy(request: NextRequest) {
     return noStore(unauthorized);
   }
 
-  if ((pathname.startsWith("/dashboard") || pathname === "/review" || pathname === "/onboarding" || pathname === "/reset-password") && !user) {
+  if ((pathname.startsWith("/dashboard") || pathname === "/onboarding" || pathname === "/reset-password") && !user) {
     const redirectResponse = NextResponse.redirect(loginRedirect(request, origin));
     response.cookies.getAll().forEach(cookie => redirectResponse.cookies.set(cookie));
     return noStore(redirectResponse);
   }
 
-  const membershipRequired = pathname.startsWith("/dashboard") || pathname === "/review" || pathname === "/onboarding" || pathname === "/login" || pathname === "/api/storage/migrate-local";
+  const membershipRequired = pathname.startsWith("/dashboard") || pathname === "/onboarding" || pathname === "/login" || pathname === "/api/storage/migrate-local";
   let membership: ActiveMembership | null = null;
   if (user && membershipRequired) {
     const { data: memberships, error } = await supabase
@@ -114,17 +150,6 @@ export async function proxy(request: NextRequest) {
     const denied = NextResponse.redirect(new URL("/access-denied", origin));
     response.cookies.getAll().forEach(cookie => denied.cookies.set(cookie));
     return noStore(denied);
-  }
-
-  if (pathname === "/review" && user) {
-    if (membership?.role !== "OWNER") {
-      const denied = NextResponse.redirect(new URL("/access-denied", origin));
-      response.cookies.getAll().forEach(cookie => denied.cookies.set(cookie));
-      return noStore(denied);
-    }
-    const dashboard = NextResponse.redirect(new URL("/dashboard", origin));
-    response.cookies.getAll().forEach(cookie => dashboard.cookies.set(cookie));
-    return noStore(dashboard);
   }
 
   if (pathname === "/api/storage/migrate-local" && user) {
@@ -148,7 +173,7 @@ export async function proxy(request: NextRequest) {
     return noStore(redirectResponse);
   }
 
-  const authSensitive = Boolean(user) || isProtectedApi(pathname) || pathname === "/review" || pathname === "/login" || pathname === "/onboarding" || pathname === "/reset-password" || pathname.startsWith("/dashboard");
+  const authSensitive = Boolean(user) || isProtectedApi(pathname) || pathname === "/login" || pathname === "/onboarding" || pathname === "/reset-password" || pathname.startsWith("/dashboard");
   return authSensitive ? noStore(response) : response;
 }
 
