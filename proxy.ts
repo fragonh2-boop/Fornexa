@@ -12,6 +12,7 @@ type ActiveMembership = { tenant_id: string; role: string };
 
 const protectedApiPaths = [
   "/api/cmr",
+  "/api/orders",
   "/api/expeditions",
   "/api/storage/health",
   "/api/storage/migrate-local",
@@ -204,6 +205,7 @@ export const config = {
     "/dashboard/:path*",
     "/api/cmr",
     "/api/cmr/:path*",
+    "/api/orders",
     "/api/expeditions",
     "/api/storage/health",
     "/api/storage/migrate-local",
