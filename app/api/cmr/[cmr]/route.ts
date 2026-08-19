@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import {
-  CMR_VIEW_SESSION_COOKIE,
+  cmrViewSessionCookie,
   documentForAccessKey,
   documentForViewSession,
   publicDocument,
@@ -18,7 +18,7 @@ export async function GET(request: Request, context: { params: Promise<{ cmr: st
   try {
     const headerKey = request.headers.get("x-fornexa-key") ?? "";
     const store = await cookies();
-    const sessionToken = store.get(CMR_VIEW_SESSION_COOKIE)?.value;
+    const sessionToken = store.get(cmrViewSessionCookie(cmrNumber))?.value;
     const accessDocument = headerKey
       ? await documentForAccessKey(headerKey)
       : await documentForViewSession(sessionToken, cmrNumber);
