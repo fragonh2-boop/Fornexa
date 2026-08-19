@@ -1,6 +1,7 @@
 import Link from "next/link";
 import AppShell from "../../components/AppShell";
 import DataGrid from "../../components/DataGrid";
+import { getAuthenticatedOrReviewContext } from "@/lib/auth-context";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
 import styles from "./expediciones.module.css";
 
@@ -15,6 +16,9 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 async function getExpeditions() {
+  const auth = await getAuthenticatedOrReviewContext();
+  if (!auth) return [];
+
   const supabase = createSupabaseAdmin();
   const { data, error } = await supabase
     .from("expeditions")
@@ -33,6 +37,7 @@ async function getExpeditions() {
         trip:trips!trip_expeditions_trip_id_fkey ( code, status )
       )
     `)
+    .eq("tenant_id", auth.tenantId)
     .order("created_at", { ascending: false });
 
   if (error) {
