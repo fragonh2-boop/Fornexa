@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAuthenticatedContext } from "@/lib/auth-context";
+import { getAuthenticatedOrReviewContext } from "@/lib/auth-context";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
@@ -17,7 +17,7 @@ const requiredTables = [
 ] as const;
 
 export async function GET() {
-  const auth = await getAuthenticatedContext();
+  const auth = await getAuthenticatedOrReviewContext();
   if (!auth) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
 
   try {
