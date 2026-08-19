@@ -5,10 +5,11 @@ import { createSupabaseAdmin } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
 
-export async function POST(request: NextRequest, context: { params: Promise<{ key: string }> }) {
-  const { key } = await context.params;
-  const accessKey = request.headers.get("x-fornexa-key") ?? decodeURIComponent(key);
+export async function POST(request: NextRequest, _context: { params: Promise<{ key: string }> }) {
+  const accessKey = request.headers.get("x-fornexa-key") ?? "";
   const idempotencyKey = request.headers.get("x-idempotency-key") ?? randomUUID();
+
+  if (!accessKey) return NextResponse.json({ error: "CMR Key obligatoria en cabecera." }, { status: 401 });
 
   try {
     const document = await documentForAccessKey(accessKey);

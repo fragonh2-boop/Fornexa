@@ -21,8 +21,22 @@ export async function POST(request: NextRequest) {
 
     const authorization = await authorizeMobileStop(request, stopId);
     if (!authorization) return NextResponse.json({ error: "Credencial Mobile no válida para esta parada." }, { status: 401 });
-    const { document, tenantId } = authorization;
+    const { document, tenantId, tripId } = authorization;
     const supabase = createSupabaseAdmin();
+
+    if (tripId) {
+      const { data: trip, error: tripStateError } = await supabase
+        .from("trips")
+        .select("status")
+        .eq("id", tripId)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (tripStateError) throw tripStateError;
+      if (!trip) return NextResponse.json({ error: "El Viaje asociado no está disponible." }, { status: 409 });
+      if (["COMPLETED", "CANCELLED"].includes(trip.status)) {
+        return NextResponse.json({ error: "El Viaje está cerrado y no admite nuevas evidencias Mobile." }, { status: 409 });
+      }
+    }
 
     const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
     const path = `${tenantId}/${document.id}/${stopId}/${Date.now()}-${randomUUID()}.${extension}`;

@@ -16,7 +16,33 @@ type CmrInput = {
 };
 
 type CanonicalTrip = { id: string; code: string; status: string };
-type CanonicalTripStopPair = { pickup?: string; delivery?: string; sequence: number };
+type CanonicalTripStop = {
+  id: string;
+  sequence: number;
+  stop_type: string;
+  company_name: string | null;
+  full_address: string | null;
+  window_start: string | null;
+  window_end: string | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+  operational_reference: string | null;
+  metadata: Record<string, unknown> | null;
+};
+type TransportStopInsert = {
+  tenant_id: string;
+  cmr_id: string;
+  trip_stop_id: string | null;
+  sequence: number;
+  stop_type: string;
+  company: string | null;
+  address: string | null;
+  window_start: string | null;
+  window_end: string | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+  operational_reference: string | null;
+};
 
 const required: Array<[keyof CmrInput, string]> = [["expedidor", "Expedidor"], ["destinatario", "Destinatario"], ["carga", "Lugar de carga"], ["entrega", "Lugar de entrega"], ["transportista", "Transportista"], ["mercancia", "Mercancía"], ["peso", "Peso bruto"]];
 
@@ -58,8 +84,7 @@ export async function POST(request: NextRequest) {
   }
 
   let tripRecord: CanonicalTrip | null = null;
-  let pickupTripStopId: string | null = null;
-  let deliveryTripStopId: string | null = null;
+  let canonicalTransportStops: CanonicalTripStop[] = [];
   const tripRef = clean(input.viaje, 120);
 
   if (tripRef) {
@@ -97,33 +122,42 @@ export async function POST(request: NextRequest) {
     }
     expeditionRecords = orderedExpeditionRecords;
 
-    const pairByExpedition = new Map<string, CanonicalTripStopPair>();
+    const orderedExpeditionIds = expeditionRecords.map(item => item.id);
+    const expeditionOrder = new Map(orderedExpeditionIds.map((id, index) => [id, index] as const));
     const { data: canonicalStops, error: canonicalStopsError } = await supabase
       .from("trip_stops")
-      .select("id,sequence,stop_type,metadata")
+      .select("id,sequence,stop_type,company_name,full_address,window_start,window_end,contact_name,contact_phone,operational_reference,metadata")
       .eq("tenant_id", auth.tenantId)
       .eq("trip_id", tripRecord.id)
       .order("sequence", { ascending: true });
     if (canonicalStopsError) return failure(canonicalStopsError);
 
-    for (const stop of canonicalStops ?? []) {
-      const metadata = stop.metadata && typeof stop.metadata === "object" ? stop.metadata as Record<string, unknown> : {};
-      const expeditionId = typeof metadata.expeditionId === "string" ? metadata.expeditionId : "";
-      if (!expeditionId || !expeditionIds.includes(expeditionId)) continue;
-      const pair = pairByExpedition.get(expeditionId) ?? { sequence: Number(stop.sequence) || 0 };
-      pair.sequence = Math.min(pair.sequence || Number(stop.sequence) || 0, Number(stop.sequence) || 0);
-      if (stop.stop_type === "PICKUP") pair.pickup = stop.id;
-      if (stop.stop_type === "DELIVERY") pair.delivery = stop.id;
-      pairByExpedition.set(expeditionId, pair);
+    canonicalTransportStops = (canonicalStops ?? [])
+      .map(stop => ({ ...stop, metadata: stop.metadata && typeof stop.metadata === "object" ? stop.metadata as Record<string, unknown> : {} }))
+      .filter(stop => {
+        const expeditionId = typeof stop.metadata.expeditionId === "string" ? stop.metadata.expeditionId : "";
+        return expeditionOrder.has(expeditionId);
+      }) as CanonicalTripStop[];
+
+    canonicalTransportStops.sort((left, right) => {
+      const leftExpeditionId = typeof left.metadata?.expeditionId === "string" ? left.metadata.expeditionId : "";
+      const rightExpeditionId = typeof right.metadata?.expeditionId === "string" ? right.metadata.expeditionId : "";
+      const expeditionDelta = (expeditionOrder.get(leftExpeditionId) ?? Number.MAX_SAFE_INTEGER) - (expeditionOrder.get(rightExpeditionId) ?? Number.MAX_SAFE_INTEGER);
+      return expeditionDelta || Number(left.sequence) - Number(right.sequence);
+    });
+
+    const expectedStops = orderedExpeditionIds.length * 2;
+    if (canonicalTransportStops.length !== expectedStops) {
+      return NextResponse.json({ error: "El Viaje no tiene todas las paradas canónicas necesarias para las Expediciones de este CMR." }, { status: 409 });
     }
 
-    const orderedExpeditionIds = expeditionRecords.map(item => item.id);
-    const firstPair = pairByExpedition.get(orderedExpeditionIds[0] ?? "");
-    const lastPair = pairByExpedition.get(orderedExpeditionIds.at(-1) ?? "");
-    pickupTripStopId = firstPair?.pickup ?? null;
-    deliveryTripStopId = lastPair?.delivery ?? null;
-    if (!pickupTripStopId || !deliveryTripStopId) {
-      return NextResponse.json({ error: "El Viaje no tiene las paradas canónicas necesarias para enlazar este CMR." }, { status: 409 });
+    for (const expeditionId of orderedExpeditionIds) {
+      const expeditionStops = canonicalTransportStops.filter(stop => stop.metadata?.expeditionId === expeditionId);
+      const hasPickup = expeditionStops.some(stop => stop.stop_type === "PICKUP");
+      const hasDelivery = expeditionStops.some(stop => stop.stop_type === "DELIVERY");
+      if (expeditionStops.length !== 2 || !hasPickup || !hasDelivery) {
+        return NextResponse.json({ error: "Cada Expedición del CMR debe tener exactamente una recogida y una entrega canónicas." }, { status: 409 });
+      }
     }
   }
 
@@ -214,10 +248,27 @@ export async function POST(request: NextRequest) {
       if (error) throw error;
     }
 
-    const { data: stops, error: stopsError } = await supabase.from("transport_stops").insert([
-      { tenant_id: auth.tenantId, cmr_id: document.id, trip_stop_id: pickupTripStopId, sequence: 1, stop_type: "Recogida", company: input.expedidor, address: stopDetails[0].fullAddress || input.carga, window_start: stopDetails[0].windowStart || null, window_end: stopDetails[0].windowEnd || null, contact_name: stopDetails[0].contactName || null, contact_phone: stopDetails[0].contactPhone || null, operational_reference: stopDetails[0].reference || null },
-      { tenant_id: auth.tenantId, cmr_id: document.id, trip_stop_id: deliveryTripStopId, sequence: 2, stop_type: "Entrega", company: input.destinatario, address: stopDetails[1].fullAddress || input.entrega, window_start: stopDetails[1].windowStart || null, window_end: stopDetails[1].windowEnd || null, contact_name: stopDetails[1].contactName || null, contact_phone: stopDetails[1].contactPhone || null, operational_reference: stopDetails[1].reference || null },
-    ]).select("*").order("sequence");
+    const transportStopRows: TransportStopInsert[] = tripRecord
+      ? canonicalTransportStops.map((stop, index) => ({
+          tenant_id: auth.tenantId,
+          cmr_id: document!.id,
+          trip_stop_id: stop.id,
+          sequence: index + 1,
+          stop_type: stop.stop_type === "PICKUP" ? "Recogida" : "Entrega",
+          company: stop.company_name,
+          address: stop.full_address,
+          window_start: stop.window_start,
+          window_end: stop.window_end,
+          contact_name: stop.contact_name,
+          contact_phone: stop.contact_phone,
+          operational_reference: stop.operational_reference,
+        }))
+      : [
+          { tenant_id: auth.tenantId, cmr_id: document.id, trip_stop_id: null, sequence: 1, stop_type: "Recogida", company: input.expedidor ?? null, address: stopDetails[0].fullAddress || input.carga || null, window_start: stopDetails[0].windowStart || null, window_end: stopDetails[0].windowEnd || null, contact_name: stopDetails[0].contactName || null, contact_phone: stopDetails[0].contactPhone || null, operational_reference: stopDetails[0].reference || null },
+          { tenant_id: auth.tenantId, cmr_id: document.id, trip_stop_id: null, sequence: 2, stop_type: "Entrega", company: input.destinatario ?? null, address: stopDetails[1].fullAddress || input.entrega || null, window_start: stopDetails[1].windowStart || null, window_end: stopDetails[1].windowEnd || null, contact_name: stopDetails[1].contactName || null, contact_phone: stopDetails[1].contactPhone || null, operational_reference: stopDetails[1].reference || null },
+        ];
+
+    const { data: stops, error: stopsError } = await supabase.from("transport_stops").insert(transportStopRows).select("*").order("sequence");
     if (stopsError) throw stopsError;
 
     const { error: eventError } = await supabase.from("transport_events").insert({
@@ -234,6 +285,7 @@ export async function POST(request: NextRequest) {
         attachments: attachments.length,
         successiveCarriers: successiveCarriers.length,
         expeditions: expeditionRecords.length,
+        transportStops: transportStopRows.length,
         canonical: true,
         canonicalExpeditionId: primaryExpedition?.id ?? null,
         canonicalTripId: tripRecord?.id ?? null,

@@ -21,6 +21,20 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     const { document, stop, tenantId, tripId } = authorization;
     const supabase = createSupabaseAdmin();
 
+    if (tripId) {
+      const { data: trip, error: tripStateError } = await supabase
+        .from("trips")
+        .select("status")
+        .eq("id", tripId)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      if (tripStateError) throw tripStateError;
+      if (!trip) return NextResponse.json({ error: "El Viaje asociado no está disponible." }, { status: 409 });
+      if (["COMPLETED", "CANCELLED"].includes(trip.status)) {
+        return NextResponse.json({ error: "El Viaje está cerrado y no admite nuevos eventos Mobile." }, { status: 409 });
+      }
+    }
+
     const overwriteArrival = body.overwrite === true;
     if (type === "arrival" && stop.arrived_at && !overwriteArrival) {
       return NextResponse.json({
