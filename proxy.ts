@@ -62,7 +62,7 @@ export async function proxy(request: NextRequest) {
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) {
     if (isProtectedApi(pathname)) return noStore(NextResponse.json({ error: "No autorizado." }, { status: 401 }));
-    if (pathname.startsWith("/dashboard") || pathname === "/onboarding" || pathname === "/reset-password") {
+    if (pathname.startsWith("/dashboard") || pathname === "/review" || pathname === "/onboarding" || pathname === "/reset-password") {
       return noStore(NextResponse.redirect(loginRedirect(request, origin)));
     }
     return NextResponse.next();
@@ -90,13 +90,13 @@ export async function proxy(request: NextRequest) {
     return noStore(unauthorized);
   }
 
-  if ((pathname.startsWith("/dashboard") || pathname === "/onboarding" || pathname === "/reset-password") && !user) {
+  if ((pathname.startsWith("/dashboard") || pathname === "/review" || pathname === "/onboarding" || pathname === "/reset-password") && !user) {
     const redirectResponse = NextResponse.redirect(loginRedirect(request, origin));
     response.cookies.getAll().forEach(cookie => redirectResponse.cookies.set(cookie));
     return noStore(redirectResponse);
   }
 
-  const membershipRequired = pathname.startsWith("/dashboard") || pathname === "/onboarding" || pathname === "/login" || pathname === "/api/storage/migrate-local";
+  const membershipRequired = pathname.startsWith("/dashboard") || pathname === "/review" || pathname === "/onboarding" || pathname === "/login" || pathname === "/api/storage/migrate-local";
   let membership: ActiveMembership | null = null;
   if (user && membershipRequired) {
     const { data: memberships, error } = await supabase
@@ -114,6 +114,17 @@ export async function proxy(request: NextRequest) {
     const denied = NextResponse.redirect(new URL("/access-denied", origin));
     response.cookies.getAll().forEach(cookie => denied.cookies.set(cookie));
     return noStore(denied);
+  }
+
+  if (pathname === "/review" && user) {
+    if (membership?.role !== "OWNER") {
+      const denied = NextResponse.redirect(new URL("/access-denied", origin));
+      response.cookies.getAll().forEach(cookie => denied.cookies.set(cookie));
+      return noStore(denied);
+    }
+    const dashboard = NextResponse.redirect(new URL("/dashboard", origin));
+    response.cookies.getAll().forEach(cookie => dashboard.cookies.set(cookie));
+    return noStore(dashboard);
   }
 
   if (pathname === "/api/storage/migrate-local" && user) {
@@ -137,13 +148,14 @@ export async function proxy(request: NextRequest) {
     return noStore(redirectResponse);
   }
 
-  const authSensitive = Boolean(user) || isProtectedApi(pathname) || pathname === "/login" || pathname === "/onboarding" || pathname === "/reset-password" || pathname.startsWith("/dashboard");
+  const authSensitive = Boolean(user) || isProtectedApi(pathname) || pathname === "/review" || pathname === "/login" || pathname === "/onboarding" || pathname === "/reset-password" || pathname.startsWith("/dashboard");
   return authSensitive ? noStore(response) : response;
 }
 
 export const config = {
   matcher: [
     "/",
+    "/review",
     "/login",
     "/onboarding",
     "/reset-password",
