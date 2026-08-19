@@ -43,10 +43,24 @@ export async function documentForAccessKey(value: string) {
   return accessKeyIsActive(data) ? data : null;
 }
 
+async function cleanupStaleCmrViewSessions() {
+  const supabase = createSupabaseAdmin();
+  const now = new Date().toISOString();
+  const [{ error: expiredError }, { error: revokedError }] = await Promise.all([
+    supabase.from("cmr_view_sessions").delete().lte("expires_at", now),
+    supabase.from("cmr_view_sessions").delete().not("revoked_at", "is", null),
+  ]);
+  if (expiredError) throw expiredError;
+  if (revokedError) throw revokedError;
+}
+
 export async function createCmrViewSession(cmrId: string) {
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + CMR_VIEW_SESSION_MAX_AGE * 1000).toISOString();
   const supabase = createSupabaseAdmin();
+
+  await cleanupStaleCmrViewSessions();
+
   const { error } = await supabase.from("cmr_view_sessions").insert({
     token_hash: sessionHash(token),
     cmr_id: cmrId,
