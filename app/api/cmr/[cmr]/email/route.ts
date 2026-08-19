@@ -4,6 +4,8 @@ import { createSupabaseAdmin } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
 
+const MAX_EMAILS_PER_HOUR = 20;
+
 export async function POST(request: Request, context: { params: Promise<{ cmr: string }> }) {
   const { cmr } = await context.params;
   const cmrNumber = decodeURIComponent(cmr).toUpperCase();
@@ -23,6 +25,22 @@ export async function POST(request: Request, context: { params: Promise<{ cmr: s
   if (document.cmr_number !== cmrNumber) return NextResponse.json({ error: "La clave no pertenece al CMR." }, { status: 403 });
   const tenantId = String(document.tenant_id ?? "");
   if (!tenantId) return NextResponse.json({ error: "El CMR no tiene tenant asociado." }, { status: 500 });
+
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { count: recentEmails, error: rateError } = await supabase
+    .from("transport_events")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .eq("cmr_id", document.id)
+    .eq("event_type", "cmr_emailed")
+    .gte("occurred_at", oneHourAgo);
+  if (rateError) {
+    console.error("CMR email rate-limit error", rateError);
+    return NextResponse.json({ error: "No se pudo validar el límite de envío." }, { status: 503 });
+  }
+  if ((recentEmails ?? 0) >= MAX_EMAILS_PER_HOUR) {
+    return NextResponse.json({ error: "Se ha alcanzado el límite temporal de reenvíos para este CMR." }, { status: 429, headers: { "Retry-After": "3600" } });
+  }
 
   const origin = new URL(request.url).origin;
   const detailUrl = `${origin}/cmr/${encodeURIComponent(cmrNumber)}?key=${encodeURIComponent(document.access_key)}`;
