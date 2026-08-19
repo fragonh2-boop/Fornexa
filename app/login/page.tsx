@@ -10,7 +10,7 @@ type AccessMode = "session" | "first-access" | "recover";
 
 const modeCopy = {
   session: { title: "Mi sesión", description: "Accede con tus credenciales corporativas.", submit: "Entrar en FORNEXA" },
-  "first-access": { title: "Primera vez en FORNEXA", description: "Te enviaremos un enlace seguro para verificar tu identidad y crear tu contraseña.", submit: "Enviar email de verificación" },
+  "first-access": { title: "Primera vez en FORNEXA", description: "Si tu cuenta ya ha sido provisionada, te enviaremos un enlace seguro para verificar tu identidad y crear tu contraseña.", submit: "Enviar email de verificación" },
   recover: { title: "Recuperar contraseña", description: "Te enviaremos un enlace seguro para crear una nueva contraseña.", submit: "Enviar enlace de recuperación" },
 };
 
@@ -72,14 +72,14 @@ function LoginForm() {
         return;
       }
       if (mode === "first-access") {
-        const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${origin}/auth/callback?next=/reset-password?firstAccess=1`, shouldCreateUser: true } });
-        if (error) throw error;
-        setMessage("Email enviado. Revisa también la carpeta de spam o correo no deseado.");
+        const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${origin}/auth/callback?next=/reset-password?firstAccess=1`, shouldCreateUser: false } });
+        if (error) throw new Error(firstAccessErrorMessage(error.message));
+        setMessage("Si la cuenta está provisionada, recibirás un email de verificación. Revisa también spam o correo no deseado.");
         return;
       }
       const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${origin}/auth/callback?next=/reset-password` });
       if (error) throw error;
-      setMessage("Te hemos enviado el enlace de recuperación. Revisa también la carpeta de spam.");
+      setMessage("Si la cuenta existe, recibirás un enlace de recuperación. Revisa también la carpeta de spam.");
     } catch (error) {
       setIsError(true);
       setMessage(error instanceof Error ? error.message : "No se ha podido completar la solicitud.");
@@ -129,6 +129,14 @@ function LoginForm() {
 function loginErrorMessage(message: string) {
   if (message === "Invalid login credentials") return "El correo o la contraseña no son correctos. Si es tu primer acceso, abre el enlace de verificación y crea primero una contraseña.";
   if (message === "Email not confirmed") return "Debes confirmar primero el correo electrónico desde el enlace que te hemos enviado.";
+  return message;
+}
+
+function firstAccessErrorMessage(message: string) {
+  const normalized = message.toLowerCase();
+  if (normalized.includes("signups not allowed") || normalized.includes("user not found")) {
+    return "La cuenta todavía no ha sido provisionada en FORNEXA. Contacta con un administrador.";
+  }
   return message;
 }
 
