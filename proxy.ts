@@ -23,8 +23,11 @@ const protectedApiPaths = [
   "/api/telematics/live",
 ];
 
+const protectedApiPrefixes = ["/api/trips/"];
+
 function isProtectedApi(pathname: string) {
-  return protectedApiPaths.some(path => pathname === path);
+  return protectedApiPaths.some(path => pathname === path)
+    || protectedApiPrefixes.some(prefix => pathname.startsWith(prefix));
 }
 
 // Shared CMR routes deliberately use capability authentication (access_key) rather
@@ -202,6 +205,7 @@ export const config = {
     "/api/orders",
     "/api/expeditions",
     "/api/trips",
+    "/api/trips/:path*",
     "/api/storage/health",
     "/api/storage/migrate-local",
     "/api/communications/email",
