@@ -119,7 +119,6 @@ export default async function ExpedicionesPage() {
               { key: "estado", label: "Estado" },
             ]}
             rows={rows}
-            rowHrefs={items.map((item) => `/dashboard/registros/expediciones/${item.id}`)}
             searchPlaceholder="Buscar por expediente, pedido, viaje, ruta, servicio o estado"
             emptyMessage="No hay expedientes todavía. Se crean automáticamente al consolidar albaranes de un pedido."
           />

@@ -143,7 +143,6 @@ export default async function PartidasPage() {
               { key: "estado", label: "Estado" },
             ]}
             rows={rows}
-            rowHrefs={items.map(item => `/dashboard/registros/partidas/${encodeURIComponent(item.id)}`)}
             searchPlaceholder="Buscar por partida, cliente, referencia, ruta, servicio, ADR o expediente"
             emptyMessage="No hay partidas persistidas todavía."
           />
