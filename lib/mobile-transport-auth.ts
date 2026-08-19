@@ -9,6 +9,7 @@ export type MobileTransportAuthorization = {
   document: any;
   stop: any;
   mode: "cmr" | "trip";
+  tripId?: string | null;
 };
 
 export async function authorizeMobileStop(
@@ -31,7 +32,13 @@ export async function authorizeMobileStop(
       .eq("tenant_id", tenantId)
       .maybeSingle();
     if (error || !stop) return null;
-    return { tenantId, document, stop, mode: "cmr" };
+    return {
+      tenantId,
+      document,
+      stop,
+      mode: "cmr",
+      tripId: document.trip_record_id ?? null,
+    };
   }
 
   const tripToken = request.headers.get("x-fornexa-trip-token") ?? "";
@@ -69,5 +76,6 @@ export async function authorizeMobileStop(
     document,
     stop,
     mode: "trip",
+    tripId: access.trip_id,
   };
 }
