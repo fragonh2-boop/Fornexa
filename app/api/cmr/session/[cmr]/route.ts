@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import {
-  CMR_VIEW_SESSION_COOKIE,
   CMR_VIEW_SESSION_MAX_AGE,
+  cmrViewSessionCookie,
   createCmrViewSession,
   documentForAccessKey,
 } from "@/lib/cmr-access";
@@ -30,7 +30,7 @@ export async function GET(request: Request, context: { params: Promise<{ cmr: st
   const token = await createCmrViewSession(String(document.id));
   const target = new URL(`/cmr/${encodeURIComponent(cmrNumber)}`, url.origin);
   const response = NextResponse.redirect(target, 303);
-  response.cookies.set(CMR_VIEW_SESSION_COOKIE, token, {
+  response.cookies.set(cmrViewSessionCookie(cmrNumber), token, {
     httpOnly: true,
     secure: true,
     sameSite: "lax",
