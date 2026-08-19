@@ -7,6 +7,8 @@ type CookieToSet = {
   options?: CookieOptions;
 };
 
+type ActiveMembership = { tenant_id: string; role: string };
+
 const protectedApiPaths = [
   "/api/cmr",
   "/api/expeditions",
@@ -81,28 +83,46 @@ export async function proxy(request: NextRequest) {
     return unauthorized;
   }
 
-  if (pathname === "/api/storage/migrate-local" && user) {
-    const { data: memberships, error } = await supabase
-      .from("tenant_members")
-      .select("role")
-      .eq("user_id", user.id)
-      .eq("status", "ACTIVE")
-      .limit(2);
-    const role = !error && memberships?.length === 1 ? memberships[0]?.role : null;
-    if (role !== "OWNER" && role !== "ADMIN") {
-      const forbidden = NextResponse.json({ error: "Permisos insuficientes." }, { status: 403 });
-      response.cookies.getAll().forEach(cookie => forbidden.cookies.set(cookie));
-      return forbidden;
-    }
-  }
-
   if ((pathname.startsWith("/dashboard") || pathname === "/onboarding" || pathname === "/reset-password") && !user) {
     const redirectResponse = NextResponse.redirect(loginRedirect(request, origin));
     response.cookies.getAll().forEach(cookie => redirectResponse.cookies.set(cookie));
     return redirectResponse;
   }
 
+  const membershipRequired = pathname.startsWith("/dashboard") || pathname === "/onboarding" || pathname === "/login" || pathname === "/api/storage/migrate-local";
+  let membership: ActiveMembership | null = null;
+  if (user && membershipRequired) {
+    const { data: memberships, error } = await supabase
+      .from("tenant_members")
+      .select("tenant_id,role")
+      .eq("user_id", user.id)
+      .eq("status", "ACTIVE")
+      .limit(2);
+    if (!error && memberships?.length === 1 && memberships[0]?.tenant_id && memberships[0]?.role) {
+      membership = memberships[0] as ActiveMembership;
+    }
+  }
+
+  if (user && (pathname.startsWith("/dashboard") || pathname === "/onboarding") && !membership) {
+    const denied = NextResponse.redirect(new URL("/access-denied", origin));
+    response.cookies.getAll().forEach(cookie => denied.cookies.set(cookie));
+    return denied;
+  }
+
+  if (pathname === "/api/storage/migrate-local" && user) {
+    if (membership?.role !== "OWNER" && membership?.role !== "ADMIN") {
+      const forbidden = NextResponse.json({ error: "Permisos insuficientes." }, { status: 403 });
+      response.cookies.getAll().forEach(cookie => forbidden.cookies.set(cookie));
+      return forbidden;
+    }
+  }
+
   if (pathname === "/login" && user) {
+    if (!membership) {
+      const denied = NextResponse.redirect(new URL("/access-denied", origin));
+      response.cookies.getAll().forEach(cookie => denied.cookies.set(cookie));
+      return denied;
+    }
     const requestedNext = searchParams.get("next");
     const safeNext = requestedNext?.startsWith("/") && !requestedNext.startsWith("//") ? requestedNext : "/dashboard";
     const redirectResponse = NextResponse.redirect(new URL(safeNext, origin));
