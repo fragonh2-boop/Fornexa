@@ -31,7 +31,11 @@ export default function TripForm({
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const selectedItems = useMemo(() => expeditions.filter(item => selected.includes(item.code)), [expeditions, selected]);
+  const byCode = useMemo(() => new Map(expeditions.map(item => [item.code, item] as const)), [expeditions]);
+  const selectedItems = useMemo(
+    () => selected.map(code => byCode.get(code)).filter((item): item is ExpeditionOption => Boolean(item)),
+    [selected, byCode],
+  );
 
   function toggle(code: string) {
     setSelected(current => current.includes(code) ? current.filter(item => item !== code) : [...current, code]);
