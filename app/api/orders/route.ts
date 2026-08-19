@@ -5,7 +5,7 @@ import { createSupabaseAdmin } from "@/lib/supabase-admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const SERVICE_CODES: Record<string, string> = {
+const LEGACY_SERVICE_CODES: Record<string, string> = {
   "Grupaje": "GROUPAGE",
   "LTL": "LTL",
   "Carga completa": "FTL",
@@ -78,6 +78,7 @@ export async function GET() {
     originCode: order.pickup?.code ?? null,
     destination: order.delivery?.city ?? null,
     destinationCode: order.delivery?.code ?? null,
+    serviceCode: order.service?.code ?? null,
     service: order.service?.name ?? null,
     packages: order.packages,
     weight: order.gross_weight,
@@ -109,7 +110,7 @@ export async function POST(request: Request) {
   const customerCode = text(body.customerCode).toUpperCase();
   const pickupCode = text(body.pickupCode).toUpperCase();
   const deliveryCode = text(body.deliveryCode).toUpperCase();
-  const serviceName = text(body.service);
+  const requestedServiceCode = text(body.serviceCode).toUpperCase() || LEGACY_SERVICE_CODES[text(body.service)] || "";
   const packages = integerOrNull(body.packages);
   const grossWeight = numberOrNull(body.grossWeight);
 
@@ -148,16 +149,16 @@ export async function POST(request: Request) {
   if (deliveryCode && !delivery) return NextResponse.json({ error: "Punto de entrega no válido para este tenant." }, { status: 400 });
 
   let serviceId: string | null = null;
-  const serviceCode = SERVICE_CODES[serviceName];
-  if (serviceCode) {
+  if (requestedServiceCode) {
     const { data: service, error: serviceError } = await supabase
       .from("service_catalog")
       .select("id")
       .eq("tenant_id", tenantId)
-      .eq("code", serviceCode)
+      .eq("code", requestedServiceCode)
       .maybeSingle();
     if (serviceError) throw serviceError;
-    serviceId = service?.id ?? null;
+    if (!service) return NextResponse.json({ error: "Servicio no válido para este tenant." }, { status: 400 });
+    serviceId = service.id;
   }
 
   const adrDeclared = text(body.adr).toUpperCase();
