@@ -1,6 +1,7 @@
 import Link from "next/link";
 import AppShell from "../../components/AppShell";
 import DataGrid from "../../components/DataGrid";
+import { getAuthenticatedOrReviewContext } from "@/lib/auth-context";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
 import styles from "../expediciones/expediciones.module.css";
 
@@ -14,6 +15,9 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 async function getTrips() {
+  const auth = await getAuthenticatedOrReviewContext();
+  if (!auth) return [];
+
   const supabase = createSupabaseAdmin();
   const { data, error } = await supabase
     .from("trips")
@@ -32,6 +36,7 @@ async function getTrips() {
       ),
       trip_stops ( id, sequence, status )
     `)
+    .eq("tenant_id", auth.tenantId)
     .order("created_at", { ascending: false });
 
   if (error) {
