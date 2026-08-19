@@ -73,5 +73,16 @@ export async function POST(request: NextRequest) {
     .eq("tenant_id", access.tenant_id);
   if (updateError) return noStore({ error: "No se pudo finalizar el viaje." }, { status: 500 });
 
-  return noStore({ ok: true, trip: trip.code, completedAt: now });
+  const { error: revokeError } = await supabase
+    .from("mobile_trip_access")
+    .update({ revoked_at: now })
+    .eq("tenant_id", access.tenant_id)
+    .eq("trip_id", access.trip_id)
+    .is("revoked_at", null);
+  if (revokeError) {
+    console.error("Trip completed but Mobile access revocation failed", revokeError);
+    return noStore({ error: "El viaje se cerró, pero no se pudo revocar el acceso Mobile." }, { status: 500 });
+  }
+
+  return noStore({ ok: true, trip: trip.code, completedAt: now, accessRevoked: true });
 }
