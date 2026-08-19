@@ -19,6 +19,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   try {
     const document = await documentForAccessKey(accessKey);
     if (!document) return NextResponse.json({ error: "CMR Key no válida o revocada." }, { status: 401 });
+    const tenantId = String(document.tenant_id ?? "");
+    if (!tenantId) throw new Error("El CMR no tiene tenant asociado.");
 
     const supabase = createSupabaseAdmin();
     const { data: stop, error: stopError } = await supabase
@@ -26,6 +28,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       .select("*")
       .eq("id", stopId)
       .eq("cmr_id", document.id)
+      .eq("tenant_id", tenantId)
       .maybeSingle();
     if (stopError) throw stopError;
     if (!stop) return NextResponse.json({ error: "La parada no pertenece a este CMR." }, { status: 403 });
@@ -43,7 +46,8 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       const { count, error: evidenceError } = await supabase
         .from("transport_evidence")
         .select("id", { count: "exact", head: true })
-        .eq("stop_id", stopId);
+        .eq("stop_id", stopId)
+        .eq("tenant_id", tenantId);
       if (evidenceError) throw evidenceError;
       if (!count) return NextResponse.json({ error: "Debes adjuntar una fotografía antes de completar la parada." }, { status: 422 });
     }
@@ -55,6 +59,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
 
     const payload = body.payload && typeof body.payload === "object" ? body.payload : {};
     const { error: eventError } = await supabase.from("transport_events").upsert({
+      tenant_id: tenantId,
       cmr_id: document.id,
       stop_id: stopId,
       event_type: eventType,
@@ -77,18 +82,24 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
           : {};
 
     if (Object.keys(stopUpdate).length) {
-      const { error: updateError } = await supabase.from("transport_stops").update(stopUpdate).eq("id", stopId);
+      const { error: updateError } = await supabase
+        .from("transport_stops")
+        .update(stopUpdate)
+        .eq("id", stopId)
+        .eq("tenant_id", tenantId);
       if (updateError) throw updateError;
     }
 
     let allStopsCompleted = false;
-    if (type === "arrival") await supabase.from("cmr_documents").update({ status: "En tránsito", updated_at: occurredAt }).eq("id", document.id);
+    if (type === "arrival") {
+      await supabase.from("cmr_documents").update({ status: "En tránsito", updated_at: occurredAt }).eq("id", document.id).eq("tenant_id", tenantId);
+    }
     if (type === "complete") {
-      const { data: states, error: statesError } = await supabase.from("transport_stops").select("status").eq("cmr_id", document.id);
+      const { data: states, error: statesError } = await supabase.from("transport_stops").select("status").eq("cmr_id", document.id).eq("tenant_id", tenantId);
       if (statesError) throw statesError;
       allStopsCompleted = Boolean(states?.length && states.every(item => item.status === "Completada"));
       const status = allStopsCompleted ? "Entregado" : "En tránsito";
-      await supabase.from("cmr_documents").update({ status, updated_at: occurredAt }).eq("id", document.id);
+      await supabase.from("cmr_documents").update({ status, updated_at: occurredAt }).eq("id", document.id).eq("tenant_id", tenantId);
     }
 
     return NextResponse.json({ ok: true, eventType, overwritten: type === "arrival" && overwriteArrival, allStopsCompleted });
