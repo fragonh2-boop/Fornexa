@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { documentForAccessKey } from "@/lib/cmr-access";
+import { authorizeMobileStop } from "@/lib/mobile-transport-auth";
 import { createSupabaseAdmin, numericValue } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
@@ -9,7 +9,6 @@ const allowed = new Set(["arrival", "complete", "incident", "signature"]);
 
 export async function POST(request: NextRequest, context: { params: Promise<{ id: string }> }) {
   const { id: stopId } = await context.params;
-  const accessKey = request.headers.get("x-fornexa-key") ?? "";
   const idempotencyKey = request.headers.get("x-idempotency-key") ?? randomUUID();
   const body = await request.json().catch(() => ({})) as Record<string, unknown>;
   const type = String(body.type ?? "");
@@ -17,21 +16,10 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   if (!allowed.has(type)) return NextResponse.json({ error: "Tipo de evento no válido." }, { status: 422 });
 
   try {
-    const document = await documentForAccessKey(accessKey);
-    if (!document) return NextResponse.json({ error: "CMR Key no válida o revocada." }, { status: 401 });
-    const tenantId = String(document.tenant_id ?? "");
-    if (!tenantId) throw new Error("El CMR no tiene tenant asociado.");
-
+    const authorization = await authorizeMobileStop(request, stopId);
+    if (!authorization) return NextResponse.json({ error: "Credencial Mobile no válida para esta parada." }, { status: 401 });
+    const { document, stop, tenantId } = authorization;
     const supabase = createSupabaseAdmin();
-    const { data: stop, error: stopError } = await supabase
-      .from("transport_stops")
-      .select("*")
-      .eq("id", stopId)
-      .eq("cmr_id", document.id)
-      .eq("tenant_id", tenantId)
-      .maybeSingle();
-    if (stopError) throw stopError;
-    if (!stop) return NextResponse.json({ error: "La parada no pertenece a este CMR." }, { status: 403 });
 
     const overwriteArrival = body.overwrite === true;
     if (type === "arrival" && stop.arrived_at && !overwriteArrival) {
@@ -102,7 +90,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       await supabase.from("cmr_documents").update({ status, updated_at: occurredAt }).eq("id", document.id).eq("tenant_id", tenantId);
     }
 
-    return NextResponse.json({ ok: true, eventType, overwritten: type === "arrival" && overwriteArrival, allStopsCompleted });
+    return NextResponse.json({ ok: true, eventType, overwritten: type === "arrival" && overwriteArrival, allStopsCompleted }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("Mobile stop event error", error);
     return NextResponse.json({ error: "No se pudo registrar el evento." }, { status: 500 });
