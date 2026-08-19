@@ -24,6 +24,13 @@ function isProtectedApi(pathname: string) {
   return protectedApiPaths.some(path => pathname === path);
 }
 
+function noStore<T extends NextResponse>(response: T) {
+  response.headers.set("Cache-Control", "private, no-cache, no-store, max-age=0, must-revalidate");
+  response.headers.set("Pragma", "no-cache");
+  response.headers.set("Expires", "0");
+  return response;
+}
+
 function loginRedirect(request: NextRequest, origin: string) {
   const login = new URL("/login", origin);
   login.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
@@ -48,15 +55,15 @@ export async function proxy(request: NextRequest) {
       sameSite: "lax",
       secure: true,
     });
-    return redirectResponse;
+    return noStore(redirectResponse);
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) {
-    if (isProtectedApi(pathname)) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+    if (isProtectedApi(pathname)) return noStore(NextResponse.json({ error: "No autorizado." }, { status: 401 }));
     if (pathname.startsWith("/dashboard") || pathname === "/onboarding" || pathname === "/reset-password") {
-      return NextResponse.redirect(loginRedirect(request, origin));
+      return noStore(NextResponse.redirect(loginRedirect(request, origin)));
     }
     return NextResponse.next();
   }
@@ -80,13 +87,13 @@ export async function proxy(request: NextRequest) {
   if (isProtectedApi(pathname) && !user) {
     const unauthorized = NextResponse.json({ error: "No autorizado." }, { status: 401 });
     response.cookies.getAll().forEach(cookie => unauthorized.cookies.set(cookie));
-    return unauthorized;
+    return noStore(unauthorized);
   }
 
   if ((pathname.startsWith("/dashboard") || pathname === "/onboarding" || pathname === "/reset-password") && !user) {
     const redirectResponse = NextResponse.redirect(loginRedirect(request, origin));
     response.cookies.getAll().forEach(cookie => redirectResponse.cookies.set(cookie));
-    return redirectResponse;
+    return noStore(redirectResponse);
   }
 
   const membershipRequired = pathname.startsWith("/dashboard") || pathname === "/onboarding" || pathname === "/login" || pathname === "/api/storage/migrate-local";
@@ -106,14 +113,14 @@ export async function proxy(request: NextRequest) {
   if (user && (pathname.startsWith("/dashboard") || pathname === "/onboarding") && !membership) {
     const denied = NextResponse.redirect(new URL("/access-denied", origin));
     response.cookies.getAll().forEach(cookie => denied.cookies.set(cookie));
-    return denied;
+    return noStore(denied);
   }
 
   if (pathname === "/api/storage/migrate-local" && user) {
     if (membership?.role !== "OWNER" && membership?.role !== "ADMIN") {
       const forbidden = NextResponse.json({ error: "Permisos insuficientes." }, { status: 403 });
       response.cookies.getAll().forEach(cookie => forbidden.cookies.set(cookie));
-      return forbidden;
+      return noStore(forbidden);
     }
   }
 
@@ -121,16 +128,17 @@ export async function proxy(request: NextRequest) {
     if (!membership) {
       const denied = NextResponse.redirect(new URL("/access-denied", origin));
       response.cookies.getAll().forEach(cookie => denied.cookies.set(cookie));
-      return denied;
+      return noStore(denied);
     }
     const requestedNext = searchParams.get("next");
     const safeNext = requestedNext?.startsWith("/") && !requestedNext.startsWith("//") ? requestedNext : "/dashboard";
     const redirectResponse = NextResponse.redirect(new URL(safeNext, origin));
     response.cookies.getAll().forEach(cookie => redirectResponse.cookies.set(cookie));
-    return redirectResponse;
+    return noStore(redirectResponse);
   }
 
-  return response;
+  const authSensitive = Boolean(user) || isProtectedApi(pathname) || pathname === "/login" || pathname === "/onboarding" || pathname === "/reset-password" || pathname.startsWith("/dashboard");
+  return authSensitive ? noStore(response) : response;
 }
 
 export const config = {
