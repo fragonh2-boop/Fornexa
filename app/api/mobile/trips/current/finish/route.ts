@@ -47,6 +47,7 @@ export async function POST(request: NextRequest) {
         .from("cmr_documents")
         .select("id")
         .eq("tenant_id", access.tenant_id)
+        .eq("trip_record_id", access.trip_id)
         .in("expedition_record_id", expeditionIds)
     : { data: [], error: null };
   if (cmrError) return noStore({ error: "No se pudieron validar los CMR." }, { status: 500 });
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
   const { data: stops, error: stopsError } = cmrIds.length
     ? await supabase
         .from("transport_stops")
-        .select("id,status")
+        .select("id,status,trip_stop_id")
         .eq("tenant_id", access.tenant_id)
         .in("cmr_id", cmrIds)
     : { data: [], error: null };
@@ -64,6 +65,20 @@ export async function POST(request: NextRequest) {
 
   const pending = stops.filter(stop => stop.status !== "Completada");
   if (pending.length) return noStore({ error: `Quedan ${pending.length} parada(s) sin completar.` }, { status: 409 });
+
+  const linkedTripStopIds = stops.map(stop => stop.trip_stop_id).filter((id): id is string => typeof id === "string");
+  if (linkedTripStopIds.length) {
+    const { data: canonicalStops, error: canonicalError } = await supabase
+      .from("trip_stops")
+      .select("id,status")
+      .eq("tenant_id", access.tenant_id)
+      .eq("trip_id", access.trip_id)
+      .in("id", linkedTripStopIds);
+    if (canonicalError) return noStore({ error: "No se pudieron validar las paradas canónicas." }, { status: 500 });
+    if (canonicalStops?.length !== linkedTripStopIds.length || canonicalStops.some(stop => stop.status !== "COMPLETED")) {
+      return noStore({ error: "Las paradas canónicas del viaje todavía no están completadas." }, { status: 409 });
+    }
+  }
 
   const now = new Date().toISOString();
   const { error: updateError } = await supabase
