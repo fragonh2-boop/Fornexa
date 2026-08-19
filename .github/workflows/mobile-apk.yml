@@ -20,6 +20,7 @@ jobs:
     timeout-minutes: 45
     env:
       CI: "1"
+      NODE_ENV: production
       EXPO_PUBLIC_FORNEXA_API_URL: "https://fornexasc.com"
 
     steps:
@@ -40,7 +41,7 @@ jobs:
           cache-dependency-path: mobile-driver/pnpm-lock.yaml
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -57,6 +58,10 @@ jobs:
         working-directory: mobile-driver
         run: pnpm exec expo prebuild --platform android --clean
 
+      - name: Capture signing report
+        working-directory: mobile-driver/android
+        run: ./gradlew signingReport --no-daemon | tee ../../android-signing-report.txt
+
       - name: Build release APK
         working-directory: mobile-driver/android
         run: ./gradlew assembleRelease --no-daemon
@@ -65,6 +70,7 @@ jobs:
         run: |
           mkdir -p artifacts
           cp mobile-driver/android/app/build/outputs/apk/release/app-release.apk artifacts/FORNEXA-Mobile-0.7.0.apk
+          cp android-signing-report.txt artifacts/android-signing-report.txt
           sha256sum artifacts/FORNEXA-Mobile-0.7.0.apk | tee artifacts/FORNEXA-Mobile-0.7.0.sha256
 
       - name: Upload APK artifact
