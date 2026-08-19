@@ -24,6 +24,8 @@ export async function documentForAccessKey(value: string) {
 }
 
 export function publicDocument(document: Record<string, unknown>) {
-  const { access_key: _accessKey, ...safeDocument } = document;
+  const { access_key: _accessKey, tenant_id: _tenantId, ...safeDocument } = document;
+  void _accessKey;
+  void _tenantId;
   return safeDocument;
 }
