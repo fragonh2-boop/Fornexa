@@ -76,6 +76,22 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         .eq("id", stopId)
         .eq("tenant_id", tenantId);
       if (updateError) throw updateError;
+
+      if (stop.trip_stop_id) {
+        const tripStopUpdate = type === "arrival"
+          ? { status: "ARRIVED", arrived_at: occurredAt, updated_at: occurredAt }
+          : type === "complete"
+            ? { status: "COMPLETED", completed_at: occurredAt, updated_at: occurredAt }
+            : type === "incident"
+              ? { status: "INCIDENT", updated_at: occurredAt }
+              : {};
+        const { error: tripStopError } = await supabase
+          .from("trip_stops")
+          .update(tripStopUpdate)
+          .eq("id", stop.trip_stop_id)
+          .eq("tenant_id", tenantId);
+        if (tripStopError) throw tripStopError;
+      }
     }
 
     let allStopsCompleted = false;
