@@ -1,16 +1,55 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { Linking, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import LegacyCmrApp from "./App";
 import TripApp from "./TripApp";
 
 type Mode = "trip" | "cmr" | null;
 
+function tripTokenFromUrl(value: string | null | undefined) {
+  if (!value) return "";
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "fornexa-mobile:") return "";
+    const segments = url.pathname.split("/").filter(Boolean);
+    const token = segments.at(-1) ?? (url.host === "trip" ? segments[0] : "");
+    return decodeURIComponent(token || "");
+  } catch {
+    return "";
+  }
+}
+
 export default function RootApp() {
   const [mode, setMode] = useState<Mode>(null);
+  const [tripToken, setTripToken] = useState("");
 
-  if (mode === "trip") return <SafeAreaProvider><TripApp onExit={() => setMode(null)} /></SafeAreaProvider>;
+  useEffect(() => {
+    function openUrl(url: string | null | undefined) {
+      const token = tripTokenFromUrl(url);
+      if (!token) return;
+      setTripToken(token);
+      setMode("trip");
+    }
+
+    void Linking.getInitialURL().then(openUrl);
+    const subscription = Linking.addEventListener("url", ({ url }) => openUrl(url));
+    return () => subscription.remove();
+  }, []);
+
+  if (mode === "trip") {
+    return (
+      <SafeAreaProvider>
+        <TripApp
+          initialToken={tripToken}
+          onExit={() => {
+            setTripToken("");
+            setMode(null);
+          }}
+        />
+      </SafeAreaProvider>
+    );
+  }
   if (mode === "cmr") return <LegacyCmrApp />;
 
   return (
