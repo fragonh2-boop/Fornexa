@@ -1,8 +1,12 @@
 import { createHash, randomBytes } from "node:crypto";
 import { createSupabaseAdmin, normalizeAccessKey } from "./supabase-admin";
 
-export const CMR_VIEW_SESSION_COOKIE = "fornexa_cmr_session";
 export const CMR_VIEW_SESSION_MAX_AGE = 60 * 60 * 36;
+
+export function cmrViewSessionCookie(cmrNumber: string) {
+  const safeCmr = cmrNumber.toUpperCase().replace(/[^A-Z0-9_-]/g, "_");
+  return `fornexa_cmr_session_${safeCmr}`;
+}
 
 export function createCmrKey() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
