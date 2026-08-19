@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import AppShell from "../../../components/AppShell";
 import DataGrid from "../../../components/DataGrid";
+import { getAuthenticatedOrReviewContext } from "@/lib/auth-context";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
 import styles from "../../expediciones/expediciones.module.css";
 
@@ -29,6 +30,9 @@ function formatDate(value: string | null | undefined) {
 }
 
 export default async function TripDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const auth = await getAuthenticatedOrReviewContext();
+  if (!auth) redirect("/login");
+
   const { id } = await params;
   const supabase = createSupabaseAdmin();
   const { data: trip, error } = await supabase
@@ -65,6 +69,7 @@ export default async function TripDetailPage({ params }: { params: Promise<{ id:
         operational_reference
       )
     `)
+    .eq("tenant_id", auth.tenantId)
     .eq("code", id)
     .maybeSingle();
 
