@@ -15,6 +15,9 @@ type CmrInput = {
   source?: string; expedicion?: string; expediciones?: string[]; viaje?: string; customerIds?: string[]; expedidor?: string; destinatario?: string; carga?: string; entrega?: string; transportista?: string; matricula?: string; remolque?: string; mercancia?: string; bultos?: string; embalaje?: string; peso?: string; volumen?: string; instrucciones?: string; senderInstructions?: string; carrierReservations?: string; particularTerms?: string; attachedDocuments?: AttachmentInput[]; successiveCarriers?: SuccessiveCarrierInput[]; goodsLines?: GoodsLineInput[]; statisticalNumber?: string; carriageCharges?: Record<string, unknown>; cashOnDelivery?: Record<string, unknown>; establishedAt?: string; establishedOn?: string; adr?: string; adrRegime?: string; unNumber?: string; adrClass?: string; adrLabels?: string; packingGroup?: string; tunnelCode?: string; adrDescription?: string; stopDetails?: StopDetailInput[];
 };
 
+type CanonicalTrip = { id: string; code: string; status: string };
+type CanonicalTripStopPair = { pickup?: string; delivery?: string; sequence: number };
+
 const required: Array<[keyof CmrInput, string]> = [["expedidor", "Expedidor"], ["destinatario", "Destinatario"], ["carga", "Lugar de carga"], ["entrega", "Lugar de entrega"], ["transportista", "Transportista"], ["mercancia", "Mercancía"], ["peso", "Peso bruto"]];
 
 export async function POST(request: NextRequest) {
@@ -51,13 +54,78 @@ export async function POST(request: NextRequest) {
     if (expedition?.id && !expeditionRecords.some(item => item.id === expedition.id)) expeditionRecords.push(expedition as { id: string; code: string });
   }
 
+  let tripRecord: CanonicalTrip | null = null;
+  let pickupTripStopId: string | null = null;
+  let deliveryTripStopId: string | null = null;
+  const tripRef = clean(input.viaje, 120);
+
+  if (tripRef) {
+    let tripQuery = supabase.from("trips").select("id,code,status").eq("tenant_id", auth.tenantId);
+    tripQuery = isUuid(tripRef) ? tripQuery.eq("id", tripRef) : tripQuery.eq("code", tripRef);
+    const { data: trip, error: tripError } = await tripQuery.maybeSingle();
+    if (tripError) return failure(tripError);
+    if (!trip) return NextResponse.json({ error: "El Viaje indicado no existe en este tenant." }, { status: 404 });
+    if (["COMPLETED", "CANCELLED"].includes(trip.status)) {
+      return NextResponse.json({ error: "No se puede emitir un CMR sobre un Viaje finalizado/cancelado." }, { status: 409 });
+    }
+    if (!expeditionRecords.length) {
+      return NextResponse.json({ error: "Un CMR asociado a Viaje necesita al menos una Expedición canónica." }, { status: 422 });
+    }
+    tripRecord = trip as CanonicalTrip;
+
+    const expeditionIds = expeditionRecords.map(item => item.id);
+    const { data: links, error: linksError } = await supabase
+      .from("trip_expeditions")
+      .select("expedition_id,sequence")
+      .eq("tenant_id", auth.tenantId)
+      .eq("trip_id", tripRecord.id)
+      .in("expedition_id", expeditionIds)
+      .order("sequence", { ascending: true });
+    if (linksError) return failure(linksError);
+    if ((links ?? []).length !== expeditionIds.length) {
+      return NextResponse.json({ error: "Alguna Expedición del CMR no pertenece al Viaje indicado." }, { status: 409 });
+    }
+
+    const pairByExpedition = new Map<string, CanonicalTripStopPair>();
+    const { data: canonicalStops, error: canonicalStopsError } = await supabase
+      .from("trip_stops")
+      .select("id,sequence,stop_type,metadata")
+      .eq("tenant_id", auth.tenantId)
+      .eq("trip_id", tripRecord.id)
+      .order("sequence", { ascending: true });
+    if (canonicalStopsError) return failure(canonicalStopsError);
+
+    for (const stop of canonicalStops ?? []) {
+      const metadata = stop.metadata && typeof stop.metadata === "object" ? stop.metadata as Record<string, unknown> : {};
+      const expeditionId = typeof metadata.expeditionId === "string" ? metadata.expeditionId : "";
+      if (!expeditionId || !expeditionIds.includes(expeditionId)) continue;
+      const pair = pairByExpedition.get(expeditionId) ?? { sequence: Number(stop.sequence) || 0 };
+      pair.sequence = Math.min(pair.sequence || Number(stop.sequence) || 0, Number(stop.sequence) || 0);
+      if (stop.stop_type === "PICKUP") pair.pickup = stop.id;
+      if (stop.stop_type === "DELIVERY") pair.delivery = stop.id;
+      pairByExpedition.set(expeditionId, pair);
+    }
+
+    const orderedExpeditionIds = (links ?? []).map(item => item.expedition_id).filter((id): id is string => typeof id === "string");
+    const firstPair = pairByExpedition.get(orderedExpeditionIds[0] ?? "");
+    const lastPair = pairByExpedition.get(orderedExpeditionIds.at(-1) ?? "");
+    pickupTripStopId = firstPair?.pickup ?? null;
+    deliveryTripStopId = lastPair?.delivery ?? null;
+    if (!pickupTripStopId || !deliveryTripStopId) {
+      return NextResponse.json({ error: "El Viaje no tiene las paradas canónicas necesarias para enlazar este CMR." }, { status: 409 });
+    }
+  }
+
+  const primaryExpedition = expeditionRecords[0] ?? null;
   const documentPayload = {
     tenant_id: auth.tenantId,
     access_key: cmrKey,
     status: "Emitido",
     source: input.source || "expedicion",
-    expedition_id: expeditionRefs[0] || null,
-    trip_id: input.viaje || null,
+    expedition_id: primaryExpedition?.code || expeditionRefs[0] || null,
+    trip_id: tripRecord?.code || tripRef || null,
+    expedition_record_id: primaryExpedition?.id ?? null,
+    trip_record_id: tripRecord?.id ?? null,
     customer_ids: input.customerIds,
     sender: input.expedidor!.trim(),
     recipient: input.destinatario!.trim(),
@@ -80,7 +148,13 @@ export async function POST(request: NextRequest) {
     cash_on_delivery: sanitizeObject(input.cashOnDelivery),
     established_at: clean(input.establishedAt, 180) || null,
     established_on: clean(input.establishedOn, 40) || null,
-    metadata: { schemaVersion: 3, expeditionRefs, actorUserId: auth.userId },
+    metadata: {
+      schemaVersion: 3,
+      expeditionRefs,
+      actorUserId: auth.userId,
+      canonicalExpeditionId: primaryExpedition?.id ?? null,
+      canonicalTripId: tripRecord?.id ?? null,
+    },
   };
 
   let document: { id: string; status: string; issued_at: string } | null = null;
@@ -130,8 +204,8 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: stops, error: stopsError } = await supabase.from("transport_stops").insert([
-      { tenant_id: auth.tenantId, cmr_id: document.id, sequence: 1, stop_type: "Recogida", company: input.expedidor, address: stopDetails[0].fullAddress || input.carga, window_start: stopDetails[0].windowStart || null, window_end: stopDetails[0].windowEnd || null, contact_name: stopDetails[0].contactName || null, contact_phone: stopDetails[0].contactPhone || null, operational_reference: stopDetails[0].reference || null },
-      { tenant_id: auth.tenantId, cmr_id: document.id, sequence: 2, stop_type: "Entrega", company: input.destinatario, address: stopDetails[1].fullAddress || input.entrega, window_start: stopDetails[1].windowStart || null, window_end: stopDetails[1].windowEnd || null, contact_name: stopDetails[1].contactName || null, contact_phone: stopDetails[1].contactPhone || null, operational_reference: stopDetails[1].reference || null },
+      { tenant_id: auth.tenantId, cmr_id: document.id, trip_stop_id: pickupTripStopId, sequence: 1, stop_type: "Recogida", company: input.expedidor, address: stopDetails[0].fullAddress || input.carga, window_start: stopDetails[0].windowStart || null, window_end: stopDetails[0].windowEnd || null, contact_name: stopDetails[0].contactName || null, contact_phone: stopDetails[0].contactPhone || null, operational_reference: stopDetails[0].reference || null },
+      { tenant_id: auth.tenantId, cmr_id: document.id, trip_stop_id: deliveryTripStopId, sequence: 2, stop_type: "Entrega", company: input.destinatario, address: stopDetails[1].fullAddress || input.entrega, window_start: stopDetails[1].windowStart || null, window_end: stopDetails[1].windowEnd || null, contact_name: stopDetails[1].contactName || null, contact_phone: stopDetails[1].contactPhone || null, operational_reference: stopDetails[1].reference || null },
     ]).select("*").order("sequence");
     if (stopsError) throw stopsError;
 
@@ -140,12 +214,24 @@ export async function POST(request: NextRequest) {
       actor_user_id: auth.userId,
       cmr_id: document.id,
       event_type: "cmr_issued",
-      payload: { cmrNumber, source: input.source || "expedicion", actor: "FORNEXA Web", schemaVersion: 3, goodsLines: goodsLines.length, attachments: attachments.length, successiveCarriers: successiveCarriers.length, expeditions: expeditionRecords.length, canonical: true },
+      payload: {
+        cmrNumber,
+        source: input.source || "expedicion",
+        actor: "FORNEXA Web",
+        schemaVersion: 3,
+        goodsLines: goodsLines.length,
+        attachments: attachments.length,
+        successiveCarriers: successiveCarriers.length,
+        expeditions: expeditionRecords.length,
+        canonical: true,
+        canonicalExpeditionId: primaryExpedition?.id ?? null,
+        canonicalTripId: tripRecord?.id ?? null,
+      },
     });
     if (eventError) throw eventError;
 
     const origin = request.nextUrl.origin;
-    return NextResponse.json({ id: document.id, cmrNumber, cmrKey, status: document.status, issuedAt: document.issued_at, stops, expeditionIds: expeditionRecords.map(item => item.id), detailUrl: `/dashboard/epod-cmr/${encodeURIComponent(cmrNumber)}`, qrUrl: `/api/cmr/${encodeURIComponent(cmrNumber)}/qr?key=${encodeURIComponent(cmrKey)}`, qrPayload: `${origin}/api/mobile/cmr/${encodeURIComponent(cmrKey)}` }, { status: 201, headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ id: document.id, cmrNumber, cmrKey, status: document.status, issuedAt: document.issued_at, stops, expeditionIds: expeditionRecords.map(item => item.id), tripId: tripRecord?.id ?? null, detailUrl: `/dashboard/epod-cmr/${encodeURIComponent(cmrNumber)}`, qrUrl: `/api/cmr/${encodeURIComponent(cmrNumber)}/qr?key=${encodeURIComponent(cmrKey)}`, qrPayload: `${origin}/api/mobile/cmr/${encodeURIComponent(cmrKey)}` }, { status: 201, headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     await supabase.from("cmr_documents").delete().eq("id", document.id).eq("tenant_id", auth.tenantId);
     return failure(error);
