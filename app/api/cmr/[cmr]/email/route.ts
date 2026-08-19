@@ -21,9 +21,11 @@ export async function POST(request: Request, context: { params: Promise<{ cmr: s
   const document = await documentForAccessKey(key ?? "");
   if (!document) return NextResponse.json({ error: "CMR Key no válida o revocada." }, { status: 401 });
   if (document.cmr_number !== cmrNumber) return NextResponse.json({ error: "La clave no pertenece al CMR." }, { status: 403 });
+  const tenantId = String(document.tenant_id ?? "");
+  if (!tenantId) return NextResponse.json({ error: "El CMR no tiene tenant asociado." }, { status: 500 });
 
   const origin = new URL(request.url).origin;
-  const detailUrl = `${origin}/dashboard/epod-cmr/${encodeURIComponent(cmrNumber)}?key=${encodeURIComponent(document.access_key)}`;
+  const detailUrl = `${origin}/cmr/${encodeURIComponent(cmrNumber)}?key=${encodeURIComponent(document.access_key)}`;
   const driverUrl = `${origin}/api/mobile/cmr/${encodeURIComponent(document.access_key)}`;
 
   const response = await fetch("https://api.resend.com/emails", {
@@ -44,11 +46,13 @@ export async function POST(request: Request, context: { params: Promise<{ cmr: s
   }
 
   const provider = await response.json();
-  await supabase.from("transport_events").insert({
+  const { error: eventError } = await supabase.from("transport_events").insert({
+    tenant_id: tenantId,
     cmr_id: document.id,
     event_type: "cmr_emailed",
     payload: { to, providerId: provider.id, actor: "FORNEXA Web" },
   });
+  if (eventError) console.error("CMR email event error", eventError);
 
   return NextResponse.json({ ok: true, id: provider.id });
 }
