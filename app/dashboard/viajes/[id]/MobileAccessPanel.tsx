@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import QRCode from "qrcode";
 
 type AccessRow = {
   id: string;
@@ -19,6 +20,7 @@ export default function MobileAccessPanel({ tripCode, readOnly }: { tripCode: st
   const [accesses, setAccesses] = useState<AccessRow[]>([]);
   const [issuedToken, setIssuedToken] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
+  const [qrDataUrl, setQrDataUrl] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -30,6 +32,24 @@ export default function MobileAccessPanel({ tripCode, readOnly }: { tripCode: st
 
   useEffect(() => { void refresh(); }, [tripCode]);
 
+  useEffect(() => {
+    let cancelled = false;
+    if (!issuedToken) {
+      setQrDataUrl("");
+      return;
+    }
+    void QRCode.toDataURL(mobileAccessLink(issuedToken), {
+      width: 260,
+      margin: 1,
+      errorCorrectionLevel: "M",
+    }).then((value) => {
+      if (!cancelled) setQrDataUrl(value);
+    }).catch(() => {
+      if (!cancelled) setQrDataUrl("");
+    });
+    return () => { cancelled = true; };
+  }, [issuedToken]);
+
   async function issue() {
     setLoading(true); setMessage(""); setIssuedToken("");
     try {
@@ -38,7 +58,7 @@ export default function MobileAccessPanel({ tripCode, readOnly }: { tripCode: st
       if (!response.ok) throw new Error(body.error || "No se pudo emitir el acceso Mobile.");
       setIssuedToken(String(body.token ?? ""));
       setExpiresAt(String(body.expiresAt ?? ""));
-      setMessage("Acceso emitido. El valor se muestra una sola vez; compártelo con el conductor de forma segura.");
+      setMessage("Acceso emitido. Se muestra una sola vez; compártelo con el conductor de forma segura.");
       await refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "No se pudo emitir el acceso Mobile.");
@@ -60,9 +80,8 @@ export default function MobileAccessPanel({ tripCode, readOnly }: { tripCode: st
 
   async function copyAccess() {
     if (!issuedToken) return;
-    const value = mobileAccessLink(issuedToken);
     try {
-      await navigator.clipboard.writeText(value);
+      await navigator.clipboard.writeText(mobileAccessLink(issuedToken));
       setMessage("Acceso copiado al portapapeles.");
     } catch {
       setMessage("No se pudo copiar automáticamente. Selecciona el acceso y cópialo manualmente.");
@@ -93,10 +112,12 @@ export default function MobileAccessPanel({ tripCode, readOnly }: { tripCode: st
       )}
 
       {issuedToken && (
-        <div style={{ padding: 14, border: "1px solid #9ebbd0", borderRadius: 10, background: "#f4f9fc", display: "grid", gap: 8 }}>
+        <div style={{ padding: 14, border: "1px solid #9ebbd0", borderRadius: 10, background: "#f4f9fc", display: "grid", gap: 10 }}>
           <strong>Acceso recién emitido</strong>
           <code style={{ overflowWrap: "anywhere", userSelect: "all" }}>{mobileAccessLink(issuedToken)}</code>
+          {qrDataUrl && <img src={qrDataUrl} alt="QR privado de acceso a FORNEXA Mobile" width={220} height={220} style={{ maxWidth: "100%", height: "auto", background: "white", padding: 8, borderRadius: 8 }} />}
           {expiresAt && <small>Caduca: {new Date(expiresAt).toLocaleString("es-ES")}</small>}
+          <p style={{ margin: 0, fontSize: 12, color: "#66768a" }}>El QR se genera localmente en este navegador; la capability no se envía a un servicio QR externo.</p>
           <button type="button" onClick={copyAccess} style={{ justifySelf: "start", padding: "8px 12px", borderRadius: 8, border: 0, background: "#005d8f", color: "white", fontWeight: 800, cursor: "pointer" }}>Copiar acceso</button>
         </div>
       )}
