@@ -59,6 +59,7 @@ export async function authorizeMobileStop(
     .select("*")
     .eq("id", stop.cmr_id)
     .eq("tenant_id", access.tenant_id)
+    .eq("trip_record_id", access.trip_id)
     .maybeSingle();
   if (documentError || !document?.expedition_record_id) return null;
 
@@ -70,6 +71,17 @@ export async function authorizeMobileStop(
     .eq("expedition_id", document.expedition_record_id)
     .maybeSingle();
   if (linkError || !link) return null;
+
+  if (stop.trip_stop_id) {
+    const { data: tripStop, error: tripStopError } = await supabase
+      .from("trip_stops")
+      .select("id")
+      .eq("id", stop.trip_stop_id)
+      .eq("tenant_id", access.tenant_id)
+      .eq("trip_id", access.trip_id)
+      .maybeSingle();
+    if (tripStopError || !tripStop) return null;
+  }
 
   return {
     tenantId: access.tenant_id,
