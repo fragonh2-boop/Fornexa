@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import QRCode from "qrcode";
 import {
-  CMR_VIEW_SESSION_COOKIE,
+  cmrViewSessionCookie,
   documentForAccessKey,
   documentForViewSession,
 } from "@/lib/cmr-access";
@@ -17,7 +17,7 @@ export async function GET(request: Request, context: { params: Promise<{ cmr: st
   const url = new URL(request.url);
   const queryKey = url.searchParams.get("key") ?? "";
   const store = await cookies();
-  const sessionToken = store.get(CMR_VIEW_SESSION_COOKIE)?.value;
+  const sessionToken = store.get(cmrViewSessionCookie(cmrNumber))?.value;
   const data = queryKey
     ? await documentForAccessKey(queryKey)
     : await documentForViewSession(sessionToken, cmrNumber);
