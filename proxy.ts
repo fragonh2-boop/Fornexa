@@ -25,6 +25,16 @@ function isProtectedApi(pathname: string) {
   return protectedApiPaths.some(path => pathname === path);
 }
 
+// Shared CMR routes deliberately use capability authentication (access_key) rather
+// than Supabase user authentication because carriers/drivers/recipients may not have
+// a FORNEXA account. They still pass through Proxy for common no-cache/review-mode
+// controls, but every dynamic route MUST continue validating its own CMR↔access_key
+// relationship server-side. Matching the namespace here is defense in depth, not a
+// replacement for endpoint-level capability validation.
+function isSharedCmrApi(pathname: string) {
+  return pathname.startsWith("/api/cmr/");
+}
+
 function noStore<T extends NextResponse>(response: T) {
   response.headers.set("Cache-Control", "private, no-cache, no-store, max-age=0, must-revalidate");
   response.headers.set("Pragma", "no-cache");
@@ -66,7 +76,7 @@ export async function proxy(request: NextRequest) {
   if (reviewAccess && pathname.startsWith("/dashboard")) {
     return noStore(NextResponse.next({ request }));
   }
-  if (reviewAccess && isProtectedApi(pathname)) {
+  if (reviewAccess && (isProtectedApi(pathname) || isSharedCmrApi(pathname))) {
     if (request.method !== "GET" && request.method !== "HEAD") {
       return noStore(NextResponse.json({ error: "Modo revisión: solo lectura." }, { status: 403 }));
     }
@@ -74,6 +84,13 @@ export async function proxy(request: NextRequest) {
   }
   if (reviewAccess && pathname === "/login") {
     return noStore(NextResponse.redirect(new URL("/dashboard", origin)));
+  }
+
+  // Shared CMR capability endpoints are intentionally public-by-key. Do not require
+  // a Supabase session here; endpoint handlers validate access_key against the exact
+  // CMR. We only enforce common response hygiene at the perimeter.
+  if (isSharedCmrApi(pathname)) {
+    return noStore(NextResponse.next({ request }));
   }
 
   // Preserve the legacy first-access/recovery redirect used by emailed links.
@@ -186,6 +203,7 @@ export const config = {
     "/reset-password",
     "/dashboard/:path*",
     "/api/cmr",
+    "/api/cmr/:path*",
     "/api/expeditions",
     "/api/storage/health",
     "/api/storage/migrate-local",
