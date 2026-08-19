@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAuthenticatedContext } from "@/lib/auth-context";
 import { createCmrKey } from "@/lib/cmr-access";
 import { createSupabaseAdmin, numericValue } from "@/lib/supabase-admin";
 
@@ -17,9 +18,13 @@ type CmrInput = {
 const required: Array<[keyof CmrInput, string]> = [["expedidor", "Expedidor"], ["destinatario", "Destinatario"], ["carga", "Lugar de carga"], ["entrega", "Lugar de entrega"], ["transportista", "Transportista"], ["mercancia", "Mercancía"], ["peso", "Peso bruto"]];
 
 export async function POST(request: NextRequest) {
+  const auth = await getAuthenticatedContext();
+  if (!auth) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   if (!isSameOrigin(request)) return NextResponse.json({ error: "Origen no autorizado." }, { status: 403 });
+
   let input: CmrInput;
-  try { input = await request.json(); } catch { return NextResponse.json({ error: "El cuerpo debe ser JSON válido." }, { status: 400 }); }
+  try { input = await request.json(); }
+  catch { return NextResponse.json({ error: "El cuerpo debe ser JSON válido." }, { status: 400 }); }
 
   const missing = required.filter(([key]) => !String(input[key] ?? "").trim()).map(([, label]) => label);
   if (!input.customerIds?.length) missing.push("Customer ID");
@@ -39,7 +44,7 @@ export async function POST(request: NextRequest) {
 
   const expeditionRecords: Array<{ id: string; code: string }> = [];
   for (const expeditionRef of expeditionRefs) {
-    let query = supabase.from("expeditions").select("id,code");
+    let query = supabase.from("expeditions").select("id,code").eq("tenant_id", auth.tenantId);
     query = isUuid(expeditionRef) ? query.eq("id", expeditionRef) : query.eq("code", expeditionRef);
     const { data: expedition, error: expeditionError } = await query.maybeSingle();
     if (expeditionError) return failure(expeditionError);
@@ -47,6 +52,7 @@ export async function POST(request: NextRequest) {
   }
 
   const documentPayload = {
+    tenant_id: auth.tenantId,
     access_key: cmrKey,
     status: "Emitido",
     source: input.source || "expedicion",
@@ -74,13 +80,14 @@ export async function POST(request: NextRequest) {
     cash_on_delivery: sanitizeObject(input.cashOnDelivery),
     established_at: clean(input.establishedAt, 180) || null,
     established_on: clean(input.establishedOn, 40) || null,
-    metadata: { schemaVersion: 3, expeditionRefs },
+    metadata: { schemaVersion: 3, expeditionRefs, actorUserId: auth.userId },
   };
 
   let document: { id: string; status: string; issued_at: string } | null = null;
   let cmrNumber = "";
   for (let attempt = 0; attempt < 10; attempt += 1) {
-    try { cmrNumber = await nextPersistedCmrNumber(supabase); } catch (error) { return failure(error); }
+    try { cmrNumber = await nextPersistedCmrNumber(supabase); }
+    catch (error) { return failure(error); }
     const { data, error } = await supabase.from("cmr_documents").insert({ ...documentPayload, cmr_number: cmrNumber }).select("id,status,issued_at").single();
     if (!error && data) { document = data; break; }
     if (!isCmrNumberCollision(error)) return failure(error);
@@ -92,18 +99,18 @@ export async function POST(request: NextRequest) {
       { cmr_id: document.id, role: "sender", sequence: 1, customer_id: input.customerIds?.[0] || null, legal_name: input.expedidor!.trim(), address: input.carga!.trim(), metadata: {} },
       { cmr_id: document.id, role: "consignee", sequence: 1, legal_name: input.destinatario!.trim(), address: input.entrega!.trim(), metadata: {} },
       { cmr_id: document.id, role: "carrier", sequence: 1, legal_name: input.transportista!.trim(), metadata: { vehicleRegistration: input.matricula?.trim() || null, trailerRegistration: input.remolque?.trim() || null } },
-      ...successiveCarriers.map(carrier => ({ cmr_id: document.id, role: "successive_carrier", sequence: carrier.sequence, legal_name: carrier.name, tax_id: carrier.taxId || null, address: carrier.address || null, country_code: carrier.country || null, metadata: {} })),
+      ...successiveCarriers.map(carrier => ({ cmr_id: document!.id, role: "successive_carrier", sequence: carrier.sequence, legal_name: carrier.name, tax_id: carrier.taxId || null, address: carrier.address || null, country_code: carrier.country || null, metadata: {} })),
     ];
     const { error: partiesError } = await supabase.from("cmr_parties").insert(partyRows);
     if (partiesError) throw partiesError;
 
     if (goodsLines.length) {
-      const { error } = await supabase.from("cmr_goods_lines").insert(goodsLines.map(line => ({ cmr_id: document.id, sequence: line.sequence, marks_numbers: line.marks || null, packages: line.packages == null ? null : Math.max(0, Math.trunc(line.packages)), packaging_description: line.packaging || null, goods_description: line.description, statistical_number: line.statisticalNumber || null, gross_weight: line.weight, volume: line.volume, adr_declared: Boolean(line.adr.declared), un_number: line.adr.unNumber || null, adr_class: line.adr.class || null, labels: line.adr.labels || null, packing_group: line.adr.packingGroup || null, tunnel_code: line.adr.tunnelCode || null, adr_description: line.adr.description || null, metadata: {} })));
+      const { error } = await supabase.from("cmr_goods_lines").insert(goodsLines.map(line => ({ cmr_id: document!.id, sequence: line.sequence, marks_numbers: line.marks || null, packages: line.packages == null ? null : Math.max(0, Math.trunc(line.packages)), packaging_description: line.packaging || null, goods_description: line.description, statistical_number: line.statisticalNumber || null, gross_weight: line.weight, volume: line.volume, adr_declared: Boolean(line.adr.declared), un_number: line.adr.unNumber || null, adr_class: line.adr.class || null, labels: line.adr.labels || null, packing_group: line.adr.packingGroup || null, tunnel_code: line.adr.tunnelCode || null, adr_description: line.adr.description || null, metadata: {} })));
       if (error) throw error;
     }
 
     if (attachments.length) {
-      const { error } = await supabase.from("cmr_attachments").insert(attachments.map(item => ({ cmr_id: document.id, sequence: item.sequence, document_type: item.type, title: item.title, external_reference: item.reference || null, metadata: {} })));
+      const { error } = await supabase.from("cmr_attachments").insert(attachments.map(item => ({ cmr_id: document!.id, sequence: item.sequence, document_type: item.type, title: item.title, external_reference: item.reference || null, metadata: {} })));
       if (error) throw error;
     }
 
@@ -123,18 +130,24 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: stops, error: stopsError } = await supabase.from("transport_stops").insert([
-      { cmr_id: document.id, sequence: 1, stop_type: "Recogida", company: input.expedidor, address: stopDetails[0].fullAddress || input.carga, window_start: stopDetails[0].windowStart || null, window_end: stopDetails[0].windowEnd || null, contact_phone: stopDetails[0].contactPhone || null },
-      { cmr_id: document.id, sequence: 2, stop_type: "Entrega", company: input.destinatario, address: stopDetails[1].fullAddress || input.entrega, window_start: stopDetails[1].windowStart || null, window_end: stopDetails[1].windowEnd || null, contact_phone: stopDetails[1].contactPhone || null },
+      { tenant_id: auth.tenantId, cmr_id: document.id, sequence: 1, stop_type: "Recogida", company: input.expedidor, address: stopDetails[0].fullAddress || input.carga, window_start: stopDetails[0].windowStart || null, window_end: stopDetails[0].windowEnd || null, contact_name: stopDetails[0].contactName || null, contact_phone: stopDetails[0].contactPhone || null, operational_reference: stopDetails[0].reference || null },
+      { tenant_id: auth.tenantId, cmr_id: document.id, sequence: 2, stop_type: "Entrega", company: input.destinatario, address: stopDetails[1].fullAddress || input.entrega, window_start: stopDetails[1].windowStart || null, window_end: stopDetails[1].windowEnd || null, contact_name: stopDetails[1].contactName || null, contact_phone: stopDetails[1].contactPhone || null, operational_reference: stopDetails[1].reference || null },
     ]).select("*").order("sequence");
     if (stopsError) throw stopsError;
 
-    const { error: eventError } = await supabase.from("transport_events").insert({ cmr_id: document.id, event_type: "cmr_issued", payload: { cmrNumber, source: input.source || "expedicion", actor: "FORNEXA Web", schemaVersion: 3, goodsLines: goodsLines.length, attachments: attachments.length, successiveCarriers: successiveCarriers.length, expeditions: expeditionRecords.length, canonical: true } });
+    const { error: eventError } = await supabase.from("transport_events").insert({
+      tenant_id: auth.tenantId,
+      actor_user_id: auth.userId,
+      cmr_id: document.id,
+      event_type: "cmr_issued",
+      payload: { cmrNumber, source: input.source || "expedicion", actor: "FORNEXA Web", schemaVersion: 3, goodsLines: goodsLines.length, attachments: attachments.length, successiveCarriers: successiveCarriers.length, expeditions: expeditionRecords.length, canonical: true },
+    });
     if (eventError) throw eventError;
 
     const origin = request.nextUrl.origin;
     return NextResponse.json({ id: document.id, cmrNumber, cmrKey, status: document.status, issuedAt: document.issued_at, stops, expeditionIds: expeditionRecords.map(item => item.id), detailUrl: `/dashboard/epod-cmr/${encodeURIComponent(cmrNumber)}`, qrUrl: `/api/cmr/${encodeURIComponent(cmrNumber)}/qr?key=${encodeURIComponent(cmrKey)}`, qrPayload: `${origin}/api/mobile/cmr/${encodeURIComponent(cmrKey)}` }, { status: 201, headers: { "Cache-Control": "no-store" } });
   } catch (error) {
-    await supabase.from("cmr_documents").delete().eq("id", document.id);
+    await supabase.from("cmr_documents").delete().eq("id", document.id).eq("tenant_id", auth.tenantId);
     return failure(error);
   }
 }
