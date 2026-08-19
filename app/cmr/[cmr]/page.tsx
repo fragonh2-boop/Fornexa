@@ -1,7 +1,13 @@
+import type { Metadata } from "next";
 import PublicCmrClient from "./PublicCmrClient";
 import { documentForAccessKey } from "@/lib/cmr-access";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false, noarchive: true },
+  referrer: "no-referrer",
+};
 
 export default async function PublicCmrPage({
   params,
