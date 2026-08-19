@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import PublicCmrClient from "./PublicCmrClient";
 import {
-  CMR_VIEW_SESSION_COOKIE,
+  cmrViewSessionCookie,
   documentForAccessKey,
   documentForViewSession,
 } from "@/lib/cmr-access";
@@ -32,7 +32,7 @@ export default async function PublicCmrPage({
     redirect(`/api/cmr/session/${encodeURIComponent(cmrNumber)}?key=${encodeURIComponent(key)}`);
   }
 
-  const sessionToken = store.get(CMR_VIEW_SESSION_COOKIE)?.value;
+  const sessionToken = store.get(cmrViewSessionCookie(cmrNumber))?.value;
   const document = await documentForViewSession(sessionToken, cmrNumber);
   if (!document) return unavailable();
 
