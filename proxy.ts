@@ -14,6 +14,7 @@ const protectedApiPaths = [
   "/api/cmr",
   "/api/orders",
   "/api/expeditions",
+  "/api/trips",
   "/api/storage/health",
   "/api/storage/migrate-local",
   "/api/communications/email",
@@ -52,9 +53,6 @@ function loginRedirect(request: NextRequest, origin: string) {
 export async function proxy(request: NextRequest) {
   const { pathname, searchParams, origin } = request.nextUrl;
 
-  // Private review shortcut. The plaintext token is never stored in the repository;
-  // only its SHA-256 hash is used for validation. The token is removed from the URL
-  // immediately and persisted in an HttpOnly cookie for eight hours.
   if (pathname === "/review") {
     const token = searchParams.get("token");
     if (!(await isValidReviewToken(token))) {
@@ -87,14 +85,10 @@ export async function proxy(request: NextRequest) {
     return noStore(NextResponse.redirect(new URL("/dashboard", origin)));
   }
 
-  // Shared CMR capability endpoints are intentionally public-by-key. Do not require
-  // a Supabase session here; endpoint handlers validate access_key against the exact
-  // CMR. We only enforce common response hygiene at the perimeter.
   if (isSharedCmrApi(pathname)) {
     return noStore(NextResponse.next({ request }));
   }
 
-  // Preserve the legacy first-access/recovery redirect used by emailed links.
   if (pathname === "/" && searchParams.has("code")) {
     const code = searchParams.get("code");
     const flow = request.cookies.get("fornexa_auth_flow")?.value;
@@ -207,6 +201,7 @@ export const config = {
     "/api/cmr/:path*",
     "/api/orders",
     "/api/expeditions",
+    "/api/trips",
     "/api/storage/health",
     "/api/storage/migrate-local",
     "/api/communications/email",
