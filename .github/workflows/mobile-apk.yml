@@ -1,0 +1,72 @@
+name: Mobile APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/mobile-apk.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: "1"
+      EXPO_PUBLIC_FORNEXA_API_URL: "https://fornexasc.com"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: mobile-driver/pnpm-lock.yaml
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Mobile dependencies
+        working-directory: mobile-driver
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck Mobile
+        working-directory: mobile-driver
+        run: pnpm typecheck
+
+      - name: Generate Android project
+        working-directory: mobile-driver
+        run: pnpm exec expo prebuild --platform android --clean
+
+      - name: Build release APK
+        working-directory: mobile-driver/android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Stage APK
+        run: |
+          mkdir -p artifacts
+          cp mobile-driver/android/app/build/outputs/apk/release/app-release.apk artifacts/FORNEXA-Mobile-0.7.0.apk
+          sha256sum artifacts/FORNEXA-Mobile-0.7.0.apk | tee artifacts/FORNEXA-Mobile-0.7.0.sha256
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FORNEXA-Mobile-0.7.0
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14
