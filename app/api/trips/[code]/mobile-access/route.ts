@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getAuthenticatedContext } from "@/lib/auth-context";
+import { getAuthenticatedContext, getAuthenticatedOrReviewContext } from "@/lib/auth-context";
 import { issueMobileTripAccess } from "@/lib/mobile-trip-access";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
 
@@ -40,7 +40,7 @@ function mobileExpiry(plannedEnd?: string | null) {
 }
 
 export async function GET(_request: Request, context: { params: Promise<{ code: string }> }) {
-  const auth = await getAuthenticatedContext();
+  const auth = await getAuthenticatedOrReviewContext();
   if (!auth) return noStore({ error: "No autorizado." }, { status: 401 });
   const { code } = await context.params;
   const trip = await tripForTenant(decodeURIComponent(code), auth.tenantId);
