@@ -1,5 +1,10 @@
+import { cookies } from "next/headers";
 import QRCode from "qrcode";
-import { documentForAccessKey } from "@/lib/cmr-access";
+import {
+  CMR_VIEW_SESSION_COOKIE,
+  documentForAccessKey,
+  documentForViewSession,
+} from "@/lib/cmr-access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,9 +15,15 @@ export async function GET(request: Request, context: { params: Promise<{ cmr: st
   const { cmr } = await context.params;
   const cmrNumber = decodeURIComponent(cmr).toUpperCase();
   const url = new URL(request.url);
-  const data = await documentForAccessKey(url.searchParams.get("key") ?? "");
-  if (!data) return new Response("CMR Key no válida.", { status: 401, headers: noStore });
-  if (data.cmr_number !== cmrNumber) return new Response("La clave no pertenece al CMR.", { status: 403, headers: noStore });
+  const queryKey = url.searchParams.get("key") ?? "";
+  const store = await cookies();
+  const sessionToken = store.get(CMR_VIEW_SESSION_COOKIE)?.value;
+  const data = queryKey
+    ? await documentForAccessKey(queryKey)
+    : await documentForViewSession(sessionToken, cmrNumber);
+
+  if (!data) return new Response("CMR Key o sesión no válida.", { status: 401, headers: noStore });
+  if (data.cmr_number !== cmrNumber) return new Response("La capability no pertenece al CMR.", { status: 403, headers: noStore });
 
   const origin = url.origin;
   const payload = `${origin}/api/mobile/cmr/${encodeURIComponent(data.access_key)}`;
