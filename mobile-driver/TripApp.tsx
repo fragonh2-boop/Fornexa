@@ -151,7 +151,7 @@ export default function TripApp({ onExit, initialToken = "" }: TripAppProps) {
   }, [initialToken, loadTrip]);
 
   useEffect(() => {
-    if (!trip || stopAction) return;
+    if (!trip || stopAction || trip.trip.status === "COMPLETED") return;
     const timer = setInterval(() => loadTrip(token, true), 15000);
     return () => clearInterval(timer);
   }, [loadTrip, token, trip, stopAction]);
@@ -283,8 +283,12 @@ export default function TripApp({ onExit, initialToken = "" }: TripAppProps) {
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || "No se pudo finalizar el viaje.");
-      await loadTrip(token, true);
-      Alert.alert("Viaje finalizado", "El viaje queda cerrado en FORNEXA.");
+      const completedAt = typeof body.completedAt === "string" ? body.completedAt : new Date().toISOString();
+      setTrip((current) => current ? {
+        ...current,
+        trip: { ...current.trip, status: "COMPLETED", actual_end: completedAt },
+      } : current);
+      Alert.alert("Viaje finalizado", "El viaje queda cerrado en FORNEXA y el acceso Mobile ha sido revocado.");
     } catch (error) {
       Alert.alert("No se pudo finalizar", messageFor(error));
     } finally {
@@ -362,11 +366,11 @@ export default function TripApp({ onExit, initialToken = "" }: TripAppProps) {
     <SafeAreaView style={styles.safe}>
       <ScrollView
         contentContainerStyle={styles.page}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadTrip(token, true); }} />}
+        refreshControl={trip.trip.status === "COMPLETED" ? undefined : <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadTrip(token, true); }} />}
       >
         <View style={styles.top}>
           <TouchableOpacity onPress={() => setTrip(null)}><Text style={styles.back}>‹ Cambiar viaje</Text></TouchableOpacity>
-          <Text style={styles.sync}>● Sincronizado</Text>
+          <Text style={styles.sync}>{trip.trip.status === "COMPLETED" ? "✓ Finalizado" : "● Sincronizado"}</Text>
         </View>
         <Text style={styles.eyebrow}>VIAJE · {trip.trip.status}</Text>
         <Text style={styles.title}>{trip.trip.code}</Text>
@@ -407,7 +411,7 @@ export default function TripApp({ onExit, initialToken = "" }: TripAppProps) {
               </View>
               <Text style={styles.status}>{stop.status}</Text>
             </View>
-            {stop.status !== "Completada" && (
+            {stop.status !== "Completada" && trip.trip.status !== "COMPLETED" && (
               <View style={styles.actions}>
                 <Small label={stop.arrived_at ? "Llegada ✓" : "He llegado"} onPress={() => postEvent(stop, "arrival")} />
                 <Small label={`Foto POD (${stop.evidenceCount})`} onPress={() => addPhoto(stop)} />
