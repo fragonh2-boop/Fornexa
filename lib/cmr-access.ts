@@ -20,12 +20,27 @@ export async function documentForAccessKey(value: string) {
     .maybeSingle();
 
   if (error) throw error;
+  if (!data || data.access_key_revoked_at) return null;
+
+  if (data.access_key_expires_at) {
+    const expiresAt = Date.parse(data.access_key_expires_at);
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) return null;
+  }
+
   return data;
 }
 
 export function publicDocument(document: Record<string, unknown>) {
-  const { access_key: _accessKey, tenant_id: _tenantId, ...safeDocument } = document;
+  const {
+    access_key: _accessKey,
+    access_key_expires_at: _accessKeyExpiresAt,
+    access_key_revoked_at: _accessKeyRevokedAt,
+    tenant_id: _tenantId,
+    ...safeDocument
+  } = document;
   void _accessKey;
+  void _accessKeyExpiresAt;
+  void _accessKeyRevokedAt;
   void _tenantId;
   return safeDocument;
 }
