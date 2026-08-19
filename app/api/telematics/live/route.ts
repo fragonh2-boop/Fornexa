@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthenticatedContext } from "@/lib/auth-context";
+import { getAuthenticatedOrReviewContext } from "@/lib/auth-context";
 import { normalizeSamsaraLive } from "@/lib/telematics/runtime";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-  const auth = await getAuthenticatedContext();
+  const auth = await getAuthenticatedOrReviewContext();
   if (!auth) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
 
   const provider = request.nextUrl.searchParams.get("provider") || "samsara";
