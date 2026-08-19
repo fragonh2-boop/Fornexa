@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getAuthenticatedContext } from "@/lib/auth-context";
 import { createSupabaseAdmin, numericValue } from "@/lib/supabase-admin";
 import {
   FORNEXA_LOCAL_STORAGE_MAX_BYTES,
@@ -14,7 +15,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const TENANT_ID = "00000000-0000-4000-8000-000000000001";
 const MAX_KEYS = 500;
 
 type JsonRecord = Record<string, unknown>;
@@ -22,6 +22,8 @@ type PartyCandidate = JsonRecord & { code: string; legal_name: string };
 type AddressCandidate = JsonRecord & { party_code: string; code: string };
 
 export async function POST(request: NextRequest) {
+  const auth = await getAuthenticatedContext();
+  if (!auth) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   if (!isSameOrigin(request)) return NextResponse.json({ error: "Origen no autorizado." }, { status: 403 });
   const raw = await request.text();
   if (raw.length > FORNEXA_LOCAL_STORAGE_MAX_BYTES) return NextResponse.json({ error: "El almacenamiento local supera el límite de migración." }, { status: 413 });
@@ -37,7 +39,7 @@ export async function POST(request: NextRequest) {
   const sourceOrigin = request.nextUrl.origin;
   const supabase = createSupabaseAdmin();
   const { data: run, error: runError } = await supabase.from("local_storage_sync_runs").insert({
-    tenant_id: TENANT_ID,
+    tenant_id: auth.tenantId,
     source_origin: sourceOrigin,
     storage_keys: entries.length,
     source_items: entries.reduce((total, entry) => total + itemCount(entry.value), 0),
@@ -45,15 +47,15 @@ export async function POST(request: NextRequest) {
   if (runError || !run) return failure(runError ?? new Error("No se pudo iniciar la migración."));
 
   try {
-    await archiveEntries(supabase, sourceOrigin, entries);
-    const summary = await normalizeEntries(supabase, entries, run.id);
+    await archiveEntries(supabase, sourceOrigin, entries, auth.tenantId);
+    const summary = await normalizeEntries(supabase, entries, run.id, auth.tenantId, auth.userId);
     const normalizedRecords = Object.entries(summary).filter(([key]) => key !== "archivedKeys").reduce((total, [, count]) => total + count, 0);
     const { error: finishError } = await supabase.from("local_storage_sync_runs").update({
       status: "COMPLETED",
       normalized_records: normalizedRecords,
       summary,
       completed_at: new Date().toISOString(),
-    }).eq("id", run.id);
+    }).eq("id", run.id).eq("tenant_id", auth.tenantId);
     if (finishError) throw finishError;
 
     return NextResponse.json({
@@ -69,14 +71,14 @@ export async function POST(request: NextRequest) {
       status: "FAILED",
       error_message: errorMessage(error),
       completed_at: new Date().toISOString(),
-    }).eq("id", run.id);
+    }).eq("id", run.id).eq("tenant_id", auth.tenantId);
     return failure(error);
   }
 }
 
-async function archiveEntries(supabase: SupabaseClient, sourceOrigin: string, entries: LocalStorageEntry[]) {
+async function archiveEntries(supabase: SupabaseClient, sourceOrigin: string, entries: LocalStorageEntry[], tenantId: string) {
   const rows = entries.map(entry => ({
-    tenant_id: TENANT_ID,
+    tenant_id: tenantId,
     source_origin: sourceOrigin,
     storage_key: entry.key,
     item_key: "__root__",
@@ -90,7 +92,7 @@ async function archiveEntries(supabase: SupabaseClient, sourceOrigin: string, en
   if (error) throw error;
 }
 
-async function normalizeEntries(supabase: SupabaseClient, entries: LocalStorageEntry[], runId: string) {
+async function normalizeEntries(supabase: SupabaseClient, entries: LocalStorageEntry[], runId: string, tenantId: string, userId: string) {
   const byKey = new Map(entries.map(entry => [entry.key, entry.value]));
   const parties = new Map<string, PartyCandidate>();
   const addresses = new Map<string, AddressCandidate>();
@@ -142,7 +144,7 @@ async function normalizeEntries(supabase: SupabaseClient, entries: LocalStorageE
     addParty(parties, { code: "FORNEXA-UNASSIGNED", nombre: "Cliente pendiente de clasificar" }, "CUSTOMER");
   }
 
-  const partyRows = [...parties.values()].map(candidate => withoutEmpty({ ...candidate, tenant_id: TENANT_ID }));
+  const partyRows = [...parties.values()].map(candidate => withoutEmpty({ ...candidate, tenant_id: tenantId }));
   const partyResult = await upsertReturning(supabase, "parties", partyRows, "tenant_id,code", "id,code");
   const partyIds = new Map(partyResult.map(row => [clean(row.code), clean(row.id)]));
 
@@ -151,14 +153,14 @@ async function normalizeEntries(supabase: SupabaseClient, entries: LocalStorageE
     if (!partyId) return [];
     const { party_code: _partyCode, ...row } = candidate;
     void _partyCode;
-    return [{ ...withoutEmpty(row), tenant_id: TENANT_ID, party_id: partyId }];
+    return [{ ...withoutEmpty(row), tenant_id: tenantId, party_id: partyId }];
   });
   const addressResult = await upsertReturning(supabase, "party_addresses", addressRows, "tenant_id,party_id,code", "id,party_id,code");
   const addressIds = new Map(addressResult.map(row => [`${clean(row.party_id)}:${clean(row.code)}`, clean(row.id)]));
 
   await applyAdrOverrides(supabase, entries, partyIds);
-  const serviceIds = await ensureServices(supabase, entries, orders, expeditions);
-  const assignments = await importServiceAssignments(supabase, entries, partyIds, serviceIds);
+  const serviceIds = await ensureServices(supabase, entries, orders, expeditions, tenantId);
+  const assignments = await importServiceAssignments(supabase, entries, partyIds, serviceIds, tenantId);
 
   const orderRows = orders.flatMap(item => {
     const code = clean(item.id) || clean(item.codigo) || localCode("PT", item);
@@ -167,7 +169,7 @@ async function normalizeEntries(supabase: SupabaseClient, entries: LocalStorageE
     const pickupCode = clean(item.codigoOrigen) || `${code}-PICKUP`;
     const deliveryCode = clean(item.codigoDestino) || `${code}-DELIVERY`;
     return [withoutEmpty({
-      tenant_id: TENANT_ID,
+      tenant_id: tenantId,
       code,
       customer_id: customerId,
       customer_reference: clean(item.referencia),
@@ -192,7 +194,7 @@ async function normalizeEntries(supabase: SupabaseClient, entries: LocalStorageE
   const lineRows = orders.flatMap(item => {
     const orderId = orderIds.get(clean(item.id) || clean(item.codigo));
     if (!orderId) return [];
-    return [withoutEmpty({ tenant_id: TENANT_ID, order_id: orderId, line_number: 1, description: clean(item.mercancia) || clean(item.descripcion) || `Pedido ${clean(item.id)}`, packages: integerValue(item.bultos), gross_weight: numericValue(item.peso), volume: numericValue(item.volumen), adr: jsonValue({ declared: item.adr, regime: item.adrRegime }), metadata: legacyMetadata(item, runId) })];
+    return [withoutEmpty({ tenant_id: tenantId, order_id: orderId, line_number: 1, description: clean(item.mercancia) || clean(item.descripcion) || `Pedido ${clean(item.id)}`, packages: integerValue(item.bultos), gross_weight: numericValue(item.peso), volume: numericValue(item.volumen), adr: jsonValue({ declared: item.adr, regime: item.adrRegime }), metadata: legacyMetadata(item, runId) })];
   });
   await upsertReturning(supabase, "order_lines", lineRows, "order_id,line_number", "id");
 
@@ -209,13 +211,13 @@ async function normalizeEntries(supabase: SupabaseClient, entries: LocalStorageE
   const noteRows = [...noteCandidates.values()].flatMap(item => {
     const orderId = orderIds.get(clean(item.orderCode));
     if (!orderId) return [];
-    return [withoutEmpty({ tenant_id: TENANT_ID, code: clean(item.code), order_id: orderId, external_reference: clean(item.referencia) || clean(item.externalReference), pickup_address_id: orderResult.find(row => clean(row.id) === orderId)?.pickup_address_id, delivery_address_id: orderResult.find(row => clean(row.id) === orderId)?.delivery_address_id, packages: integerValue(item.bultos), gross_weight: numericValue(item.peso), volume: numericValue(item.volumen), goods_description: clean(item.mercancia) || clean(item.descripcion), status: noteStatus(item.estado), metadata: legacyMetadata(item, runId) })];
+    return [withoutEmpty({ tenant_id: tenantId, code: clean(item.code), order_id: orderId, external_reference: clean(item.referencia) || clean(item.externalReference), pickup_address_id: orderResult.find(row => clean(row.id) === orderId)?.pickup_address_id, delivery_address_id: orderResult.find(row => clean(row.id) === orderId)?.delivery_address_id, packages: integerValue(item.bultos), gross_weight: numericValue(item.peso), volume: numericValue(item.volumen), goods_description: clean(item.mercancia) || clean(item.descripcion), status: noteStatus(item.estado), metadata: legacyMetadata(item, runId) })];
   });
   const noteResult = await upsertReturning(supabase, "delivery_notes", noteRows, "tenant_id,code", "id,code,order_id");
   const noteByOrder = new Map(noteResult.map(row => [clean(row.order_id), clean(row.id)]));
 
   const expeditionRows = expeditions.map(item => withoutEmpty({
-    tenant_id: TENANT_ID,
+    tenant_id: tenantId,
     code: clean(item.id) || clean(item.codigo) || localCode("EX", item),
     service_id: serviceIdFor(item.servicio, serviceIds),
     planned_departure: dateValue(item.fecha),
@@ -232,15 +234,15 @@ async function normalizeEntries(supabase: SupabaseClient, entries: LocalStorageE
     for (const orderCode of stringList(item.partidas || item.pedidos)) {
       const orderId = orderIds.get(orderCode);
       const noteId = orderId ? noteByOrder.get(orderId) : undefined;
-      if (noteId) expeditionLinks.push({ tenant_id: TENANT_ID, expedition_id: expeditionId, delivery_note_id: noteId });
+      if (noteId) expeditionLinks.push({ tenant_id: tenantId, expedition_id: expeditionId, delivery_note_id: noteId });
     }
   }
   await upsertReturning(supabase, "expedition_delivery_notes", expeditionLinks, "expedition_id,delivery_note_id", "id");
 
-  const vehicleIds = await ensureVehicles(supabase, trips, runId);
-  const driverIds = await ensureDrivers(supabase, trips);
+  const vehicleIds = await ensureVehicles(supabase, trips, runId, tenantId);
+  const driverIds = await ensureDrivers(supabase, trips, tenantId);
   const tripRows = trips.map(item => withoutEmpty({
-    tenant_id: TENANT_ID,
+    tenant_id: tenantId,
     code: clean(item.id) || clean(item.codigo) || localCode("VJ", item),
     vehicle_id: vehicleIds.get(clean(item.vehiculo)),
     driver_id: driverIds.get(clean(item.conductor)),
@@ -256,15 +258,15 @@ async function normalizeEntries(supabase: SupabaseClient, entries: LocalStorageE
     if (!tripId) continue;
     stringList(item.expediciones).forEach((code, sequence) => {
       const expeditionId = expeditionIds.get(code);
-      if (expeditionId) tripLinks.push({ tenant_id: TENANT_ID, trip_id: tripId, expedition_id: expeditionId, sequence: sequence + 1 });
+      if (expeditionId) tripLinks.push({ tenant_id: tenantId, trip_id: tripId, expedition_id: expeditionId, sequence: sequence + 1 });
     });
   }
   await upsertReturning(supabase, "trip_expeditions", tripLinks, "trip_id,expedition_id", "id");
 
-  const cmrs = await importCmrDrafts(supabase, records(byKey.get("fornexa-cmr-documents")), runId);
-  const communications = await importEmailHistory(supabase, records(byKey.get("fornexa-email-history")), runId);
-  const warehouses = await importWarehouses(supabase, records(byKey.get("fornexa-almacenes")), partyIds, runId);
-  const offers = await importOffers(supabase, records(byKey.get("fornexa-ofertas-tarifas")), partyIds, serviceIds, runId);
+  const cmrs = await importCmrDrafts(supabase, records(byKey.get("fornexa-cmr-documents")), runId, tenantId);
+  const communications = await importEmailHistory(supabase, records(byKey.get("fornexa-email-history")), runId, tenantId);
+  const warehouses = await importWarehouses(supabase, records(byKey.get("fornexa-almacenes")), partyIds, runId, tenantId);
+  const offers = await importOffers(supabase, records(byKey.get("fornexa-ofertas-tarifas")), partyIds, serviceIds, runId, tenantId);
 
   const summary = {
     archivedKeys: entries.length,
@@ -283,7 +285,7 @@ async function normalizeEntries(supabase: SupabaseClient, entries: LocalStorageE
     warehouses,
     offers,
   };
-  await supabase.from("operational_events").insert({ tenant_id: TENANT_ID, entity_type: "LOCAL_STORAGE", event_type: "local_storage_migrated", source: "FORNEXA_WEB", data: { runId, summary } });
+  await supabase.from("operational_events").insert({ tenant_id: tenantId, actor_user_id: userId, entity_type: "LOCAL_STORAGE", event_type: "local_storage_migrated", source: "FORNEXA_WEB", data: { runId, summary } });
   return summary;
 }
 
@@ -373,8 +375,8 @@ async function applyAdrOverrides(supabase: SupabaseClient, entries: LocalStorage
   }
 }
 
-async function ensureServices(supabase: SupabaseClient, entries: LocalStorageEntry[], orders: JsonRecord[], expeditions: JsonRecord[]) {
-  const { data, error } = await supabase.from("service_catalog").select("id,code,name").eq("tenant_id", TENANT_ID);
+async function ensureServices(supabase: SupabaseClient, entries: LocalStorageEntry[], orders: JsonRecord[], expeditions: JsonRecord[], tenantId: string) {
+  const { data, error } = await supabase.from("service_catalog").select("id,code,name").eq("tenant_id", tenantId);
   if (error) throw error;
   const ids = new Map<string, string>();
   for (const row of data ?? []) {
@@ -394,14 +396,14 @@ async function ensureServices(supabase: SupabaseClient, entries: LocalStorageEnt
     }
   }
   if (missing.size) {
-    const rows = [...missing.values()].map(row => ({ tenant_id: TENANT_ID, mode: "ROAD", is_active: true, ...row }));
+    const rows = [...missing.values()].map(row => ({ tenant_id: tenantId, mode: "ROAD", is_active: true, ...row }));
     const created = await upsertReturning(supabase, "service_catalog", rows, "tenant_id,code", "id,code,name");
     for (const row of created) { ids.set(normalized(clean(row.code)), clean(row.id)); ids.set(normalized(clean(row.name)), clean(row.id)); }
   }
   return ids;
 }
 
-async function importServiceAssignments(supabase: SupabaseClient, entries: LocalStorageEntry[], partyIds: Map<string, string>, serviceIds: Map<string, string>) {
+async function importServiceAssignments(supabase: SupabaseClient, entries: LocalStorageEntry[], partyIds: Map<string, string>, serviceIds: Map<string, string>, tenantId: string) {
   const rows: JsonRecord[] = [];
   for (const entry of entries) {
     const serviceKey = parseServiceAssignmentKey(entry.key);
@@ -412,38 +414,38 @@ async function importServiceAssignments(supabase: SupabaseClient, entries: Local
       const assignment = asRecord(raw) ?? {};
       const serviceId = serviceIds.get(normalized(serviceCodeValue));
       if (!serviceId) continue;
-      rows.push({ tenant_id: TENANT_ID, party_id: partyId, service_id: serviceId, relationship_type: serviceKey.entityType === "cliente" ? "CONTRACTED" : "OFFERED", reference: clean(assignment.reference), conditions: jsonValue({ status: assignment.status, notes: assignment.notes }), is_active: clean(assignment.status).toLowerCase() !== "inactivo" });
+      rows.push({ tenant_id: tenantId, party_id: partyId, service_id: serviceId, relationship_type: serviceKey.entityType === "cliente" ? "CONTRACTED" : "OFFERED", reference: clean(assignment.reference), conditions: jsonValue({ status: assignment.status, notes: assignment.notes }), is_active: clean(assignment.status).toLowerCase() !== "inactivo" });
     }
   }
   await upsertReturning(supabase, "party_services", rows, "party_id,service_id,relationship_type", "id");
   return rows.length;
 }
 
-async function ensureVehicles(supabase: SupabaseClient, trips: JsonRecord[], runId: string) {
+async function ensureVehicles(supabase: SupabaseClient, trips: JsonRecord[], runId: string, tenantId: string) {
   const registrations = [...new Set(trips.map(item => clean(item.vehiculo)).filter(Boolean))];
-  const rows = registrations.map(registration => ({ tenant_id: TENANT_ID, registration, status: "AVAILABLE", metadata: { source: "localStorage", runId } }));
+  const rows = registrations.map(registration => ({ tenant_id: tenantId, registration, status: "AVAILABLE", metadata: { source: "localStorage", runId } }));
   const result = await upsertReturning(supabase, "vehicles", rows, "tenant_id,registration", "id,registration");
   return new Map(result.map(row => [clean(row.registration), clean(row.id)]));
 }
 
-async function ensureDrivers(supabase: SupabaseClient, trips: JsonRecord[]) {
+async function ensureDrivers(supabase: SupabaseClient, trips: JsonRecord[], tenantId: string) {
   const names = [...new Set(trips.map(item => clean(item.conductor)).filter(Boolean))];
-  const rows = names.map(name => ({ tenant_id: TENANT_ID, code: `DRV-${hash(name).slice(0, 10).toUpperCase()}`, name, status: "ACTIVE" }));
+  const rows = names.map(name => ({ tenant_id: tenantId, code: `DRV-${hash(name).slice(0, 10).toUpperCase()}`, name, status: "ACTIVE" }));
   const result = await upsertReturning(supabase, "drivers", rows, "tenant_id,code", "id,name");
   return new Map(result.map(row => [clean(row.name), clean(row.id)]));
 }
 
-async function importCmrDrafts(supabase: SupabaseClient, items: JsonRecord[], runId: string) {
+async function importCmrDrafts(supabase: SupabaseClient, items: JsonRecord[], runId: string, tenantId: string) {
   if (!items.length) return 0;
   const numbers = items.map(item => clean(item.cmrNumber) || clean(item.id)).filter(Boolean);
-  const { data, error } = numbers.length ? await supabase.from("cmr_documents").select("cmr_number").in("cmr_number", numbers) : { data: [], error: null };
+  const { data, error } = numbers.length ? await supabase.from("cmr_documents").select("cmr_number").eq("tenant_id", tenantId).in("cmr_number", numbers) : { data: [], error: null };
   if (error) throw error;
   const existing = new Set((data ?? []).map(row => clean(row.cmr_number)));
   const rows = items.flatMap(item => {
     const cmrNumber = clean(item.cmrNumber) || clean(item.id);
     if (!cmrNumber || existing.has(cmrNumber)) return [];
     return [withoutEmpty({
-      tenant_id: TENANT_ID,
+      tenant_id: tenantId,
       cmr_number: cmrNumber,
       access_key: clean(item.cmrKey) || `LOCAL-${hash(cmrNumber).slice(0, 20).toUpperCase()}`,
       status: cmrStatus(item.status),
@@ -476,10 +478,10 @@ async function importCmrDrafts(supabase: SupabaseClient, items: JsonRecord[], ru
   return rows.length;
 }
 
-async function importEmailHistory(supabase: SupabaseClient, items: JsonRecord[], runId: string) {
+async function importEmailHistory(supabase: SupabaseClient, items: JsonRecord[], runId: string, tenantId: string) {
   const rows = items.map(item => ({
     id: validUuid(item.id) ? clean(item.id) : deterministicUuid(`email:${stableStringify(item)}`),
-    tenant_id: TENANT_ID,
+    tenant_id: tenantId,
     channel: "EMAIL",
     direction: "OUTBOUND",
     recipient: clean(item.to),
@@ -495,17 +497,17 @@ async function importEmailHistory(supabase: SupabaseClient, items: JsonRecord[],
   return rows.length;
 }
 
-async function importWarehouses(supabase: SupabaseClient, items: JsonRecord[], partyIds: Map<string, string>, runId: string) {
-  const rows = items.map(item => ({ tenant_id: TENANT_ID, code: clean(item.id) || clean(item.codigo) || localCode("ALM", item), name: clean(item.nombre) || clean(item.name) || "Almacén", owner_party_id: partyIds.get(clean(item.clienteId)), status: clean(item.estado).toLowerCase() === "inactivo" ? "INACTIVE" : "ACTIVE", capabilities: jsonValue({ legacy: item, localStorageRunId: runId }) }));
+async function importWarehouses(supabase: SupabaseClient, items: JsonRecord[], partyIds: Map<string, string>, runId: string, tenantId: string) {
+  const rows = items.map(item => ({ tenant_id: tenantId, code: clean(item.id) || clean(item.codigo) || localCode("ALM", item), name: clean(item.nombre) || clean(item.name) || "Almacén", owner_party_id: partyIds.get(clean(item.clienteId)), status: clean(item.estado).toLowerCase() === "inactivo" ? "INACTIVE" : "ACTIVE", capabilities: jsonValue({ legacy: item, localStorageRunId: runId }) }));
   await upsertReturning(supabase, "warehouses", rows, "tenant_id,code", "id");
   return rows.length;
 }
 
-async function importOffers(supabase: SupabaseClient, items: JsonRecord[], partyIds: Map<string, string>, serviceIds: Map<string, string>, runId: string) {
+async function importOffers(supabase: SupabaseClient, items: JsonRecord[], partyIds: Map<string, string>, serviceIds: Map<string, string>, runId: string, tenantId: string) {
   const rows = items.flatMap(item => {
     const customerId = partyIds.get(clean(item.clienteId) || clean(item.customerId));
     if (!customerId) return [];
-    return [{ tenant_id: TENANT_ID, code: clean(item.id) || clean(item.codigo) || clean(item.referencia) || localCode("OF", item), customer_id: customerId, service_id: serviceIdFor(item.servicio, serviceIds), status: offerStatus(item.estado), currency: clean(item.moneda) || "EUR", total: numericValue(item.total) || 0, conditions: clean(item.notas), metadata: legacyMetadata(item, runId) }];
+    return [{ tenant_id: tenantId, code: clean(item.id) || clean(item.codigo) || clean(item.referencia) || localCode("OF", item), customer_id: customerId, service_id: serviceIdFor(item.servicio, serviceIds), status: offerStatus(item.estado), currency: clean(item.moneda) || "EUR", total: numericValue(item.total) || 0, conditions: clean(item.notas), metadata: legacyMetadata(item, runId) }];
   });
   await upsertReturning(supabase, "offers", rows, "tenant_id,code", "id");
   return rows.length;
