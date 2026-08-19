@@ -23,12 +23,20 @@ async function tripForTenant(code: string, tenantId: string) {
   const supabase = createSupabaseAdmin();
   const { data, error } = await supabase
     .from("trips")
-    .select("id,code,driver_id,status")
+    .select("id,code,driver_id,status,planned_end")
     .eq("tenant_id", tenantId)
     .eq("code", code)
     .maybeSingle();
   if (error) throw error;
   return data;
+}
+
+function mobileExpiry(plannedEnd?: string | null) {
+  const minimum = Date.now() + 72 * 60 * 60 * 1000;
+  const planned = plannedEnd ? new Date(plannedEnd).getTime() + 24 * 60 * 60 * 1000 : 0;
+  const target = Math.max(minimum, Number.isFinite(planned) ? planned : 0);
+  const maximum = Date.now() + 14 * 24 * 60 * 60 * 1000;
+  return new Date(Math.min(target, maximum));
 }
 
 export async function GET(_request: Request, context: { params: Promise<{ code: string }> }) {
@@ -47,10 +55,7 @@ export async function GET(_request: Request, context: { params: Promise<{ code: 
     .order("created_at", { ascending: false });
   if (error) return noStore({ error: "No se pudo consultar el acceso Mobile." }, { status: 500 });
 
-  return noStore({
-    trip: trip.code,
-    accesses: data ?? [],
-  });
+  return noStore({ trip: trip.code, accesses: data ?? [] });
 }
 
 export async function POST(_request: Request, context: { params: Promise<{ code: string }> }) {
@@ -81,6 +86,7 @@ export async function POST(_request: Request, context: { params: Promise<{ code:
       tenantId: auth.tenantId,
       tripId: trip.id,
       driverId: trip.driver_id,
+      expiresAt: mobileExpiry(trip.planned_end),
     });
     return noStore({
       trip: trip.code,
