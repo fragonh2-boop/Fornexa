@@ -39,7 +39,6 @@ export async function GET(_request: Request, context: { params: Promise<{ token:
         .select("id, cmr_number, status, expedition_record_id, sender, recipient, pickup_location, delivery_location, goods_description, packages, packaging, gross_weight, volume, adr")
         .eq("tenant_id", access.tenant_id)
         .in("expedition_record_id", expeditionIds)
-        .is("access_key_revoked_at", null)
     : { data: [], error: null };
 
   if (cmrError) return NextResponse.json({ error: "No se pudieron cargar los CMR" }, { status: 500 });
