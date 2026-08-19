@@ -3,7 +3,8 @@ import { createHash, randomBytes } from "node:crypto";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
 
 const TOKEN_BYTES = 32;
-export const MOBILE_TRIP_ACCESS_TTL_HOURS = 36;
+const LAST_USED_TOUCH_INTERVAL_MS = 5 * 60 * 1000;
+export const MOBILE_TRIP_ACCESS_TTL_HOURS = 72;
 
 export function createMobileTripToken() {
   return randomBytes(TOKEN_BYTES).toString("base64url");
@@ -43,11 +44,12 @@ export async function mobileTripAccessForToken(token: string) {
   if (!token || token.length < 32) return null;
 
   const supabase = createSupabaseAdmin();
-  const now = new Date().toISOString();
+  const nowDate = new Date();
+  const now = nowDate.toISOString();
   const tokenHash = hashMobileTripToken(token);
   const { data, error } = await supabase
     .from("mobile_trip_access")
-    .select("id, tenant_id, trip_id, driver_id, expires_at, revoked_at")
+    .select("id, tenant_id, trip_id, driver_id, expires_at, revoked_at, last_used_at")
     .eq("token_hash", tokenHash)
     .is("revoked_at", null)
     .gt("expires_at", now)
@@ -55,11 +57,14 @@ export async function mobileTripAccessForToken(token: string) {
 
   if (error || !data) return null;
 
-  await supabase
-    .from("mobile_trip_access")
-    .update({ last_used_at: now })
-    .eq("id", data.id)
-    .eq("tenant_id", data.tenant_id);
+  const lastUsedAt = data.last_used_at ? new Date(data.last_used_at).getTime() : 0;
+  if (!Number.isFinite(lastUsedAt) || nowDate.getTime() - lastUsedAt >= LAST_USED_TOUCH_INTERVAL_MS) {
+    await supabase
+      .from("mobile_trip_access")
+      .update({ last_used_at: now })
+      .eq("id", data.id)
+      .eq("tenant_id", data.tenant_id);
+  }
 
   return data;
 }
