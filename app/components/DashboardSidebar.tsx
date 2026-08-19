@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import styles from "../dashboard/layout.module.css";
 import FornexaLogo from "./FornexaLogo";
+import { createClient } from "@/lib/supabase/client";
 
 const navigation = [
   ["Control Tower", "/dashboard"],
@@ -69,6 +70,7 @@ export default function DashboardSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const currentHref = activeHref(pathname);
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     function openNewRecord(event: KeyboardEvent) {
@@ -85,6 +87,19 @@ export default function DashboardSidebar() {
     return () => window.removeEventListener("keydown", openNewRecord);
   }, [router, pathname, currentHref]);
 
+  async function handleSignOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      const supabase = await createClient();
+      await supabase.auth.signOut();
+      router.replace("/login");
+      router.refresh();
+    } finally {
+      setSigningOut(false);
+    }
+  }
+
   return (
     <aside className={styles.sidebar}>
       <Link href="/dashboard" className={styles.brand}><FornexaLogo className={styles.brandLogo} /></Link>
@@ -94,7 +109,13 @@ export default function DashboardSidebar() {
           return <Link key={href} href={href} scroll className={active ? styles.active : ""} aria-current={active ? "page" : undefined} onClick={() => window.scrollTo(0, 0)}>{label}</Link>;
         })}
       </nav>
-      <div className={styles.footer}><span>FORNEXA</span><small>Supply Chain Suite</small></div>
+      <div className={styles.footer}>
+        <span>FORNEXA</span>
+        <small>Supply Chain Suite</small>
+        <button type="button" className={styles.signOut} onClick={handleSignOut} disabled={signingOut}>
+          {signingOut ? "Cerrando sesión…" : "Cerrar sesión"}
+        </button>
+      </div>
     </aside>
   );
 }
