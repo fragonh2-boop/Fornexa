@@ -49,6 +49,7 @@ export async function GET() {
   const auth = await getAuthenticatedOrReviewContext();
   if (!auth) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
 
+  const tenantId = auth.tenantId;
   const supabase = createSupabaseAdmin();
   const { data, error } = await supabase
     .from("orders")
@@ -60,7 +61,7 @@ export async function GET() {
       service:service_catalog!orders_service_id_fkey(code,name),
       expeditions(id,code,status)
     `)
-    .eq("tenant_id", auth.tenantId)
+    .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -95,6 +96,9 @@ export async function POST(request: Request) {
   const auth = await getAuthenticatedContext();
   if (!auth) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
 
+  const tenantId = auth.tenantId;
+  const userId = auth.userId;
+
   let body: Record<string, unknown>;
   try {
     body = await request.json();
@@ -118,7 +122,7 @@ export async function POST(request: Request) {
   const { data: customer, error: customerError } = await supabase
     .from("parties")
     .select("id,code,adr_control")
-    .eq("tenant_id", auth.tenantId)
+    .eq("tenant_id", tenantId)
     .eq("code", customerCode)
     .eq("is_customer", true)
     .maybeSingle();
@@ -131,7 +135,7 @@ export async function POST(request: Request) {
     const { data, error } = await supabase
       .from("party_addresses")
       .select("id,code,party_id")
-      .eq("tenant_id", auth.tenantId)
+      .eq("tenant_id", tenantId)
       .eq("code", code)
       .eq("is_active", true)
       .maybeSingle();
@@ -149,7 +153,7 @@ export async function POST(request: Request) {
     const { data: service, error: serviceError } = await supabase
       .from("service_catalog")
       .select("id")
-      .eq("tenant_id", auth.tenantId)
+      .eq("tenant_id", tenantId)
       .eq("code", serviceCode)
       .maybeSingle();
     if (serviceError) throw serviceError;
@@ -172,7 +176,7 @@ export async function POST(request: Request) {
   }
 
   const insert = {
-    tenant_id: auth.tenantId,
+    tenant_id: tenantId,
     customer_id: customer.id,
     customer_reference: text(body.customerReference) || null,
     service_id: serviceId,
@@ -188,7 +192,7 @@ export async function POST(request: Request) {
     status: "READY",
     metadata: {
       source: "web_partida_form",
-      actorUserId: auth.userId,
+      actorUserId: userId,
       pickup: {
         code: pickupCode || null,
         address: text(body.pickupAddress) || null,
