@@ -45,13 +45,16 @@ export async function POST(request: NextRequest) {
   const particularTerms = clean(input.particularTerms, 4000);
   const expeditionRefs = normalizeExpeditionRefs(input);
 
-  const expeditionRecords: Array<{ id: string; code: string }> = [];
+  let expeditionRecords: Array<{ id: string; code: string }> = [];
   for (const expeditionRef of expeditionRefs) {
     let query = supabase.from("expeditions").select("id,code").eq("tenant_id", auth.tenantId);
     query = isUuid(expeditionRef) ? query.eq("id", expeditionRef) : query.eq("code", expeditionRef);
     const { data: expedition, error: expeditionError } = await query.maybeSingle();
     if (expeditionError) return failure(expeditionError);
-    if (expedition?.id && !expeditionRecords.some(item => item.id === expedition.id)) expeditionRecords.push(expedition as { id: string; code: string });
+    if (!expedition?.id) {
+      return NextResponse.json({ error: "La Expedición indicada no existe en este tenant.", expeditionRef }, { status: 404 });
+    }
+    if (!expeditionRecords.some(item => item.id === expedition.id)) expeditionRecords.push(expedition as { id: string; code: string });
   }
 
   let tripRecord: CanonicalTrip | null = null;
@@ -86,6 +89,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Alguna Expedición del CMR no pertenece al Viaje indicado." }, { status: 409 });
     }
 
+    const expeditionById = new Map(expeditionRecords.map(item => [item.id, item] as const));
+    const orderedExpeditionRecords: Array<{ id: string; code: string }> = [];
+    for (const link of links ?? []) {
+      const expedition = expeditionById.get(link.expedition_id);
+      if (expedition) orderedExpeditionRecords.push(expedition);
+    }
+    expeditionRecords = orderedExpeditionRecords;
+
     const pairByExpedition = new Map<string, CanonicalTripStopPair>();
     const { data: canonicalStops, error: canonicalStopsError } = await supabase
       .from("trip_stops")
@@ -106,7 +117,7 @@ export async function POST(request: NextRequest) {
       pairByExpedition.set(expeditionId, pair);
     }
 
-    const orderedExpeditionIds = (links ?? []).map(item => item.expedition_id).filter((id): id is string => typeof id === "string");
+    const orderedExpeditionIds = expeditionRecords.map(item => item.id);
     const firstPair = pairByExpedition.get(orderedExpeditionIds[0] ?? "");
     const lastPair = pairByExpedition.get(orderedExpeditionIds.at(-1) ?? "");
     pickupTripStopId = firstPair?.pickup ?? null;
