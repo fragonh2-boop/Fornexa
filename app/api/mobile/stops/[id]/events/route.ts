@@ -18,7 +18,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
   try {
     const authorization = await authorizeMobileStop(request, stopId);
     if (!authorization) return NextResponse.json({ error: "Credencial Mobile no válida para esta parada." }, { status: 401 });
-    const { document, stop, tenantId } = authorization;
+    const { document, stop, tenantId, tripId } = authorization;
     const supabase = createSupabaseAdmin();
 
     const overwriteArrival = body.overwrite === true;
@@ -97,6 +97,28 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     let allStopsCompleted = false;
     if (type === "arrival") {
       await supabase.from("cmr_documents").update({ status: "En tránsito", updated_at: occurredAt }).eq("id", document.id).eq("tenant_id", tenantId);
+
+      if (tripId) {
+        const { data: currentTrip, error: tripError } = await supabase
+          .from("trips")
+          .select("status,actual_start")
+          .eq("id", tripId)
+          .eq("tenant_id", tenantId)
+          .maybeSingle();
+        if (tripError) throw tripError;
+        if (currentTrip && !["COMPLETED", "CANCELLED"].includes(currentTrip.status)) {
+          const { error: tripUpdateError } = await supabase
+            .from("trips")
+            .update({
+              status: "IN_PROGRESS",
+              actual_start: currentTrip.actual_start ?? occurredAt,
+              updated_at: occurredAt,
+            })
+            .eq("id", tripId)
+            .eq("tenant_id", tenantId);
+          if (tripUpdateError) throw tripUpdateError;
+        }
+      }
     }
     if (type === "complete") {
       const { data: states, error: statesError } = await supabase.from("transport_stops").select("status").eq("cmr_id", document.id).eq("tenant_id", tenantId);
