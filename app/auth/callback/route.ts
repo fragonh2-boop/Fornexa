@@ -19,6 +19,7 @@ function noStore<T extends NextResponse>(response: T) {
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
+  const flowId = requestUrl.searchParams.get("sb_flow_id");
   const requestedNext = requestUrl.searchParams.get("next") || "/reset-password";
   const next = requestedNext.startsWith("/") && !requestedNext.startsWith("//") ? requestedNext : "/reset-password";
 
@@ -49,9 +50,18 @@ export async function GET(request: Request) {
     },
   });
 
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  const { error } = await supabase.auth.exchangeCodeForSession(
+    code,
+    flowId ? { flowId } : undefined,
+  );
 
   if (error) {
+    console.error("Supabase PKCE callback exchange failed", {
+      code: error.code ?? null,
+      name: error.name,
+      status: error.status ?? null,
+      hasFlowId: Boolean(flowId),
+    });
     return noStore(NextResponse.redirect(new URL("/login?error=invalid_link", requestUrl.origin)));
   }
 
