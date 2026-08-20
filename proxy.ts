@@ -30,12 +30,6 @@ function isProtectedApi(pathname: string) {
     || protectedApiPrefixes.some(prefix => pathname.startsWith(prefix));
 }
 
-// Shared CMR routes deliberately use capability authentication (access_key) rather
-// than Supabase user authentication because carriers/drivers/recipients may not have
-// a FORNEXA account. They still pass through Proxy for common no-cache/review-mode
-// controls, but every dynamic route MUST continue validating its own CMR↔access_key
-// relationship server-side. Matching the namespace here is defense in depth, not a
-// replacement for endpoint-level capability validation.
 function isSharedCmrApi(pathname: string) {
   return pathname.startsWith("/api/cmr/");
 }
@@ -92,12 +86,16 @@ export async function proxy(request: NextRequest) {
     return noStore(NextResponse.next({ request }));
   }
 
+  // Compatibility fallback for providers that return an auth code to the site root.
+  // The canonical flow is /auth/callback?next=..., but if the provider strips that
+  // redirect we still preserve recovery intent. Missing/unknown flow fails toward a
+  // normal password reset; first-access is only selected by an explicit marker.
   if (pathname === "/" && searchParams.has("code")) {
     const code = searchParams.get("code");
     const flow = request.cookies.get("fornexa_auth_flow")?.value;
     const callback = new URL("/auth/callback", origin);
     callback.searchParams.set("code", code ?? "");
-    callback.searchParams.set("next", flow === "recover" ? "/reset-password" : "/reset-password?firstAccess=1");
+    callback.searchParams.set("next", flow === "first-access" ? "/reset-password?firstAccess=1" : "/reset-password");
 
     const redirectResponse = NextResponse.redirect(callback);
     redirectResponse.cookies.set("fornexa_auth_flow", "", {
