@@ -15,9 +15,6 @@ const modeCopy = {
 };
 
 function rememberAuthFlow(flow: "recover" | "first-access") {
-  // Compatibility marker for legacy Supabase redirects that may return to /?code=...
-  // rather than preserving the full /auth/callback?next=... redirect URL. This value
-  // contains no credential or secret; it only tells Proxy which reset screen to open.
   document.cookie = `fornexa_auth_flow=${flow}; Max-Age=900; Path=/; SameSite=Lax; Secure`;
 }
 
@@ -70,6 +67,18 @@ function LoginForm() {
     if (mode === "session" && password.length < 8) { setMessage("La contraseña debe contener al menos 8 caracteres."); setIsError(true); return; }
     setLoading(true);
     try {
+      if (mode === "recover") {
+        const response = await fetch("/api/auth/recovery", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          cache: "no-store",
+          body: JSON.stringify({ email }),
+        });
+        if (!response.ok) throw new Error("No se ha podido completar la solicitud de recuperación.");
+        setMessage("Si la cuenta existe, recibirás un enlace de recuperación. Revisa también la carpeta de spam.");
+        return;
+      }
+
       const supabase = await createClient();
       const origin = window.location.origin;
       if (mode === "session") {
@@ -79,17 +88,10 @@ function LoginForm() {
         router.refresh();
         return;
       }
-      if (mode === "first-access") {
-        rememberAuthFlow("first-access");
-        const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${origin}/auth/callback?next=/reset-password?firstAccess=1`, shouldCreateUser: false } });
-        if (error) throw new Error(firstAccessErrorMessage(error.message));
-        setMessage("Si la cuenta está provisionada, recibirás un email de verificación. Revisa también spam o correo no deseado.");
-        return;
-      }
-      rememberAuthFlow("recover");
-      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${origin}/auth/callback?next=/reset-password` });
-      if (error) throw error;
-      setMessage("Si la cuenta existe, recibirás un enlace de recuperación. Revisa también la carpeta de spam.");
+      rememberAuthFlow("first-access");
+      const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${origin}/auth/callback?next=/reset-password?firstAccess=1`, shouldCreateUser: false } });
+      if (error) throw new Error(firstAccessErrorMessage(error.message));
+      setMessage("Si la cuenta está provisionada, recibirás un email de verificación. Revisa también spam o correo no deseado.");
     } catch (error) {
       setIsError(true);
       setMessage(error instanceof Error ? error.message : "No se ha podido completar la solicitud.");
