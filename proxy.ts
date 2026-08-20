@@ -86,15 +86,17 @@ export async function proxy(request: NextRequest) {
     return noStore(NextResponse.next({ request }));
   }
 
-  // Compatibility fallback for providers that return an auth code to the site root.
-  // The canonical flow is /auth/callback?next=..., but if the provider strips that
-  // redirect we still preserve recovery intent. Missing/unknown flow fails toward a
-  // normal password reset; first-access is only selected by an explicit marker.
+  // Compatibility fallback for providers that return a PKCE auth code to the site
+  // root. Preserve every parameter required to complete that exact PKCE flow. In
+  // particular, Supabase may include sb_flow_id and exchangeCodeForSession must see
+  // the same flow id instead of silently falling back to another pending verifier.
   if (pathname === "/" && searchParams.has("code")) {
     const code = searchParams.get("code");
+    const flowId = searchParams.get("sb_flow_id");
     const flow = request.cookies.get("fornexa_auth_flow")?.value;
     const callback = new URL("/auth/callback", origin);
     callback.searchParams.set("code", code ?? "");
+    if (flowId) callback.searchParams.set("sb_flow_id", flowId);
     callback.searchParams.set("next", flow === "first-access" ? "/reset-password?firstAccess=1" : "/reset-password");
 
     const redirectResponse = NextResponse.redirect(callback);
