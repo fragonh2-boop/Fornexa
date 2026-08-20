@@ -14,6 +14,13 @@ const modeCopy = {
   recover: { title: "Recuperar contraseña", description: "Te enviaremos un enlace seguro para crear una nueva contraseña.", submit: "Enviar enlace de recuperación" },
 };
 
+function rememberAuthFlow(flow: "recover" | "first-access") {
+  // Compatibility marker for legacy Supabase redirects that may return to /?code=...
+  // rather than preserving the full /auth/callback?next=... redirect URL. This value
+  // contains no credential or secret; it only tells Proxy which reset screen to open.
+  document.cookie = `fornexa_auth_flow=${flow}; Max-Age=900; Path=/; SameSite=Lax; Secure`;
+}
+
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -31,6 +38,7 @@ function LoginForm() {
     const error = searchParams.get("error");
     if (error === "missing_code") return "El enlace de acceso no contiene un código válido.";
     if (error === "invalid_link") return "El enlace ha caducado o ya ha sido utilizado.";
+    if (error === "auth_configuration") return "El servicio de acceso no está correctamente configurado.";
     return "";
   }, [searchParams]);
   const visibleCallbackError = dismissedCallbackError ? "" : callbackError;
@@ -72,11 +80,13 @@ function LoginForm() {
         return;
       }
       if (mode === "first-access") {
+        rememberAuthFlow("first-access");
         const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${origin}/auth/callback?next=/reset-password?firstAccess=1`, shouldCreateUser: false } });
         if (error) throw new Error(firstAccessErrorMessage(error.message));
         setMessage("Si la cuenta está provisionada, recibirás un email de verificación. Revisa también spam o correo no deseado.");
         return;
       }
+      rememberAuthFlow("recover");
       const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${origin}/auth/callback?next=/reset-password` });
       if (error) throw error;
       setMessage("Si la cuenta existe, recibirás un enlace de recuperación. Revisa también la carpeta de spam.");
