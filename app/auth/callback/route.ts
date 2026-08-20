@@ -8,25 +8,33 @@ type CookieToSet = {
   options?: CookieOptions;
 };
 
+function noStore<T extends NextResponse>(response: T) {
+  response.headers.set("Cache-Control", "private, no-cache, no-store, max-age=0, must-revalidate");
+  response.headers.set("Pragma", "no-cache");
+  response.headers.set("Expires", "0");
+  response.headers.set("Referrer-Policy", "no-referrer");
+  return response;
+}
+
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  const requestedNext = requestUrl.searchParams.get("next") || "/onboarding";
-  const next = requestedNext.startsWith("/") && !requestedNext.startsWith("//") ? requestedNext : "/onboarding";
+  const requestedNext = requestUrl.searchParams.get("next") || "/reset-password";
+  const next = requestedNext.startsWith("/") && !requestedNext.startsWith("//") ? requestedNext : "/reset-password";
 
   if (!code) {
-    return NextResponse.redirect(new URL("/login?error=missing_code", requestUrl.origin));
+    return noStore(NextResponse.redirect(new URL("/login?error=missing_code", requestUrl.origin)));
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) {
     console.error("Supabase callback configuration is missing.");
-    return NextResponse.redirect(new URL("/login?error=auth_configuration", requestUrl.origin));
+    return noStore(NextResponse.redirect(new URL("/login?error=auth_configuration", requestUrl.origin)));
   }
 
   const cookieStore = await cookies();
-  const response = NextResponse.redirect(new URL(next, requestUrl.origin));
+  const response = noStore(NextResponse.redirect(new URL(next, requestUrl.origin)));
 
   const supabase = createServerClient(url, key, {
     cookies: {
@@ -44,7 +52,7 @@ export async function GET(request: Request) {
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
-    return NextResponse.redirect(new URL("/login?error=invalid_link", requestUrl.origin));
+    return noStore(NextResponse.redirect(new URL("/login?error=invalid_link", requestUrl.origin)));
   }
 
   return response;
