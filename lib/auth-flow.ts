@@ -1,11 +1,21 @@
 export type AuthEmailFlow = "recover" | "first-access";
 
+export const RECOVERY_TOKEN_COOKIE = "fornexa_recovery_token";
+
 export function parseAuthEmailFlow(value: unknown): AuthEmailFlow {
   return value === "first-access" ? "first-access" : "recover";
 }
 
 export function resetPasswordPath(flow: AuthEmailFlow) {
   return flow === "first-access" ? "/reset-password?firstAccess=1" : "/reset-password";
+}
+
+export function recoveryVerificationPath(flow: AuthEmailFlow) {
+  return flow === "first-access" ? "/auth/verify?flow=first-access" : "/auth/verify?flow=recover";
+}
+
+export function isSafeTokenHash(value: string | null | undefined) {
+  return Boolean(value && value.length <= 1024 && /^[A-Za-z0-9._~-]+$/.test(value));
 }
 
 export function safeInternalPath(value: string | null | undefined, fallback: string) {

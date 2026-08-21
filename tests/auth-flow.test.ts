@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   authEmailCopy,
+  isSafeTokenHash,
   loginErrorMessage,
   parseAuthEmailFlow,
+  recoveryVerificationPath,
   resetPasswordPath,
   safeInternalPath,
 } from "../lib/auth-flow.ts";
@@ -18,6 +20,16 @@ test("email auth flow accepts only the explicit first-access value", () => {
 test("first access and recovery land on the correct reset-password route", () => {
   assert.equal(resetPasswordPath("first-access"), "/reset-password?firstAccess=1");
   assert.equal(resetPasswordPath("recover"), "/reset-password");
+  assert.equal(recoveryVerificationPath("first-access"), "/auth/verify?flow=first-access");
+  assert.equal(recoveryVerificationPath("recover"), "/auth/verify?flow=recover");
+});
+
+test("recovery tokens are bounded and cookie-safe before storage", () => {
+  assert.equal(isSafeTokenHash("abcDEF_123-xyz.~"), true);
+  assert.equal(isSafeTokenHash("contains=padding"), false);
+  assert.equal(isSafeTokenHash("line\nbreak"), false);
+  assert.equal(isSafeTokenHash("a".repeat(1025)), false);
+  assert.equal(isSafeTokenHash(null), false);
 });
 
 test("post-login redirects accept internal paths and reject open redirects", () => {
