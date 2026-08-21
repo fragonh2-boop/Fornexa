@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { loginErrorMessage, type AuthEmailFlow } from "@/lib/auth-flow";
 import FornexaLogo from "../components/FornexaLogo";
 
 type AccessMode = "session" | "first-access" | "recover";
@@ -14,10 +15,6 @@ const modeCopy = {
   recover: { title: "Recuperar contraseña", description: "Te enviaremos un enlace seguro para crear una nueva contraseña.", submit: "Enviar enlace de recuperación" },
 };
 
-function rememberAuthFlow(flow: "recover" | "first-access") {
-  document.cookie = `fornexa_auth_flow=${flow}; Max-Age=900; Path=/; SameSite=Lax; Secure`;
-}
-
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -25,7 +22,6 @@ function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [remember, setRemember] = useState(true);
   const [message, setMessage] = useState("");
   const [isError, setIsError] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -67,34 +63,33 @@ function LoginForm() {
     if (mode === "session" && password.length < 8) { setMessage("La contraseña debe contener al menos 8 caracteres."); setIsError(true); return; }
     setLoading(true);
     try {
-      if (mode === "recover") {
+      if (mode === "recover" || mode === "first-access") {
+        const flow: AuthEmailFlow = mode;
         const response = await fetch("/api/auth/recovery", {
           method: "POST",
           headers: { "Content-Type": "application/json", Accept: "application/json" },
           cache: "no-store",
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email, flow }),
         });
-        if (!response.ok) throw new Error("No se ha podido completar la solicitud de recuperación.");
-        setMessage("Si la cuenta existe, recibirás un enlace de recuperación. Revisa también la carpeta de spam.");
+        if (!response.ok) throw new Error("No se ha podido completar la solicitud.");
+        setMessage(flow === "first-access"
+          ? "Si la cuenta está provisionada, recibirás un enlace seguro para crear tu contraseña. Revisa también spam o correo no deseado."
+          : "Si la cuenta existe, recibirás un enlace de recuperación. Revisa también la carpeta de spam.");
         return;
       }
 
       const supabase = await createClient();
-      const origin = window.location.origin;
-      if (mode === "session") {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw new Error(loginErrorMessage(error.message));
-        router.push("/dashboard");
-        router.refresh();
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        setIsError(true);
+        setMessage(loginErrorMessage(error.message));
         return;
       }
-      rememberAuthFlow("first-access");
-      const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${origin}/auth/callback?next=/reset-password?firstAccess=1`, shouldCreateUser: false } });
-      if (error) throw new Error(firstAccessErrorMessage(error.message));
-      setMessage("Si la cuenta está provisionada, recibirás un email de verificación. Revisa también spam o correo no deseado.");
-    } catch (error) {
+      router.push("/dashboard");
+      router.refresh();
+    } catch {
       setIsError(true);
-      setMessage(error instanceof Error ? error.message : "No se ha podido completar la solicitud.");
+      setMessage("No se ha podido completar la solicitud. Inténtalo de nuevo más tarde.");
     } finally { setLoading(false); }
   }
 
@@ -127,7 +122,7 @@ function LoginForm() {
           <form onSubmit={handleSubmit} noValidate>
             <label className="auth-field">Correo electrónico<input type="email" autoComplete="email" placeholder="nombre@empresa.com" value={email} onChange={(event) => setEmail(event.target.value)} disabled={loading} /></label>
             {mode === "session" && <label className="auth-field">Contraseña<div className="password-field"><input type={showPassword ? "text" : "password"} autoComplete="current-password" placeholder="Mínimo 8 caracteres" value={password} onChange={(event) => setPassword(event.target.value)} disabled={loading} /><button type="button" onClick={() => setShowPassword((current) => !current)}>{showPassword ? "Ocultar" : "Mostrar"}</button></div></label>}
-            {mode === "session" && <div className="auth-options"><label><input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} /> Mantener mi sesión iniciada</label><button type="button" onClick={() => changeMode("recover")}>¿Has olvidado la contraseña?</button></div>}
+            {mode === "session" && <div className="auth-options"><span>Sesión segura en este dispositivo</span><button type="button" onClick={() => changeMode("recover")}>¿Has olvidado la contraseña?</button></div>}
             <button className="auth-submit" type="submit" disabled={loading}>{loading ? "Procesando..." : currentCopy.submit}</button>
             {(message || visibleCallbackError) && <p className={`auth-message${isError || (!message && visibleCallbackError) ? " auth-message-error" : " auth-message-success"}`} role="status">{message || visibleCallbackError}</p>}
           </form>
@@ -136,20 +131,6 @@ function LoginForm() {
       </section>
     </main>
   );
-}
-
-function loginErrorMessage(message: string) {
-  if (message === "Invalid login credentials") return "El correo o la contraseña no son correctos. Si es tu primer acceso, abre el enlace de verificación y crea primero una contraseña.";
-  if (message === "Email not confirmed") return "Debes confirmar primero el correo electrónico desde el enlace que te hemos enviado.";
-  return message;
-}
-
-function firstAccessErrorMessage(message: string) {
-  const normalized = message.toLowerCase();
-  if (normalized.includes("signups not allowed") || normalized.includes("user not found")) {
-    return "La cuenta todavía no ha sido provisionada en FORNEXA. Contacta con un administrador.";
-  }
-  return message;
 }
 
 export default function LoginPage() {

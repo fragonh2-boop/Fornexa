@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
 import { escapeEmailHtml, sendEmail } from "@/lib/email-service";
+import { authEmailCopy, parseAuthEmailFlow } from "@/lib/auth-flow";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,9 +18,11 @@ function noStore<T extends NextResponse>(response: T) {
 
 export async function POST(request: Request) {
   let email = "";
+  let flow = parseAuthEmailFlow(null);
   try {
-    const body = (await request.json()) as { email?: string };
+    const body = (await request.json()) as { email?: string; flow?: string };
     email = String(body.email ?? "").trim().toLowerCase();
+    flow = parseAuthEmailFlow(body.flow);
   } catch {
     return noStore(NextResponse.json({ ok: true }));
   }
@@ -45,16 +48,18 @@ export async function POST(request: Request) {
     const confirmationUrl = new URL("/auth/confirm", appOrigin);
     confirmationUrl.searchParams.set("token_hash", data.properties.hashed_token);
     confirmationUrl.searchParams.set("type", "recovery");
+    confirmationUrl.searchParams.set("flow", flow);
 
+    const copy = authEmailCopy(flow);
     const safeUrl = escapeEmailHtml(confirmationUrl.toString());
     await sendEmail({
       to: [email],
-      subject: "Restablece tu contraseña de FORNEXA",
+      subject: copy.subject,
       tags: [
         { name: "source", value: "fornexa-auth" },
-        { name: "type", value: "password-recovery" },
+        { name: "type", value: copy.tag },
       ],
-      html: `<div style="background:#f4f7fb;padding:32px;font-family:Arial,sans-serif;color:#102033"><div style="max-width:620px;margin:auto;background:#ffffff;border:1px solid #dbe4ef;border-radius:16px;overflow:hidden"><div style="background:#07111f;color:#ffffff;padding:28px"><strong style="font-size:24px">FORNEXA</strong><p style="margin:8px 0 0;color:#66e6bd">Supply Chain Suite</p></div><div style="padding:30px;line-height:1.6"><h2 style="margin-top:0;color:#102033">Restablecer contraseña</h2><p>Hemos recibido una solicitud para crear una nueva contraseña para tu cuenta de FORNEXA.</p><p style="margin:28px 0"><a href="${safeUrl}" style="display:inline-block;background:#00679a;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 20px;border-radius:9px">Crear nueva contraseña</a></p><p style="color:#66758a;font-size:13px">Si no has solicitado este cambio, puedes ignorar este correo. El enlace es de un solo uso.</p></div></div></div>`,
+      html: `<div style="background:#f4f7fb;padding:32px;font-family:Arial,sans-serif;color:#102033"><div style="max-width:620px;margin:auto;background:#ffffff;border:1px solid #dbe4ef;border-radius:16px;overflow:hidden"><div style="background:#07111f;color:#ffffff;padding:28px"><strong style="font-size:24px">FORNEXA</strong><p style="margin:8px 0 0;color:#66e6bd">Supply Chain Suite</p></div><div style="padding:30px;line-height:1.6"><h2 style="margin-top:0;color:#102033">${copy.heading}</h2><p>${copy.introduction}</p><p style="margin:28px 0"><a href="${safeUrl}" style="display:inline-block;background:#00679a;color:#ffffff;text-decoration:none;font-weight:700;padding:13px 20px;border-radius:9px">${copy.button}</a></p><p style="color:#66758a;font-size:13px">Si no has solicitado este cambio, puedes ignorar este correo. El enlace es de un solo uso.</p></div></div></div>`,
     });
   } catch (error) {
     console.error("Recovery request failed", error instanceof Error ? { name: error.name, message: error.message } : { message: "unknown" });
