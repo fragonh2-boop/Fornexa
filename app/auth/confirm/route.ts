@@ -1,6 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { parseAuthEmailFlow, resetPasswordPath } from "@/lib/auth-flow";
 
 type CookieToSet = { name: string; value: string; options?: CookieOptions };
 
@@ -16,6 +17,7 @@ export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const tokenHash = requestUrl.searchParams.get("token_hash");
   const type = requestUrl.searchParams.get("type");
+  const flow = parseAuthEmailFlow(requestUrl.searchParams.get("flow"));
 
   if (!tokenHash || type !== "recovery") {
     return noStore(NextResponse.redirect(new URL("/login?error=invalid_link", requestUrl.origin)));
@@ -28,7 +30,7 @@ export async function GET(request: Request) {
   }
 
   const cookieStore = await cookies();
-  const response = noStore(NextResponse.redirect(new URL("/reset-password", requestUrl.origin)));
+  const response = noStore(NextResponse.redirect(new URL(resetPasswordPath(flow), requestUrl.origin)));
   const supabase = createServerClient(url, key, {
     cookies: {
       getAll() {

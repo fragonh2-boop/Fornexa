@@ -1,6 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 import { isValidReviewToken, REVIEW_COOKIE } from "@/lib/auth-context";
+import { safeInternalPath } from "@/lib/auth-flow";
 
 type CookieToSet = {
   name: string;
@@ -133,15 +134,18 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
+  const userId = !claimsError && typeof claimsData?.claims?.sub === "string"
+    ? claimsData.claims.sub
+    : null;
 
-  if (isProtectedApi(pathname) && !user) {
+  if (isProtectedApi(pathname) && !userId) {
     const unauthorized = NextResponse.json({ error: "No autorizado." }, { status: 401 });
     response.cookies.getAll().forEach(cookie => unauthorized.cookies.set(cookie));
     return noStore(unauthorized);
   }
 
-  if ((pathname.startsWith("/dashboard") || pathname === "/onboarding" || pathname === "/reset-password") && !user) {
+  if ((pathname.startsWith("/dashboard") || pathname === "/onboarding" || pathname === "/reset-password") && !userId) {
     const redirectResponse = NextResponse.redirect(loginRedirect(request, origin));
     response.cookies.getAll().forEach(cookie => redirectResponse.cookies.set(cookie));
     return noStore(redirectResponse);
@@ -149,11 +153,11 @@ export async function proxy(request: NextRequest) {
 
   const membershipRequired = pathname.startsWith("/dashboard") || pathname === "/onboarding" || pathname === "/login" || pathname === "/api/storage/migrate-local";
   let membership: ActiveMembership | null = null;
-  if (user && membershipRequired) {
+  if (userId && membershipRequired) {
     const { data: memberships, error } = await supabase
       .from("tenant_members")
       .select("tenant_id,role")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .eq("status", "ACTIVE")
       .limit(2);
     if (!error && memberships?.length === 1 && memberships[0]?.tenant_id && memberships[0]?.role) {
@@ -161,13 +165,13 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  if (user && (pathname.startsWith("/dashboard") || pathname === "/onboarding") && !membership) {
+  if (userId && (pathname.startsWith("/dashboard") || pathname === "/onboarding") && !membership) {
     const denied = NextResponse.redirect(new URL("/access-denied", origin));
     response.cookies.getAll().forEach(cookie => denied.cookies.set(cookie));
     return noStore(denied);
   }
 
-  if (pathname === "/api/storage/migrate-local" && user) {
+  if (pathname === "/api/storage/migrate-local" && userId) {
     if (membership?.role !== "OWNER" && membership?.role !== "ADMIN") {
       const forbidden = NextResponse.json({ error: "Permisos insuficientes." }, { status: 403 });
       response.cookies.getAll().forEach(cookie => forbidden.cookies.set(cookie));
@@ -175,20 +179,19 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  if (pathname === "/login" && user) {
+  if (pathname === "/login" && userId) {
     if (!membership) {
       const denied = NextResponse.redirect(new URL("/access-denied", origin));
       response.cookies.getAll().forEach(cookie => denied.cookies.set(cookie));
       return noStore(denied);
     }
-    const requestedNext = searchParams.get("next");
-    const safeNext = requestedNext?.startsWith("/") && !requestedNext.startsWith("//") ? requestedNext : "/dashboard";
+    const safeNext = safeInternalPath(searchParams.get("next"), "/dashboard");
     const redirectResponse = NextResponse.redirect(new URL(safeNext, origin));
     response.cookies.getAll().forEach(cookie => redirectResponse.cookies.set(cookie));
     return noStore(redirectResponse);
   }
 
-  const authSensitive = Boolean(user) || isProtectedApi(pathname) || pathname === "/login" || pathname === "/onboarding" || pathname === "/reset-password" || pathname.startsWith("/dashboard");
+  const authSensitive = Boolean(userId) || isProtectedApi(pathname) || pathname === "/login" || pathname === "/onboarding" || pathname === "/reset-password" || pathname.startsWith("/dashboard");
   return authSensitive ? noStore(response) : response;
 }
 
