@@ -23,7 +23,7 @@ function clearRecoveryToken(response: NextResponse, secure: boolean) {
   response.cookies.set(RECOVERY_TOKEN_COOKIE, "", {
     httpOnly: true,
     secure,
-    sameSite: "strict",
+    sameSite: "lax",
     path: "/auth",
     maxAge: 0,
   });
@@ -47,7 +47,7 @@ export async function GET(request: Request) {
   response.cookies.set(RECOVERY_TOKEN_COOKIE, tokenHash, {
     httpOnly: true,
     secure: requestUrl.protocol === "https:",
-    sameSite: "strict",
+    sameSite: "lax",
     path: "/auth",
     maxAge: 10 * 60,
   });
