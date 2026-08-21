@@ -14,8 +14,8 @@ export function recoveryVerificationPath(flow: AuthEmailFlow) {
   return flow === "first-access" ? "/auth/verify?flow=first-access" : "/auth/verify?flow=recover";
 }
 
-export function isSafeTokenHash(value: string | null | undefined) {
-  return Boolean(value && value.length <= 1024 && /^[A-Za-z0-9._~-]+$/.test(value));
+export function isSafeTokenHash(value: string | null | undefined): value is string {
+  return typeof value === "string" && value.length > 0 && value.length <= 1024 && /^[A-Za-z0-9._~-]+$/.test(value);
 }
 
 export function safeInternalPath(value: string | null | undefined, fallback: string) {
