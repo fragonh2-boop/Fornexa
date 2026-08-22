@@ -2,6 +2,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 import { isValidReviewToken, REVIEW_COOKIE } from "@/lib/auth-context";
 import { safeInternalPath } from "@/lib/auth-flow";
+import { shouldClearDeadSession, supabaseAuthCookieNames } from "@/lib/auth-session";
 
 type CookieToSet = {
   name: string;
@@ -134,10 +135,28 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  const { data: claimsData, error: claimsError } = await supabase.auth.getClaims();
-  const userId = !claimsError && typeof claimsData?.claims?.sub === "string"
-    ? claimsData.claims.sub
-    : null;
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  const userId = !userError && user?.id ? user.id : null;
+  const authCookieNames = supabaseAuthCookieNames(request.cookies.getAll(), url);
+
+  if (shouldClearDeadSession(authCookieNames.length > 0, userId, userError)) {
+    const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
+
+    // The SDK normally removes both the base cookie and all of its chunks. If
+    // Auth is unreachable, expire only the exact cookies received for this
+    // Supabase project so a dead session cannot survive the recovery redirect.
+    if (signOutError) {
+      authCookieNames.forEach(name => {
+        request.cookies.set(name, "");
+        response.cookies.set(name, "", {
+          path: "/",
+          maxAge: 0,
+          sameSite: "lax",
+          secure: true,
+        });
+      });
+    }
+  }
 
   if (isProtectedApi(pathname) && !userId) {
     const unauthorized = NextResponse.json({ error: "No autorizado." }, { status: 401 });
