@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 180" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="10 0 378.33 170" role="img" aria-labelledby="title desc">
   <title id="title">4NXA FORNEXA</title>
   <desc id="desc">Canonical FORNEXA 4NXA wordmark in monochrome blue.</desc>
-  <g fill="none" stroke="#0067ad" stroke-linecap="butt" stroke-linejoin="miter">
+  <g fill="none" stroke="#0067ad" stroke-linecap="round" stroke-linejoin="round">
     <path d="M30 108 L95 28 L95 142" stroke-width="20"/>
     <path d="M30 108 H138" stroke-width="20"/>
   </g>

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="4 FORNEXA">
   <rect width="256" height="256" rx="48" fill="#ffffff"/>
-  <g fill="none" stroke="#0067ad" stroke-linecap="butt" stroke-linejoin="miter" stroke-width="25">
+  <g fill="none" stroke="#0067ad" stroke-linecap="round" stroke-linejoin="round" stroke-width="25">
     <path d="M54 139 L125 51 L125 201"/>
     <path d="M54 139 H174"/>
   </g>

@@ -8,7 +8,7 @@ export default function FornexaLogo({ className, compact = false, title = "4NXA 
   return (
     <svg
       className={className}
-      viewBox="0 0 760 180"
+      viewBox="10 0 378.33 170"
       role="img"
       aria-label={title}
       xmlns="http://www.w3.org/2000/svg"
@@ -16,7 +16,7 @@ export default function FornexaLogo({ className, compact = false, title = "4NXA 
       data-compact={compact ? "true" : "false"}
     >
       <title>{title}</title>
-      <g fill="none" stroke="#0067ad" strokeLinecap="butt" strokeLinejoin="miter">
+      <g fill="none" stroke="#0067ad" strokeLinecap="round" strokeLinejoin="round">
         <path d="M30 108 L95 28 L95 142" strokeWidth="20" />
         <path d="M30 108 H138" strokeWidth="20" />
       </g>
