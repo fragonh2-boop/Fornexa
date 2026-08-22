@@ -110,6 +110,7 @@ export default function DashboardSidebar() {
         })}
       </nav>
       <div className={styles.footer}>
+        <Link href="/memorandum" className={styles.aboutLink}>Acerca de</Link>
         <span>FORNEXA</span>
         <small>Supply Chain Suite</small>
         <button type="button" className={styles.signOut} onClick={handleSignOut} disabled={signingOut}>

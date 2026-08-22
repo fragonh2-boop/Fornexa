@@ -82,6 +82,24 @@
   color: #718096;
 }
 
+.aboutLink {
+  width: max-content;
+  margin-bottom: 8px;
+  color: #8a98a9;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.aboutLink:hover,
+.aboutLink:focus-visible {
+  color: #005d8f;
+}
+
+.aboutLink:focus-visible {
+  outline: 2px solid rgba(0, 93, 143, 0.62);
+  outline-offset: 3px;
+}
+
 .signOut {
   margin-top: 8px;
   padding: 9px 12px;
