@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedContext, getAuthenticatedOrReviewContext } from "@/lib/auth-context";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
+import { evaluateAdrWarnings, shouldBlockForPolicy, type AdrDeclaration, type AdrFrequency, type AdrLineInput, type AdrPolicy, type HazardStatus } from "@/lib/adr";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -161,20 +162,58 @@ export async function POST(request: Request) {
     serviceId = service.id;
   }
 
-  const adrDeclared = text(body.adr).toUpperCase();
-  const adr = adrDeclared === "S" ? {
-    declared: true,
-    regime: text(body.adrRegime),
-    unNumber: text(body.unNumber).toUpperCase(),
-    class: text(body.adrClass),
-    packingGroup: text(body.packingGroup),
-    tunnelCode: text(body.tunnelCode).toUpperCase(),
-    description: text(body.adrDescription),
-  } : adrDeclared === "N" ? { declared: false } : {};
+  const { data: adrProfile } = await supabase.from("party_adr_profiles")
+    .select("frequency,validation_policy")
+    .eq("tenant_id", tenantId).eq("party_id", customer.id).maybeSingle();
+  const frequency = (adrProfile?.frequency ?? (customer.adr_control ? "SOMETIMES" : "NEVER")) as AdrFrequency;
+  const validationPolicy = (adrProfile?.validation_policy ?? "WARNING") as AdrPolicy;
+  const legacyAdr = text(body.adr).toUpperCase();
+  const requestedDeclaration = text(body.adrDeclaration).toUpperCase();
+  const adrDeclaration = (["UNANSWERED", "NO", "YES"].includes(requestedDeclaration)
+    ? requestedDeclaration
+    : legacyAdr === "S" ? "YES" : legacyAdr === "N" ? "NO" : "UNANSWERED") as AdrDeclaration;
 
-  if (customer.adr_control && !["S", "N"].includes(adrDeclared)) {
-    return NextResponse.json({ error: "Este cliente requiere declarar expresamente si la partida es ADR." }, { status: 400 });
+  const rawLines = Array.isArray(body.lines) ? body.lines as Record<string, unknown>[] : [];
+  const inputLines: AdrLineInput[] = (rawLines.length ? rawLines : [{
+    description: body.goodsDescription,
+    hazardStatus: adrDeclaration === "YES" ? "UNKNOWN" : "NON_HAZARDOUS",
+    packageCount: body.packages,
+  }]).map(line => ({
+    sku: text(line.sku).toUpperCase() || undefined,
+    description: text(line.description) || text(body.goodsDescription) || "Mercancía sin descripción",
+    hazardStatus: (["UNKNOWN", "NON_HAZARDOUS", "HAZMAT"].includes(text(line.hazardStatus).toUpperCase())
+      ? text(line.hazardStatus).toUpperCase()
+      : adrDeclaration === "YES" ? "UNKNOWN" : "NON_HAZARDOUS") as HazardStatus,
+    hazmatEntryId: text(line.hazmatEntryId) || undefined,
+    technicalName: text(line.technicalName) || undefined,
+    netQuantity: numberOrNull(line.netQuantity),
+    quantityUom: text(line.quantityUom) || undefined,
+    packageCount: integerOrNull(line.packageCount),
+    packagingTypeId: text(line.packagingTypeId) || undefined,
+    rememberForProduct: Boolean(line.rememberForProduct),
+  }));
+  const adrWarnings = evaluateAdrWarnings(adrDeclaration, frequency, inputLines);
+  if (shouldBlockForPolicy(validationPolicy, adrWarnings)) {
+    return NextResponse.json({ error: `La política ADR del cliente bloquea la confirmación: ${adrWarnings[0]?.message}` }, { status: 400 });
   }
+
+  const entryIds = [...new Set(inputLines.map(line => line.hazmatEntryId).filter(Boolean))] as string[];
+  const { data: entries, error: entriesError } = entryIds.length ? await supabase.from("hazmat_entries").select(`
+    id,edition_id,un_number,proper_shipping_name_es,technical_name_required,class_code,
+    subsidiary_risks,label_codes,packing_group,hazard_identification_number,
+    tunnel_restriction_code,transport_category,environmentally_hazardous,
+    edition:hazmat_editions!inner(code,status)
+  `).in("id", entryIds).eq("edition.status", "ACTIVE") : { data: [], error: null };
+  if (entriesError) return NextResponse.json({ error: "No se pudo validar el maestro ADR." }, { status: 500 });
+  const entryById = new Map((entries ?? []).map((entry: any) => [entry.id, entry]));
+  inputLines.forEach((line, index) => {
+    if (line.hazmatEntryId && !entryById.has(line.hazmatEntryId)) adrWarnings.push({ code: "ADR_MASTER_ENTRY_NOT_ACTIVE", line: index + 1, message: `La clasificación de la línea ${index + 1} no pertenece a una edición ADR activa.` });
+    const entry = line.hazmatEntryId ? entryById.get(line.hazmatEntryId) : null;
+    if (entry?.technical_name_required && !line.technicalName) adrWarnings.push({ code: "ADR_TECHNICAL_NAME_MISSING", line: index + 1, message: `La línea ${index + 1} requiere nombre técnico para su entrada N.E.P.` });
+  });
+
+  const activeEdition = (entries ?? [])[0]?.edition_id ?? null;
+  const adr = { declared: adrDeclaration === "YES", declaration: adrDeclaration, warningCount: adrWarnings.length, warnings: adrWarnings };
 
   const insert = {
     tenant_id: tenantId,
@@ -190,6 +229,9 @@ export async function POST(request: Request) {
     linear_meters: numberOrNull(body.linearMeters),
     goods_description: text(body.goodsDescription) || null,
     adr,
+    hazmat_declaration: adrDeclaration,
+    hazmat_edition_id: activeEdition,
+    hazmat_validation_status: adrWarnings.length ? (validationPolicy === "ACKNOWLEDGEMENT" ? "ACKNOWLEDGED" : "WARNING") : "VALIDATED",
     status: "READY",
     metadata: {
       source: "web_partida_form",
@@ -216,12 +258,107 @@ export async function POST(request: Request) {
   const { data: order, error: insertError } = await supabase
     .from("orders")
     .insert(insert)
-    .select("id,code,status,created_at")
+    .select("id,code,status,created_at,business_id,revision_number")
     .single();
 
   if (insertError) {
     console.error("Orders API POST error", insertError);
     return NextResponse.json({ error: "No se pudo guardar la partida." }, { status: 500 });
+  }
+
+  try {
+    for (const [index, line] of inputLines.entries()) {
+      const entry: any = line.hazmatEntryId ? entryById.get(line.hazmatEntryId) : null;
+      let productId: string | null = null;
+      if (line.sku) {
+        const { data: existingProduct } = await supabase.from("products").select("id,hazard_status")
+          .eq("tenant_id", tenantId).eq("customer_id", customer.id).eq("sku", line.sku).maybeSingle();
+        if (existingProduct) productId = existingProduct.id;
+        else if (line.rememberForProduct) {
+          const { data: product, error: productError } = await supabase.from("products").insert({
+            tenant_id: tenantId, customer_id: customer.id, sku: line.sku,
+            name: line.description || line.sku, hazard_status: line.hazardStatus,
+            metadata: { source: "order_creation", createdBy: userId },
+          }).select("id").single();
+          if (productError) throw productError;
+          productId = product.id;
+        }
+      }
+
+      const effectiveHazardStatus = adrDeclaration === "NO" && line.hazardStatus === "UNKNOWN" ? "NON_HAZARDOUS" : line.hazardStatus;
+      const { data: orderLine, error: orderLineError } = await supabase.from("order_lines").insert({
+        tenant_id: tenantId,
+        order_id: order.id,
+        line_number: index + 1,
+        description: line.description || "Mercancía sin descripción",
+        sku: line.sku || null,
+        product_id: productId,
+        packages: line.packageCount,
+        hazard_status: effectiveHazardStatus,
+        adr: entry ? { entryId: entry.id, unNumber: entry.un_number, edition: entry.edition?.code ?? null } : {},
+      }).select("id").single();
+      if (orderLineError) throw orderLineError;
+
+      if (entry) {
+        const { error: hazmatLineError } = await supabase.from("order_line_hazmat").insert({
+          order_line_id: orderLine.id,
+          tenant_id: tenantId,
+          hazmat_entry_id: entry.id,
+          edition_id: entry.edition_id,
+          packaging_type_id: line.packagingTypeId || null,
+          technical_name: line.technicalName || null,
+          net_quantity: line.netQuantity,
+          quantity_uom: line.quantityUom || null,
+          package_count: line.packageCount,
+          un_number: entry.un_number,
+          proper_shipping_name: entry.proper_shipping_name_es,
+          class_code: entry.class_code,
+          subsidiary_risks: entry.subsidiary_risks,
+          label_codes: entry.label_codes,
+          packing_group: entry.packing_group,
+          hazard_identification_number: entry.hazard_identification_number,
+          tunnel_restriction_code: entry.tunnel_restriction_code,
+          transport_category: entry.transport_category,
+          environmentally_hazardous: entry.environmentally_hazardous,
+          calculation_reasons: [{ code: "PENDING_RULE_IMPORT", message: "Pendiente de cálculo con reglas ADR verificadas." }],
+          rule_version: entry.edition?.code ?? null,
+        });
+        if (hazmatLineError) throw hazmatLineError;
+
+        if (productId && line.rememberForProduct) {
+          await supabase.from("product_hazmat_assignments").update({ valid_to: new Date().toISOString(), status: "RETIRED" })
+            .eq("tenant_id", tenantId).eq("product_id", productId).is("valid_to", null);
+          const { error: assignmentError } = await supabase.from("product_hazmat_assignments").insert({
+            tenant_id: tenantId, product_id: productId, hazmat_entry_id: entry.id, edition_id: entry.edition_id,
+            status: "VERIFIED", remembered_from_order_line_id: orderLine.id, approved_at: new Date().toISOString(), approved_by: userId,
+          });
+          if (assignmentError) throw assignmentError;
+          await supabase.from("products").update({ hazard_status: "HAZMAT", updated_at: new Date().toISOString() }).eq("id", productId).eq("tenant_id", tenantId);
+        }
+      }
+    }
+
+    const snapshot = { order: insert, lines: inputLines, adrWarnings };
+    const { data: revision, error: revisionError } = await supabase.from("entity_revisions").insert({
+      tenant_id: tenantId, entity_type: "ORDER", business_id: order.business_id, entity_id: order.id,
+      revision_number: order.revision_number, lifecycle_status: "DRAFT", snapshot, created_by: userId,
+    }).select("id").single();
+    if (revisionError) throw revisionError;
+    await supabase.from("order_hazmat_assessments").insert({
+      tenant_id: tenantId, order_id: order.id, edition_id: activeEdition,
+      status: adrWarnings.length ? (validationPolicy === "ACKNOWLEDGEMENT" ? "ACKNOWLEDGED" : "WARNING") : "VALIDATED",
+      warnings: adrWarnings, assessed_by: userId,
+    });
+    await supabase.from("audit_events").insert({
+      tenant_id: tenantId, entity_type: "ORDER", entity_id: order.id, business_id: order.business_id,
+      revision_id: revision.id, action: "CREATE", actor_user_id: userId, source_channel: "FORNEXA_WEB",
+      user_agent: request.headers.get("user-agent"), ip_address: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
+      changed_fields: Object.keys(insert), after_data: snapshot,
+    });
+  } catch (error) {
+    console.error("Orders API line persistence error", error);
+    await supabase.from("orders").delete().eq("id", order.id).eq("tenant_id", tenantId);
+    return NextResponse.json({ error: "No se pudo guardar la clasificación por líneas; no se ha conservado un pedido parcial." }, { status: 500 });
   }
 
   return NextResponse.json({
@@ -230,6 +367,7 @@ export async function POST(request: Request) {
       uuid: order.id,
       status: STATUS_LABELS[order.status] ?? order.status,
       createdAt: order.created_at,
+      adrWarnings: adrWarnings.length,
     },
   }, { status: 201, headers: { "Cache-Control": "no-store" } });
 }

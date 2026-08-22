@@ -18,10 +18,17 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "22 ago 2026";
+export const memorandumUpdatedAt = "23 ago 2026";
 export const memorandumCommitCoverage = 488;
 
 export const memorandumPending: MemorandumPending[] = [
+  {
+    area: "Técnico",
+    title: "Activación del maestro ADR 2025",
+    summary: "Importar y verificar la fuente oficial, sus embalajes y reglas antes de activar el cálculo regulatorio.",
+    priority: "Ahora",
+    state: "Pendiente",
+  },
   {
     area: "Funcional",
     title: "Autonomía de tenants",
@@ -53,6 +60,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.08.23",
+    date: "23 ago 2026",
+    surface: ["Web", "Plataforma"],
+    title: "Clasificación ADR trazable por artículo",
+    purpose: "Acelerar la identificación de mercancías peligrosas sin permitir códigos regulatorios manuales.",
+    outcome: "Perfiles por cliente, artículos reutilizables, clasificación por línea, advertencias configurables, revisiones y auditoría.",
+    status: "Producción",
+  },
   {
     version: "2026.08.22",
     date: "22 ago 2026",
