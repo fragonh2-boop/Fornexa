@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { getCustomer } from "../../../../../lib/customer-master";
+import { normalizeCustomerRouteCode } from "@/lib/address-master";
 import styles from "./client-master.module.css";
 
 type Address = {
@@ -42,8 +43,7 @@ const customerExamples: Record<string, { legalName: string; tradeName: string; t
 };
 
 function customerCode(id: string) {
-  const known: Record<string, string> = { "Mediterránea Retail": "CLI-000146", "Nova Distribution": "CLI-000145", "Atlas Components": "CLI-000144" };
-  return known[id] ?? `TER-${String(Math.abs([...id].reduce((total, char) => total + char.charCodeAt(0), 0))).padStart(6, "0")}`;
+  return normalizeCustomerRouteCode(id);
 }
 
 export default function ClientMasterEditor({ id }: { id: string }) {

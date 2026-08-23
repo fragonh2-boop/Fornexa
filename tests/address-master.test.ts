@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { canUseAddress, hasOperationalUse, normalizeCustomerAssignments } from "../lib/address-master.ts";
+import { canUseAddress, hasOperationalUse, normalizeCustomerAssignments, normalizeCustomerRouteCode } from "../lib/address-master.ts";
 
 test("keeps the current customer assigned and removes duplicates", () => {
   assert.deepEqual(normalizeCustomerAssignments("cli-000006", ["CLI-000006", "cli-000007", ""]), ["CLI-000006", "CLI-000007"]);
@@ -28,4 +28,9 @@ test("partida uses explicit empty selections and aligned controls", () => {
   assert.match(form, /<option value="" disabled>Seleccionar<\/option>/);
   assert.doesNotMatch(form, /placeholder="REC-001"|placeholder="ENT-001"/);
   assert.match(styles, /height:46px;min-height:46px/);
+});
+
+test("keeps canonical customer IDs when opening their configuration", () => {
+  assert.equal(normalizeCustomerRouteCode("CLI-000006"), "CLI-000006");
+  assert.equal(normalizeCustomerRouteCode("cli-000006"), "CLI-000006");
 });
