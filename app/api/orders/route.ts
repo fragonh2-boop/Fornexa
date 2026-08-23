@@ -133,6 +133,7 @@ export async function POST(request: Request) {
 
   if (customerError) throw customerError;
   if (!customer) return NextResponse.json({ error: "Customer ID no válido para este tenant." }, { status: 400 });
+  const customerId = customer.id;
 
   async function resolveAddress(addressId: string, code: string, use: "pickup" | "delivery") {
     if (!addressId && !code) return null;
@@ -150,7 +151,7 @@ export async function POST(request: Request) {
       .select("id")
       .eq("tenant_id", tenantId)
       .eq("address_id", data.id)
-      .eq("party_id", customer.id)
+      .eq("party_id", customerId)
       .eq(use === "pickup" ? "use_for_pickup" : "use_for_delivery", true)
       .maybeSingle();
     if (assignmentError) throw assignmentError;
