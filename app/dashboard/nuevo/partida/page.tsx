@@ -12,7 +12,7 @@ export default async function NewPartidaPage() {
   if (!auth) redirect("/login");
 
   const supabase = createSupabaseAdmin();
-  const [customersResult, addressesResult, servicesResult, adrProfilesResult] = await Promise.all([
+  const [customersResult, addressesResult, addressAssignmentsResult, servicesResult, adrProfilesResult] = await Promise.all([
     supabase
       .from("parties")
       .select("id,code,trade_name,legal_name,adr_control")
@@ -22,11 +22,15 @@ export default async function NewPartidaPage() {
       .order("code"),
     supabase
       .from("party_addresses")
-      .select("code,name,address_line1,postal_code,city,country_code,party:parties!party_addresses_party_id_fkey(code)")
+      .select("id,code,name,address_line1,postal_code,city,country_code,party:parties!party_addresses_party_id_fkey(code)")
       .eq("tenant_id", auth.tenantId)
       .eq("is_active", true)
       .not("code", "is", null)
       .order("code"),
+    supabase
+      .from("party_address_assignments")
+      .select("address_id,party_id,use_for_pickup,use_for_delivery")
+      .eq("tenant_id", auth.tenantId),
     supabase
       .from("service_catalog")
       .select("code,name")
@@ -41,11 +45,13 @@ export default async function NewPartidaPage() {
 
   if (customersResult.error) console.error("Nueva partida: clientes", customersResult.error);
   if (addressesResult.error) console.error("Nueva partida: direcciones", addressesResult.error);
+  if (addressAssignmentsResult.error) console.error("Nueva partida: asociaciones de direcciones", addressAssignmentsResult.error);
   if (servicesResult.error) console.error("Nueva partida: servicios", servicesResult.error);
   if (adrProfilesResult.error) console.error("Nueva partida: perfiles ADR", adrProfilesResult.error);
 
   const adrProfiles = new Map((adrProfilesResult.data ?? []).map((item: any) => [item.party_id, item]));
 
+  const customerCodeById = new Map((customersResult.data ?? []).map((item: any) => [item.id, item.code]));
   const customers: CustomerOption[] = (customersResult.data ?? []).map((item: any) => ({
     code: item.code,
     name: item.trade_name ?? item.legal_name ?? item.code,
@@ -54,7 +60,18 @@ export default async function NewPartidaPage() {
     adrPolicy: adrProfiles.get(item.id)?.validation_policy ?? "WARNING",
     preferredClasses: adrProfiles.get(item.id)?.preferred_classes ?? [],
   }));
+  const assignmentsByAddress = new Map<string, Array<{ customerCode: string; useForPickup: boolean; useForDelivery: boolean }>>();
+  (addressAssignmentsResult.data ?? []).forEach((item: any) => {
+    const customerCode = customerCodeById.get(item.party_id);
+    if (!customerCode) return;
+    assignmentsByAddress.set(item.address_id, [...(assignmentsByAddress.get(item.address_id) ?? []), {
+      customerCode,
+      useForPickup: item.use_for_pickup,
+      useForDelivery: item.use_for_delivery,
+    }]);
+  });
   const addresses: AddressOption[] = (addressesResult.data ?? []).map((item: any) => ({
+    id: item.id,
     code: item.code,
     name: item.name ?? item.code,
     address: item.address_line1 ?? "",
@@ -62,6 +79,7 @@ export default async function NewPartidaPage() {
     city: item.city ?? "",
     countryCode: String(item.country_code ?? "").trim(),
     partyCode: item.party?.code ?? "",
+    assignments: assignmentsByAddress.get(item.id) ?? [],
   }));
   const services: ServiceOption[] = (servicesResult.data ?? []).map((item: any) => ({ code: item.code, name: item.name }));
 

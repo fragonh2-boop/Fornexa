@@ -24,6 +24,13 @@ export const memorandumCommitCoverage = 488;
 export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
+    title: "Auditoría UX transversal",
+    summary: "Revisar consistencia de controles, estados vacíos, accesibilidad y comportamiento responsive en todo el aplicativo.",
+    priority: "Siguiente",
+    state: "En seguimiento",
+  },
+  {
+    area: "Técnico",
     title: "Activación del maestro ADR 2025",
     summary: "Importar y verificar la fuente oficial, sus embalajes y reglas antes de activar el cálculo regulatorio.",
     priority: "Ahora",
@@ -60,6 +67,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.08.23.2",
+    date: "23 ago 2026",
+    surface: ["Web", "Plataforma"],
+    title: "Direcciones reutilizables y formularios explícitos",
+    purpose: "Evitar selecciones aparentes y centralizar los puntos operativos sin duplicar direcciones.",
+    outcome: "Controles alineados, estados Seleccionar, direcciones compartibles por cliente y uso controlado desde su configuración.",
+    status: "Producción",
+  },
   {
     version: "2026.08.23",
     date: "23 ago 2026",

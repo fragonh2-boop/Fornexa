@@ -109,6 +109,8 @@ export async function POST(request: Request) {
   }
 
   const customerCode = text(body.customerCode).toUpperCase();
+  const pickupAddressId = text(body.pickupAddressId);
+  const deliveryAddressId = text(body.deliveryAddressId);
   const pickupCode = text(body.pickupCode).toUpperCase();
   const deliveryCode = text(body.deliveryCode).toUpperCase();
   const requestedServiceCode = text(body.serviceCode).toUpperCase() || LEGACY_SERVICE_CODES[text(body.service)] || "";
@@ -132,22 +134,36 @@ export async function POST(request: Request) {
   if (customerError) throw customerError;
   if (!customer) return NextResponse.json({ error: "Customer ID no válido para este tenant." }, { status: 400 });
 
-  async function resolveAddress(code: string) {
-    if (!code) return null;
-    const { data, error } = await supabase
+  async function resolveAddress(addressId: string, code: string, use: "pickup" | "delivery") {
+    if (!addressId && !code) return null;
+    let query = supabase
       .from("party_addresses")
       .select("id,code,party_id")
       .eq("tenant_id", tenantId)
-      .eq("code", code)
-      .eq("is_active", true)
-      .maybeSingle();
+      .eq("is_active", true);
+    query = addressId ? query.eq("id", addressId) : query.eq("code", code);
+    const { data, error } = await query.maybeSingle();
     if (error) throw error;
+    if (!data) return null;
+    const { data: assignment, error: assignmentError } = await supabase
+      .from("party_address_assignments")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("address_id", data.id)
+      .eq("party_id", customer.id)
+      .eq(use === "pickup" ? "use_for_pickup" : "use_for_delivery", true)
+      .maybeSingle();
+    if (assignmentError) throw assignmentError;
+    if (!assignment) return null;
     return data;
   }
 
-  const [pickup, delivery] = await Promise.all([resolveAddress(pickupCode), resolveAddress(deliveryCode)]);
-  if (pickupCode && !pickup) return NextResponse.json({ error: "Punto de recogida no válido para este tenant." }, { status: 400 });
-  if (deliveryCode && !delivery) return NextResponse.json({ error: "Punto de entrega no válido para este tenant." }, { status: 400 });
+  const [pickup, delivery] = await Promise.all([
+    resolveAddress(pickupAddressId, pickupCode, "pickup"),
+    resolveAddress(deliveryAddressId, deliveryCode, "delivery"),
+  ]);
+  if ((pickupAddressId || pickupCode) && !pickup) return NextResponse.json({ error: "Punto de recogida no válido o no asignado a este cliente." }, { status: 400 });
+  if ((deliveryAddressId || deliveryCode) && !delivery) return NextResponse.json({ error: "Punto de entrega no válido o no asignado a este cliente." }, { status: 400 });
 
   let serviceId: string | null = null;
   if (requestedServiceCode) {

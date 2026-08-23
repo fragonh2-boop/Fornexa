@@ -7,7 +7,10 @@ import { defaultAdrDeclaration, evaluateAdrWarnings, shouldBlockForPolicy, type 
 import styles from "./partida-form.module.css";
 
 export type CustomerOption = { code: string; name: string; adrControl: boolean; adrFrequency: AdrFrequency; adrPolicy: AdrPolicy; preferredClasses: string[] };
-export type AddressOption = { code: string; name: string; address: string; postalCode: string; city: string; countryCode: string; partyCode: string };
+export type AddressOption = {
+  id: string; code: string; name: string; address: string; postalCode: string; city: string; countryCode: string; partyCode: string;
+  assignments: Array<{ customerCode: string; useForPickup: boolean; useForDelivery: boolean }>;
+};
 export type ServiceOption = { code: string; name: string };
 
 type SaveMode = "new" | "keep" | "exit";
@@ -51,10 +54,10 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
   const exitRef = useRef<HTMLButtonElement>(null);
   const [customerCode, setCustomerCode] = useState("");
   const [reference, setReference] = useState("");
-  const [serviceCode, setServiceCode] = useState(services.find(item => item.code === "GROUPAGE")?.code ?? services[0]?.code ?? "");
+  const [serviceCode, setServiceCode] = useState("");
   const [requestedDate, setRequestedDate] = useState("");
-  const [pickupCode, setPickupCode] = useState("");
-  const [deliveryCode, setDeliveryCode] = useState("");
+  const [pickupAddressId, setPickupAddressId] = useState("");
+  const [deliveryAddressId, setDeliveryAddressId] = useState("");
   const [packages, setPackages] = useState("");
   const [weight, setWeight] = useState("");
   const [volume, setVolume] = useState("");
@@ -71,10 +74,10 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
   const [lastFingerprint, setLastFingerprint] = useState("");
 
   const customer = useMemo(() => customers.find(item => item.code === customerCode), [customers, customerCode]);
-  const pickup = useMemo(() => addresses.find(item => item.code === pickupCode), [addresses, pickupCode]);
-  const delivery = useMemo(() => addresses.find(item => item.code === deliveryCode), [addresses, deliveryCode]);
-  const pickupOptions = useMemo(() => addresses.filter(item => item.code.startsWith("REC-")), [addresses]);
-  const deliveryOptions = useMemo(() => addresses.filter(item => item.code.startsWith("ENT-")), [addresses]);
+  const pickup = useMemo(() => addresses.find(item => item.id === pickupAddressId), [addresses, pickupAddressId]);
+  const delivery = useMemo(() => addresses.find(item => item.id === deliveryAddressId), [addresses, deliveryAddressId]);
+  const pickupOptions = useMemo(() => addresses.filter(item => item.assignments.some(assignment => assignment.customerCode === customerCode && assignment.useForPickup)), [addresses, customerCode]);
+  const deliveryOptions = useMemo(() => addresses.filter(item => item.assignments.some(assignment => assignment.customerCode === customerCode && assignment.useForDelivery)), [addresses, customerCode]);
   const adrWarnings = useMemo(() => evaluateAdrWarnings(adrDeclaration, customer?.adrFrequency ?? "NEVER", lines.map(line => ({
     sku: line.sku, description: line.description, hazardStatus: line.hazardStatus, hazmatEntryId: line.hazmatEntry?.id,
     technicalName: line.technicalName, netQuantity: Number(normalizeDecimal(line.netQuantity)) || null,
@@ -82,7 +85,11 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
     packagingTypeId: line.packagingTypeId, rememberForProduct: line.rememberForProduct,
   }))), [adrDeclaration, customer, lines]);
 
-  useEffect(() => { if (customer) setAdrDeclaration(defaultAdrDeclaration(customer.adrFrequency)); }, [customer]);
+  useEffect(() => {
+    setPickupAddressId("");
+    setDeliveryAddressId("");
+    setAdrDeclaration(customer ? defaultAdrDeclaration(customer.adrFrequency) : "UNANSWERED");
+  }, [customer]);
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.repeat || readOnly) return;
@@ -126,7 +133,7 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
   }
 
   function resetForm() {
-    setCustomerCode(""); setReference(""); setRequestedDate(""); setPickupCode(""); setDeliveryCode("");
+    setCustomerCode(""); setReference(""); setServiceCode(""); setRequestedDate(""); setPickupAddressId(""); setDeliveryAddressId("");
     setPackages(""); setWeight(""); setVolume(""); setLinearMeters(""); setGoodsDescription("");
     setAdrDeclaration("UNANSWERED"); setLines([newLine()]); setLastFingerprint("");
     window.setTimeout(() => formRef.current?.querySelector<HTMLInputElement>('input[name="customerCode"]')?.focus(), 0);
@@ -134,7 +141,8 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
 
   function payload() {
     return {
-      customerCode, customerReference: reference, serviceCode, requestedDate, pickupCode, deliveryCode,
+      customerCode, customerReference: reference, serviceCode, requestedDate,
+      pickupAddressId, deliveryAddressId, pickupCode: pickup?.code ?? "", deliveryCode: delivery?.code ?? "",
       pickupAddress: pickup?.address ?? "", pickupCountry: pickup?.countryCode ?? "", pickupPostalCode: pickup?.postalCode ?? "", pickupZone: pickup?.postalCode.slice(0, 2) ?? "", shipper: pickup?.partyCode ?? "",
       deliveryAddress: delivery?.address ?? "", deliveryCountry: delivery?.countryCode ?? "", deliveryPostalCode: delivery?.postalCode ?? "", deliveryZone: delivery?.postalCode.slice(0, 2) ?? "", consignee: delivery?.partyCode ?? "",
       packages, grossWeight: normalizeDecimal(weight), volume: normalizeDecimal(volume), linearMeters: normalizeDecimal(linearMeters), goodsDescription, adrDeclaration,
@@ -148,6 +156,7 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
     if (readOnly) return setMessage("Modo revisión: solo lectura.");
     const mode = ((((event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null)?.value || "keep") as SaveMode);
     if (!customer) return setMessage("Selecciona un Customer ID válido.");
+    if (!serviceCode) return setMessage("Selecciona un servicio.");
     if (!pickup || !delivery) return setMessage("Selecciona puntos de recogida y entrega válidos.");
     if (!packages || Number(packages) < 1 || !normalizeDecimal(weight)) return setMessage("Bultos y peso son obligatorios y deben ser válidos.");
     if (shouldBlockForPolicy(customer.adrPolicy, adrWarnings)) return setMessage(`La política ADR de este cliente bloquea la confirmación: ${adrWarnings[0]?.message}`);
@@ -173,14 +182,15 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
     <section className={styles.card}><div className={styles.cardHeader}><div><p>CLIENTE Y SERVICIO</p><h2>Datos del pedido</h2></div><span>Persistencia canónica</span></div><div className={styles.grid}>
       <label>Customer ID maestro<input autoFocus name="customerCode" value={customerCode} onChange={event => setCustomerCode(event.target.value.toUpperCase())} list="canonical-customers" required placeholder="CLI-000146" /></label><datalist id="canonical-customers">{customers.map(item => <option key={item.code} value={item.code}>{item.name}</option>)}</datalist>
       <label>Cliente<input value={customer?.name ?? ""} readOnly placeholder="Se completa desde el maestro" /></label><label>Referencia cliente<input value={reference} onChange={event => setReference(event.target.value)} /></label>
-      <label>Servicio<select value={serviceCode} onChange={event => setServiceCode(event.target.value)}>{services.map(item => <option key={item.code} value={item.code}>{item.name} · {item.code}</option>)}</select></label><label>Fecha prevista<input type="date" value={requestedDate} onChange={event => setRequestedDate(event.target.value)} /></label>
-      <label>Perfil ADR<input value={customer ? ({ NEVER: "Nunca", SOMETIMES: "A veces", ALWAYS: "Siempre" }[customer.adrFrequency]) : "—"} readOnly /><small>{customer?.preferredClasses.length ? `Clases habituales: ${customer.preferredClasses.join(", ")}` : "Sin clases habituales configuradas."}</small></label>
+      <label>Servicio<select required value={serviceCode} className={!serviceCode ? styles.placeholderControl : ""} onChange={event => setServiceCode(event.target.value)}><option value="" disabled>Seleccionar</option>{services.map(item => <option key={item.code} value={item.code}>{item.name} · {item.code}</option>)}</select></label><label>Fecha prevista<input type="date" value={requestedDate} onChange={event => setRequestedDate(event.target.value)} /></label>
+      <label>Perfil ADR<input value={customer ? ({ NEVER: "Nunca", SOMETIMES: "A veces", ALWAYS: "Siempre" }[customer.adrFrequency]) : ""} readOnly placeholder="Selecciona primero el cliente" /><small>{customer?.preferredClasses.length ? `Clases habituales: ${customer.preferredClasses.join(", ")}` : "Sin clases habituales configuradas."}</small></label>
     </div></section>
 
     <section className={styles.card}><div className={styles.cardHeader}><div><p>RUTA</p><h2>Recogida y entrega</h2></div></div><div className={styles.grid}>
-      <label>Código punto de recogida<input value={pickupCode} onChange={event => setPickupCode(event.target.value.toUpperCase())} list="canonical-pickups" required placeholder="REC-001" /></label><datalist id="canonical-pickups">{pickupOptions.map(item => <option key={item.code} value={item.code}>{item.name} · {item.city}</option>)}</datalist>
-      <label>Código punto de entrega<input value={deliveryCode} onChange={event => setDeliveryCode(event.target.value.toUpperCase())} list="canonical-deliveries" required placeholder="ENT-001" /></label><datalist id="canonical-deliveries">{deliveryOptions.map(item => <option key={item.code} value={item.code}>{item.name} · {item.city}</option>)}</datalist>
+      <label>Punto de recogida<select value={pickupAddressId} required disabled={!customer} className={!pickupAddressId ? styles.placeholderControl : ""} onChange={event => setPickupAddressId(event.target.value)}><option value="" disabled>Seleccionar</option>{pickupOptions.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name} · {item.city}</option>)}</select></label>
+      <label>Punto de entrega<select value={deliveryAddressId} required disabled={!customer} className={!deliveryAddressId ? styles.placeholderControl : ""} onChange={event => setDeliveryAddressId(event.target.value)}><option value="" disabled>Seleccionar</option>{deliveryOptions.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name} · {item.city}</option>)}</select></label>
       <label>Dirección recogida<input value={pickup ? `${pickup.address} · ${pickup.postalCode} ${pickup.city} · ${pickup.countryCode}` : ""} readOnly /></label><label>Dirección entrega<input value={delivery ? `${delivery.address} · ${delivery.postalCode} ${delivery.city} · ${delivery.countryCode}` : ""} readOnly /></label>
+      {customer && (!pickupOptions.length || !deliveryOptions.length) && <p className={styles.routeHelp}>Faltan direcciones operativas para este cliente. Añádelas desde <Link href={`/dashboard/registros/clientes/${encodeURIComponent(customer.code)}`}>Configuración del cliente</Link>.</p>}
     </div></section>
 
     <section className={styles.card}><div className={styles.cardHeader}><div><p>MERCANCÍA</p><h2>Magnitudes generales</h2></div></div><div className={styles.grid}>
