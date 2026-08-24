@@ -18,8 +18,8 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "23 ago 2026";
-export const memorandumCommitCoverage = 488;
+export const memorandumUpdatedAt = "25 ago 2026";
+export const memorandumCommitCoverage = 489;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -67,6 +67,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.08.25",
+    date: "25 ago 2026",
+    surface: ["Web", "Plataforma"],
+    title: "Servicios canónicos y ayudas contextuales",
+    purpose: "Eliminar coberturas importadas como servicios y mantener alineados los formularios con ayuda accionable.",
+    outcome: "Catálogo depurado, campos alineados y avisos enlazados directamente a la configuración correspondiente.",
+    status: "Producción",
+  },
   {
     version: "2026.08.23.2",
     date: "23 ago 2026",
