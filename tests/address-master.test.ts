@@ -44,3 +44,14 @@ test("keeps canonical customer IDs when opening their configuration", () => {
   assert.equal(normalizeCustomerRouteCode("CLI-000006"), "CLI-000006");
   assert.equal(normalizeCustomerRouteCode("cli-000006"), "CLI-000006");
 });
+
+test("customer configuration uses the current light FORNEXA visual system", () => {
+  const customerStyles = readFileSync(new URL("../app/dashboard/registros/[module]/[id]/client-master.module.css", import.meta.url), "utf8");
+  const serviceStyles = readFileSync(new URL("../app/components/EntityServicesManager.module.css", import.meta.url), "utf8");
+  const recordStyles = readFileSync(new URL("../app/dashboard/registros/[module]/[id]/record.module.css", import.meta.url), "utf8");
+  assert.doesNotMatch(customerStyles, /#07111f|#0d1d30|#66e6bd/);
+  assert.doesNotMatch(serviceStyles, /#07111f|#0d1d30|#66e6bd/);
+  assert.match(customerStyles, /background:#fff/);
+  assert.match(serviceStyles, /background:#fff/);
+  assert.match(recordStyles, /\.clientStack\{min-height:100%;padding:34px 38px 50px/);
+});
