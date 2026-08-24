@@ -18,3 +18,6 @@
 .fieldHelp:hover,.fieldHelp:focus-visible{color:#004f78}
 .routeHelp{color:#086d9f;font-weight:800;text-decoration:none}
 .routeHelp:hover,.routeHelp:focus-visible{border-color:#8ab5cc;background:#eef7fb;text-decoration:underline;text-underline-offset:3px}
+
+.field{display:grid;grid-template-rows:auto 46px auto;align-content:start;align-self:start;gap:6px;min-width:0;color:#4b5a6c;font-size:12px;font-weight:800}
+.grid .field>label{display:block;align-self:auto;color:#4b5a6c}
