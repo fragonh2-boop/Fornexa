@@ -28,6 +28,16 @@ test("partida uses explicit empty selections and aligned controls", () => {
   assert.match(form, /<option value="" disabled>Seleccionar<\/option>/);
   assert.doesNotMatch(form, /placeholder="REC-001"|placeholder="ENT-001"/);
   assert.match(styles, /height:46px;min-height:46px/);
+  assert.match(styles, /grid-template-rows:auto 46px auto/);
+  assert.match(form, /#control-adr/);
+  assert.match(form, /#direcciones/);
+});
+
+test("partida excludes legacy coverage identifiers from services", () => {
+  const page = readFileSync(new URL("../app/dashboard/nuevo/partida/page.tsx", import.meta.url), "utf8");
+  const migration = readFileSync(new URL("../supabase/migrations/20260825101500_remove_legacy_route_service.sql", import.meta.url), "utf8");
+  assert.match(page, /\.neq\("service_type", "LEGACY"\)/);
+  assert.match(migration, /SRV-FR-69800/);
 });
 
 test("keeps canonical customer IDs when opening their configuration", () => {
