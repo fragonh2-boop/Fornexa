@@ -388,13 +388,8 @@ async function ensureServices(supabase: SupabaseClient, entries: LocalStorageEnt
     const name = clean(item.servicio);
     if (name && !ids.has(normalized(name))) missing.set(serviceCode(name), { code: serviceCode(name), name, service_type: name.toUpperCase(), metadata: { source: "localStorage" } });
   }
-  for (const entry of entries) {
-    if (!parseServiceAssignmentKey(entry.key)) continue;
-    const assignmentMap = asRecord(entry.value) ?? {};
-    for (const [serviceCodeValue] of Object.entries(assignmentMap)) {
-      if (!ids.has(normalized(serviceCodeValue))) missing.set(serviceCodeValue, { code: serviceCodeValue, name: serviceCodeValue, service_type: "LEGACY", metadata: { source: "localStorage assignment" } });
-    }
-  }
+  // Las claves territoriales del configurador antiguo son coberturas, no tipos
+  // de servicio. Solo se importan si ya resuelven contra un servicio canónico.
   if (missing.size) {
     const rows = [...missing.values()].map(row => ({ tenant_id: tenantId, mode: "ROAD", is_active: true, ...row }));
     const created = await upsertReturning(supabase, "service_catalog", rows, "tenant_id,code", "id,code,name");
