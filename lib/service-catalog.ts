@@ -37,23 +37,6 @@ export type ServiceProposal = {
 
 export const serviceCatalog: ServiceCoverage[] = [
   {
-    id: "SRV-FR-69800",
-    countryCode: "FR",
-    country: "Francia",
-    zone: "Lyon / Rhône-Alpes",
-    postalCodeRules: ["69"],
-    terminalCity: "Saint-Priest",
-    terminalPostalCode: "69800",
-    partner: "Red de corresponsalía Francia",
-    serviceMode: "Grupaje",
-    departureDays: ["L", "M", "X", "J", "V"],
-    estimatedTransitDays: 2,
-    hub: "Lyon",
-    adr: "Consultar",
-    active: true,
-    source: "DEPLIANT revisión 0152 · 09/03/2026",
-  },
-  {
     id: "SRV-FR-59273",
     countryCode: "FR",
     country: "Francia",

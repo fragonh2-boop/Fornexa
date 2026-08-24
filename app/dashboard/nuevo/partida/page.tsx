@@ -33,9 +33,10 @@ export default async function NewPartidaPage() {
       .eq("tenant_id", auth.tenantId),
     supabase
       .from("service_catalog")
-      .select("code,name")
+      .select("code,name,service_type")
       .eq("tenant_id", auth.tenantId)
       .eq("is_active", true)
+      .neq("service_type", "LEGACY")
       .order("name"),
     supabase
       .from("party_adr_profiles")

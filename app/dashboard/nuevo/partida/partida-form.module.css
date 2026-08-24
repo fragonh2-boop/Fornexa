@@ -9,3 +9,12 @@
 .grid select:disabled{background:#f5f7fa;color:#8793a3;cursor:not-allowed}
 .routeHelp{grid-column:1/-1;margin:0;padding:11px 13px;border:1px solid #d7e2ec;border-radius:10px;background:#f5f8fb;color:#526276;font-size:13px}
 .routeHelp a{color:#086d9f;font-weight:800}
+
+/* Reserva franjas estables para etiqueta, control y ayuda. Los mensajes nunca
+   desplazan el control de la columna contigua. */
+.grid label{grid-template-rows:auto 46px auto;align-content:start;align-self:start;min-width:0}
+.fieldHelp,.fieldHelpPlaceholder{min-height:18px;color:#6c7b8e;font-size:11px;font-weight:650;line-height:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fieldHelp{color:#086d9f;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}
+.fieldHelp:hover,.fieldHelp:focus-visible{color:#004f78}
+.routeHelp{color:#086d9f;font-weight:800;text-decoration:none}
+.routeHelp:hover,.routeHelp:focus-visible{border-color:#8ab5cc;background:#eef7fb;text-decoration:underline;text-underline-offset:3px}
