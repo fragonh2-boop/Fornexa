@@ -12,7 +12,7 @@ const nav=[["Control Tower","/dashboard"],["Decision Center","/dashboard/decisio
 
 type Item=Record<string,unknown>;
 export default function RecordEditor({module,id}:{module:string;id:string}){
- if(module==="clientes")return <div className={styles.clientStack}><ClientMasterEditor id={id}/><div className={styles.clientServices}><CustomerAdrSettings id={id}/><EntityServicesManager entityType="cliente" entityId={id}/></div></div>;
+ if(module==="clientes")return <div className={styles.clientStack}><ClientMasterEditor id={id}/><div className={styles.clientServices}><div id="control-adr"><CustomerAdrSettings id={id}/></div><EntityServicesManager entityType="cliente" entityId={id}/></div></div>;
  if(module==="ofertas-tarifas"&&id!=="nuevo")return <OfferEmailEditor id={id}/>;
  return <GenericRecordEditor module={module} id={id}/>;
 }
