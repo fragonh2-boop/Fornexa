@@ -97,14 +97,14 @@ export function subdivisionsFromSource(source: CountryRegionSource[], countryCod
   const override = overrideSubdivisions(country);
   if (override) return override;
   const item = source.find(entry => String(entry.countryShortCode ?? "").toUpperCase() === country);
-  return (item?.regions ?? [])
-    .map(region => {
-      const name = String(region.name ?? "").trim();
-      const code = safeSubdivisionCode(name, region.shortCode);
-      return name && code ? { id: buildSubdivisionId(country, code), code, name, postalPrefix: null } : null;
-    })
-    .filter((value): value is GeographySubdivision => Boolean(value))
-    .sort((a, b) => a.name.localeCompare(b.name, "es"));
+  const subdivisions: GeographySubdivision[] = [];
+  for (const region of item?.regions ?? []) {
+    const name = String(region.name ?? "").trim();
+    const code = safeSubdivisionCode(name, region.shortCode);
+    if (!name || !code) continue;
+    subdivisions.push({ id: buildSubdivisionId(country, code), code, name, postalPrefix: null });
+  }
+  return subdivisions.sort((a, b) => a.name.localeCompare(b.name, "es"));
 }
 
 export function subdivisionMatchesPostalCode(subdivision: Pick<GeographySubdivision, "postalPrefix">, postalCode: string) {
