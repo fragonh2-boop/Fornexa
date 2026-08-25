@@ -4,6 +4,15 @@ Este archivo es el registro persistente de temas pendientes que deben poder recu
 
 ## OPEN
 
+### 2026-08-25 — Eliminar “canónico/a” del frontend
+- **Área:** UX / Copy / Aplicación completa
+- **Estado:** PENDIENTE DE IMPLEMENTAR
+- **Decisión funcional:** no mostrar en ninguna interfaz visible al usuario las palabras “canónico”, “canónica”, “canónicos” o “canónicas”.
+- **Alcance:** títulos, etiquetas, ayudas, estados, mensajes, botones, avisos, tablas y cualquier otro texto del frontend.
+- **Criterio de aceptación:** búsqueda transversal del frontend sin ninguna variante visible del término; sustituirla por lenguaje funcional comprensible según el contexto.
+- **Exclusión:** el término puede mantenerse internamente en código, documentación técnica, base de datos o logs no visibles si sigue siendo útil.
+- **Restricción actual:** solo registrar; no implementar todavía.
+
 ### 2026-08-25 — Ocultar ayuda de prefijo internacional en el teléfono
 - **Área:** Maestros / Clientes / Direcciones / UX
 - **Estado:** PENDIENTE DE IMPLEMENTAR
