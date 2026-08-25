@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAuthenticatedContext } from "@/lib/auth-context";
+import { getAuthenticatedContext, getAuthenticatedOrReviewContext } from "@/lib/auth-context";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
 import { fiscalRuleForCountry } from "@/lib/fiscal-id";
 
@@ -22,6 +22,44 @@ function relationFlags(value: string) {
   };
 }
 
+function relationLabel(isCustomer: boolean, isSupplier: boolean) {
+  if (isCustomer && isSupplier) return "Cliente y proveedor";
+  return isSupplier ? "Proveedor" : "Cliente";
+}
+
+export async function GET(request: Request) {
+  const auth = await getAuthenticatedOrReviewContext();
+  if (!auth) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  const customerCode = text(new URL(request.url).searchParams.get("customerCode")).toUpperCase();
+  if (!customerCode) return NextResponse.json({ error: "Código de empresa obligatorio." }, { status: 400 });
+
+  const supabase = createSupabaseAdmin();
+  const { data, error } = await supabase.from("parties")
+    .select("id,code,legal_name,trade_name,tax_id,country_code,language,currency,is_customer,is_supplier,status,metadata")
+    .eq("tenant_id", auth.tenantId)
+    .eq("code", customerCode)
+    .maybeSingle();
+  if (error) return NextResponse.json({ error: "No se pudo cargar la empresa." }, { status: 500 });
+  if (!data) return NextResponse.json({ error: "Empresa no encontrada." }, { status: 404 });
+
+  return NextResponse.json({
+    item: {
+      id: data.id,
+      code: data.code,
+      legalName: data.legal_name,
+      tradeName: data.trade_name ?? "",
+      taxId: data.tax_id ?? "",
+      countryCode: String(data.country_code).trim(),
+      language: data.language,
+      currency: String(data.currency).trim(),
+      partyType: relationLabel(Boolean(data.is_customer), Boolean(data.is_supplier)),
+      status: data.status,
+      metadata: data.metadata ?? {},
+    },
+    canEdit: !auth.isReview && EDIT_ROLES.has(auth.role),
+  }, { headers: { "Cache-Control": "no-store" } });
+}
+
 async function writeCustomer(request: Request, method: "POST" | "PUT") {
   const auth = await getAuthenticatedContext();
   if (!auth) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
@@ -38,7 +76,8 @@ async function writeCustomer(request: Request, method: "POST" | "PUT") {
   const currency = text(body.currency || "EUR").toUpperCase();
   const language = text(body.language || "Español");
   const customerCode = text(body.customerCode).toUpperCase();
-  const status = text(body.status || "Activo").toUpperCase() === "ACTIVO" ? "ACTIVE" : text(body.status || "ACTIVE").toUpperCase();
+  const statusInput = text(body.status || "Activo").toUpperCase();
+  const status = statusInput === "ACTIVO" ? "ACTIVE" : statusInput;
   const flags = relationFlags(text(body.partyType || "Cliente"));
   const fiscalRule = fiscalRuleForCountry(countryCode);
 
