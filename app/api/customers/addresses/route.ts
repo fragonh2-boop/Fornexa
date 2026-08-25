@@ -46,7 +46,7 @@ export async function GET(request: Request) {
       .select(`
         party_id,use_for_pickup,use_for_delivery,is_default_pickup,is_default_delivery,
         address:party_addresses!party_address_assignments_address_id_fkey(
-          id,code,name,address_line1,address_line2,postal_code,city,region,country_code,
+          id,code,name,address_line1,address_line2,postal_code,city,region,subdivision_key,country_code,
           contact_name,contact_phone,contact_email,instructions,is_active
         )
       `)
@@ -68,6 +68,7 @@ export async function GET(request: Request) {
     postalCode: assignment.address.postal_code ?? "",
     city: assignment.address.city,
     region: assignment.address.region ?? "",
+    subdivisionKey: assignment.address.subdivision_key ?? "",
     countryCode: String(assignment.address.country_code).trim(),
     contactName: assignment.address.contact_name ?? "",
     contactPhone: assignment.address.contact_phone ?? "",
@@ -145,6 +146,7 @@ async function writeAddress(request: Request, method: "POST" | "PUT") {
     postal_code: text(address.postalCode) || null,
     city: text(address.city),
     region: text(address.region) || null,
+    subdivision_key: text(address.subdivisionKey) || null,
     country_code: countryCode,
     contact_name: text(address.contactName) || null,
     contact_phone: text(address.contactPhone) || null,
@@ -211,8 +213,8 @@ async function writeAddress(request: Request, method: "POST" | "PUT") {
     action: method === "POST" ? "CREATE" : "UPDATE",
     actor_user_id: auth.userId,
     source_channel: "FORNEXA_WEB",
-    changed_fields: ["address", "customer_assignments", "operational_usage"],
-    after_data: { customerCode, assignedCustomerCodes: assignedCodes, useForPickup, useForDelivery },
+    changed_fields: ["address", "subdivision", "customer_assignments", "operational_usage"],
+    after_data: { customerCode, subdivisionKey: text(address.subdivisionKey) || null, assignedCustomerCodes: assignedCodes, useForPickup, useForDelivery },
   });
 
   return NextResponse.json({ item: { id: persisted.id, code: persisted.code } }, { status: method === "POST" ? 201 : 200 });
