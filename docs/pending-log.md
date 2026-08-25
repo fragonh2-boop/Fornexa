@@ -4,18 +4,6 @@ Este archivo es el registro persistente de temas pendientes que deben poder recu
 
 ## OPEN
 
-### 2026-08-25 — Maestro de direcciones: catálogo completo de países
-- **Área:** Maestros / Direcciones / País
-- **Estado:** PENDIENTE DE IMPLEMENTAR Y DESPLEGAR
-- **Observación:** el selector de país del Maestro de direcciones muestra actualmente solo un subconjunto reducido (por ejemplo España, Francia y Portugal), insuficiente para una suite logística internacional.
-- **Acción requerida:** sustituir el listado limitado por un catálogo completo de países del mundo, preferentemente normalizado mediante ISO 3166-1 (código alpha-2 como clave funcional y nombre localizado para presentación).
-- **Alcance recomendado:** reutilizar el mismo catálogo de países en todos los formularios y entidades que manejen direcciones; evitar listas hardcodeadas duplicadas en componentes; mantener España como opción cómoda/default cuando proceda, sin limitar el resto de países.
-- **Consideraciones de datos:** revisar la compatibilidad con `party_addresses.country_code` y demás campos `country_code`; conservar códigos existentes y no romper direcciones ya creadas.
-- **UX:** selector buscable/autocompletable por nombre y, si resulta útil, por código ISO; ordenar alfabéticamente; soportar nombres traducidos/localizados sin modificar la clave ISO persistida.
-- **Criterio de aceptación:** el usuario puede seleccionar cualquier país reconocido por ISO 3166-1 desde el Maestro de direcciones; los valores se guardan y recuperan correctamente; no aparecen duplicados ni países con claves no normalizadas; comportamiento correcto en escritorio y móvil.
-- **Validación posterior:** crear/editar direcciones de varios países (UE y no UE), comprobar persistencia en Supabase y reutilización del catálogo en los flujos de Partidas/Expediciones/Viajes que consumen direcciones.
-- **Restricción actual:** NO implementar ni desplegar todavía; conservar como TO DO hasta instrucción expresa del usuario.
-
 ### 2026-08-20 — Contraste insuficiente en mensaje informativo de recuperación de contraseña
 - **Área:** Auth / Login / Recover password
 - **Estado:** PENDIENTE DE IMPLEMENTAR Y DESPLEGAR
@@ -27,4 +15,15 @@ Este archivo es el registro persistente de temas pendientes que deben poder recu
 
 ## DONE
 
-- Ir moviendo aquí los elementos cerrados, indicando commit/deployment cuando corresponda.
+### 2026-08-25 — Maestro mundial de países y subdivisiones geográficas
+- **Área:** Maestros / Direcciones / País / Provincia-región
+- **Estado:** IMPLEMENTADO, MIGRADO Y DESPLEGADO
+- **Motivo:** el Maestro de direcciones solo ofrecía España, Francia y Portugal y un subconjunto hardcodeado de provincias/regiones.
+- **Solución:** catálogo mundial de países ISO 3166-1 con nombres localizados en español y catálogo completo de subdivisiones administrativas por país. España utiliza sus 52 provincias y Francia utiliza departamentos porque son la unidad que se corresponde con la estructura postal solicitada.
+- **Identificador normalizado:** se añadió `party_addresses.subdivision_key`. La clave comienza por el prefijo postal cuando existe una correspondencia administrativa real y después incorpora país y código de subdivisión. Ejemplo: `66-FR-66` = Pyrénées-Orientales.
+- **Regla postal:** en España y Francia se valida la coherencia entre CP y provincia/departamento. Para países donde el código postal no codifica la subdivisión, no se inventa una correspondencia; se conserva el código administrativo de la subdivisión.
+- **Caso validado:** `FR + 66000` resuelve `Perpignan`; el catálogo devuelve `66-FR-66 · Pyrénées-Orientales`.
+- **Persistencia:** migración `20260825150000_address_subdivision_key.sql` aplicada en Supabase y API de direcciones actualizada para leer/escribir `subdivision_key`.
+- **Catálogo:** endpoint `/api/geography` desplegado; `/api/geography?country=FR` devuelve los departamentos franceses completos.
+- **Commits principales:** `44376a30` modelo geográfico; `7d41ec4a` API mundial; `469db0ca` migración; `5b8ca3c1` persistencia; `76512e4c` editor mundial; `153aa4e5` activación; `006f98ad` corrección de build.
+- **Deployment validado:** Vercel `dpl_58k6i3oNocwroXXsdd4Ebc3XFgqL`, READY y asociado a `fornexasc.com`.
