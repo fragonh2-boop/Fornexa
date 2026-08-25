@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "25 ago 2026";
-export const memorandumCommitCoverage = 491;
+export const memorandumCommitCoverage = 492;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -74,6 +74,15 @@ export const memorandumReleases: MemorandumRelease[] = [
     title: "Ficha de cliente integrada en el UX actual",
     purpose: "Eliminar la última experiencia visual heredada del maestro de clientes.",
     outcome: "Identificación, direcciones, ADR y servicios comparten ahora el sistema claro, responsive y accesible de FORNEXA.",
+    status: "Producción",
+  },
+  {
+    version: "2026.08.25",
+    date: "25 ago 2026",
+    surface: ["Web", "Plataforma"],
+    title: "Servicios canónicos y ayudas contextuales",
+    purpose: "Eliminar coberturas importadas como servicios y mantener alineados los formularios con ayuda accionable.",
+    outcome: "Catálogo depurado, campos alineados y avisos enlazados directamente a la configuración correspondiente.",
     status: "Producción",
   },
   {
