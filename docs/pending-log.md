@@ -4,6 +4,14 @@ Este archivo es el registro persistente de temas pendientes que deben poder recu
 
 ## OPEN
 
+### 2026-08-25 — Ocultar ayuda de prefijo internacional en el teléfono
+- **Área:** Maestros / Clientes / Direcciones / UX
+- **Estado:** PENDIENTE DE IMPLEMENTAR
+- **Observación:** en la ficha de cliente, debajo del campo Teléfono aparece el mensaje de validación “✓ Incluye prefijo internacional”.
+- **Decisión funcional:** no mostrar este mensaje al usuario, aunque la validación interna del número pueda mantenerse.
+- **Criterio de aceptación:** el campo conserva su comportamiento y validación, pero no presenta la ayuda “Incluye prefijo internacional”.
+- **Restricción actual:** solo registrar; no implementar ni desplegar la corrección.
+
 ### 2026-08-20 — Contraste insuficiente en mensaje informativo de recuperación de contraseña
 - **Área:** Auth / Login / Recover password
 - **Estado:** PENDIENTE DE IMPLEMENTAR Y DESPLEGAR
