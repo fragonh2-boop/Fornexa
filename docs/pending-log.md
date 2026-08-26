@@ -30,16 +30,16 @@ Este archivo es el registro persistente de temas pendientes que deben poder recu
 
 ### 2026-08-25 — Enriquecimiento conjunto GPT–Claude del maestro de clientes
 - **Área:** Clientes / Datos maestros / Comercial / Operaciones
-- **Estado:** IMPLEMENTADO; pendiente de anotar el identificador final del despliegue.
+- **Estado:** IMPLEMENTADO Y DESPLEGADO EN PRODUCCIÓN (`de0a495`).
 - **Cierre:** datos fiscales ampliados, responsable de cuenta real, perfil de facturación tipado, contactos, servicios, capacidades de dirección, bloqueos y tarifas versionadas con vigencia.
 - **Trazabilidad:** auditoría de cambios, aislamiento tenant, estados del cliente y fotografía de tarifa en el pedido.
 
 ### 2026-08-25 — Limpieza de microcopys técnicos
 - **Área:** UX transversal
-- **Estado:** IMPLEMENTADO; pendiente de anotar el identificador final del despliegue.
+- **Estado:** IMPLEMENTADO Y DESPLEGADO EN PRODUCCIÓN (`de0a495`).
 - **Cierre:** retirado el texto «Incluye prefijo internacional» y eliminadas del frontend las variantes visibles de «canónico/canónica».
 
 ### 2026-08-25 — Persistencia real de submaestros de cliente
 - **Área:** Clientes / Plataforma
-- **Estado:** IMPLEMENTADO; pendiente de anotar el identificador final del despliegue.
+- **Estado:** IMPLEMENTADO Y DESPLEGADO EN PRODUCCIÓN (`de0a495`).
 - **Cierre:** servicios dejan de usar almacenamiento local; contactos y tarifas disponen de APIs y tablas propias; los registros de demostración quedan identificados para revisión, sin borrado destructivo.
