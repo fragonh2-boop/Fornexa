@@ -47,7 +47,12 @@ export async function GET(request: Request) {
         party_id,use_for_pickup,use_for_delivery,is_default_pickup,is_default_delivery,
         address:party_addresses!party_address_assignments_address_id_fkey(
           id,code,name,address_line1,address_line2,postal_code,city,region,subdivision_key,country_code,
-          contact_name,contact_phone,contact_email,instructions,is_active
+          contact_name,contact_phone,contact_email,instructions,is_active,
+          operational_profile:address_operational_profiles(
+            has_dock,needs_forklift,requires_appointment,pallet_exchange,adr_capable,
+            temperature_controlled,temperature_min,temperature_max,geofence_radius_m,
+            average_wait_minutes,access_instructions
+          )
         )
       `)
       .eq("tenant_id", auth.tenantId)
@@ -79,6 +84,9 @@ export async function GET(request: Request) {
     useForDelivery: assignment.use_for_delivery,
     isDefaultPickup: assignment.is_default_pickup,
     isDefaultDelivery: assignment.is_default_delivery,
+    operationalProfile: Array.isArray(assignment.address.operational_profile)
+      ? assignment.address.operational_profile[0] ?? null
+      : assignment.address.operational_profile ?? null,
   }));
 
   const addressIds = addresses.map(item => item.id);
@@ -197,6 +205,32 @@ async function writeAddress(request: Request, method: "POST" | "PUT") {
   const { error: upsertError } = await supabase.from("party_address_assignments")
     .upsert(assignments, { onConflict: "tenant_id,address_id,party_id" });
   if (upsertError) throw upsertError;
+
+  const operational = address.operationalProfile && typeof address.operationalProfile === "object"
+    ? address.operationalProfile as Record<string, unknown>
+    : {};
+  const decimalOrNull = (value: unknown) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const nonNegativeOrNull = (value: unknown) => { const parsed = decimalOrNull(value); return parsed !== null && parsed >= 0 ? parsed : null; };
+  const { error: operationalError } = await supabase.from("address_operational_profiles").upsert({
+    address_id: persisted.id,
+    tenant_id: auth.tenantId,
+    has_dock: Boolean(operational.hasDock),
+    needs_forklift: Boolean(operational.needsForklift),
+    requires_appointment: Boolean(operational.requiresAppointment),
+    pallet_exchange: Boolean(operational.palletExchange),
+    adr_capable: Boolean(operational.adrCapable),
+    temperature_controlled: Boolean(operational.temperatureControlled),
+    temperature_min: decimalOrNull(operational.temperatureMin),
+    temperature_max: decimalOrNull(operational.temperatureMax),
+    geofence_radius_m: nonNegativeOrNull(operational.geofenceRadiusM),
+    average_wait_minutes: nonNegativeOrNull(operational.averageWaitMinutes),
+    access_instructions: text(operational.accessInstructions) || null,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "address_id" });
+  if (operationalError) throw operationalError;
 
   const keepPartyIds = new Set((assignedParties ?? []).map((party: any) => party.id));
   const { data: currentLinks } = await supabase.from("party_address_assignments")

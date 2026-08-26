@@ -40,9 +40,10 @@ test("partida excludes legacy coverage identifiers from services", () => {
   assert.match(migration, /SRV-FR-69800/);
 });
 
-test("keeps canonical customer IDs when opening their configuration", () => {
+test("keeps real customer IDs and rejects synthetic route names", () => {
   assert.equal(normalizeCustomerRouteCode("CLI-000006"), "CLI-000006");
   assert.equal(normalizeCustomerRouteCode("cli-000006"), "CLI-000006");
+  assert.equal(normalizeCustomerRouteCode("Nuevo"), "");
 });
 
 test("customer configuration uses the current light FORNEXA visual system", () => {

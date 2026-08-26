@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "25 ago 2026";
-export const memorandumCommitCoverage = 491;
+export const memorandumCommitCoverage = 492;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -67,6 +67,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.08.25.3",
+    date: "25 ago 2026",
+    surface: ["Web", "Plataforma"],
+    title: "Maestro de clientes trazable y operativo",
+    purpose: "Convertir la ficha de cliente en la fuente fiable de condiciones comerciales, operativas y de riesgo.",
+    outcome: "Contactos, servicios, facturación, bloqueos, direcciones y tarifas versionadas quedan persistidos, auditados y conectados con los pedidos.",
+    status: "Producción",
+  },
   {
     version: "2026.08.25.2",
     date: "25 ago 2026",
@@ -125,7 +134,7 @@ export const memorandumReleases: MemorandumRelease[] = [
     version: "Mobile 0.7.0",
     date: "19 ago 2026",
     surface: ["Mobile", "Plataforma"],
-    title: "Viajes canónicos en movilidad",
+    title: "Viajes operativos en movilidad",
     purpose: "Conectar al conductor con viajes, paradas y evidencias reales de FORNEXA.",
     outcome: "Acceso por capacidad, deep links, QR privado, incidencias, firma, POD y cierre sincronizado.",
     status: "Canal interno",
@@ -144,7 +153,7 @@ export const memorandumReleases: MemorandumRelease[] = [
     date: "18 ago 2026",
     surface: ["Web", "Plataforma"],
     title: "Modelo CMR y datos operativos reales",
-    purpose: "Llevar la operativa principal desde prototipos locales a persistencia canónica.",
+    purpose: "Llevar la operativa principal desde prototipos locales a persistencia compartida.",
     outcome: "CMR relacional, listados Supabase, cardinalidades validadas y acceso autenticado en servidor.",
     status: "Hito de producto",
   },
@@ -163,7 +172,7 @@ export const memorandumReleases: MemorandumRelease[] = [
     surface: ["Web", "Mobile"],
     title: "Identidad FORNEXA consistente",
     purpose: "Consolidar una presencia visual reconocible en todos los puntos de contacto.",
-    outcome: "Marca 4NXA canónica, navegación persistente y sistema visual claro y responsive.",
+    outcome: "Marca 4NXA unificada, navegación persistente y sistema visual claro y responsive.",
     status: "Hito de producto",
   },
   {

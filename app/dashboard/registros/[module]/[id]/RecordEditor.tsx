@@ -4,22 +4,21 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import EntityServicesManager from "../../../../components/EntityServicesManager";
 import ClientMasterEditor from "./ClientMasterEditor";
+import CustomerSubmasters from "./CustomerSubmasters";
 import OfferEmailEditor from "./OfferEmailEditor";
-import { getCustomer } from "../../../../../lib/customer-master";
 import styles from "./record.module.css";
 
 const nav=[["Control Tower","/dashboard"],["Decision Center","/dashboard/decision-center"],["Partidas","/dashboard/partidas"],["Expediciones","/dashboard/expediciones"],["Viajes","/dashboard/viajes"],["Ofertas y tarifas","/dashboard/ofertas-tarifas"],["Clientes","/dashboard/clientes"],["Colaboradores","/dashboard/colaboradores"],["Almacenes","/dashboard/almacenes"],["Tracking","/dashboard/tracking"],["ePOD & CMR","/dashboard/epod-cmr"],["Informes","/dashboard/informes"]] as const;
 
 type Item=Record<string,unknown>;
 export default function RecordEditor({module,id}:{module:string;id:string}){
- if(module==="clientes")return <div className={styles.clientStack}><ClientMasterEditor id={id}/><div className={styles.clientServices}><div id="control-adr"><CustomerAdrSettings id={id}/></div><EntityServicesManager entityType="cliente" entityId={id}/></div></div>;
+ if(module==="clientes")return <div className={styles.clientStack}><ClientMasterEditor id={id}/><div className={styles.clientServices}><CustomerSubmasters id={id}/><div id="control-adr"><CustomerAdrSettings id={id}/></div><EntityServicesManager entityType="cliente" entityId={id}/></div></div>;
  if(module==="ofertas-tarifas"&&id!=="nuevo")return <OfferEmailEditor id={id}/>;
  return <GenericRecordEditor module={module} id={id}/>;
 }
 
 function CustomerAdrSettings({id}:{id:string}){
- const master=getCustomer(id);
- const [frequency,setFrequency]=useState<"NEVER"|"SOMETIMES"|"ALWAYS">(master?.adrControl==="S"?"SOMETIMES":"NEVER");
+ const [frequency,setFrequency]=useState<"NEVER"|"SOMETIMES"|"ALWAYS">("NEVER");
  const [policy,setPolicy]=useState<"INFO"|"WARNING"|"ACKNOWLEDGEMENT"|"BLOCKING">("WARNING");
  const [preferred,setPreferred]=useState<string[]>([]);
  const [message,setMessage]=useState("Cargando configuración…");

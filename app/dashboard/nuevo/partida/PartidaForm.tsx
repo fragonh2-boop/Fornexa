@@ -161,13 +161,20 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
     if (!packages || Number(packages) < 1 || !normalizeDecimal(weight)) return setMessage("Bultos y peso son obligatorios y deben ser válidos.");
     if (shouldBlockForPolicy(customer.adrPolicy, adrWarnings)) return setMessage(`La política ADR de este cliente bloquea la confirmación: ${adrWarnings[0]?.message}`);
     if (customer.adrPolicy === "ACKNOWLEDGEMENT" && adrWarnings.length && !window.confirm(`Hay ${adrWarnings.length} advertencia(s) ADR. ¿Quieres guardar y dejar constancia?`)) return;
-    const body = payload();
+    const body = payload() as ReturnType<typeof payload> & { acknowledgedCustomerWarnings?: boolean };
     const fingerprint = JSON.stringify(body);
     if (mode === "keep" && fingerprint === lastFingerprint && !window.confirm("No has modificado ningún dato. ¿Crear otra partida idéntica?")) return setMessage("Guardado cancelado.");
     setSaving(true); setMessage("");
     try {
-      const response = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      const result = await response.json().catch(() => ({}));
+      let response = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      let result = await response.json().catch(() => ({}));
+      if (response.status === 409 && result.confirmationRequired && Array.isArray(result.customerWarnings)) {
+        const detail = result.customerWarnings.map((warning: { reason?: string }) => `• ${warning.reason ?? "Advertencia activa"}`).join("\n");
+        if (!window.confirm(`${result.error}\n\n${detail}\n\n¿Continuar y dejar constancia en auditoría?`)) throw new Error("Guardado cancelado por el usuario.");
+        body.acknowledgedCustomerWarnings = true;
+        response = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        result = await response.json().catch(() => ({}));
+      }
       if (!response.ok) throw new Error(result.error || "No se pudo guardar la partida.");
       const code = result.item?.id ?? "Partida";
       if (mode === "exit") { router.push("/dashboard/partidas"); router.refresh(); return; }
@@ -179,7 +186,7 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
   }
 
   return <form ref={formRef} className={styles.form} onSubmit={submit}>
-    <section className={styles.card}><div className={styles.cardHeader}><div><p>CLIENTE Y SERVICIO</p><h2>Datos del pedido</h2></div><span>Persistencia canónica</span></div><div className={styles.grid}>
+    <section className={styles.card}><div className={styles.cardHeader}><div><p>CLIENTE Y SERVICIO</p><h2>Datos del pedido</h2></div><span>Datos verificados</span></div><div className={styles.grid}>
       <label>Customer ID maestro<input autoFocus name="customerCode" value={customerCode} onChange={event => setCustomerCode(event.target.value.toUpperCase())} list="canonical-customers" required placeholder="CLI-000146" /></label><datalist id="canonical-customers">{customers.map(item => <option key={item.code} value={item.code}>{item.name}</option>)}</datalist>
       <label>Cliente<input value={customer?.name ?? ""} readOnly placeholder="Se completa desde el maestro" /></label><label>Referencia cliente<input value={reference} onChange={event => setReference(event.target.value)} /></label>
       <label>Servicio<select required value={serviceCode} className={!serviceCode ? styles.placeholderControl : ""} onChange={event => setServiceCode(event.target.value)}><option value="" disabled>Seleccionar</option>{services.map(item => <option key={item.code} value={item.code}>{item.name === item.code ? item.name : `${item.name} · ${item.code}`}</option>)}</select></label><label>Fecha prevista<input type="date" value={requestedDate} onChange={event => setRequestedDate(event.target.value)} /></label>

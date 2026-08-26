@@ -4,23 +4,6 @@ Este archivo es el registro persistente de temas pendientes que deben poder recu
 
 ## OPEN
 
-### 2026-08-25 — Eliminar “canónico/a” del frontend
-- **Área:** UX / Copy / Aplicación completa
-- **Estado:** PENDIENTE DE IMPLEMENTAR
-- **Decisión funcional:** no mostrar en ninguna interfaz visible al usuario las palabras “canónico”, “canónica”, “canónicos” o “canónicas”.
-- **Alcance:** títulos, etiquetas, ayudas, estados, mensajes, botones, avisos, tablas y cualquier otro texto del frontend.
-- **Criterio de aceptación:** búsqueda transversal del frontend sin ninguna variante visible del término; sustituirla por lenguaje funcional comprensible según el contexto.
-- **Exclusión:** el término puede mantenerse internamente en código, documentación técnica, base de datos o logs no visibles si sigue siendo útil.
-- **Restricción actual:** solo registrar; no implementar todavía.
-
-### 2026-08-25 — Ocultar ayuda de prefijo internacional en el teléfono
-- **Área:** Maestros / Clientes / Direcciones / UX
-- **Estado:** PENDIENTE DE IMPLEMENTAR
-- **Observación:** en la ficha de cliente, debajo del campo Teléfono aparece el mensaje de validación “✓ Incluye prefijo internacional”.
-- **Decisión funcional:** no mostrar este mensaje al usuario, aunque la validación interna del número pueda mantenerse.
-- **Criterio de aceptación:** el campo conserva su comportamiento y validación, pero no presenta la ayuda “Incluye prefijo internacional”.
-- **Restricción actual:** solo registrar; no implementar ni desplegar la corrección.
-
 ### 2026-08-20 — Contraste insuficiente en mensaje informativo de recuperación de contraseña
 - **Área:** Auth / Login / Recover password
 - **Estado:** PENDIENTE DE IMPLEMENTAR Y DESPLEGAR
@@ -44,3 +27,19 @@ Este archivo es el registro persistente de temas pendientes que deben poder recu
 - **Catálogo:** endpoint `/api/geography` desplegado; `/api/geography?country=FR` devuelve los departamentos franceses completos.
 - **Commits principales:** `44376a30` modelo geográfico; `7d41ec4a` API mundial; `469db0ca` migración; `5b8ca3c1` persistencia; `76512e4c` editor mundial; `153aa4e5` activación; `006f98ad` corrección de build.
 - **Deployment validado:** Vercel `dpl_58k6i3oNocwroXXsdd4Ebc3XFgqL`, READY y asociado a `fornexasc.com`.
+
+### 2026-08-25 — Enriquecimiento conjunto GPT–Claude del maestro de clientes
+- **Área:** Clientes / Datos maestros / Comercial / Operaciones
+- **Estado:** IMPLEMENTADO; pendiente de anotar el identificador final del despliegue.
+- **Cierre:** datos fiscales ampliados, responsable de cuenta real, perfil de facturación tipado, contactos, servicios, capacidades de dirección, bloqueos y tarifas versionadas con vigencia.
+- **Trazabilidad:** auditoría de cambios, aislamiento tenant, estados del cliente y fotografía de tarifa en el pedido.
+
+### 2026-08-25 — Limpieza de microcopys técnicos
+- **Área:** UX transversal
+- **Estado:** IMPLEMENTADO; pendiente de anotar el identificador final del despliegue.
+- **Cierre:** retirado el texto «Incluye prefijo internacional» y eliminadas del frontend las variantes visibles de «canónico/canónica».
+
+### 2026-08-25 — Persistencia real de submaestros de cliente
+- **Área:** Clientes / Plataforma
+- **Estado:** IMPLEMENTADO; pendiente de anotar el identificador final del despliegue.
+- **Cierre:** servicios dejan de usar almacenamiento local; contactos y tarifas disponen de APIs y tablas propias; los registros de demostración quedan identificados para revisión, sin borrado destructivo.

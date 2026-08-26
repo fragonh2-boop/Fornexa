@@ -103,7 +103,7 @@ export default function IntegracionesPage() {
       </article>
 
       <article className={styles.panel}>
-        <div className={styles.panelHeader}><div><p className={styles.eyebrow}>MODELO CANÓNICO</p><h2>Mapeo de campos</h2></div><button className={styles.textButton}>Editar mapeo</button></div>
+        <div className={styles.panelHeader}><div><p className={styles.eyebrow}>MODELO OPERATIVO</p><h2>Mapeo de campos</h2></div><button className={styles.textButton}>Editar mapeo</button></div>
         <div className={styles.mapping}>{mappings.map(([external,fornexa,type,rule]) => <div className={styles.mappingRow} key={external}><code>{external}</code><span>→</span><strong>{fornexa}</strong><small>{type} · {rule}</small></div>)}</div>
       </article>
     </section>
@@ -113,7 +113,7 @@ export default function IntegracionesPage() {
       <div className={styles.capabilities}>
         {["Email / SMTP", "EDI", "REST API", "SOAP / Web Services", "SFTP / FTP", "CSV · TXT · XML · JSON", "Excel", "Webhooks", "Programaciones", "Colas y reintentos", "Credenciales", "Auditoría y alertas"].map(x => <span key={x}>{x}</span>)}
       </div>
-      <p className={styles.note}>Todas las conexiones convergen en el modelo canónico de FORNEXA antes de crear o actualizar partidas, expediciones, viajes, documentos o eventos operativos.</p>
+      <p className={styles.note}>Todas las conexiones convergen en el modelo operativo de FORNEXA antes de crear o actualizar partidas, expediciones, viajes, documentos o eventos operativos.</p>
     </section>
   </main>;
 }

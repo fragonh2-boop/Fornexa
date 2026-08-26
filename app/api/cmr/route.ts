@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No se puede emitir un CMR sobre un Viaje finalizado/cancelado." }, { status: 409 });
     }
     if (!expeditionRecords.length) {
-      return NextResponse.json({ error: "Un CMR asociado a Viaje necesita al menos una Expedición canónica." }, { status: 422 });
+      return NextResponse.json({ error: "Un CMR asociado a Viaje necesita al menos una Expedición operativa." }, { status: 422 });
     }
     tripRecord = trip as CanonicalTrip;
 
@@ -148,7 +148,7 @@ export async function POST(request: NextRequest) {
 
     const expectedStops = orderedExpeditionIds.length * 2;
     if (canonicalTransportStops.length !== expectedStops) {
-      return NextResponse.json({ error: "El Viaje no tiene todas las paradas canónicas necesarias para las Expediciones de este CMR." }, { status: 409 });
+      return NextResponse.json({ error: "El Viaje no tiene todas las paradas operativas necesarias para las Expediciones de este CMR." }, { status: 409 });
     }
 
     for (const expeditionId of orderedExpeditionIds) {
@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
       const hasPickup = expeditionStops.some(stop => stop.stop_type === "PICKUP");
       const hasDelivery = expeditionStops.some(stop => stop.stop_type === "DELIVERY");
       if (expeditionStops.length !== 2 || !hasPickup || !hasDelivery) {
-        return NextResponse.json({ error: "Cada Expedición del CMR debe tener exactamente una recogida y una entrega canónicas." }, { status: 409 });
+        return NextResponse.json({ error: "Cada Expedición del CMR debe tener exactamente una recogida y una entrega operativas." }, { status: 409 });
       }
     }
   }

@@ -51,7 +51,7 @@ export default function ExpeditionForm({ orders, readOnly = false }: { orders: A
     <section className={styles.card}>
       <div className={styles.cardHeader}>
         <div><p>PARTIDA DE ORIGEN</p><h2>Selecciona una única partida</h2></div>
-        <span>Modelo canónico 1:1</span>
+        <span>Relación operativa 1:1</span>
       </div>
       {orders.length === 0 ? <div className={styles.empty}>No hay partidas disponibles sin expediente.</div> : <div className={styles.orders}>
         {orders.map(order => <label key={order.code} className={`${styles.order} ${selected === order.code ? styles.selected : ""}`}>

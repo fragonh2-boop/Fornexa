@@ -125,7 +125,7 @@ export async function POST(request: Request) {
 
   const { data: customer, error: customerError } = await supabase
     .from("parties")
-    .select("id,code,adr_control")
+    .select("id,code,adr_control,status")
     .eq("tenant_id", tenantId)
     .eq("code", customerCode)
     .eq("is_customer", true)
@@ -134,6 +134,24 @@ export async function POST(request: Request) {
   if (customerError) throw customerError;
   if (!customer) return NextResponse.json({ error: "Customer ID no válido para este tenant." }, { status: 400 });
   const customerId = customer.id;
+
+  const { data: activeBlocks, error: blocksError } = await supabase.from("customer_blocks")
+    .select("block_type,behavior,reason")
+    .eq("tenant_id", tenantId).eq("party_id", customerId).is("released_at", null);
+  if (blocksError) return NextResponse.json({ error: "No se pudo validar el estado operativo del cliente." }, { status: 500 });
+  const customerWarnings = [
+    ...(customer.status === "ACTIVE" ? [] : [{ block_type: "LIFECYCLE", behavior: "WARNING", reason: `El cliente está en estado ${customer.status}.` }]),
+    ...(activeBlocks ?? []),
+  ];
+  const hardBlock = customerWarnings.find(item => item.behavior === "HARD");
+  if (hardBlock) return NextResponse.json({ error: `El cliente no admite nuevas partidas: ${hardBlock.reason}`, customerWarnings }, { status: 423 });
+  if (customerWarnings.length && body.acknowledgedCustomerWarnings !== true) {
+    return NextResponse.json({
+      error: "El cliente tiene advertencias activas. Confirma que deseas continuar.",
+      confirmationRequired: true,
+      customerWarnings,
+    }, { status: 409 });
+  }
 
   async function resolveAddress(addressId: string, code: string, use: "pickup" | "delivery") {
     if (!addressId && !code) return null;
@@ -177,6 +195,25 @@ export async function POST(request: Request) {
     if (serviceError) throw serviceError;
     if (!service) return NextResponse.json({ error: "Servicio no válido para este tenant." }, { status: 400 });
     serviceId = service.id;
+  }
+
+  let pricingSnapshot: Record<string, unknown> = {};
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: tariffAssignments } = await supabase.from("tariff_assignments")
+    .select("tariff_header_id").eq("tenant_id", tenantId).eq("party_id", customerId);
+  const tariffIds = (tariffAssignments ?? []).map(item => item.tariff_header_id);
+  if (tariffIds.length) {
+    let tariffQuery = supabase.from("tariff_headers")
+      .select("id,code,name,version,currency,valid_from,valid_to,priority,service_id")
+      .eq("tenant_id", tenantId).eq("status", "ACTIVE").in("id", tariffIds)
+      .lte("valid_from", today).or(`valid_to.is.null,valid_to.gte.${today}`).order("priority").limit(1);
+    tariffQuery = serviceId ? tariffQuery.eq("service_id", serviceId) : tariffQuery.is("service_id", null);
+    const { data: tariffs } = await tariffQuery;
+    const tariff = tariffs?.[0];
+    if (tariff) {
+      const { data: lines } = await supabase.from("tariff_lines").select("*").eq("tenant_id", tenantId).eq("tariff_header_id", tariff.id).order("from_quantity");
+      pricingSnapshot = { tariff, lines: lines ?? [], capturedAt: new Date().toISOString() };
+    }
   }
 
   const { data: adrProfile } = await supabase.from("party_adr_profiles")
@@ -249,10 +286,13 @@ export async function POST(request: Request) {
     hazmat_declaration: adrDeclaration,
     hazmat_edition_id: activeEdition,
     hazmat_validation_status: adrWarnings.length ? (validationPolicy === "ACKNOWLEDGEMENT" ? "ACKNOWLEDGED" : "WARNING") : "VALIDATED",
+    pricing_snapshot: pricingSnapshot,
     status: "READY",
     metadata: {
       source: "web_partida_form",
       actorUserId: userId,
+      customerWarnings,
+      customerWarningsAcknowledged: customerWarnings.length > 0,
       pickup: {
         code: pickupCode || null,
         address: text(body.pickupAddress) || null,

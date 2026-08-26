@@ -248,7 +248,7 @@ export async function POST(request: Request) {
   if (stopsError) {
     console.error("Trips API project stops", stopsError);
     await supabase.from("trips").delete().eq("id", trip.id).eq("tenant_id", tenantId);
-    return NextResponse.json({ error: "No se pudo construir la ruta canónica del viaje." }, { status: 500 });
+    return NextResponse.json({ error: "No se pudo construir la ruta operativa del viaje." }, { status: 500 });
   }
 
   const { error: statusError } = await supabase

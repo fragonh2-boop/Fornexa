@@ -89,7 +89,7 @@ export default async function NewPartidaPage() {
       <div>
         <p>PEDIDO DE CLIENTE</p>
         <h1>Nueva partida</h1>
-        <span>Alta persistente sobre el modelo canónico. El Customer ID, la ruta, ADR y magnitudes se conservarán hasta Expediente, Viaje y CMR.</span>
+        <span>Alta persistente sobre el modelo operativo. El Customer ID, la ruta, ADR y magnitudes se conservarán hasta Expediente, Viaje y CMR.</span>
       </div>
       <Link href="/dashboard/partidas">Volver a Partidas</Link>
     </header>

@@ -25,7 +25,7 @@ export default function TelematicsHubPage(){
     </header>
 
     <section className={styles.metrics}>
-      <article><span>Proveedores preparados</span><strong>{telematicsProviders.length}</strong><small>Registry canónico</small></article>
+      <article><span>Proveedores preparados</span><strong>{telematicsProviders.length}</strong><small>Registro unificado</small></article>
       <article><span>Endpoints públicos</span><strong>{publicEndpoints}</strong><small>Codificados sin inventar rutas</small></article>
       <article><span>Driving times live</span><strong>{live}</strong><small>Capacidad documentada</small></article>
       <article><span>DDD / Tacho files</span><strong>{ddd}</strong><small>Capacidad documentada</small></article>
@@ -51,10 +51,10 @@ export default function TelematicsHubPage(){
       <article className={styles.panel}>
         <p className={styles.eyebrow}>ENDPOINTS INTERNOS</p><h2>Interfaces ya desplegables</h2>
         <div className={styles.fields}>{["GET /api/telematics/health","GET /api/telematics/health?provider=samsara&probe=1","GET /api/telematics/live?provider=samsara"].map(x=><code key={x}>{x}</code>)}</div>
-        <p className={styles.note}>Health nunca expone valores secretos. Live devuelve DriverStatus canónico y queda en 428 hasta disponer del token correspondiente.</p>
+        <p className={styles.note}>Health nunca expone valores secretos. Live devuelve DriverStatus normalizado y queda en 428 hasta disponer del token correspondiente.</p>
       </article>
       <article className={styles.panel}>
-        <p className={styles.eyebrow}>MODELO CANÓNICO</p><h2>DriverStatus</h2>
+        <p className={styles.eyebrow}>MODELO OPERATIVO</p><h2>DriverStatus</h2>
         <div className={styles.fields}>{["provider","driverId","vehicleId","activity","remainingUntilBreakMin","remainingDailyDrivingMin","nextRequiredBreakMin","gpsLat / gpsLon","speedKmh","observedAt"].map(x=><code key={x}>{x}</code>)}</div>
         <p className={styles.note}>Decision Center consume este modelo, nunca el payload específico del proveedor.</p>
       </article>

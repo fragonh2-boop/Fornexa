@@ -28,9 +28,20 @@ type Address = {
   isDefaultPickup: boolean;
   isDefaultDelivery: boolean;
   assignedCustomerCodes: string[];
+  hasDock: boolean;
+  needsForklift: boolean;
+  requiresAppointment: boolean;
+  palletExchange: boolean;
+  adrCapable: boolean;
+  temperatureControlled: boolean;
+  temperatureMin: string;
+  temperatureMax: string;
+  geofenceRadiusM: string;
+  averageWaitMinutes: string;
 };
 
 type AssignableCustomer = { code: string; name: string };
+type TenantUser = { id: string; name: string; email: string; role: string };
 type PostalResult = { places?: string[]; region?: string; regionCode?: string; error?: string };
 type CustomerItem = {
   code: string;
@@ -43,6 +54,12 @@ type CustomerItem = {
   partyType: string;
   status: string;
   metadata?: Record<string, unknown>;
+  eori?: string;
+  gln?: string;
+  cnaeCode?: string;
+  commercialRegister?: string;
+  accountManagerUserId?: string;
+  billing?: { paymentMethod?: string; paymentTermsDays?: number | null; creditLimit?: number | null; billingEmail?: string; salesEmail?: string } | null;
 };
 
 type PostalRule = {
@@ -126,10 +143,14 @@ export default function ClientMasterEditorWorld({ id }: { id: string }) {
   const [paymentMethod, setPaymentMethod] = useState("Transferencia");
   const [paymentTerms, setPaymentTerms] = useState("30 días");
   const [creditLimit, setCreditLimit] = useState("25.000,00 €");
-  const [rate, setRate] = useState("TF-ES-FR-04");
   const [billingEmail, setBillingEmail] = useState("");
   const [salesEmail, setSalesEmail] = useState("");
-  const [accountManager, setAccountManager] = useState("Francisco González");
+  const [eori, setEori] = useState("");
+  const [gln, setGln] = useState("");
+  const [cnaeCode, setCnaeCode] = useState("");
+  const [commercialRegister, setCommercialRegister] = useState("");
+  const [accountManagerUserId, setAccountManagerUserId] = useState("");
+  const [tenantUsers, setTenantUsers] = useState<TenantUser[]>([]);
   const [status, setStatus] = useState("Activo");
   const [notes, setNotes] = useState("");
   const [canEdit, setCanEdit] = useState(isNew);
@@ -161,6 +182,13 @@ export default function ClientMasterEditorWorld({ id }: { id: string }) {
       })
       .catch(error => active && setGeographyError(error instanceof Error ? error.message : "No se pudo cargar el catálogo mundial."));
     return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/tenant/users", { cache: "no-store" })
+      .then(async response => response.ok ? response.json() : { items: [] })
+      .then(result => setTenantUsers(result.items ?? []))
+      .catch(() => setTenantUsers([]));
   }, []);
 
   const loadSubdivisions = useCallback(async (countryCode: string) => {
@@ -201,13 +229,16 @@ export default function ClientMasterEditorWorld({ id }: { id: string }) {
         setPartyType(item.partyType || "Cliente");
         setLanguage(languageValue(item.language || "es"));
         setCurrency(item.currency || "EUR");
-        setPaymentMethod(String(metadata.payment_method ?? "Transferencia"));
-        setPaymentTerms(String(metadata.payment_terms ?? "30 días"));
-        setCreditLimit(String(metadata.credit_limit ?? "25.000,00 €"));
-        setRate(String(metadata.rate ?? "TF-ES-FR-04"));
-        setBillingEmail(String(metadata.billing_email ?? ""));
-        setSalesEmail(String(metadata.sales_email ?? ""));
-        setAccountManager(String(metadata.account_manager ?? "Francisco González"));
+        setPaymentMethod(String(item.billing?.paymentMethod ?? metadata.payment_method ?? "Transferencia"));
+        setPaymentTerms(item.billing?.paymentTermsDays == null ? String(metadata.payment_terms ?? "30 días") : `${item.billing.paymentTermsDays} días`);
+        setCreditLimit(item.billing?.creditLimit == null ? String(metadata.credit_limit ?? "") : String(item.billing.creditLimit));
+        setBillingEmail(String(item.billing?.billingEmail ?? metadata.billing_email ?? ""));
+        setSalesEmail(String(item.billing?.salesEmail ?? metadata.sales_email ?? ""));
+        setEori(item.eori ?? "");
+        setGln(item.gln ?? "");
+        setCnaeCode(item.cnaeCode ?? "");
+        setCommercialRegister(item.commercialRegister ?? "");
+        setAccountManagerUserId(item.accountManagerUserId ?? "");
         setNotes(String(metadata.notes ?? ""));
         setStatus(statusLabel(item.status));
         setCanEdit(Boolean(result.canEdit));
@@ -249,6 +280,16 @@ export default function ClientMasterEditorWorld({ id }: { id: string }) {
           isDefaultPickup: Boolean(address.isDefaultPickup),
           isDefaultDelivery: Boolean(address.isDefaultDelivery),
           assignedCustomerCodes: address.assignedCustomerCodes ?? [code],
+          hasDock: Boolean(address.operationalProfile?.has_dock),
+          needsForklift: Boolean(address.operationalProfile?.needs_forklift),
+          requiresAppointment: Boolean(address.operationalProfile?.requires_appointment),
+          palletExchange: Boolean(address.operationalProfile?.pallet_exchange),
+          adrCapable: Boolean(address.operationalProfile?.adr_capable),
+          temperatureControlled: Boolean(address.operationalProfile?.temperature_controlled),
+          temperatureMin: address.operationalProfile?.temperature_min == null ? "" : String(address.operationalProfile.temperature_min),
+          temperatureMax: address.operationalProfile?.temperature_max == null ? "" : String(address.operationalProfile.temperature_max),
+          geofenceRadiusM: address.operationalProfile?.geofence_radius_m == null ? "" : String(address.operationalProfile.geofence_radius_m),
+          averageWaitMinutes: address.operationalProfile?.average_wait_minutes == null ? "" : String(address.operationalProfile.average_wait_minutes),
         }));
         setAddresses(loaded);
         [...new Set(loaded.map(address => address.country).filter(Boolean))].forEach(country => void loadSubdivisions(country));
@@ -307,10 +348,14 @@ export default function ClientMasterEditorWorld({ id }: { id: string }) {
           paymentMethod,
           paymentTerms,
           creditLimit,
-          rate,
           billingEmail,
           salesEmail,
-          accountManager,
+          eori,
+          gln,
+          cnaeCode,
+          commercialRegister,
+          accountManagerUserId,
+          billing: { paymentMethod, paymentTermsDays: paymentTerms, creditLimit, billingEmail, salesEmail },
           status,
           notes,
         }),
@@ -360,6 +405,16 @@ export default function ClientMasterEditorWorld({ id }: { id: string }) {
       isDefaultPickup: false,
       isDefaultDelivery: false,
       assignedCustomerCodes: [code],
+      hasDock: false,
+      needsForklift: false,
+      requiresAppointment: false,
+      palletExchange: false,
+      adrCapable: false,
+      temperatureControlled: false,
+      temperatureMin: "",
+      temperatureMax: "",
+      geofenceRadiusM: "",
+      averageWaitMinutes: "",
     }]);
   }
 
@@ -477,6 +532,19 @@ export default function ClientMasterEditorWorld({ id }: { id: string }) {
           isDefaultPickup: address.isDefaultPickup,
           isDefaultDelivery: address.isDefaultDelivery,
           assignedCustomerCodes: address.assignedCustomerCodes,
+          operationalProfile: {
+            hasDock: address.hasDock,
+            needsForklift: address.needsForklift,
+            requiresAppointment: address.requiresAppointment,
+            palletExchange: address.palletExchange,
+            adrCapable: address.adrCapable,
+            temperatureControlled: address.temperatureControlled,
+            temperatureMin: address.temperatureMin,
+            temperatureMax: address.temperatureMax,
+            geofenceRadiusM: address.geofenceRadiusM,
+            averageWaitMinutes: address.averageWaitMinutes,
+            accessInstructions: address.restrictions,
+          },
         } }),
       });
       const result = await response.json();
@@ -500,7 +568,7 @@ export default function ClientMasterEditorWorld({ id }: { id: string }) {
     }));
   }
 
-  if (customerLoading) return <main className={styles.page}><div className={styles.empty}>Cargando ficha canónica…</div></main>;
+  if (customerLoading) return <main className={styles.page}><div className={styles.empty}>Cargando ficha del cliente…</div></main>;
 
   return <main className={styles.page}>
     <header className={styles.header}>
@@ -530,17 +598,21 @@ export default function ClientMasterEditorWorld({ id }: { id: string }) {
           <label>Forma de pago<select value={paymentMethod} onChange={event => setPaymentMethod(event.target.value)} disabled={!canEdit}><option>Transferencia</option><option>Domiciliación</option><option>Tarjeta</option></select></label>
           <label>Vencimiento<select value={paymentTerms} onChange={event => setPaymentTerms(event.target.value)} disabled={!canEdit}><option>30 días</option><option>60 días</option><option>Contado</option></select></label>
           <label>Límite de crédito<input value={creditLimit} onChange={event => setCreditLimit(event.target.value)} disabled={!canEdit} /></label>
-          <label>Tarifa asignada<input value={rate} onChange={event => setRate(event.target.value)} disabled={!canEdit} /></label>
+          <label>Tarifas<Link className={styles.submasterLink} href="#tarifas">Gestionar versiones y vigencias →</Link></label>
           <label>Email facturación<input type="email" value={billingEmail} onChange={event => setBillingEmail(event.target.value)} disabled={!canEdit} className={validationClass(billingEmail ? emailPattern.test(billingEmail) : null)} /><Check valid={billingEmail ? emailPattern.test(billingEmail) : null} hint="Formato usuario@dominio" /></label>
           <label>Email comercial<input type="email" value={salesEmail} onChange={event => setSalesEmail(event.target.value)} disabled={!canEdit} className={validationClass(salesEmail ? emailPattern.test(salesEmail) : null)} /><Check valid={salesEmail ? emailPattern.test(salesEmail) : null} hint="Formato usuario@dominio" /></label>
-          <label>Responsable comercial<input value={accountManager} onChange={event => setAccountManager(event.target.value)} disabled={!canEdit} /></label>
+          <label>Responsable comercial<select value={accountManagerUserId} onChange={event => setAccountManagerUserId(event.target.value)} disabled={!canEdit}><option value="">Sin asignar</option>{tenantUsers.map(user => <option key={user.id} value={user.id}>{user.name} · {user.role}</option>)}</select></label>
           <label>Estado<select value={status} onChange={event => setStatus(event.target.value)} disabled={!canEdit}><option>Activo</option><option>En revisión</option><option>Bloqueado</option><option>Inactivo</option></select></label>
+          <label>EORI<input value={eori} onChange={event => setEori(event.target.value.toUpperCase())} disabled={!canEdit} /></label>
+          <label>GLN<input value={gln} onChange={event => setGln(event.target.value)} disabled={!canEdit} inputMode="numeric" /></label>
+          <label>CNAE<input value={cnaeCode} onChange={event => setCnaeCode(event.target.value)} disabled={!canEdit} /></label>
+          <label>Registro mercantil<input value={commercialRegister} onChange={event => setCommercialRegister(event.target.value)} disabled={!canEdit} /></label>
         </div>
       </section>
 
       <section className={styles.card} id="direcciones">
         <div className={styles.addressHeader}><div className={styles.cardTitle}><span>03</span><div><h2>Maestro de direcciones</h2><p>Países y subdivisiones oficiales normalizados; la clave geográfica se conserva junto a la dirección.</p></div></div>{!isNew && canEdit && <button type="button" onClick={addAddress}>+ Añadir dirección</button>}</div>
-        {addressesLoading && <div className={styles.empty}>Cargando direcciones canónicas…</div>}
+        {addressesLoading && <div className={styles.empty}>Cargando direcciones…</div>}
         <div className={styles.addresses}>{addresses.map((address, index) => {
           const subdivisions = subdivisionsByCountry[address.country] ?? [];
           const selectedKey = address.subdivisionKey || subdivisions.find(item => item.name.localeCompare(address.province, "es", { sensitivity: "base" }) === 0)?.id || "";
@@ -556,17 +628,18 @@ export default function ClientMasterEditorWorld({ id }: { id: string }) {
               <label>Población<input value={address.city} list={`cities-${address.id}`} onChange={event => updateAddress(index, "city", event.target.value)} disabled={!canEdit} /><datalist id={`cities-${address.id}`}>{(postalPlaces[address.id] ?? []).map(city => <option key={city} value={city} />)}</datalist><Check valid={address.city ? true : null} hint="Puede validarse al salir del código postal" /></label>
               <label>Dirección<input value={address.street} onChange={event => updateAddress(index, "street", event.target.value)} disabled={!canEdit} /><Check valid={address.street ? address.street.trim().length >= 5 : null} hint="Mínimo calle y número" /></label>
               <label>Contacto<input value={address.contact} onChange={event => updateAddress(index, "contact", event.target.value)} disabled={!canEdit} /></label>
-              <label>Teléfono<input value={address.phone} onChange={event => updateAddress(index, "phone", event.target.value)} disabled={!canEdit} className={validationClass(address.phone ? phonePattern.test(address.phone) : null)} /><Check valid={address.phone ? phonePattern.test(address.phone) : null} hint="Incluye prefijo internacional" /></label>
+              <label>Teléfono<input value={address.phone} onChange={event => updateAddress(index, "phone", event.target.value)} disabled={!canEdit} className={validationClass(address.phone ? phonePattern.test(address.phone) : null)} /><Check valid={address.phone ? phonePattern.test(address.phone) : null} hint="Formato de teléfono válido" /></label>
               <label>Email<input type="email" value={address.email} onChange={event => updateAddress(index, "email", event.target.value)} disabled={!canEdit} className={validationClass(address.email ? emailPattern.test(address.email) : null)} /><Check valid={address.email ? emailPattern.test(address.email) : null} hint="Formato usuario@dominio" /></label>
               <label className={styles.span2}>Restricciones e instrucciones<input value={address.restrictions} onChange={event => updateAddress(index, "restrictions", event.target.value)} disabled={!canEdit} /></label>
             </div>
             <div className={styles.addressConfiguration}>
               <fieldset><legend>Usos operativos</legend><label><input type="checkbox" checked={address.useForPickup} onChange={event => updateAddress(index, "useForPickup", event.target.checked)} disabled={!canEdit} /> Recogida</label><label><input type="checkbox" checked={address.useForDelivery} onChange={event => updateAddress(index, "useForDelivery", event.target.checked)} disabled={!canEdit} /> Entrega</label><label><input type="checkbox" checked={address.isDefaultPickup} onChange={event => updateAddress(index, "isDefaultPickup", event.target.checked)} disabled={!canEdit || !address.useForPickup} /> Predeterminada para recogida</label><label><input type="checkbox" checked={address.isDefaultDelivery} onChange={event => updateAddress(index, "isDefaultDelivery", event.target.checked)} disabled={!canEdit || !address.useForDelivery} /> Predeterminada para entrega</label></fieldset>
               <fieldset><legend>Clientes que pueden utilizarla</legend><div className={styles.assignmentList}>{assignableCustomers.map(customer => <label key={customer.code}><input type="checkbox" checked={address.assignedCustomerCodes.includes(customer.code)} disabled={!canEdit || customer.code === code} onChange={() => toggleAssignedCustomer(index, customer.code)} /><span>{customer.code}<small>{customer.name}</small></span></label>)}</div></fieldset>
+              <fieldset className={styles.capabilities}><legend>Capacidades operativas</legend><label><input type="checkbox" checked={address.hasDock} onChange={event => updateAddress(index, "hasDock", event.target.checked)} disabled={!canEdit} /> Muelle</label><label><input type="checkbox" checked={address.needsForklift} onChange={event => updateAddress(index, "needsForklift", event.target.checked)} disabled={!canEdit} /> Carretilla necesaria</label><label><input type="checkbox" checked={address.requiresAppointment} onChange={event => updateAddress(index, "requiresAppointment", event.target.checked)} disabled={!canEdit} /> Cita previa</label><label><input type="checkbox" checked={address.palletExchange} onChange={event => updateAddress(index, "palletExchange", event.target.checked)} disabled={!canEdit} /> Intercambio de palés</label><label><input type="checkbox" checked={address.adrCapable} onChange={event => updateAddress(index, "adrCapable", event.target.checked)} disabled={!canEdit} /> Preparada para ADR</label><label><input type="checkbox" checked={address.temperatureControlled} onChange={event => updateAddress(index, "temperatureControlled", event.target.checked)} disabled={!canEdit} /> Temperatura controlada</label><label>Temperatura mínima<input inputMode="decimal" value={address.temperatureMin} onChange={event => updateAddress(index, "temperatureMin", event.target.value)} disabled={!canEdit || !address.temperatureControlled} /></label><label>Temperatura máxima<input inputMode="decimal" value={address.temperatureMax} onChange={event => updateAddress(index, "temperatureMax", event.target.value)} disabled={!canEdit || !address.temperatureControlled} /></label><label>Radio geocerca (m)<input inputMode="numeric" value={address.geofenceRadiusM} onChange={event => updateAddress(index, "geofenceRadiusM", event.target.value)} disabled={!canEdit} /></label><label>Espera media (min)<input inputMode="numeric" value={address.averageWaitMinutes} onChange={event => updateAddress(index, "averageWaitMinutes", event.target.value)} disabled={!canEdit} /></label></fieldset>
             </div>
           </article>;
         })}</div>
-        {!addressesLoading && !addresses.length && <div className={styles.empty}>{isNew ? "Guarda primero la empresa. Después podrás añadir sus direcciones canónicas." : "Esta empresa todavía no tiene direcciones. Puedes guardar la ficha sin direcciones y añadirlas cuando corresponda."}</div>}
+        {!addressesLoading && !addresses.length && <div className={styles.empty}>{isNew ? "Guarda primero la empresa. Después podrás añadir sus direcciones." : "Esta empresa todavía no tiene direcciones. Puedes guardar la ficha sin direcciones y añadirlas cuando corresponda."}</div>}
       </section>
 
       <section className={styles.card}><div className={styles.cardTitle}><span>04</span><div><h2>Notas y control</h2><p>Información interna y trazabilidad del maestro.</p></div></div><label>Observaciones<textarea value={notes} onChange={event => setNotes(event.target.value)} rows={5} disabled={!canEdit} /></label></section>

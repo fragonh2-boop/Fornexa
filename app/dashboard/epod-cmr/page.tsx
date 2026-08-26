@@ -110,7 +110,7 @@ export default async function CmrPage() {
       <section className={styles.panel}>
         <div className={styles.panelHeader}>
           <div><span>CMR LIVE</span><h2>Documentos recientes</h2></div>
-          <p>Datos reales del modelo canónico CMR en Supabase.</p>
+          <p>Datos reales del modelo CMR en Supabase.</p>
         </div>
         <DataGrid
           storageKey="cmr-documents"
