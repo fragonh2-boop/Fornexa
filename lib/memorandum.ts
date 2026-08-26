@@ -18,8 +18,8 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "25 ago 2026";
-export const memorandumCommitCoverage = 492;
+export const memorandumUpdatedAt = "26 ago 2026";
+export const memorandumCommitCoverage = 513;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -68,12 +68,21 @@ export const memorandumPending: MemorandumPending[] = [
 
 export const memorandumReleases: MemorandumRelease[] = [
   {
-    version: "2026.08.25.3",
-    date: "25 ago 2026",
+    version: "2026.08.26",
+    date: "26 ago 2026",
     surface: ["Web", "Plataforma"],
     title: "Maestro de clientes trazable y operativo",
     purpose: "Convertir la ficha de cliente en la fuente fiable de condiciones comerciales, operativas y de riesgo.",
     outcome: "Contactos, servicios, facturación, bloqueos, direcciones y tarifas versionadas quedan persistidos, auditados y conectados con los pedidos.",
+    status: "Producción",
+  },
+  {
+    version: "2026.08.25.3",
+    date: "25 ago 2026",
+    surface: ["Web", "Plataforma"],
+    title: "Geografía mundial en direcciones",
+    purpose: "Extender el maestro de direcciones más allá de una cobertura limitada de países y regiones.",
+    outcome: "Países y subdivisiones administrativas quedan normalizados, localizados y validados con reglas postales cuando existe correspondencia fiable.",
     status: "Producción",
   },
   {
@@ -83,6 +92,15 @@ export const memorandumReleases: MemorandumRelease[] = [
     title: "Ficha de cliente integrada en el UX actual",
     purpose: "Eliminar la última experiencia visual heredada del maestro de clientes.",
     outcome: "Identificación, direcciones, ADR y servicios comparten ahora el sistema claro, responsive y accesible de FORNEXA.",
+    status: "Producción",
+  },
+  {
+    version: "2026.08.25",
+    date: "25 ago 2026",
+    surface: ["Web", "Plataforma"],
+    title: "Catálogo de servicios y ayudas contextuales",
+    purpose: "Evitar que coberturas heredadas aparezcan como servicios y mantener los formularios alineados con ayuda accionable.",
+    outcome: "Catálogo depurado, campos alineados y avisos enlazados directamente a la configuración correspondiente.",
     status: "Producción",
   },
   {
