@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { cookies } from "next/headers";
+import "./login.css";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
