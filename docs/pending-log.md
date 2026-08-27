@@ -4,13 +4,12 @@ Este archivo es el registro persistente de temas pendientes que deben poder recu
 
 ## OPEN
 
-### 2026-08-26 — Memorándum público preparado pero no integrable
-- **Área:** Documentación pública / CI / Supabase Preview
-- **Estado:** BLOQUEADO; PR `#31` ABIERTO Y SIN INTEGRAR
-- **Evidencia:** el preview de Vercel está aprobado, pero Supabase Preview no figura como control aprobado. Desde su creación, `main` avanzó a `d042a5a` y GitHub no reporta el PR como mergeable.
-- **Acción requerida:** actualizar la rama del PR desde `main`, volver a ejecutar pruebas, TypeScript, ESLint, build y revisión responsive de `/memorandum`, y resolver el fallo de la integración de ramas Supabase.
-- **Criterio de cierre:** controles requeridos aprobados, PR integrado, Vercel producción `READY` en el commit resultante y `/memorandum` verificado en escritorio y móvil.
-- **Restricción:** no tratar un control omitido como aprobado ni afirmar que el memorándum está publicado mientras el PR siga sin integrar.
+### 2026-08-27 — Integración de ramas Supabase en estado fallido
+- **Área:** Plataforma / CI / Supabase Preview
+- **Estado:** PENDIENTE DE DIAGNÓSTICO Y CORRECCIÓN
+- **Evidencia:** producción contiene la migración `tariff_engine_foundation` y el proyecto está sano, pero la integración Git de la rama `main` continúa reportando `MIGRATIONS_FAILED`.
+- **Acción requerida:** identificar el fallo de la integración, corregir la causa y ejecutar una preview que incluya una migración real.
+- **Criterio de cierre:** integración de ramas sin error y control Supabase Preview aprobado en una PR con migración, sin alterar datos de producción durante la prueba.
 
 ### 2026-08-20 — Contraste insuficiente en mensaje informativo de recuperación de contraseña
 - **Área:** Auth / Login / Recover password
