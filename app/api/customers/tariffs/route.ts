@@ -6,6 +6,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const EDIT_ROLES = new Set(["OWNER", "ADMIN"]);
+const COST_ROLES = new Set(["OWNER", "ADMIN", "PLANNER"]);
+const SELL_ROLES = new Set(["OWNER", "ADMIN", "PLANNER", "OPERATOR", "VIEWER"]);
 const UNITS = new Set(["SHIPMENT", "PALLET", "KG", "TON", "LINEAR_M", "KM", "STOP"]);
 function text(value: unknown) { return String(value ?? "").trim(); }
 function isoDate(value: unknown) { const result = text(value); return /^\d{4}-\d{2}-\d{2}$/.test(result) ? result : ""; }
@@ -20,6 +22,7 @@ async function findCustomer(supabase: ReturnType<typeof createSupabaseAdmin>, te
 export async function GET(request: Request) {
   const auth = await getAuthenticatedOrReviewContext();
   if (!auth) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  if (auth.isReview || !SELL_ROLES.has(auth.role)) return NextResponse.json({ error: "No autorizado para consultar información tarifaria." }, { status: 403 });
   const customerCode = text(new URL(request.url).searchParams.get("customerCode")).toUpperCase();
   const supabase = createSupabaseAdmin();
   const customer = await findCustomer(supabase, auth.tenantId, customerCode);
@@ -27,11 +30,15 @@ export async function GET(request: Request) {
   const { data: assignments, error } = await supabase.from("tariff_assignments").select("tariff_header_id").eq("tenant_id", auth.tenantId).eq("party_id", customer.id);
   if (error) return NextResponse.json({ error: "No se pudieron cargar las tarifas." }, { status: 500 });
   const ids = (assignments ?? []).map(item => item.tariff_header_id);
-  const { data: tariffs, error: tariffsError } = ids.length
-    ? await supabase.from("tariff_headers").select("id,code,name,status,version,valid_from,valid_to,currency,priority,origin_country,destination_country,service:service_catalog(code,name),lines:tariff_lines(*)").eq("tenant_id", auth.tenantId).in("id", ids).order("valid_from", { ascending: false })
-    : { data: [], error: null };
+  let tariffQuery = supabase.from("tariff_headers")
+    .select("id,code,name,kind,status,version,valid_from,valid_to,currency,priority,origin_country,destination_country,service:service_catalog(code,name),lines:tariff_lines(id,pricing_unit,from_quantity,to_quantity,unit_price,minimum_amount,adr_surcharge,liftgate_surcharge,waiting_time_rate,customs_fee,fuel_surcharge_formula,discount_percent)")
+    .eq("tenant_id", auth.tenantId)
+    .in("id", ids)
+    .order("valid_from", { ascending: false });
+  if (!COST_ROLES.has(auth.role)) tariffQuery = tariffQuery.eq("kind", "SELL");
+  const { data: tariffs, error: tariffsError } = ids.length ? await tariffQuery : { data: [], error: null };
   if (tariffsError) return NextResponse.json({ error: "No se pudieron cargar las tarifas." }, { status: 500 });
-  return NextResponse.json({ items: tariffs ?? [], canEdit: !auth.isReview && EDIT_ROLES.has(auth.role) }, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json({ items: tariffs ?? [], canEdit: EDIT_ROLES.has(auth.role) }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(request: Request) {
