@@ -6,6 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const EDIT_ROLES = new Set(["OWNER", "ADMIN", "OPERATOR"]);
+const ECONOMIC_READ_ROLES = new Set(["OWNER", "ADMIN", "PLANNER"]);
 const RELATIONSHIPS = new Set(["CONTRACTED", "OFFERED"]);
 
 function text(value: unknown) { return String(value ?? "").trim(); }
@@ -27,12 +28,15 @@ export async function GET(request: Request) {
   const supabase = createSupabaseAdmin();
   const party = await findParty(supabase, auth.tenantId, code);
   if (!party) return NextResponse.json({ error: "Empresa no encontrada." }, { status: 404 });
-  const [catalogResult, assignmentsResult] = await Promise.all([
-    supabase.from("service_catalog").select("id,code,name,description,mode,service_type,unit,is_active,metadata")
-      .eq("tenant_id", auth.tenantId).eq("is_active", true).order("code"),
-    supabase.from("party_services").select("id,service_id,reference,price,currency,valid_from,valid_to,conditions,is_active")
-      .eq("tenant_id", auth.tenantId).eq("party_id", party.id).eq("relationship_type", relationship),
-  ]);
+  const canReadEconomic = !auth.isReview && ECONOMIC_READ_ROLES.has(auth.role);
+  const catalogPromise = supabase.from("service_catalog").select("id,code,name,description,mode,service_type,unit,is_active,metadata")
+    .eq("tenant_id", auth.tenantId).eq("is_active", true).order("code");
+  const assignmentsPromise = canReadEconomic
+    ? supabase.from("party_services").select("id,service_id,reference,price,currency,valid_from,valid_to,conditions,is_active")
+      .eq("tenant_id", auth.tenantId).eq("party_id", party.id).eq("relationship_type", relationship)
+    : supabase.from("party_services").select("id,service_id,reference,valid_from,valid_to,is_active")
+      .eq("tenant_id", auth.tenantId).eq("party_id", party.id).eq("relationship_type", relationship);
+  const [catalogResult, assignmentsResult] = await Promise.all([catalogPromise, assignmentsPromise]);
   if (catalogResult.error || assignmentsResult.error) return NextResponse.json({ error: "No se pudieron cargar los servicios." }, { status: 500 });
   const assignmentByService = new Map((assignmentsResult.data ?? []).map(item => [item.service_id, item]));
   return NextResponse.json({
