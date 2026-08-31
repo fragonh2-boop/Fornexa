@@ -12,6 +12,9 @@ const UNITS = new Set(["SHIPMENT", "PALLET", "KG", "TON", "LINEAR_M", "KM", "STO
 function text(value: unknown) { return String(value ?? "").trim(); }
 function isoDate(value: unknown) { const result = text(value); return /^\d{4}-\d{2}-\d{2}$/.test(result) ? result : ""; }
 function dayBefore(value: string) { const date = new Date(`${value}T12:00:00Z`); date.setUTCDate(date.getUTCDate() - 1); return date.toISOString().slice(0, 10); }
+function isUniqueViolation(error: unknown) {
+  return Boolean(error && typeof error === "object" && "code" in error && (error as { code?: string }).code === "23505");
+}
 
 async function findCustomer(supabase: ReturnType<typeof createSupabaseAdmin>, tenantId: string, code: string) {
   const { data, error } = await supabase.from("parties").select("id,code").eq("tenant_id", tenantId).eq("code", code).eq("is_customer", true).maybeSingle();
@@ -91,7 +94,15 @@ export async function POST(request: Request) {
     destination_country: text(body?.destinationCountry).toUpperCase() || null,
     created_by: auth.userId, approved_by: activate ? auth.userId : null, approved_at: activate ? new Date().toISOString() : null,
   }).select("*").single();
-  if (tariffError) throw tariffError;
+  if (tariffError) {
+    if (isUniqueViolation(tariffError)) {
+      return NextResponse.json({
+        error: `La tarifa ${code} ya se ha guardado o activado. Actualiza la pantalla antes de volver a intentarlo.`,
+        code: "TARIFF_DUPLICATE_SAVE",
+      }, { status: 409 });
+    }
+    throw tariffError;
+  }
   const [lineResult, assignmentResult] = await Promise.all([
     supabase.from("tariff_lines").insert({
       tenant_id: auth.tenantId, tariff_header_id: tariff.id, pricing_unit: pricingUnit,
@@ -105,7 +116,14 @@ export async function POST(request: Request) {
   ]);
   if (lineResult.error || assignmentResult.error) {
     await supabase.from("tariff_headers").delete().eq("id", tariff.id).eq("tenant_id", auth.tenantId);
-    throw lineResult.error || assignmentResult.error;
+    const relationError = lineResult.error || assignmentResult.error;
+    if (isUniqueViolation(relationError)) {
+      return NextResponse.json({
+        error: "La tarifa ya se había guardado. Actualiza la pantalla antes de volver a intentarlo.",
+        code: "TARIFF_DUPLICATE_SAVE",
+      }, { status: 409 });
+    }
+    throw relationError;
   }
   if (activate && previous?.status === "ACTIVE") {
     await supabase.from("tariff_headers").update({ status: "INACTIVE", valid_to: dayBefore(validFrom), superseded_by_id: tariff.id, updated_at: new Date().toISOString() }).eq("tenant_id", auth.tenantId).eq("id", previous.id);
