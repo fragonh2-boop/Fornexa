@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "1 sep 2026";
-export const memorandumCommitCoverage = 518;
+export const memorandumCommitCoverage = 519;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -67,6 +67,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.09.01.2",
+    date: "1 sep 2026",
+    surface: ["Web", "Plataforma"],
+    title: "Telemetría privada de plataforma TLM-1",
+    purpose: "Crear una base propia para analizar tráfico, accesos y recorridos de navegación sin capturar contenido sensible ni bloquear peticiones reales.",
+    outcome: "FORNEXA incorpora captura best-effort de requests, eventos de acceso y rutas por sesión, persistencia aislada, retención automática y un panel interno protegido por OWNER y allowlist.",
+    status: "Canal interno",
+  },
   {
     version: "2026.09.01",
     date: "1 sep 2026",
