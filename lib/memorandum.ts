@@ -18,8 +18,8 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "27 ago 2026";
-export const memorandumCommitCoverage = 517;
+export const memorandumUpdatedAt = "1 sep 2026";
+export const memorandumCommitCoverage = 518;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -67,6 +67,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.09.01",
+    date: "1 sep 2026",
+    surface: ["Web"],
+    title: "Corrección visual del acceso",
+    purpose: "Eliminar la superposición del wordmark heredado sobre el logotipo SVG de la pantalla de acceso.",
+    outcome: "El login neutraliza el fondo global heredado y muestra una única identidad FORNEXA sin duplicación visual.",
+    status: "Producción",
+  },
   {
     version: "2026.08.27",
     date: "27 ago 2026",

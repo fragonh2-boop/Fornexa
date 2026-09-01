@@ -17,6 +17,7 @@
 }
 
 .auth-logo {
+  background: none;
   display: block;
   width: min(360px, 100%);
   max-width: 100%;
