@@ -16,13 +16,14 @@
   width: 100%;
 }
 
-.auth-login-logo-link {
+.auth-logo {
+  background: none;
   display: block;
   width: min(360px, 100%);
   max-width: 100%;
 }
 
-.auth-login-logo-link svg {
+.auth-logo svg {
   display: block;
   width: 100%;
   height: auto;
