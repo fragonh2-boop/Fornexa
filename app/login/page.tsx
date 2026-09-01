@@ -15,6 +15,34 @@ const modeCopy = {
   recover: { title: "Recuperar contraseña", description: "Te enviaremos un enlace seguro para crear una nueva contraseña.", submit: "Enviar enlace de recuperación" },
 };
 
+function telemetrySessionId() {
+  const existing = document.cookie
+    .split(";")
+    .map(part => part.trim())
+    .find(part => part.startsWith("fornexa_tlm_session="))
+    ?.slice("fornexa_tlm_session=".length);
+  if (existing && /^[0-9a-f-]{36}$/i.test(existing)) return existing;
+  const value = crypto.randomUUID();
+  document.cookie = `fornexa_tlm_session=${value}; Path=/; Max-Age=86400; SameSite=Lax; Secure`;
+  return value;
+}
+
+function emitAuthTelemetry(eventType: string, email: string, failureCode?: string) {
+  void fetch("/api/telemetry/event", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      kind: "auth",
+      session_id: telemetrySessionId(),
+      event_type: eventType,
+      email,
+      failure_code: failureCode ?? null,
+    }),
+    keepalive: true,
+    cache: "no-store",
+  }).catch(() => undefined);
+}
+
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -72,22 +100,28 @@ function LoginForm() {
           body: JSON.stringify({ email, flow }),
         });
         if (!response.ok) throw new Error("No se ha podido completar la solicitud.");
+        emitAuthTelemetry(flow === "first-access" ? "FIRST_ACCESS_REQUEST" : "RECOVERY_REQUEST", email);
         setMessage(flow === "first-access"
           ? "Si la cuenta está provisionada, recibirás un enlace seguro para crear tu contraseña. Revisa también spam o correo no deseado."
           : "Si la cuenta existe, recibirás un enlace de recuperación. Revisa también la carpeta de spam.");
         return;
       }
 
+      emitAuthTelemetry("LOGIN_ATTEMPT", email);
       const supabase = await createClient();
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
+        const failureCode = "code" in error && typeof error.code === "string" ? error.code : error.name;
+        emitAuthTelemetry("LOGIN_FAILURE", email, failureCode);
         setIsError(true);
         setMessage(loginErrorMessage(error.message));
         return;
       }
+      emitAuthTelemetry("LOGIN_SUCCESS", email);
       router.push("/dashboard");
       router.refresh();
     } catch {
+      emitAuthTelemetry("LOGIN_FAILURE", email, "CLIENT_OR_NETWORK_ERROR");
       setIsError(true);
       setMessage("No se ha podido completar la solicitud. Inténtalo de nuevo más tarde.");
     } finally { setLoading(false); }
