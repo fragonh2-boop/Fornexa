@@ -4,6 +4,16 @@ Este archivo es el registro persistente de temas pendientes que deben poder recu
 
 ## OPEN
 
+### 2026-09-01 — TLM-1 telemetría privada de plataforma
+- **Área:** Plataforma / Observabilidad / Seguridad / Analítica web
+- **Estado:** EN IMPLEMENTACIÓN Y REVISIÓN CRUZADA
+- **Decisión funcional convergida:** alcance para todo `fornexasc.com`, no solo sesiones autenticadas; propósito de analítica web/conversión general, no vigilancia dirigida a una persona concreta.
+- **Arquitectura convergida:** esquema separado `platform_telemetry`; panel interno sin enlace de navegación; autorización server-side OWNER + allowlist explícita; nunca secretos elevados en cliente; sin rrweb/DOM replay en TLM-1; ingesta best-effort/asíncrona para que un fallo de telemetría no degrade tráfico real.
+- **Privacidad/minimización:** no persistir contraseñas, tokens, payloads arbitrarios ni query strings; email de login solo como hash; IP en claro durante 7 días y eventos/metadatos durante 90 días, con purga automática.
+- **Rama:** `feat/tlm1-platform-telemetry`.
+- **Acción requerida:** cerrar revisión del PR, CI/Vercel, aplicar y verificar migración, configurar allowlist/hash-secret en entorno de servidor, validar captura request/auth/page y comprobar que usuarios no autorizados reciben 404 en `/internal/telemetry`.
+- **Criterio de cierre:** PR integrado con checks verdes; migración registrada y advisors sin hallazgos críticos nuevos; telemetría real visible en panel para OWNER allowlisted; intentos de acceso y recorridos por sesión verificables; ausencia de secretos/contenido sensible; fallo simulado de persistencia sin afectar navegación o login.
+
 ### 2026-08-27 — Integración de ramas Supabase en estado fallido
 - **Área:** Plataforma / CI / Supabase Preview
 - **Estado:** PENDIENTE DE DIAGNÓSTICO Y CORRECCIÓN
