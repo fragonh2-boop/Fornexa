@@ -38,9 +38,8 @@ export function telemetryClientIp(headers: Headers) {
 
 export function telemetryIpHash(ip: string | null) {
   if (!ip) return null;
-  const { key } = env();
-  if (!key) return null;
-  const secret = process.env.FORNEXA_TELEMETRY_HASH_SECRET ?? key;
+  const secret = process.env.FORNEXA_TELEMETRY_HASH_SECRET;
+  if (!secret) return null;
   return createHmac("sha256", secret).update(ip).digest("hex");
 }
 
