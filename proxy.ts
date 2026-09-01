@@ -1,8 +1,9 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import { NextRequest, NextResponse } from "next/server";
+import { NextFetchEvent, NextRequest, NextResponse } from "next/server";
 import { isValidReviewToken, REVIEW_COOKIE } from "@/lib/auth-context";
 import { safeInternalPath } from "@/lib/auth-flow";
 import { shouldClearDeadSession, supabaseAuthCookieNames } from "@/lib/auth-session";
+import { callTelemetryRpc, requestTelemetryPayload } from "@/lib/platform-telemetry";
 
 type CookieToSet = {
   name: string;
@@ -36,6 +37,14 @@ function isSharedCmrApi(pathname: string) {
   return pathname.startsWith("/api/cmr/");
 }
 
+function needsAuthResolution(pathname: string) {
+  return isProtectedApi(pathname)
+    || pathname.startsWith("/dashboard")
+    || pathname === "/onboarding"
+    || pathname === "/reset-password"
+    || pathname === "/login";
+}
+
 function noStore<T extends NextResponse>(response: T) {
   response.headers.set("Cache-Control", "private, no-cache, no-store, max-age=0, must-revalidate");
   response.headers.set("Pragma", "no-cache");
@@ -49,8 +58,16 @@ function loginRedirect(request: NextRequest, origin: string) {
   return login;
 }
 
-export async function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest, event: NextFetchEvent) {
   const { pathname, searchParams, origin } = request.nextUrl;
+
+  // TLM-1: best-effort request telemetry. waitUntil keeps persistence off the
+  // critical response path; any storage/config failure is intentionally ignored.
+  event.waitUntil(
+    callTelemetryRpc("request", requestTelemetryPayload(request))
+      .then(() => undefined)
+      .catch(() => undefined),
+  );
 
   if (pathname === "/review") {
     const token = searchParams.get("token");
@@ -89,9 +106,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // Compatibility fallback for providers that return a PKCE auth code to the site
-  // root. Preserve every parameter required to complete that exact PKCE flow. In
-  // particular, Supabase may include sb_flow_id and exchangeCodeForSession must see
-  // the same flow id instead of silently falling back to another pending verifier.
+  // root. Preserve every parameter required to complete that exact PKCE flow.
   if (pathname === "/" && searchParams.has("code")) {
     const code = searchParams.get("code");
     const flowId = searchParams.get("sb_flow_id");
@@ -110,6 +125,9 @@ export async function proxy(request: NextRequest) {
     });
     return noStore(redirectResponse);
   }
+
+  // Broad telemetry matching must not force an auth round-trip on every public asset/page.
+  if (!needsAuthResolution(pathname)) return NextResponse.next({ request });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -141,10 +159,6 @@ export async function proxy(request: NextRequest) {
 
   if (shouldClearDeadSession(authCookieNames.length > 0, userId, userError)) {
     const { error: signOutError } = await supabase.auth.signOut({ scope: "local" });
-
-    // The SDK normally removes both the base cookie and all of its chunks. If
-    // Auth is unreachable, expire only the exact cookies received for this
-    // Supabase project so a dead session cannot survive the recovery redirect.
     if (signOutError) {
       authCookieNames.forEach(name => {
         request.cookies.set(name, "");
@@ -216,23 +230,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/",
-    "/review",
-    "/login",
-    "/onboarding",
-    "/reset-password",
-    "/dashboard/:path*",
-    "/api/cmr",
-    "/api/cmr/:path*",
-    "/api/orders",
-    "/api/expeditions",
-    "/api/trips",
-    "/api/trips/:path*",
-    "/api/storage/health",
-    "/api/storage/migrate-local",
-    "/api/communications/email",
-    "/api/offers/send",
-    "/api/customs/messages",
-    "/api/telematics/live",
+    "/((?!_next/static|_next/image|favicon.ico|icon.svg|manifest.webmanifest|api/telemetry/event).*)",
   ],
 };
