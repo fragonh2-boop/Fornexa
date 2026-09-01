@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Manrope } from "next/font/google";
 import LocalStorageSyncBridge from "./components/LocalStorageSyncBridge";
+import TelemetryBridge from "./components/TelemetryBridge";
 import "./globals.css";
 import "./brand.css";
 
@@ -31,7 +32,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="es">
-      <body className={fornexaFont.variable}><LocalStorageSyncBridge />{children}</body>
+      <body className={fornexaFont.variable}><LocalStorageSyncBridge /><TelemetryBridge />{children}</body>
     </html>
   );
 }
