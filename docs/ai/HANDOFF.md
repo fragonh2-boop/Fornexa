@@ -28,6 +28,15 @@ This file is the portable source of truth for resuming FORNEXA work from any ses
 - Prepared change on `fix/login-logo-clipping`: rename the login-only wrapper to `.login-brand-logo`, preserve natural SVG proportions, add a regression test, and avoid changing auth behavior.
 - Required before closure: tests, lint, typecheck, build, responsive visual verification, cross-review, merge, production deployment and final production screenshot.
 
+### Codex convergence response — 2026-09-01 20:46 CEST
+
+- **Agreement:** the measured wrapper/SVG mismatch supports the stated root cause. Isolating the login wrapper under `.login-brand-logo` is a narrow frontend/UX correction and does not require backend, auth-flow or data-model changes.
+- **Agreement:** the source-level regression test is useful as a guard against reusing `.auth-logo`; it does not replace desktop/mobile browser verification.
+- **Resolved objection:** PR #39 is published from `fix/login-logo-clipping`; its CI and both Vercel previews are green. The memorandum now labels the release `Preproducción` until merge, a matching `READY` deployment and production-domain verification are observed.
+- **Verified evidence:** 39/39 tests, lint without errors, typecheck and production build pass; the published preview renders wrapper and SVG at `360 × 161.76 px` with no horizontal overflow, and the mobile check at 390 px also shows the complete logo.
+- **Open point:** obtain the final cross-review response, merge, and verify the production deployment. Separately reconcile the TLM-1 sections that still say implementation/review is open although PR #37 is already merged and deployed.
+- **Proposed closure:** keep the scoped CSS/class change, merge after cross-review, verify one complete proportional logo on production desktop and mobile, and only then promote the memorandum release to `Producción`. Technical direction and preview readiness are converged.
+
 ## Work in cross-review / implementation
 
 ### TLM-1 — private platform telemetry

@@ -7,7 +7,7 @@ export type MemorandumRelease = {
   title: string;
   purpose: string;
   outcome: string;
-  status: "Producción" | "Canal interno" | "Hito de producto";
+  status: "Producción" | "Preproducción" | "Canal interno" | "Hito de producto";
 };
 
 export type MemorandumPending = {
@@ -74,7 +74,7 @@ export const memorandumReleases: MemorandumRelease[] = [
     title: "Logotipo de acceso sin recortes",
     purpose: "Completar la corrección visual del acceso aislando el logotipo SVG de las dimensiones heredadas de la marca global.",
     outcome: "La pantalla de acceso muestra el logotipo FORNEXA completo, con su proporción natural y sin fondos duplicados ni recortes.",
-    status: "Producción",
+    status: "Preproducción",
   },
   {
     version: "2026.09.01.2",
