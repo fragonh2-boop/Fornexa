@@ -4,59 +4,72 @@ This file is the portable source of truth for resuming FORNEXA work from any ses
 
 ## Current verified snapshot
 
-- **Updated:** 2026-08-27 22:42 CEST.
-- **Repository:** `fragonh2-boop/Fornexa`; production branch `main` at 517 commits.
-- **Production commit observed:** `ccff1cd7e5c0308d5dd86a073f4661d029b4ea2b`.
-- **Production status observed:** Vercel `READY` for the current `main` commit.
-- **Product versions:** Web `0.1.0`; Mobile `0.7.0` (`versionCode` 8).
-- **Evidence checked:** Git/GitHub history and commit statuses, recent Vercel deployments, Supabase migration and branch state.
+- **Updated:** 2026-09-01 17:20 CEST.
+- **Repository:** `fragonh2-boop/Fornexa`.
+- **Production branch:** `main` includes merge `7e62e6f01b92f7f4108aae2aebd9d12c61b9c57d` from PR #36.
+- **PR #36:** login logo hotfix reviewed independently by Claude; GitHub Actions `validate` and both Vercel checks were green before merge.
+- **Active implementation branch:** `feat/tlm1-platform-telemetry`, based on the PR #36 merge.
+- **Supabase production:** tariff engine foundation remains applied; Supabase Git branch integration `MIGRATIONS_FAILED` remains a separate unresolved control.
 
 ## Latest completed work
 
-### Tariff engine foundation
+### Login logo collision hotfix
 
-- Commit `d917235` added the tenant-isolated tariff engine schema for tariffs, zones, scales and surcharges.
-- Supabase production records `tariff_engine_foundation` as applied; the repository migration is `20260827164000_tariff_engine_foundation.sql`.
-- Vercel production for this commit was observed `READY` before the subsequent closeout-policy deployment.
+- PR #36 removed the inherited background wordmark from the login logo wrapper while preserving the SVG `FornexaLogo` as the single visible mark.
+- `lib/memorandum.ts` was updated in the same PR.
+- Claude independently verified the full diff and all three checks green.
+- PR #36 was squash-merged to `main` as `7e62e6f0…`.
 
-### Mandatory memorandum closeout
+## Work in cross-review / implementation
 
-- Commit `ccff1cd` added repository-wide completion rules, a definition-of-done checklist and a CI gate that requires functional deliveries to update `lib/memorandum.ts`.
-- The public memorandum is current through 517 commits and already includes the tariff foundation, making memorandum PR `#31` obsolete.
-- Vercel production for `ccff1cd` was observed `READY`.
+### TLM-1 — private platform telemetry
 
-### Responsive login layout
+Functional decisions are converged between Fran, GPT and Claude:
 
-- Commits `f219673` and `d042a5a` added login-specific responsive sizing and loaded those styles from the login layout.
-- Both commits are integrated in `main`; Vercel production deployments were observed `READY`.
-- No GitHub Actions run or direct test result was found for these commits. Do not treat the login as visually verified from this snapshot.
+- Scope: all `fornexasc.com`, including public traffic; not restricted to authenticated sessions.
+- Purpose: conventional SaaS web/conversion analytics and platform/security observability, not directed surveillance of a named individual.
+- Data boundary: isolated `platform_telemetry` schema, not tenant business data.
+- Access: hidden internal route is not security by itself; the panel requires authenticated `OWNER` plus explicit server-side email allowlist.
+- Client security: no service-role/secret key in browser code.
+- TLM-1 excludes rrweb/DOM replay. It records sanitized request metadata, auth events and path navigation grouped by a first-party session UUID.
+- Request capture must be best-effort/asynchronous so telemetry persistence cannot degrade real traffic.
+- Minimization: no passwords, auth tokens, arbitrary request bodies, CMR/economic payloads or query-string values; login email is persisted only as a hash.
+- Retention: plain IP 7 days; telemetry event metadata 90 days; automatic purge from the first deployment.
 
-### Customer master and worldwide addresses
+Implementation currently prepared on `feat/tlm1-platform-telemetry`:
 
-- The deployed customer master persists fiscal, commercial and operational data, contacts, services, blocks and versioned rates with tenant isolation and auditability.
-- Worldwide country and subdivision catalogs remain active for addresses, with postal consistency checks where the postal system supports them.
-
-## Database and deployment state
-
-- Supabase production includes `tariff_engine_foundation`; the project is healthy.
-- The Supabase Git branch integration still reports `MIGRATIONS_FAILED` even though its preview project is healthy. Treat branch-preview controls as unresolved until this status is repaired and verified.
-- The current Vercel production deployment corresponds to `ccff1cd` and is `READY`.
+- `lib/platform-telemetry.ts`: server-only sanitized transport to restricted Supabase RPCs.
+- `proxy.ts`: extends the existing Next.js 16 proxy with `waitUntil` best-effort request telemetry while avoiding auth round-trips on ordinary public pages.
+- `app/api/telemetry/event/route.ts`: same-origin sanitized page/auth event ingestion; storage errors never fail the visitor request.
+- `app/components/TelemetryBridge.tsx`: first-party session UUID and route/dwell events, no DOM content.
+- `app/login/page.tsx`: login attempt/success/failure and recovery/first-access events; password is never sent to telemetry.
+- `app/internal/telemetry/page.tsx`: unlinked internal panel, OWNER + `FORNEXA_TELEMETRY_OWNER_EMAILS`, returns 404 to unauthorized users.
+- `supabase/migrations/20260901_platform_telemetry.sql`: isolated schema, three telemetry tables, locked-down SECURITY DEFINER RPCs, indexes and automatic retention.
+- `.env.example`: documents `FORNEXA_TELEMETRY_OWNER_EMAILS` and `FORNEXA_TELEMETRY_HASH_SECRET` as server-only settings.
+- `lib/memorandum.ts` and `docs/pending-log.md` updated for the TLM-1 delivery and acceptance criteria.
 
 ## Open work
 
-The authoritative details and acceptance criteria live in `docs/pending-log.md`.
+The authoritative acceptance criteria live in `docs/pending-log.md`.
 
-1. Improve and visually verify the password-recovery confirmation contrast on desktop and mobile, then deploy it.
-2. Diagnose and repair the Supabase Git branch integration status `MIGRATIONS_FAILED`, then verify a migration-bearing preview.
+1. Complete Claude review of TLM-1, especially RPC privilege boundaries, proxy performance/failure isolation, retention and owner-only panel authorization.
+2. Obtain green GitHub Actions and Vercel preview checks for the TLM-1 PR.
+3. Apply and verify the telemetry migration only after review/checks are satisfactory; run Supabase advisors and validate permissions.
+4. Configure server-side owner allowlist and hash secret in production environment without exposing either to client bundles.
+5. Verify real request/auth/page telemetry and confirm unauthorized `/internal/telemetry` access returns 404.
+6. Keep T1 Tariffs, O1 Orders and A2 CMR reconciliation separate from TLM-1.
+7. Repair Supabase Git branch integration `MIGRATIONS_FAILED` independently.
 
-## Unintegrated or unverified work
+## Governance and role split
 
-- PR `#31` is superseded by the memorandum content already integrated in `main`; it should remain closed rather than be rebased or merged.
-- The primary local checkout contains pre-existing user changes and is behind `origin/main`; it was not modified by this review.
-- This handoff update is prepared on branch `codex/handoff-2026-08-27` and is not authoritative on `main` until its pull request is merged.
+- GPT owns implementation, code changes, migrations, tests and deployment.
+- Claude and other AIs are reviewers/advisers unless Fran explicitly changes that instruction.
+- Material cross-review handoffs are mirrored in `/Fornexasc` on Drive and Slack `#fornexa`.
+- Do not reopen converged points without new evidence. Opinion-only disagreements get at most two negotiation rounds before escalation to Fran.
 
 ## Next safe actions
 
-1. Review and merge the handoff pull request after its Markdown-only controls pass.
-2. Fix the recovery-message contrast separately and verify WCAG AA plus desktop/mobile production rendering.
-3. Repair the Supabase branch integration and prove that a migration-bearing preview passes before relying on that control.
+1. Open the TLM-1 PR and collect CI/Vercel evidence.
+2. Send the exact branch/PR and security-sensitive diff to Claude for point-by-point review.
+3. Resolve concrete review findings, then merge only with satisfactory evidence.
+4. Apply/verify migration, configure production server-only environment, deploy and execute functional access/telemetry checks.
