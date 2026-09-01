@@ -37,7 +37,7 @@ export default function TelemetryBridge() {
     const now = performance.now();
     const prior = previous.current;
 
-    if (prior) {
+    if (prior && prior.path !== pathname) {
       send({
         kind: "page",
         session_id: sid,
@@ -57,8 +57,11 @@ export default function TelemetryBridge() {
       dwell_ms: null,
     });
     previous.current = { path: pathname || "/", startedAt: now };
+  }, [pathname]);
 
-    return () => {
+  useEffect(() => {
+    const sid = sessionId();
+    const onPageHide = () => {
       const current = previous.current;
       if (!current) return;
       send({
@@ -70,7 +73,9 @@ export default function TelemetryBridge() {
         dwell_ms: Math.max(0, performance.now() - current.startedAt),
       });
     };
-  }, [pathname]);
+    window.addEventListener("pagehide", onPageHide);
+    return () => window.removeEventListener("pagehide", onPageHide);
+  }, []);
 
   return null;
 }
