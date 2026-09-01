@@ -4,11 +4,11 @@ This file is the portable source of truth for resuming FORNEXA work from any ses
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-01 17:20 CEST.
+- **Updated:** 2026-09-01 20:28 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
-- **Production branch:** `main` includes merge `7e62e6f01b92f7f4108aae2aebd9d12c61b9c57d` from PR #36.
-- **PR #36:** login logo hotfix reviewed independently by Claude; GitHub Actions `validate` and both Vercel checks were green before merge.
-- **Active implementation branch:** `feat/tlm1-platform-telemetry`, based on the PR #36 merge.
+- **Production branch:** `main` includes merge `1db62220755631eb9f4a64793b1167916f5743f9` from PR #37; the current Vercel production deployment is `READY`.
+- **PR #36:** removed the duplicated background wordmark, but live browser inspection found that the remaining SVG is still clipped by the inherited `.auth-logo` height and overflow.
+- **Active correction branch:** `fix/login-logo-clipping`, based on current `origin/main`.
 - **Supabase production:** tariff engine foundation remains applied; Supabase Git branch integration `MIGRATIONS_FAILED` remains a separate unresolved control.
 
 ## Latest completed work
@@ -19,6 +19,14 @@ This file is the portable source of truth for resuming FORNEXA work from any ses
 - `lib/memorandum.ts` was updated in the same PR.
 - Claude independently verified the full diff and all three checks green.
 - PR #36 was squash-merged to `main` as `7e62e6f0…`.
+
+### Login logo clipping follow-up
+
+- Runtime evidence: no `/login` errors in Vercel during the last 24 hours; production serves the intended current commit.
+- Browser evidence on the exact production deployment: `.auth-logo` is `360 × 54 px` with `overflow: hidden`, while its SVG is `360 × 161.76 px`.
+- Root cause: the login wrapper still reuses the global `.auth-logo` class from `app/brand.css`; PR #36 neutralized the background but did not neutralize inherited height/overflow.
+- Prepared change on `fix/login-logo-clipping`: rename the login-only wrapper to `.login-brand-logo`, preserve natural SVG proportions, add a regression test, and avoid changing auth behavior.
+- Required before closure: tests, lint, typecheck, build, responsive visual verification, cross-review, merge, production deployment and final production screenshot.
 
 ## Work in cross-review / implementation
 
@@ -69,7 +77,7 @@ The authoritative acceptance criteria live in `docs/pending-log.md`.
 
 ## Next safe actions
 
-1. Open the TLM-1 PR and collect CI/Vercel evidence.
-2. Send the exact branch/PR and security-sensitive diff to Claude for point-by-point review.
-3. Resolve concrete review findings, then merge only with satisfactory evidence.
-4. Apply/verify migration, configure production server-only environment, deploy and execute functional access/telemetry checks.
+1. Validate and cross-review `fix/login-logo-clipping`, then merge and verify `/login` visually in production.
+2. Reconcile the TLM-1 handoff/pending state with the already merged PR #37 and deployed migration.
+3. Configure and verify the TLM-1 server-only owner allowlist and dedicated IP hash secret.
+4. Continue the separate tariff, orders, CMR and Supabase Preview work without mixing it into the logo correction.

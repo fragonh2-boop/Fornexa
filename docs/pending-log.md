@@ -4,6 +4,13 @@ Este archivo es el registro persistente de temas pendientes que deben poder recu
 
 ## OPEN
 
+### 2026-09-01 — Logotipo SVG recortado en la pantalla de acceso
+- **Área:** Auth / Login / Identidad visual
+- **Estado:** CORRECCIÓN PREPARADA EN `fix/login-logo-clipping`
+- **Evidencia:** producción carga un contenedor `.auth-logo` de `360 × 54 px` con `overflow: hidden`, mientras el SVG mide `360 × 161,76 px`; el fondo duplicado desapareció con PR #36, pero aproximadamente 108 px del logotipo real siguen ocultos.
+- **Acción requerida:** aislar el wrapper del login de la clase global `.auth-logo`, validar el SVG completo en escritorio y móvil, pasar test/lint/typecheck/build, revisión cruzada, merge y comprobación visual en producción.
+- **Criterio de cierre:** una sola marca FORNEXA completa y proporcionada en `/login`, sin fondo heredado, clipping ni regresiones responsive; commit de producción verificado en Vercel.
+
 ### 2026-09-01 — TLM-1 telemetría privada de plataforma
 - **Área:** Plataforma / Observabilidad / Seguridad / Analítica web
 - **Estado:** EN IMPLEMENTACIÓN Y REVISIÓN CRUZADA

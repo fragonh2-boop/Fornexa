@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "1 sep 2026";
-export const memorandumCommitCoverage = 519;
+export const memorandumCommitCoverage = 520;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -67,6 +67,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.09.01.3",
+    date: "1 sep 2026",
+    surface: ["Web"],
+    title: "Logotipo de acceso sin recortes",
+    purpose: "Completar la corrección visual del acceso aislando el logotipo SVG de las dimensiones heredadas de la marca global.",
+    outcome: "La pantalla de acceso muestra el logotipo FORNEXA completo, con su proporción natural y sin fondos duplicados ni recortes.",
+    status: "Producción",
+  },
   {
     version: "2026.09.01.2",
     date: "1 sep 2026",

@@ -27,6 +27,18 @@ test("web logo sources use the rounded canonical mark without clipping", async (
   assert.match(wordmark, /stroke-linecap="round" stroke-linejoin="round"/);
 });
 
+test("login isolates the SVG wordmark from the legacy clipped logo box", async () => {
+  const [page, loginStyles] = await Promise.all([
+    text("app/login/page.tsx"),
+    text("app/login/login.css"),
+  ]);
+
+  assert.match(page, /className="login-brand-logo"/);
+  assert.doesNotMatch(page, /className="auth-logo"/);
+  assert.match(loginStyles, /\.login-brand-logo\s*\{[^}]*height:\s*auto;[^}]*overflow:\s*visible;/);
+  assert.match(loginStyles, /\.login-brand-logo svg\s*\{[^}]*width:\s*100%;[^}]*height:\s*auto;/);
+});
+
 test("PWA and mobile configurations reference the harmonized assets", async () => {
   const manifest = JSON.parse(await text("public/manifest.webmanifest"));
   const expo = JSON.parse(await text("mobile-driver/app.json"));
