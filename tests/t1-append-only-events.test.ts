@@ -2,10 +2,18 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const migration = readFileSync(
-  new URL("../supabase/migrations/20260903003000_t1_append_only_events.sql", import.meta.url),
-  "utf8",
-);
+const readRepoFile = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+const migration = readRepoFile("supabase/migrations/20260903003000_t1_append_only_events.sql");
+
+const transportEventProducers = [
+  "app/api/cmr/route.ts",
+  "app/api/cmr/[cmr]/email/route.ts",
+  "app/api/mobile/cmr/[key]/finish/route.ts",
+  "app/api/mobile/evidence/route.ts",
+  "app/api/mobile/stops/[id]/events/route.ts",
+];
+
+const operationalEventProducers = ["app/api/storage/migrate-local/route.ts"];
 
 for (const table of ["transport_events", "operational_events"]) {
   test(`${table} keeps authenticated access read-only`, () => {
@@ -32,4 +40,28 @@ test("truncate remains privilege-protected instead of relying on a row trigger",
   assert.match(migration, /revoke all privileges on table public\.transport_events from anon, authenticated, service_role/i);
   assert.match(migration, /revoke all privileges on table public\.operational_events from anon, authenticated, service_role/i);
   assert.doesNotMatch(migration, /before\s+truncate/i);
+});
+
+test("verified transport event producers remain server-side service-role routes", () => {
+  assert.equal(transportEventProducers.length, 5);
+  for (const path of transportEventProducers) {
+    const source = readRepoFile(path);
+    assert.match(source, /createSupabaseAdmin/);
+    assert.match(source, /from\(["']transport_events["']\)/);
+    assert.match(migration, new RegExp(path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+});
+
+test("verified operational event producer remains server-side service-role route", () => {
+  for (const path of operationalEventProducers) {
+    const source = readRepoFile(path);
+    assert.match(source, /createSupabaseAdmin/);
+    assert.match(source, /from\(["']operational_events["']\)/);
+    assert.match(migration, new RegExp(path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+});
+
+test("CMR history deletion policy is explicit", () => {
+  assert.match(migration, /Physical deletion of a CMR\/stop that already owns immutable event history is intentionally/i);
+  assert.match(migration, /compensating events, not history erasure/i);
 });
