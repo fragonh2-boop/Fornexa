@@ -1,8 +1,19 @@
 begin;
 
 -- T1: event history is append-only. Application writes are server-side only.
--- Current producers use createSupabaseAdmin(), so service_role retains SELECT/INSERT
--- while browser roles cannot mutate or append directly.
+-- Verified producer inventory at PR #40 HEAD:
+-- transport_events via createSupabaseAdmin():
+--   app/api/cmr/route.ts (cmr_issued)
+--   app/api/cmr/[cmr]/email/route.ts (cmr_emailed)
+--   app/api/mobile/cmr/[key]/finish/route.ts (work_finished, ON CONFLICT DO NOTHING)
+--   app/api/mobile/evidence/route.ts (pod_photo_added, ON CONFLICT DO NOTHING)
+--   app/api/mobile/stops/[id]/events/route.ts (idempotent event, ON CONFLICT DO NOTHING)
+-- operational_events via createSupabaseAdmin():
+--   app/api/storage/migrate-local/route.ts
+-- Therefore service_role retains SELECT/INSERT while browser roles cannot append directly.
+-- Physical deletion of a CMR/stop that already owns immutable event history is intentionally
+-- blocked by the mutation guard through existing ON DELETE CASCADE relationships. Business
+-- cancellation/correction must be represented by compensating events, not history erasure.
 
 alter table public.transport_events enable row level security;
 alter table public.operational_events enable row level security;
@@ -59,7 +70,7 @@ create trigger operational_events_reject_mutation
 before update or delete on public.operational_events
 for each row execute function public.fornexa_reject_event_mutation();
 
-comment on table public.transport_events is 'Histórico append-only de emisión, llegada, POD, firma e incidencias.';
+comment on table public.transport_events is 'Histórico append-only de emisión, llegada, POD, firma e incidencias; no se elimina en cascada una vez emitidos eventos.';
 comment on table public.operational_events is 'Histórico append-only de eventos operativos de FORNEXA.';
 
 commit;
