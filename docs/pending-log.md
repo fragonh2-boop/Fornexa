@@ -4,27 +4,20 @@ Este archivo es el registro persistente de temas pendientes que deben poder recu
 
 ## OPEN
 
-### 2026-09-01 — Logotipo SVG recortado en la pantalla de acceso
-- **Área:** Auth / Login / Identidad visual
-- **Estado:** CORRECCIÓN PREPARADA EN `fix/login-logo-clipping`
-- **Evidencia:** producción carga un contenedor `.auth-logo` de `360 × 54 px` con `overflow: hidden`, mientras el SVG mide `360 × 161,76 px`; el fondo duplicado desapareció con PR #36, pero aproximadamente 108 px del logotipo real siguen ocultos.
-- **Acción requerida:** aislar el wrapper del login de la clase global `.auth-logo`, validar el SVG completo en escritorio y móvil, pasar test/lint/typecheck/build, revisión cruzada, merge y comprobación visual en producción.
-- **Criterio de cierre:** una sola marca FORNEXA completa y proporcionada en `/login`, sin fondo heredado, clipping ni regresiones responsive; commit de producción verificado en Vercel.
-
 ### 2026-09-01 — TLM-1 telemetría privada de plataforma
 - **Área:** Plataforma / Observabilidad / Seguridad / Analítica web
-- **Estado:** EN IMPLEMENTACIÓN Y REVISIÓN CRUZADA
+- **Estado:** INTEGRADO EN `main`; verificación operativa pendiente.
+- **Evidencia de integración:** PR #37 se fusionó como `1db6222…`; GitHub registra `validate` y los contextos de preview de Vercel correctos. Supabase Preview fue omitido.
 - **Decisión funcional convergida:** alcance para todo `fornexasc.com`, no solo sesiones autenticadas; propósito de analítica web/conversión general, no vigilancia dirigida a una persona concreta.
 - **Arquitectura convergida:** esquema separado `platform_telemetry`; panel interno sin enlace de navegación; autorización server-side OWNER + allowlist explícita; nunca secretos elevados en cliente; sin rrweb/DOM replay en TLM-1; ingesta best-effort/asíncrona para que un fallo de telemetría no degrade tráfico real.
 - **Privacidad/minimización:** no persistir contraseñas, tokens, payloads arbitrarios ni query strings; email de login solo como hash; IP en claro durante 7 días y eventos/metadatos durante 90 días, con purga automática.
-- **Rama:** `feat/tlm1-platform-telemetry`.
-- **Acción requerida:** cerrar revisión del PR, CI/Vercel, aplicar y verificar migración, configurar allowlist/hash-secret en entorno de servidor, validar captura request/auth/page y comprobar que usuarios no autorizados reciben 404 en `/internal/telemetry`.
-- **Criterio de cierre:** PR integrado con checks verdes; migración registrada y advisors sin hallazgos críticos nuevos; telemetría real visible en panel para OWNER allowlisted; intentos de acceso y recorridos por sesión verificables; ausencia de secretos/contenido sensible; fallo simulado de persistencia sin afectar navegación o login.
+- **Acción requerida:** verificar migración/advisors y privilegios RPC; configurar allowlist/hash-secret solo en servidor; validar captura request/auth/page y comprobar que usuarios no autorizados reciben 404 en `/internal/telemetry`.
+- **Criterio de cierre:** migración/advisors/permisos verificados, telemetría real visible para OWNER allowlisted, acceso no autorizado 404 y ausencia de secretos/contenido sensible.
 
 ### 2026-08-27 — Integración de ramas Supabase en estado fallido
 - **Área:** Plataforma / CI / Supabase Preview
 - **Estado:** PENDIENTE DE DIAGNÓSTICO Y CORRECCIÓN
-- **Evidencia:** producción contiene la migración `tariff_engine_foundation` y el proyecto está sano, pero la integración Git de la rama `main` continúa reportando `MIGRATIONS_FAILED`.
+- **Evidencia:** issue #32 sigue abierto y sin cambios desde 2026-08-27; los checks Supabase Preview de PR #34, #37 y #39 aparecen omitidos. El estado directo de la integración no se verificó en esta ejecución.
 - **Acción requerida:** identificar el fallo de la integración, corregir la causa y ejecutar una preview que incluya una migración real.
 - **Criterio de cierre:** integración de ramas sin error y control Supabase Preview aprobado en una PR con migración, sin alterar datos de producción durante la prueba.
 
@@ -38,6 +31,12 @@ Este archivo es el registro persistente de temas pendientes que deben poder recu
 - **Después de corregir:** commit en `main`, despliegue a Vercel y validación visual en `fornexasc.com/login` → Recuperar contraseña.
 
 ## DONE
+
+### 2026-09-01 — Corrección de clipping del logotipo de acceso
+- **Área:** Auth / Login / Identidad visual
+- **Estado:** INTEGRADO EN `main` (`7449ec9…`); despliegue de producción no revalidado en esta ejecución.
+- **Cierre de código:** PR #39 aisló el wrapper del login bajo `.login-brand-logo`, retirando la altura fija y el `overflow: hidden` heredados sin modificar el flujo de autenticación.
+- **Evidencia:** PR fusionada; `validate` y previews de Vercel correctos. Supabase Preview omitido.
 
 ### 2026-08-25 — Maestro mundial de países y subdivisiones geográficas
 - **Área:** Maestros / Direcciones / País / Provincia-región

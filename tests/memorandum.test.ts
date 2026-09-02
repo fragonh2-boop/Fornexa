@@ -8,9 +8,10 @@ import {
 } from "../lib/memorandum.ts";
 
 test("public memorandum covers the complete product history by milestones", () => {
-  assert.ok(memorandumCommitCoverage >= 517);
+  assert.ok(memorandumCommitCoverage >= 539);
   assert.ok(memorandumReleases.length >= 15);
-  assert.equal(memorandumReleases.at(0)?.date, memorandumUpdatedAt);
+  assert.equal(memorandumUpdatedAt, "2 sep 2026");
+  assert.equal(memorandumReleases.at(0)?.date, "1 sep 2026");
   assert.equal(memorandumReleases.at(-1)?.date, "27 jul 2026");
   assert.ok(memorandumReleases.some((release) => release.surface.includes("Mobile")));
   assert.ok(memorandumReleases.some((release) => release.status === "Producción"));

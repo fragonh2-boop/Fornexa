@@ -18,8 +18,8 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "1 sep 2026";
-export const memorandumCommitCoverage = 520;
+export const memorandumUpdatedAt = "2 sep 2026";
+export const memorandumCommitCoverage = 539;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -93,6 +93,24 @@ export const memorandumReleases: MemorandumRelease[] = [
     purpose: "Eliminar la superposición del wordmark heredado sobre el logotipo SVG de la pantalla de acceso.",
     outcome: "El login neutraliza el fondo global heredado y muestra una única identidad FORNEXA sin duplicación visual.",
     status: "Producción",
+  },
+  {
+    version: "2026.08.31",
+    date: "31 ago 2026",
+    surface: ["Web", "Plataforma"],
+    title: "Guardado de tarifas más claro",
+    purpose: "Evitar que un reintento genere incertidumbre al guardar una tarifa.",
+    outcome: "Los duplicados se informan como conflicto controlado y orientan a actualizar el formulario antes de reintentarlo.",
+    status: "Hito de producto",
+  },
+  {
+    version: "2026.08.29",
+    date: "29 ago 2026",
+    surface: ["Web", "Plataforma"],
+    title: "Acceso económico por función",
+    purpose: "Reducir la exposición de condiciones comerciales a quienes no las necesitan para operar.",
+    outcome: "La consulta de servicios y tarifas aplica ahora permisos de lectura acordes a cada función y separa tarifas de venta y de coste.",
+    status: "Hito de producto",
   },
   {
     version: "2026.08.27",

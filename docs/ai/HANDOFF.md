@@ -2,6 +2,15 @@
 
 This file is the portable source of truth for resuming FORNEXA work from any session or computer. Read it together with `docs/pending-log.md` and verify current remote/deployment state when the required connectors are available.
 
+## Automation snapshot — 2026-09-02
+
+- **Integrated SHA:** `origin/main` is `7449ec9fa3e6873e61298bcc20e3ed4f804bce47` (fetched on 2026-09-02), following the previously observed `362d18e…`.
+- **Integrated work:** PR #37 (TLM-1) merged as `1db62220755631eb9f4a64793b1167916f5743f9`; PR #39 (login logo) merged as `7449ec9…`, both on 2026-09-01.
+- **GitHub evidence:** both PRs completed `validate`, Vercel Preview Comments and both Vercel preview contexts successfully; Supabase Preview was skipped. PR #34 remains open and its old head is now `CONFLICTING` with `main`.
+- **Not verified in this run:** direct production deployment/domain association, Supabase migration history/advisors, runtime telemetry and production settings. Historical claims below are not fresh evidence from this run.
+- **Reconciled pending state:** TLM-1 is integrated in Git but still requires its environment configuration and operational/Supabase verification. The logo correction is integrated in Git; only its GitHub CI/preview evidence was rechecked.
+- **Next safe action:** rebase/update PR #34 with this documentation, run proportional checks, wait for fresh checks, and do not merge it from this automation.
+
 ## Current verified snapshot
 
 - **Updated:** 2026-09-01 20:28 CEST.
