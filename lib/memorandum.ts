@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "3 sep 2026";
-export const memorandumCommitCoverage = 522;
+export const memorandumCommitCoverage = 523;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -74,6 +74,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.09.03.3",
+    date: "3 sep 2026",
+    surface: ["Web", "Plataforma"],
+    title: "Acceso interno tenant-aware a CMR",
+    purpose: "Permitir que usuarios internos autenticados abran CMR de su organización sin depender de una capability guardada en el navegador.",
+    outcome: "Fix en preproducción: capability pública preservada como vía primaria, fallback interno limitado a getAuthenticatedContext() y lookup por cmr_number + tenant_id, con respuesta genérica para evitar enumeración cross-tenant.",
+    status: "Preproducción",
+  },
   {
     version: "2026.09.03.2",
     date: "3 sep 2026",
