@@ -208,3 +208,21 @@
   .stage > :global(main) > :global(section) > :global(header:first-child) :global(h1),
   .stage > :global(main) > :global(header:first-child) :global(h1) { font-size: 34px !important; }
 }
+
+@media print {
+  .frame {
+    display: block;
+    min-height: 0;
+    background: #ffffff;
+  }
+
+  .sidebar {
+    display: none !important;
+  }
+
+  .stage {
+    width: 100%;
+    min-height: 0;
+    overflow: visible;
+  }
+}
