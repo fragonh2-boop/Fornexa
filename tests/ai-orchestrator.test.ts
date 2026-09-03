@@ -18,6 +18,11 @@ const packet = {
   dataClassification: "public_code" as const,
 };
 
+function restoreEnv(name: string, value: string | undefined) {
+  if (value === undefined) delete process.env[name];
+  else process.env[name] = value;
+}
+
 test("validateReviewPacket accepts a minimal valid packet", () => {
   assert.doesNotThrow(() => validateReviewPacket(packet));
 });
@@ -46,6 +51,15 @@ test("redactSensitiveText removes bearer tokens and credential assignments", () 
   assert.ok(result.detections.length >= 1);
 });
 
+test("redactSensitiveText detects JWT and private-key material", () => {
+  const jwt = "eyJaaaaaaaaaaa.bbbbbbbbbbb.ccccccccccc";
+  const key = "-----BEGIN PRIVATE KEY-----\nAAAAAAAAAAAAAAAA\n-----END PRIVATE KEY-----";
+  const result = redactSensitiveText(`${jwt}\n${key}`);
+  assert.doesNotMatch(result.text, /eyJaaaaaaaaaaa|AAAAAAAAAAAAAAAA/);
+  assert.ok(result.detections.includes("jwt"));
+  assert.ok(result.detections.includes("private-key"));
+});
+
 test("outbound review fails closed without explicit public_code classification", () => {
   assert.throws(
     () => validateOutboundReviewPacket({ ...packet, dataClassification: "unknown" }),
@@ -53,9 +67,13 @@ test("outbound review fails closed without explicit public_code classification",
   );
 });
 
-test("outbound review blocks detected sensitive material", () => {
+test("outbound review blocks detected sensitive material anywhere in the packet", () => {
   assert.throws(
     () => validateOutboundReviewPacket({ ...packet, diff: "+ api_key=supersecret123" }),
+    /sensitive-material detector/i,
+  );
+  assert.throws(
+    () => validateOutboundReviewPacket({ ...packet, objective: "Authorization: Bearer abcdefghijklmnop" }),
     /sensitive-material detector/i,
   );
 });
@@ -93,8 +111,92 @@ test("runMultiModelReview degrades safely when provider credentials are absent",
       ["anthropic", "deepseek", "openai"],
     );
   } finally {
-    if (previous.openai) process.env.OPENAI_API_KEY = previous.openai;
-    if (previous.anthropic) process.env.ANTHROPIC_API_KEY = previous.anthropic;
-    if (previous.deepseek) process.env.DEEPSEEK_API_KEY = previous.deepseek;
+    restoreEnv("OPENAI_API_KEY", previous.openai);
+    restoreEnv("ANTHROPIC_API_KEY", previous.anthropic);
+    restoreEnv("DEEPSEEK_API_KEY", previous.deepseek);
+  }
+});
+
+test("provider adapters use bounded expected endpoints and normalize all three responses", async () => {
+  const envNames = [
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "DEEPSEEK_API_KEY",
+    "FORNEXA_OPENAI_MODEL",
+    "FORNEXA_ANTHROPIC_MODEL",
+    "FORNEXA_DEEPSEEK_MODEL",
+    "OPENAI_BASE_URL",
+    "ANTHROPIC_BASE_URL",
+    "DEEPSEEK_BASE_URL",
+    "FORNEXA_AI_MAX_RETRIES",
+  ] as const;
+  const previous = Object.fromEntries(envNames.map((name) => [name, process.env[name]])) as Record<string, string | undefined>;
+  const originalFetch = globalThis.fetch;
+  const calls: { url: string; init?: RequestInit }[] = [];
+
+  process.env.OPENAI_API_KEY = "openai-test-key";
+  process.env.ANTHROPIC_API_KEY = "anthropic-test-key";
+  process.env.DEEPSEEK_API_KEY = "deepseek-test-key";
+  process.env.FORNEXA_OPENAI_MODEL = "openai-test-model";
+  process.env.FORNEXA_ANTHROPIC_MODEL = "anthropic-test-model";
+  process.env.FORNEXA_DEEPSEEK_MODEL = "deepseek-test-model";
+  process.env.OPENAI_BASE_URL = "https://openai.invalid/v1";
+  process.env.ANTHROPIC_BASE_URL = "https://anthropic.invalid/v1";
+  process.env.DEEPSEEK_BASE_URL = "https://deepseek.invalid";
+  process.env.FORNEXA_AI_MAX_RETRIES = "0";
+
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    calls.push({ url, init });
+    if (url === "https://openai.invalid/v1/responses") {
+      return new Response(JSON.stringify({
+        output: [{ content: [{ text: JSON.stringify({ summary: "openai ok", findings: [] }) }] }],
+      }), { status: 200 });
+    }
+    if (url === "https://anthropic.invalid/v1/messages") {
+      return new Response(JSON.stringify({
+        content: [{ text: JSON.stringify({ summary: "anthropic ok", findings: [] }) }],
+      }), { status: 200 });
+    }
+    if (url === "https://deepseek.invalid/chat/completions") {
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: JSON.stringify({ summary: "deepseek ok", findings: [] }) } }],
+      }), { status: 200 });
+    }
+    throw new Error(`Unexpected provider URL: ${url}`);
+  };
+
+  try {
+    const result = await runMultiModelReview(packet, {
+      requestId: "req-adapters",
+      runId: "run-adapters",
+      opinionRound: 1,
+    });
+    assert.equal(result.unavailable.length, 0);
+    assert.deepEqual(
+      result.reviews.map((review) => review.provider).sort(),
+      ["anthropic", "deepseek", "openai"],
+    );
+    assert.deepEqual(
+      result.reviews.map((review) => review.summary).sort(),
+      ["anthropic ok", "deepseek ok", "openai ok"],
+    );
+    assert.deepEqual(
+      calls.map((call) => call.url).sort(),
+      [
+        "https://anthropic.invalid/v1/messages",
+        "https://deepseek.invalid/chat/completions",
+        "https://openai.invalid/v1/responses",
+      ],
+    );
+    for (const call of calls) {
+      assert.equal(call.init?.method, "POST");
+      const body = String(call.init?.body ?? "");
+      assert.doesNotMatch(body, /openai-test-key|anthropic-test-key|deepseek-test-key/);
+      assert.match(body, /Validate a provider-neutral review flow/);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const name of envNames) restoreEnv(name, previous[name]);
   }
 });
