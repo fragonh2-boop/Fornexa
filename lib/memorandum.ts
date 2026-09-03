@@ -80,8 +80,8 @@ export const memorandumReleases: MemorandumRelease[] = [
     surface: ["Web"],
     title: "Impresión CMR sin interfaz de navegación",
     purpose: "Asegurar que imprimir o exportar a PDF desde ePOD & CMR produzca únicamente el documento A4, sin sidebar ni chrome del dashboard.",
-    outcome: "Fix en preproducción: el layout del dashboard elimina la navegación durante media print y libera el stage a ancho completo, preservando el contrato A4 específico del CMR.",
-    status: "Preproducción",
+    outcome: "Fix desplegado y verificado en producción: el layout del dashboard elimina la navegación durante media print y libera el stage a ancho completo, preservando el contrato A4 específico del CMR.",
+    status: "Producción",
   },
   {
     version: "2026.09.03.4",
