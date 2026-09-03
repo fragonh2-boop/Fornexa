@@ -75,6 +75,15 @@ export const memorandumPending: MemorandumPending[] = [
 
 export const memorandumReleases: MemorandumRelease[] = [
   {
+    version: "2026.09.03.5",
+    date: "3 sep 2026",
+    surface: ["Web"],
+    title: "Impresión CMR sin interfaz de navegación",
+    purpose: "Asegurar que imprimir o exportar a PDF desde ePOD & CMR produzca únicamente el documento A4, sin sidebar ni chrome del dashboard.",
+    outcome: "Fix en preproducción: el layout del dashboard elimina la navegación durante media print y libera el stage a ancho completo, preservando el contrato A4 específico del CMR.",
+    status: "Preproducción",
+  },
+  {
     version: "2026.09.03.4",
     date: "3 sep 2026",
     surface: ["Web", "Plataforma"],
