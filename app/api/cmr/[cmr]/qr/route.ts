@@ -14,6 +14,19 @@ export const dynamic = "force-dynamic";
 const noStore = { "Cache-Control": "private, no-cache, no-store, max-age=0, must-revalidate" };
 const genericUnauthorized = () => new Response("CMR Key, sesión o acceso interno no válido.", { status: 401, headers: noStore });
 
+function internalQrAccessKeyIsActive(document: {
+  access_key: string | null;
+  access_key_expires_at: string | null;
+  access_key_revoked_at: string | null;
+}) {
+  if (!document.access_key || document.access_key_revoked_at) return false;
+  if (document.access_key_expires_at) {
+    const expiresAt = Date.parse(document.access_key_expires_at);
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) return false;
+  }
+  return true;
+}
+
 export async function GET(request: Request, context: { params: Promise<{ cmr: string }> }) {
   const { cmr } = await context.params;
   const cmrNumber = decodeURIComponent(cmr).toUpperCase();
@@ -40,13 +53,13 @@ export async function GET(request: Request, context: { params: Promise<{ cmr: st
     const admin = createSupabaseAdmin();
     const { data: tenantDocument, error: tenantDocumentError } = await admin
       .from("cmr_documents")
-      .select("cmr_number,tenant_id,access_key")
+      .select("cmr_number,tenant_id,access_key,access_key_expires_at,access_key_revoked_at")
       .eq("cmr_number", cmrNumber)
       .eq("tenant_id", authenticated.tenantId)
       .maybeSingle();
 
     if (tenantDocumentError) throw tenantDocumentError;
-    if (!tenantDocument?.access_key) return genericUnauthorized();
+    if (!tenantDocument || !internalQrAccessKeyIsActive(tenantDocument)) return genericUnauthorized();
     data = tenantDocument;
   }
 
