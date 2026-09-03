@@ -75,13 +75,22 @@ export const memorandumPending: MemorandumPending[] = [
 
 export const memorandumReleases: MemorandumRelease[] = [
   {
+    version: "2026.09.03.4",
+    date: "3 sep 2026",
+    surface: ["Web", "Plataforma"],
+    title: "QR CMR accesible desde sesión interna",
+    purpose: "Completar el acceso tenant-aware del detalle CMR para que el QR se renderice también cuando el usuario interno no conserva la capability local.",
+    outcome: "Fix en preproducción: la ruta QR mantiene capability/sesión pública como vía primaria y añade fallback exclusivo por getAuthenticatedContext() con lookup cmr_number + tenant_id, sin REVIEW context ni apertura cross-tenant.",
+    status: "Preproducción",
+  },
+  {
     version: "2026.09.03.3",
     date: "3 sep 2026",
     surface: ["Web", "Plataforma"],
     title: "Acceso interno tenant-aware a CMR",
     purpose: "Permitir que usuarios internos autenticados abran CMR de su organización sin depender de una capability guardada en el navegador.",
-    outcome: "Fix en preproducción: capability pública preservada como vía primaria, fallback interno limitado a getAuthenticatedContext() y lookup por cmr_number + tenant_id, con respuesta genérica para evitar enumeración cross-tenant.",
-    status: "Preproducción",
+    outcome: "Fix desplegado y verificado en producción: capability pública preservada como vía primaria, fallback interno limitado a getAuthenticatedContext() y lookup por cmr_number + tenant_id, con respuesta genérica para evitar enumeración cross-tenant.",
+    status: "Producción",
   },
   {
     version: "2026.09.03.2",
