@@ -18,8 +18,8 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "1 sep 2026";
-export const memorandumCommitCoverage = 520;
+export const memorandumUpdatedAt = "3 sep 2026";
+export const memorandumCommitCoverage = 521;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -67,6 +67,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.09.03",
+    date: "3 sep 2026",
+    surface: ["Plataforma"],
+    title: "Histórico operativo append-only T1",
+    purpose: "Impedir que eventos de transporte y operación pierdan valor probatorio por actualizaciones o borrados posteriores.",
+    outcome: "La rama de endurecimiento limita los históricos a lectura autenticada e inserción server-side, revoca mutaciones directas y añade guardas de base de datos contra UPDATE/DELETE accidentales.",
+    status: "Preproducción",
+  },
   {
     version: "2026.09.01.3",
     date: "1 sep 2026",
