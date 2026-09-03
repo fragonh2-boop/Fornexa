@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   buildControlledPreviewPacket,
@@ -74,4 +75,22 @@ test("HTTP result omits raw provider text", () => {
   });
   assert.equal("rawText" in result.reviews[0]!, false);
   assert.equal(result.reviews[0]?.summary, "bounded");
+});
+
+test("preview HTTP route is fail-closed, accepts no caller packet and uses the fixed controlled packet", async () => {
+  const source = await readFile(new URL("../app/api/internal/ai-review/route.ts", import.meta.url), "utf8");
+  const enabledGuard = source.indexOf("if (!isPreviewReviewEnabled())");
+  const originGuard = source.indexOf("if (!isSameOriginRequest(request))");
+  const authLookup = source.indexOf("getAuthenticatedContext()");
+  const ownerGuard = source.indexOf('auth.role !== "OWNER"');
+  const providerRun = source.indexOf("runMultiModelReview(buildControlledPreviewPacket()");
+
+  assert.ok(enabledGuard >= 0);
+  assert.ok(originGuard > enabledGuard);
+  assert.ok(authLookup > originGuard);
+  assert.ok(ownerGuard > authLookup);
+  assert.ok(providerRun > ownerGuard);
+  assert.doesNotMatch(source, /request\.(?:json|text|formData|arrayBuffer)\s*\(/);
+  assert.doesNotMatch(source, /export\s+async\s+function\s+GET/);
+  assert.match(source, /Cache-Control": "no-store"/);
 });
