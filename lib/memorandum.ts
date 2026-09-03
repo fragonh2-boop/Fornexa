@@ -80,8 +80,8 @@ export const memorandumReleases: MemorandumRelease[] = [
     surface: ["Web", "Plataforma"],
     title: "QR CMR accesible desde sesión interna",
     purpose: "Completar el acceso tenant-aware del detalle CMR para que el QR se renderice también cuando el usuario interno no conserva la capability local.",
-    outcome: "Fix en preproducción: la ruta QR mantiene capability/sesión pública como vía primaria y añade fallback exclusivo por getAuthenticatedContext() con lookup cmr_number + tenant_id, sin REVIEW context ni apertura cross-tenant.",
-    status: "Preproducción",
+    outcome: "Fix desplegado y verificado en producción: la ruta QR mantiene capability/sesión pública como vía primaria, añade fallback exclusivo por getAuthenticatedContext() con lookup cmr_number + tenant_id, rechaza access_key ausente, revocada, caducada o con expiración inválida y conserva 401 genérico sin REVIEW context ni apertura cross-tenant.",
+    status: "Producción",
   },
   {
     version: "2026.09.03.3",
