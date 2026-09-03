@@ -19,9 +19,16 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "3 sep 2026";
-export const memorandumCommitCoverage = 521;
+export const memorandumCommitCoverage = 522;
 
 export const memorandumPending: MemorandumPending[] = [
+  {
+    area: "Técnico",
+    title: "DeCA-1 — emisión regulatoria PDF/QR",
+    summary: "Completar motor PDF nativo, QR con descarga HTTPS directa, matriz M8, retención y ruta pública sobre la base documental regulatoria versionada.",
+    priority: "Ahora",
+    state: "Pendiente",
+  },
   {
     area: "Técnico",
     title: "Auditoría UX transversal",
@@ -68,13 +75,22 @@ export const memorandumPending: MemorandumPending[] = [
 
 export const memorandumReleases: MemorandumRelease[] = [
   {
+    version: "2026.09.03.2",
+    date: "3 sep 2026",
+    surface: ["Plataforma"],
+    title: "Fundación documental regulatoria DeCA-1",
+    purpose: "Preparar la emisión regulatoria sin duplicar el modelo canónico CMR ni acoplar la conservación del PDF a la URL pública.",
+    outcome: "Rama de preproducción con document_kind/regulatory_scope controlados, artefactos PDF versionados e inmutables y credenciales públicas con ciclo de vida separado.",
+    status: "Preproducción",
+  },
+  {
     version: "2026.09.03",
     date: "3 sep 2026",
     surface: ["Plataforma"],
     title: "Histórico operativo append-only T1",
     purpose: "Impedir que eventos de transporte y operación pierdan valor probatorio por actualizaciones o borrados posteriores.",
-    outcome: "La rama de endurecimiento limita los históricos a lectura autenticada e inserción server-side, revoca mutaciones directas y añade guardas de base de datos contra UPDATE/DELETE accidentales.",
-    status: "Preproducción",
+    outcome: "Los históricos de transporte y operación quedan en producción con lectura autenticada, inserción server-side, mutaciones directas revocadas y guardas de base de datos contra UPDATE/DELETE accidentales.",
+    status: "Producción",
   },
   {
     version: "2026.09.01.3",
