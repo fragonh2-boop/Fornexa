@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { getAuthenticatedContext } from "@/lib/auth-context";
 import {
   cmrViewSessionCookie,
   documentForAccessKey,
@@ -11,6 +12,11 @@ import { createSupabaseAdmin } from "@/lib/supabase-admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const genericUnauthorized = () => NextResponse.json(
+  { error: "CMR Key, sesión o acceso interno no válido." },
+  { status: 401 },
+);
+
 export async function GET(request: Request, context: { params: Promise<{ cmr: string }> }) {
   const { cmr } = await context.params;
   const cmrNumber = decodeURIComponent(cmr).toUpperCase();
@@ -19,14 +25,38 @@ export async function GET(request: Request, context: { params: Promise<{ cmr: st
     const headerKey = request.headers.get("x-fornexa-key") ?? "";
     const store = await cookies();
     const sessionToken = store.get(cmrViewSessionCookie(cmrNumber))?.value;
-    const accessDocument = headerKey
+    let accessDocument = headerKey
       ? await documentForAccessKey(headerKey)
       : await documentForViewSession(sessionToken, cmrNumber);
 
-    if (!accessDocument) return NextResponse.json({ error: "CMR Key o sesión no válida/revocada." }, { status: 401 });
-    if (accessDocument.cmr_number !== cmrNumber) return NextResponse.json({ error: "La capability no pertenece al CMR." }, { status: 403 });
+    // Preserve the public capability path as the primary authorization mechanism.
+    // A valid capability for a different CMR must never fall through to internal auth.
+    if (accessDocument && accessDocument.cmr_number !== cmrNumber) {
+      return NextResponse.json({ error: "La capability no pertenece al CMR." }, { status: 403 });
+    }
+
+    // Internal dashboard fallback: only a normal authenticated tenant context is accepted.
+    // REVIEW context is intentionally excluded so review tokens cannot open tenant CMRs.
+    if (!accessDocument) {
+      const authenticated = await getAuthenticatedContext();
+      if (!authenticated) return genericUnauthorized();
+
+      const admin = createSupabaseAdmin();
+      const { data: tenantDocument, error: tenantDocumentError } = await admin
+        .from("cmr_documents")
+        .select("*")
+        .eq("cmr_number", cmrNumber)
+        .eq("tenant_id", authenticated.tenantId)
+        .maybeSingle();
+
+      if (tenantDocumentError) throw tenantDocumentError;
+      // Keep missing/cross-tenant documents indistinguishable from an unauthorised request.
+      if (!tenantDocument) return genericUnauthorized();
+      accessDocument = tenantDocument;
+    }
+
     const tenantId = String(accessDocument.tenant_id ?? "");
-    if (!tenantId) throw new Error("El CMR no tiene tenant asociado.");
+    if (!tenantId) return genericUnauthorized();
     const supabase = createSupabaseAdmin();
 
     const [
