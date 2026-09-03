@@ -1,0 +1,21 @@
+{
+  "taskId": "MMO-1-EXAMPLE",
+  "repository": "fragonh2-boop/Fornexa",
+  "pullRequest": 38,
+  "objective": "Validate a small public-code change against correctness, architecture and edge cases.",
+  "changedFiles": [
+    "path/to/public-code.ts"
+  ],
+  "diff": "@@ example only; replace with a bounded public-code diff @@",
+  "testResults": [
+    "pnpm test: pass",
+    "pnpm typecheck: pass"
+  ],
+  "constraints": [
+    "Do not infer production behavior not present in the packet."
+  ],
+  "questions": [
+    "Is the change correct and sufficiently tested?"
+  ],
+  "dataClassification": "public_code"
+}

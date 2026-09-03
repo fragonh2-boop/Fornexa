@@ -4,11 +4,10 @@ This file is the portable source of truth for resuming FORNEXA work from any ses
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-01 20:28 CEST.
+- **Updated:** 2026-09-02 13:04 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
-- **Production branch:** `main` includes merge `1db62220755631eb9f4a64793b1167916f5743f9` from PR #37; the current Vercel production deployment is `READY`.
-- **PR #36:** removed the duplicated background wordmark, but live browser inspection found that the remaining SVG is still clipped by the inherited `.auth-logo` height and overflow.
-- **Active correction branch:** `fix/login-logo-clipping`, based on current `origin/main`.
+- **Production branch:** `main` is `7449ec9fa3e6873e61298bcc20e3ed4f804bce47` from PR #39; Vercel project `fornexa` reports the matching production deployment `READY`.
+- **Active implementation:** PR #38, branch `feat/multi-model-orchestrator`, synchronized with current `main` and extended with a temporary, Preview-only controlled activation surface.
 - **Supabase production:** tariff engine foundation remains applied; Supabase Git branch integration `MIGRATIONS_FAILED` remains a separate unresolved control.
 
 ## Latest completed work
@@ -39,6 +38,18 @@ This file is the portable source of truth for resuming FORNEXA work from any ses
 
 ## Work in cross-review / implementation
 
+### MMO-1 — GPT, Claude and DeepSeek review orchestration
+
+- PR #38 provides a server-side provider-neutral library and common review packet/result schema.
+- Outbound execution fails closed unless the packet is explicitly `public_code`; detected secret-like material blocks the run before payload construction.
+- Provider calls have bounded timeout, at most one transient retry, bounded output tokens and isolated failures.
+- Every result records provider/model/role plus request/run correlation; opinion rounds are restricted to 1 or 2.
+- `pnpm ai:review -- <packet.json>` validates safely without provider calls. Network execution additionally requires `--execute` and at least one configured provider.
+- A temporary internal page and POST route now exist only for the controlled first run. They require the exact PR Preview branch, an explicit server flag, a freshly validated Supabase user with one active `OWNER` membership, and a same-origin browser request.
+- The browser cannot supply prompts, diffs, models or provider credentials. The route uses a fixed `public_code` packet and removes raw provider text from its response.
+- This activation surface and its flag must be disabled or removed immediately after the controlled run and must not reach production. No webhook, scheduler or automatic PR trigger exists.
+- Local evidence at 2026-09-02 13:04 CEST: 51/51 tests pass; typecheck, focused lint and full Next.js build pass.
+
 ### TLM-1 — private platform telemetry
 
 Functional decisions are converged between Fran, GPT and Claude:
@@ -53,7 +64,7 @@ Functional decisions are converged between Fran, GPT and Claude:
 - Minimization: no passwords, auth tokens, arbitrary request bodies, CMR/economic payloads or query-string values; login email is persisted only as a hash.
 - Retention: plain IP 7 days; telemetry event metadata 90 days; automatic purge from the first deployment.
 
-Implementation currently prepared on `feat/tlm1-platform-telemetry`:
+Implementation integrated from `feat/tlm1-platform-telemetry` through PR #37:
 
 - `lib/platform-telemetry.ts`: server-only sanitized transport to restricted Supabase RPCs.
 - `proxy.ts`: extends the existing Next.js 16 proxy with `waitUntil` best-effort request telemetry while avoiding auth round-trips on ordinary public pages.
@@ -69,13 +80,11 @@ Implementation currently prepared on `feat/tlm1-platform-telemetry`:
 
 The authoritative acceptance criteria live in `docs/pending-log.md`.
 
-1. Complete Claude review of TLM-1, especially RPC privilege boundaries, proxy performance/failure isolation, retention and owner-only panel authorization.
-2. Obtain green GitHub Actions and Vercel preview checks for the TLM-1 PR.
-3. Apply and verify the telemetry migration only after review/checks are satisfactory; run Supabase advisors and validate permissions.
-4. Configure server-side owner allowlist and hash secret in production environment without exposing either to client bundles.
-5. Verify real request/auth/page telemetry and confirm unauthorized `/internal/telemetry` access returns 404.
-6. Keep T1 Tariffs, O1 Orders and A2 CMR reconciliation separate from TLM-1.
-7. Repair Supabase Git branch integration `MIGRATIONS_FAILED` independently.
+1. Obtain green PR #38 CI/Preview evidence, run the single fixed public-code packet through the authenticated Preview surface, record normalized evidence, then disable/remove that surface before merge.
+2. Configure the TLM-1 server-side owner allowlist and hash secret without exposing either to client bundles.
+3. Verify real request/auth/page telemetry and confirm unauthorized `/internal/telemetry` access returns 404.
+4. Perform the final production desktop/mobile visual check for the PR #39 login-logo fix.
+5. Repair Supabase Git branch integration `MIGRATIONS_FAILED` independently.
 
 ## Governance and role split
 
@@ -86,7 +95,7 @@ The authoritative acceptance criteria live in `docs/pending-log.md`.
 
 ## Next safe actions
 
-1. Validate and cross-review `fix/login-logo-clipping`, then merge and verify `/login` visually in production.
-2. Reconcile the TLM-1 handoff/pending state with the already merged PR #37 and deployed migration.
-3. Configure and verify the TLM-1 server-only owner allowlist and dedicated IP hash secret.
-4. Continue the separate tariff, orders, CMR and Supabase Preview work without mixing it into the logo correction.
+1. Push the locally verified PR #38 activation commit and obtain a matching `READY` Preview.
+2. Enable the branch-scoped temporary flag, execute the single fixed `public_code` packet as an authenticated OWNER and retain only normalized evidence.
+3. Disable the flag immediately after the run and remove the temporary page/route before merge; do not add webhook automation yet.
+4. Continue TLM-1 configuration, final logo verification and Supabase Preview repair as separate workstreams.

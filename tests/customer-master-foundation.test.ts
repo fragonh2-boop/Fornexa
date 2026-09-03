@@ -32,11 +32,11 @@ test("order creation records pricing and requires confirmation for customer warn
   assert.match(form, /acknowledgedCustomerWarnings/);
 });
 
-test("legacy customer prototype is removed and pending frontend wording is closed", () => {
+test("legacy customer prototype is removed and obsolete customer wording is closed", () => {
   assert.equal(existsSync(new URL("../lib/customer-master.ts", import.meta.url)), false);
   assert.equal(existsSync(new URL("../app/dashboard/nuevo/[tipo]/page.tsx", import.meta.url)), false);
   const customer = read("../app/dashboard/registros/[module]/[id]/ClientMasterEditorWorld.tsx");
   const memorandum = read("../lib/memorandum.ts");
-  assert.doesNotMatch(customer, /Incluye prefijo internacional|can[oó]nic/i);
-  assert.doesNotMatch(memorandum, /can[oó]nic/i);
+  assert.doesNotMatch(customer, /Incluye prefijo internacional|cliente can[oó]nic|maestro can[oó]nic/i);
+  assert.doesNotMatch(memorandum, /cliente can[oó]nic|maestro can[oó]nic/i);
 });
