@@ -1,13 +1,27 @@
 import assert from "node:assert/strict";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import test from "node:test";
-import {
+
+// `server-only` is intentionally a framework poison marker. Node's standalone
+// test runner does not provide Next.js' marker alias, so execute an exact
+// temporary copy with only that marker removed. A separate assertion below
+// proves that the production module retains the poison import.
+const sourceUrl = new URL("../lib/ai-orchestrator.ts", import.meta.url);
+const runtimeUrl = new URL("./.ai-orchestrator.runtime-test.ts", import.meta.url);
+const source = await readFile(sourceUrl, "utf8");
+assert.match(source, /^import "server-only";/);
+await writeFile(runtimeUrl, source.replace(/^import "server-only";\s*/, ""), "utf8");
+const orchestrator = await import(`${runtimeUrl.href}?head=${Date.now()}`);
+await rm(runtimeUrl, { force: true });
+
+const {
   buildReviewPrompt,
   getReviewProviderReadiness,
   redactSensitiveText,
   runMultiModelReview,
   validateOutboundReviewPacket,
   validateReviewPacket,
-} from "../lib/ai-orchestrator.ts";
+} = orchestrator;
 
 const packet = {
   taskId: "MMO-1",
@@ -22,6 +36,11 @@ function restoreEnv(name: string, value: string | undefined) {
   if (value === undefined) delete process.env[name];
   else process.env[name] = value;
 }
+
+test("production orchestrator retains the server-only poison marker", () => {
+  assert.match(source, /^import "server-only";/);
+  assert.match(source, /function assertServerRuntime\(\)/);
+});
 
 test("validateReviewPacket accepts a minimal valid packet", () => {
   assert.doesNotThrow(() => validateReviewPacket(packet));
@@ -95,7 +114,7 @@ test("runMultiModelReview degrades safely when provider credentials are absent",
   try {
     const readiness = getReviewProviderReadiness();
     assert.equal(readiness.length, 3);
-    assert.ok(readiness.every((provider) => !provider.configured && provider.missing.includes("api_key")));
+    assert.ok(readiness.every((provider: { configured: boolean; missing: string[] }) => !provider.configured && provider.missing.includes("api_key")));
 
     const result = await runMultiModelReview(packet, {
       requestId: "req-test",
@@ -107,7 +126,7 @@ test("runMultiModelReview degrades safely when provider credentials are absent",
     assert.equal(result.runId, "run-test");
     assert.equal(result.opinionRound, 1);
     assert.deepEqual(
-      result.unavailable.map((item) => item.provider).sort(),
+      result.unavailable.map((item: { provider: string }) => item.provider).sort(),
       ["anthropic", "deepseek", "openai"],
     );
   } finally {
@@ -174,11 +193,11 @@ test("provider adapters use bounded expected endpoints and normalize all three r
     });
     assert.equal(result.unavailable.length, 0);
     assert.deepEqual(
-      result.reviews.map((review) => review.provider).sort(),
+      result.reviews.map((review: { provider: string }) => review.provider).sort(),
       ["anthropic", "deepseek", "openai"],
     );
     assert.deepEqual(
-      result.reviews.map((review) => review.summary).sort(),
+      result.reviews.map((review: { summary: string }) => review.summary).sort(),
       ["anthropic ok", "deepseek ok", "openai ok"],
     );
     assert.deepEqual(
