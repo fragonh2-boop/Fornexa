@@ -24,7 +24,7 @@ export const memorandumCommitCoverage = 522;
 export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
-    title: "DeCA-1 — emisión regulatoria PDF/QR",
+    title: "DeCA — motor PDF/QR y acceso público",
     summary: "Completar motor PDF nativo, QR con descarga HTTPS directa, matriz M8, retención y ruta pública sobre la base documental regulatoria versionada.",
     priority: "Ahora",
     state: "Pendiente",
@@ -80,8 +80,8 @@ export const memorandumReleases: MemorandumRelease[] = [
     surface: ["Plataforma"],
     title: "Fundación documental regulatoria DeCA-1",
     purpose: "Preparar la emisión regulatoria sin duplicar el modelo canónico CMR ni acoplar la conservación del PDF a la URL pública.",
-    outcome: "Rama de preproducción con document_kind/regulatory_scope controlados, artefactos PDF versionados e inmutables y credenciales públicas con ciclo de vida separado.",
-    status: "Preproducción",
+    outcome: "Base documental regulatoria desplegada en producción con document_kind/regulatory_scope controlados, artefactos PDF versionados e inmutables y credenciales públicas con ciclo de vida separado.",
+    status: "Producción",
   },
   {
     version: "2026.09.03",
@@ -99,7 +99,7 @@ export const memorandumReleases: MemorandumRelease[] = [
     title: "Logotipo de acceso sin recortes",
     purpose: "Completar la corrección visual del acceso aislando el logotipo SVG de las dimensiones heredadas de la marca global.",
     outcome: "La pantalla de acceso muestra el logotipo FORNEXA completo, con su proporción natural y sin fondos duplicados ni recortes.",
-    status: "Preproducción",
+    status: "Producción",
   },
   {
     version: "2026.09.01.2",
