@@ -19,9 +19,16 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "3 sep 2026";
-export const memorandumCommitCoverage = 523;
+export const memorandumCommitCoverage = 526;
 
 export const memorandumPending: MemorandumPending[] = [
+  {
+    area: "Técnico",
+    title: "Activación controlada MMO-1",
+    summary: "PR #38 ya incorpora boundary server-only y una superficie temporal Preview-only cercada; quedan CI y revisión independiente del HEAD sincronizado, DLP/tests de proveedor y evidencia del primer run controlado antes de cualquier ejecución real. La superficie temporal deberá eliminarse antes del merge.",
+    priority: "Ahora",
+    state: "En seguimiento",
+  },
   {
     area: "Técnico",
     title: "DeCA — motor PDF/QR y acceso público",
@@ -31,8 +38,29 @@ export const memorandumPending: MemorandumPending[] = [
   },
   {
     area: "Técnico",
+    title: "Tarifas y selección económica B1",
+    summary: "Completar UX anti doble-envío/validación por campo en Tarifas y endurecer Orders para seleccionar SELL de forma determinista y detectar ambigüedad antes de continuar el motor económico.",
+    priority: "Ahora",
+    state: "Pendiente",
+  },
+  {
+    area: "Técnico",
+    title: "Reconciliación A2 y Supabase Preview",
+    summary: "Reconciliar la proveniencia de migraciones y reparar la integración Git de Supabase Preview que continúa separada de los hotfixes web, sin reejecutar migraciones productivas ya verificadas.",
+    priority: "Ahora",
+    state: "Pendiente",
+  },
+  {
+    area: "Técnico",
+    title: "Configuración operativa TLM-1",
+    summary: "Telemetría desplegada; quedan configurar/verificar FORNEXA_TELEMETRY_OWNER_EMAILS y FORNEXA_TELEMETRY_HASH_SECRET y validar el panel OWNER con datos reales.",
+    priority: "Siguiente",
+    state: "En seguimiento",
+  },
+  {
+    area: "Técnico",
     title: "Auditoría UX transversal",
-    summary: "Revisar consistencia de controles, estados vacíos, accesibilidad y comportamiento responsive en todo el aplicativo.",
+    summary: "Revisar consistencia de controles, estados vacíos, accesibilidad y comportamiento responsive en todo el aplicativo; incluye el SHOULD visual pendiente de reset-password.",
     priority: "Siguiente",
     state: "En seguimiento",
   },
@@ -74,6 +102,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "MMO-1 preview",
+    date: "3 sep 2026",
+    surface: ["Plataforma"],
+    title: "Revisión técnica multi-modelo controlada",
+    purpose: "Preparar contraste independiente entre proveedores de IA sin automatizar decisiones ni exponer datos no públicos.",
+    outcome: "PR #38 está sincronizado sobre el main productivo y conserva una superficie temporal Preview-only con paquete fijo public_code, OWNER autenticado, same-origin y salida sanitizada; el orchestrator está envenenado server-only. La ejecución con proveedores permanece bloqueada hasta CI/revisión del HEAD vigente, DLP y tests de proveedor, y la superficie temporal debe eliminarse antes del merge.",
+    status: "Preproducción",
+  },
   {
     version: "2026.09.03.5",
     date: "3 sep 2026",

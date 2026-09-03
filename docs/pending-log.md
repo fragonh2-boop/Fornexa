@@ -4,21 +4,28 @@ Este archivo es el registro persistente de temas pendientes que deben poder recu
 
 ## OPEN
 
+### 2026-09-02 — MMO-1 orquestación GPT–Claude–DeepSeek
+- **Área:** Plataforma / IA / Revisión de ingeniería
+- **Estado:** FUNDACIÓN EN PR #38; ACTIVACIÓN TEMPORAL PREVIEW IMPLEMENTADA Y AÚN DESHABILITADA
+- **Evidencia:** rama `feat/multi-model-orchestrator` sincronizada con `main`; 51/51 tests, typecheck, lint focalizado y build pasan; clasificación `public_code` obligatoria, detector de secretos, límites de timeout/retry/tokens, correlación de runs y máximo programático de dos rondas. La superficie temporal exige branch Preview exacta, flag de servidor, OWNER autenticado y POST same-origin; usa un paquete fijo y omite texto bruto.
+- **Acción requerida:** obtener CI/Preview verdes, habilitar el flag solo en la rama, ejecutar una revisión controlada, registrar la evidencia normalizada y deshabilitar/eliminar inmediatamente la superficie temporal antes del merge. No crear webhook ni trigger automático en esta fase.
+- **Criterio de cierre:** primera revisión real devuelve resultados normalizados de los proveedores autorizados sin exponer credenciales ni enviar datos no públicos; hallazgos clasificados con evidencia; decisión explícita antes de cualquier automatización.
+
 ### 2026-09-01 — Logotipo SVG recortado en la pantalla de acceso
 - **Área:** Auth / Login / Identidad visual
-- **Estado:** CORRECCIÓN PREPARADA EN `fix/login-logo-clipping`
+- **Estado:** PR #39 INTEGRADO Y DESPLEGADO; COMPROBACIÓN VISUAL FINAL PENDIENTE
 - **Evidencia:** producción carga un contenedor `.auth-logo` de `360 × 54 px` con `overflow: hidden`, mientras el SVG mide `360 × 161,76 px`; el fondo duplicado desapareció con PR #36, pero aproximadamente 108 px del logotipo real siguen ocultos.
-- **Acción requerida:** aislar el wrapper del login de la clase global `.auth-logo`, validar el SVG completo en escritorio y móvil, pasar test/lint/typecheck/build, revisión cruzada, merge y comprobación visual en producción.
+- **Acción requerida:** comprobar visualmente en producción escritorio y móvil que el despliegue `7449ec9…`, en estado `READY`, muestra el SVG completo.
 - **Criterio de cierre:** una sola marca FORNEXA completa y proporcionada en `/login`, sin fondo heredado, clipping ni regresiones responsive; commit de producción verificado en Vercel.
 
 ### 2026-09-01 — TLM-1 telemetría privada de plataforma
 - **Área:** Plataforma / Observabilidad / Seguridad / Analítica web
-- **Estado:** EN IMPLEMENTACIÓN Y REVISIÓN CRUZADA
+- **Estado:** PR #37 INTEGRADO Y DESPLEGADO; CONFIGURACIÓN/VALIDACIÓN OPERATIVA PENDIENTE
 - **Decisión funcional convergida:** alcance para todo `fornexasc.com`, no solo sesiones autenticadas; propósito de analítica web/conversión general, no vigilancia dirigida a una persona concreta.
 - **Arquitectura convergida:** esquema separado `platform_telemetry`; panel interno sin enlace de navegación; autorización server-side OWNER + allowlist explícita; nunca secretos elevados en cliente; sin rrweb/DOM replay en TLM-1; ingesta best-effort/asíncrona para que un fallo de telemetría no degrade tráfico real.
 - **Privacidad/minimización:** no persistir contraseñas, tokens, payloads arbitrarios ni query strings; email de login solo como hash; IP en claro durante 7 días y eventos/metadatos durante 90 días, con purga automática.
-- **Rama:** `feat/tlm1-platform-telemetry`.
-- **Acción requerida:** cerrar revisión del PR, CI/Vercel, aplicar y verificar migración, configurar allowlist/hash-secret en entorno de servidor, validar captura request/auth/page y comprobar que usuarios no autorizados reciben 404 en `/internal/telemetry`.
+- **Rama integrada:** `feat/tlm1-platform-telemetry` mediante PR #37 (`1db6222…`).
+- **Acción requerida:** configurar allowlist/hash-secret en entorno de servidor, validar captura request/auth/page y comprobar que usuarios no autorizados reciben 404 en `/internal/telemetry`.
 - **Criterio de cierre:** PR integrado con checks verdes; migración registrada y advisors sin hallazgos críticos nuevos; telemetría real visible en panel para OWNER allowlisted; intentos de acceso y recorridos por sesión verificables; ausencia de secretos/contenido sensible; fallo simulado de persistencia sin afectar navegación o login.
 
 ### 2026-08-27 — Integración de ramas Supabase en estado fallido
