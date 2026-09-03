@@ -57,10 +57,17 @@ test("QR route internal fallback is normal-auth only and tenant scoped", () => {
   assert.ok(!qrRoute.includes("getAuthenticatedOrReviewContext"));
   assert.ok(qrRoute.includes('.eq("cmr_number", cmrNumber)'));
   assert.ok(qrRoute.includes('.eq("tenant_id", authenticated.tenantId)'));
-  assert.ok(qrRoute.includes('select("cmr_number,tenant_id,access_key")'));
+  assert.ok(qrRoute.includes('select("cmr_number,tenant_id,access_key,access_key_expires_at,access_key_revoked_at")'));
 });
 
 test("QR route fails closed without authenticated tenant access or public capability", () => {
   assert.ok(qrRoute.includes("if (!authenticated) return genericUnauthorized()"));
-  assert.ok(qrRoute.includes("if (!tenantDocument?.access_key) return genericUnauthorized()"));
+  assert.ok(qrRoute.includes("if (!tenantDocument || !internalQrAccessKeyIsActive(tenantDocument)) return genericUnauthorized()"));
+});
+
+test("QR route internal fallback rejects revoked, expired or invalid access keys", () => {
+  assert.ok(qrRoute.includes("document.access_key_revoked_at"));
+  assert.ok(qrRoute.includes("document.access_key_expires_at"));
+  assert.ok(qrRoute.includes("Date.parse(document.access_key_expires_at)"));
+  assert.ok(qrRoute.includes("expiresAt <= Date.now()"));
 });
