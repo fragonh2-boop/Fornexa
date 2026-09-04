@@ -14,7 +14,7 @@ test("FORNEXA login logo leaves intrinsic SVG room for font fallback variance", 
 
 test("login brand wrappers never reintroduce SVG clipping", () => {
   assert.match(loginCss, /\.login-brand-logo\s*\{[\s\S]*?overflow:\s*visible;/);
-  assert.doesNotMatch(loginCss, /\.login-brand-logo(?:\s+svg)?\s*\{[^}]*overflow:\s*hidden;/s);
+  assert.doesNotMatch(loginCss, /\.login-brand-logo(?:\s+svg)?\s*\{[\s\S]*?overflow:\s*hidden;/);
 });
 
 test("known high-risk print chrome remains excluded from CMR output", () => {
