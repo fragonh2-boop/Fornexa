@@ -1,69 +1,64 @@
 # FORNEXA — Pending log
 
-Este archivo es el registro persistente de temas pendientes que deben poder recuperarse desde cualquier sesión/dispositivo. Cuando el usuario indique algo como **"revisa logs de temas pendientes"**, revisar este archivo antes de pedir contexto adicional.
+Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Supabase y Vercel antes de actuar.
 
 ## OPEN
 
-### 2026-09-01 — Logotipo SVG recortado en la pantalla de acceso
-- **Área:** Auth / Login / Identidad visual
-- **Estado:** CORRECCIÓN PREPARADA EN `fix/login-logo-clipping`
-- **Evidencia:** producción carga un contenedor `.auth-logo` de `360 × 54 px` con `overflow: hidden`, mientras el SVG mide `360 × 161,76 px`; el fondo duplicado desapareció con PR #36, pero aproximadamente 108 px del logotipo real siguen ocultos.
-- **Acción requerida:** aislar el wrapper del login de la clase global `.auth-logo`, validar el SVG completo en escritorio y móvil, pasar test/lint/typecheck/build, revisión cruzada, merge y comprobación visual en producción.
-- **Criterio de cierre:** una sola marca FORNEXA completa y proporcionada en `/login`, sin fondo heredado, clipping ni regresiones responsive; commit de producción verificado en Vercel.
+### 2026-09-04 — DeCA: motor PDF/QR y acceso público
+- **Área:** Documentación regulatoria / CMR / Acceso público
+- **Estado:** FUNDACIÓN EN PRODUCCIÓN; MOTOR FUNCIONAL PENDIENTE
+- **Base disponible:** `cmr_documents`, `regulatory_document_artifacts` inmutable y `regulatory_document_access_tokens` server-only.
+- **Acción requerida:** emitir PDF versionado, generar token opaco guardando solo SHA-256, resolver una ruta HTTPS pública fail-closed y producir QR hacia esa ruta.
+- **Límites:** no crear una segunda pila documental; separar retención del artefacto y lifecycle de URL; preservar M8, `service_completed_at/public_until`, eCMR y A2 como decisiones separadas.
+- **Criterio de cierre:** tests/CI verdes, revisión independiente, preview funcional, migraciones trazables cuando procedan y producción verificada.
+
+### 2026-09-04 — MMO-1 ejecución Preview controlada
+- **Área:** IA / Orquestación / Seguridad
+- **Estado:** BACKLOG — REQUIERE INTERVENCIÓN DE FRAN
+- **Evidencia:** PR #38 draft, HEAD `865bee04f4581bb1d64cfd1fbe06941af8cee62a`, CI #187 verde, preview canónico READY y revisión Claude sin MUST.
+- **Bloqueo:** configurar las siete variables server-side exclusivamente para Preview; Production debe permanecer sin flag activo ni claves de proveedores.
+- **Después:** una ejecución sobre `public_code`, revisión de salida sanitizada, retirada de route/page/flag, nuevo CI/preview, revisión final y merge condicionado.
 
 ### 2026-09-01 — TLM-1 telemetría privada de plataforma
-- **Área:** Plataforma / Observabilidad / Seguridad / Analítica web
-- **Estado:** EN IMPLEMENTACIÓN Y REVISIÓN CRUZADA
-- **Decisión funcional convergida:** alcance para todo `fornexasc.com`, no solo sesiones autenticadas; propósito de analítica web/conversión general, no vigilancia dirigida a una persona concreta.
-- **Arquitectura convergida:** esquema separado `platform_telemetry`; panel interno sin enlace de navegación; autorización server-side OWNER + allowlist explícita; nunca secretos elevados en cliente; sin rrweb/DOM replay en TLM-1; ingesta best-effort/asíncrona para que un fallo de telemetría no degrade tráfico real.
-- **Privacidad/minimización:** no persistir contraseñas, tokens, payloads arbitrarios ni query strings; email de login solo como hash; IP en claro durante 7 días y eventos/metadatos durante 90 días, con purga automática.
-- **Rama:** `feat/tlm1-platform-telemetry`.
-- **Acción requerida:** cerrar revisión del PR, CI/Vercel, aplicar y verificar migración, configurar allowlist/hash-secret en entorno de servidor, validar captura request/auth/page y comprobar que usuarios no autorizados reciben 404 en `/internal/telemetry`.
-- **Criterio de cierre:** PR integrado con checks verdes; migración registrada y advisors sin hallazgos críticos nuevos; telemetría real visible en panel para OWNER allowlisted; intentos de acceso y recorridos por sesión verificables; ausencia de secretos/contenido sensible; fallo simulado de persistencia sin afectar navegación o login.
+- **Área:** Plataforma / Observabilidad / Seguridad
+- **Estado:** CANAL INTERNO; CONFIGURACIÓN Y VERIFICACIÓN FINAL PENDIENTES
+- **Decisión:** analítica general de `fornexasc.com`, esquema separado, OWNER + allowlist server-side, sin DOM replay ni secretos en cliente.
+- **Acción requerida:** configurar/verificar allowlist y hash secret, validar captura real y confirmar 404 para usuarios no autorizados.
+- **Privacidad:** IP en claro 7 días; eventos/metadatos 90 días; sin contraseñas, tokens, payloads arbitrarios ni query strings.
 
 ### 2026-08-27 — Integración de ramas Supabase en estado fallido
 - **Área:** Plataforma / CI / Supabase Preview
 - **Estado:** PENDIENTE DE DIAGNÓSTICO Y CORRECCIÓN
-- **Evidencia:** producción contiene la migración `tariff_engine_foundation` y el proyecto está sano, pero la integración Git de la rama `main` continúa reportando `MIGRATIONS_FAILED`.
-- **Acción requerida:** identificar el fallo de la integración, corregir la causa y ejecutar una preview que incluya una migración real.
-- **Criterio de cierre:** integración de ramas sin error y control Supabase Preview aprobado en una PR con migración, sin alterar datos de producción durante la prueba.
+- **Evidencia:** producción está sana, pero la integración Git de `main` reportó `MIGRATIONS_FAILED`.
+- **Criterio de cierre:** preview Supabase con migración real aprobada, sin alterar producción.
 
-### 2026-08-20 — Contraste insuficiente en mensaje informativo de recuperación de contraseña
-- **Área:** Auth / Login / Recover password
-- **Estado:** PENDIENTE DE IMPLEMENTAR Y DESPLEGAR
-- **Observación:** tras solicitar recuperación de contraseña, el mensaje de confirmación mostrado debajo del botón tiene contraste insuficiente y resulta difícil de leer sobre el fondo claro.
-- **Texto observado:** "Te hemos enviado el enlace de recuperación. Revisa también la carpeta de spam."
-- **Acción requerida:** ajustar estilos del estado informativo/success de `auth-message` para cumplir contraste visual adecuado sin alterar el layout.
-- **Criterio de aceptación:** mensaje claramente legible en escritorio y móvil; mantener coherencia visual FORNEXA; revisar contraste WCAG AA cuando sea posible.
-- **Después de corregir:** commit en `main`, despliegue a Vercel y validación visual en `fornexasc.com/login` → Recuperar contraseña.
+### 2026-08-20 — Contraste de recuperación de contraseña
+- **Área:** Auth / Login
+- **Estado:** PENDIENTE
+- **Acción requerida:** mejorar contraste del mensaje de confirmación y validar WCAG AA en escritorio y móvil.
 
 ## DONE
 
-### 2026-08-25 — Maestro mundial de países y subdivisiones geográficas
-- **Área:** Maestros / Direcciones / País / Provincia-región
+### 2026-09-03 — CMR interno, QR e impresión
+- **Estado:** PRs #44–#47 integrados y verificados en producción.
+- **Cierre:** acceso tenant-aware, QR interno seguro y exportación A4 sin chrome del dashboard.
+
+### 2026-09-03 — DeCA-1 fundación documental
 - **Estado:** IMPLEMENTADO, MIGRADO Y DESPLEGADO
-- **Motivo:** el Maestro de direcciones solo ofrecía España, Francia y Portugal y un subconjunto hardcodeado de provincias/regiones.
-- **Solución:** catálogo mundial de países ISO 3166-1 con nombres localizados en español y catálogo completo de subdivisiones administrativas por país. España utiliza sus 52 provincias y Francia utiliza departamentos porque son la unidad que se corresponde con la estructura postal solicitada.
-- **Identificador normalizado:** se añadió `party_addresses.subdivision_key`. La clave comienza por el prefijo postal cuando existe una correspondencia administrativa real y después incorpora país y código de subdivisión. Ejemplo: `66-FR-66` = Pyrénées-Orientales.
-- **Regla postal:** en España y Francia se valida la coherencia entre CP y provincia/departamento. Para países donde el código postal no codifica la subdivisión, no se inventa una correspondencia; se conserva el código administrativo de la subdivisión.
-- **Caso validado:** `FR + 66000` resuelve `Perpignan`; el catálogo devuelve `66-FR-66 · Pyrénées-Orientales`.
-- **Persistencia:** migración `20260825150000_address_subdivision_key.sql` aplicada en Supabase y API de direcciones actualizada para leer/escribir `subdivision_key`.
-- **Catálogo:** endpoint `/api/geography` desplegado; `/api/geography?country=FR` devuelve los departamentos franceses completos.
-- **Commits principales:** `44376a30` modelo geográfico; `7d41ec4a` API mundial; `469db0ca` migración; `5b8ca3c1` persistencia; `76512e4c` editor mundial; `153aa4e5` activación; `006f98ad` corrección de build.
-- **Deployment validado:** Vercel `dpl_58k6i3oNocwroXXsdd4Ebc3XFgqL`, READY y asociado a `fornexasc.com`.
+- **Cierre:** tipos/scope controlados, artefactos PDF inmutables y tokens públicos con lifecycle separado.
 
-### 2026-08-25 — Enriquecimiento conjunto GPT–Claude del maestro de clientes
-- **Área:** Clientes / Datos maestros / Comercial / Operaciones
-- **Estado:** IMPLEMENTADO Y DESPLEGADO EN PRODUCCIÓN (`de0a495`).
-- **Cierre:** datos fiscales ampliados, responsable de cuenta real, perfil de facturación tipado, contactos, servicios, capacidades de dirección, bloqueos y tarifas versionadas con vigencia.
-- **Trazabilidad:** auditoría de cambios, aislamiento tenant, estados del cliente y fotografía de tarifa en el pedido.
+### 2026-09-03 — T1 histórico operativo append-only
+- **Estado:** IMPLEMENTADO, MIGRADO Y DESPLEGADO
+- **Cierre:** eventos solo lectura/inserción para roles de aplicación; correcciones mediante eventos compensatorios.
 
-### 2026-08-25 — Limpieza de microcopys técnicos
-- **Área:** UX transversal
-- **Estado:** IMPLEMENTADO Y DESPLEGADO EN PRODUCCIÓN (`de0a495`).
-- **Cierre:** retirado el texto «Incluye prefijo internacional» y eliminadas del frontend las variantes visibles de «canónico/canónica».
+### 2026-09-01 — Logotipo de acceso sin recortes
+- **Estado:** IMPLEMENTADO Y DESPLEGADO EN PRODUCCIÓN
+- **Cierre:** PR #39 aisló el wrapper del login y preservó la proporción natural del SVG.
 
-### 2026-08-25 — Persistencia real de submaestros de cliente
-- **Área:** Clientes / Plataforma
-- **Estado:** IMPLEMENTADO Y DESPLEGADO EN PRODUCCIÓN (`de0a495`).
-- **Cierre:** servicios dejan de usar almacenamiento local; contactos y tarifas disponen de APIs y tablas propias; los registros de demostración quedan identificados para revisión, sin borrado destructivo.
+### 2026-08-25 — Maestro mundial de países y subdivisiones
+- **Estado:** IMPLEMENTADO, MIGRADO Y DESPLEGADO
+- **Cierre:** catálogo ISO mundial, subdivisiones y validación postal fiable.
+
+### 2026-08-25 — Maestro de clientes y submaestros persistentes
+- **Estado:** IMPLEMENTADO Y DESPLEGADO
+- **Cierre:** datos fiscales, contactos, servicios, bloqueos, direcciones y tarifas versionadas con aislamiento tenant.
