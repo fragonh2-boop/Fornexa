@@ -4,14 +4,6 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
-### 2026-09-04 — Regresión visual del logotipo de acceso
-- **Área:** UX / Auth / Identidad visual
-- **Estado:** FIX EN PREPRODUCCIÓN; VERIFICACIÓN VISUAL OBLIGATORIA
-- **Evidencia:** captura real de producción muestra la pata inferior derecha de la `A` de `4NXA` recortada. La causa está en el viewport del SVG raíz: el wrapper ya permitía overflow, pero el propio SVG no y dependía de métricas de una pila de fuentes fallback.
-- **Acción requerida:** ampliar margen intrínseco del SVG, permitir overflow en el elemento raíz, ejecutar guardas UX/CI y verificar el Preview exacto en escritorio/tablet/móvil antes del merge; después repetir la comprobación en producción.
-- **Control reforzado:** `docs/ux/UX_AUDIT_PROTOCOL.md` pasa a ser el criterio de evidencia para cambios visuales. CI/source tests protegen invariantes conocidos, pero no sustituyen una prueba visual desplegada.
-- **Criterio de cierre:** CI verde + Preview READY + evidencia visual sin clipping en el SHA actual + producción READY y comprobación final del síntoma reportado.
-
 ### 2026-09-04 — DeCA: motor PDF/QR y acceso público
 - **Área:** Documentación regulatoria / CMR / Acceso público
 - **Estado:** FUNDACIÓN EN PRODUCCIÓN; MOTOR FUNCIONAL PENDIENTE
@@ -47,6 +39,11 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## DONE
 
+### 2026-09-04 — Regresión visual del logotipo de acceso
+- **Estado:** PR #49 INTEGRADO Y VERIFICADO EN PRODUCCIÓN
+- **Cierre:** Fran validó visualmente el Preview exacto; CI #191 terminó verde sobre `caea2d10f1ae0bc380cc404ae95f0c7c6c42d8c2`; PR #49 se fusionó por squash en `c450862f6262f8f3f864f2d744c20e0b1fb43b73`; el deployment productivo canónico `dpl_9HkCv3bVwypBSL3QkVtsV2GSDovH` quedó READY con alias `fornexasc.com`; `/login` responde 200 y sirve `viewBox="10 0 400 170"` con `overflow="visible"`; no hay logs runtime `error/fatal` del deployment.
+- **Control permanente:** `docs/ux/UX_AUDIT_PROTOCOL.md` exige evidencia visual desplegada para cerrar cambios de layout, tipografía, SVG, responsive o impresión; CI/source tests protegen invariantes, pero no sustituyen la comprobación visual.
+
 ### 2026-09-03 — CMR interno, QR e impresión
 - **Estado:** PRs #44–#47 integrados y verificados en producción.
 - **Cierre:** acceso tenant-aware, QR interno seguro y exportación A4 sin chrome del dashboard.
@@ -61,7 +58,7 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ### 2026-09-01 — Logotipo de acceso sin recortes (wrapper)
 - **Estado:** PR #39 IMPLEMENTADO Y DESPLEGADO EN PRODUCCIÓN
-- **Cierre:** se eliminó el clipping heredado del wrapper y se preservó la proporción natural; la regresión posterior del glifo `A` causada por el viewport interno del SVG se registra como un defecto nuevo arriba y no reabre PR #39.
+- **Cierre:** se eliminó el clipping heredado del wrapper y se preservó la proporción natural; la regresión posterior del glifo `A` causada por el viewport interno del SVG se trató como un defecto nuevo y quedó cerrada posteriormente por PR #49.
 
 ### 2026-08-25 — Maestro mundial de países y subdivisiones
 - **Estado:** IMPLEMENTADO, MIGRADO Y DESPLEGADO
