@@ -4,6 +4,14 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-09-04 — Regresión visual del logotipo de acceso
+- **Área:** UX / Auth / Identidad visual
+- **Estado:** FIX EN PREPRODUCCIÓN; VERIFICACIÓN VISUAL OBLIGATORIA
+- **Evidencia:** captura real de producción muestra la pata inferior derecha de la `A` de `4NXA` recortada. La causa está en el viewport del SVG raíz: el wrapper ya permitía overflow, pero el propio SVG no y dependía de métricas de una pila de fuentes fallback.
+- **Acción requerida:** ampliar margen intrínseco del SVG, permitir overflow en el elemento raíz, ejecutar guardas UX/CI y verificar el Preview exacto en escritorio/tablet/móvil antes del merge; después repetir la comprobación en producción.
+- **Control reforzado:** `docs/ux/UX_AUDIT_PROTOCOL.md` pasa a ser el criterio de evidencia para cambios visuales. CI/source tests protegen invariantes conocidos, pero no sustituyen una prueba visual desplegada.
+- **Criterio de cierre:** CI verde + Preview READY + evidencia visual sin clipping en el SHA actual + producción READY y comprobación final del síntoma reportado.
+
 ### 2026-09-04 — DeCA: motor PDF/QR y acceso público
 - **Área:** Documentación regulatoria / CMR / Acceso público
 - **Estado:** FUNDACIÓN EN PRODUCCIÓN; MOTOR FUNCIONAL PENDIENTE
@@ -51,9 +59,9 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 - **Estado:** IMPLEMENTADO, MIGRADO Y DESPLEGADO
 - **Cierre:** eventos solo lectura/inserción para roles de aplicación; correcciones mediante eventos compensatorios.
 
-### 2026-09-01 — Logotipo de acceso sin recortes
-- **Estado:** IMPLEMENTADO Y DESPLEGADO EN PRODUCCIÓN
-- **Cierre:** PR #39 aisló el wrapper del login y preservó la proporción natural del SVG.
+### 2026-09-01 — Logotipo de acceso sin recortes (wrapper)
+- **Estado:** PR #39 IMPLEMENTADO Y DESPLEGADO EN PRODUCCIÓN
+- **Cierre:** se eliminó el clipping heredado del wrapper y se preservó la proporción natural; la regresión posterior del glifo `A` causada por el viewport interno del SVG se registra como un defecto nuevo arriba y no reabre PR #39.
 
 ### 2026-08-25 — Maestro mundial de países y subdivisiones
 - **Estado:** IMPLEMENTADO, MIGRADO Y DESPLEGADO
