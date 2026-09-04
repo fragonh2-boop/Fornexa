@@ -18,8 +18,8 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "3 sep 2026";
-export const memorandumCommitCoverage = 523;
+export const memorandumUpdatedAt = "4 sep 2026";
+export const memorandumCommitCoverage = 524;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -32,7 +32,7 @@ export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
     title: "Auditoría UX transversal",
-    summary: "Revisar consistencia de controles, estados vacíos, accesibilidad y comportamiento responsive en todo el aplicativo.",
+    summary: "Aplicar evidencia visual obligatoria en Preview para cambios de layout, tipografía, SVG, responsive o impresión; revisar clipping/overflow, estados, accesibilidad y breakpoints representativos antes de declarar cierre productivo. Los tests de fuente protegen invariantes, pero no sustituyen la comprobación visual desplegada.",
     priority: "Siguiente",
     state: "En seguimiento",
   },
@@ -74,6 +74,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.09.04",
+    date: "4 sep 2026",
+    surface: ["Web"],
+    title: "Logotipo de acceso resistente a clipping de glifos",
+    purpose: "Eliminar el recorte de la pata inferior derecha de la A de 4NXA observado en producción y reforzar el control de regresiones visuales.",
+    outcome: "Fix en preproducción: el SVG amplía su margen intrínseco y declara overflow visible en el elemento raíz; se añade una guardia de regresión para el logo y un protocolo UX que exige evidencia visual en Preview antes de cerrar cambios de layout, tipografía, SVG o impresión.",
+    status: "Preproducción",
+  },
   {
     version: "2026.09.03.5",
     date: "3 sep 2026",
