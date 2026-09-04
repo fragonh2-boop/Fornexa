@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "4 sep 2026";
-export const memorandumCommitCoverage = 524;
+export const memorandumCommitCoverage = 525;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -80,8 +80,8 @@ export const memorandumReleases: MemorandumRelease[] = [
     surface: ["Web"],
     title: "Logotipo de acceso resistente a clipping de glifos",
     purpose: "Eliminar el recorte de la pata inferior derecha de la A de 4NXA observado en producción y reforzar el control de regresiones visuales.",
-    outcome: "Fix en preproducción: el SVG amplía su margen intrínseco y declara overflow visible en el elemento raíz; se añade una guardia de regresión para el logo y un protocolo UX que exige evidencia visual en Preview antes de cerrar cambios de layout, tipografía, SVG o impresión.",
-    status: "Preproducción",
+    outcome: "Fix desplegado y verificado en producción: el SVG amplía su margen intrínseco y declara overflow visible en el elemento raíz; CI #191, el Preview exacto y la validación visual de Fran quedaron verdes, y fornexasc.com sirve el SVG corregido sin errores runtime. El protocolo UX exige desde ahora evidencia visual desplegada antes de cerrar cambios de layout, tipografía, SVG, responsive o impresión.",
+    status: "Producción",
   },
   {
     version: "2026.09.03.5",
