@@ -19,7 +19,14 @@ function env() {
 export function normalizeTelemetryPath(value: string) {
   const raw = value.split("?")[0]?.split("#")[0] ?? "/";
   const cleaned = raw.replace(/\/+/g, "/").slice(0, 512);
-  return cleaned.startsWith("/") ? cleaned : `/${cleaned}`;
+  const normalized = cleaned.startsWith("/") ? cleaned : `/${cleaned}`;
+
+  // Capability URLs are bearer credentials. Persist only the route shape, never
+  // the raw token, in TLM-1 request telemetry.
+  return normalized.replace(
+    /^\/regulatory\/d\/[^/]+(?=\/|$)/,
+    "/regulatory/d/[token]",
+  );
 }
 
 export function telemetryClientIp(headers: Headers) {
