@@ -4,9 +4,9 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-05 11:47 CEST.
+- **Updated:** 2026-09-05 20:27 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
-- **Production:** `main` at `58513ba954f2b37e58c9987421951370e5eb3a1d` (552 commits). GitHub Actions CI run `33955972837` succeeded on that exact SHA. The canonical Vercel `fornexa` production deployment is `READY`, carries that exact SHA and aliases `fornexasc.com`.
+- **Production:** `main` at `21fe9819b1d85c9f3b2567d570b41ebd2651b020` (553 commits). GitHub Actions CI run `33959140426` succeeded on that exact SHA. Canonical Vercel deployment `dpl_4U1Nqeb8X8JkZCAvdHpby462Bmnj` is `READY`, targets production, carries that exact SHA and aliases `fornexasc.com`.
 - **DeCA-2:** PR #51 is integrated. Private PDF artifact intake, immutable versioning, explicit hashed public tokens, QR and a fail-closed FORNEXA resolver are deployed. The production migration list contains `20260905051522 deca_regulatory_storage`; its timestamp differs from the repository filename `20260905054500_deca_regulatory_storage.sql`, so retain it as A2 provenance work rather than rerunning it.
 - **Supabase Preview:** the check associated with current `main` reports failure, although the GitHub CI workflow itself is successful. The branch-preview integration remains unresolved; do not treat a migration-bearing preview as verified.
 - **CMR fixes:** PRs #44–#47 are merged and verified in production.
@@ -14,6 +14,9 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 - **MMO-1:** PR #38 remains draft at `865bee04f4581bb1d64cfd1fbe06941af8cee62a`; CI #187 and canonical preview are green, and Claude reported no MUST blocker.
 - **MMO-1 gate:** provider execution is blocked until the seven server-side variables are configured only for the controlled Preview. Production must remain without the activation flag and provider keys.
 - **Supabase:** DeCA-1 foundation and T1 append-only foundations are applied. Preserve migration provenance differences under A2; do not rerun applied migrations.
+- **Agent coordination:** DeepSeek is now verified in Slack as the automatic `Fornexa DeepSeek Reviewer`. The deliberate end-to-end test on PR #13 / `4ce9f229` produced two traceable channel responses at 20:09 CEST: no MUST, one SHOULD to validate the 6,612-line lockfile change/policy, and optional NICE observations. This proves the review path works; PR #13 remains only the test case, not the current priority, merge authorization or a review of PR #54.
+- **Claude/GPT convergence:** Claude published `respuesta_claude_pr54_ux_qr_convergencia_y_catchup_20260905_1957` in Drive and independently confirmed the QR redundancy, the SVG-versus-capability distinction and no material disagreement with GPT. Its exact PR #54 review covers `f7872c1` with **SIN MUST**; subsequent commits are documentation-only reconciliation.
+- **Canonical coordination pointer:** production remains `main@21fe9819`; the only current documentation closeout is PR #54; the QR analysis is in Drive document `respuesta_gpt_slack_qr_ux_y_pr54_20260905_1930`. Slack still lacks one canonical pointer to current PR #54 state. Fran has defined DeepSeek as a read-only, advisory third review: it does not implement, merge, deploy or arbitrate disagreements. The stated five-minute polling, 24/7 service and possible cold-start delay are operator-provided infrastructure facts, not runtime characteristics independently inspected by Codex.
 
 ## Recently deployed work awaiting final approval
 
@@ -27,9 +30,11 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 - **Codex convergence response:** agreement is complete: backend expiry/revocation remains fail-closed, frontend print/export waits for the exact QR, and the UX distinguishes unavailable state from confirmed expiry with safe retry. There is no evidence-backed objection; the duplicate cursor rule is cosmetic and non-blocking. No technical question remains open between Claude and Codex. Closure is therefore explicit and solid on implementation, deployment and screen-level production RPA; the only remaining acceptance gate is Fran's native print/PDF visual validation. The NICE cleanup can be handled separately without reopening this functional fix.
 - **Integrated and deployed:** PR #52 was squash-merged as `58513ba954f2b37e58c9987421951370e5eb3a1d`; CI run `33955972837` passed and the canonical production deployment for that exact SHA is `READY` on `fornexasc.com`.
 - **Production RPA:** a current CMR loaded a real 150×150 QR and enabled print/PDF only after load. An expired-capability fixture showed no broken image, kept both actions disabled, rendered `QR no disponible` in the document and returned to that controlled state after explicit retry. Runtime evidence contained no `error`/`fatal` entries during verification. Native browser print/PDF output is not machine-verified.
+- **New Slack UX finding:** Fran reported that the same unavailable state is repeated around the CMR. Claude and Codex independently verified that one derived `qrState === "error"` produces four manifestations: both action labels, the retry banner and the badge beside the CMR number. The CSS module also contains two `.qrNotice` definitions. This is a real redundancy/usability defect, separate from the fail-closed gating.
+- **Generation semantics:** `/api/cmr/[cmr]/qr` is dynamic, no-store and renders a fresh SVG on every successful GET, but it encodes the CMR's existing access capability. The only issuance found is during CMR creation; retrying with a cache-buster does not renew a missing, revoked or expired capability. The screenshot alone does not identify which failure class occurred, so do not claim expiry without request/CMR evidence.
 - **Remaining gate:** Fran must visually validate the native print/PDF output. Keep this item open until that explicit approval; do not infer it from screen-level RPA.
 
-## Active unintegrated work
+## Newly deployed work awaiting final approval
 
 ### Login retry after transient client failure — PR #53
 
@@ -39,8 +44,10 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 - **Claude convergence:** Claude reviewed exact HEAD `0935458acb9496b5c8bd4d7a68de05d4bcd68b45`, reported **SIN MUST**, and published `respuesta_claude_pr53_login_retry_cliente_transitorio_20260905_1124` in Drive. Its single SHOULD was the missing complementary success-cache test. After that test was added, Claude rereviewed exact HEAD `eeccd500f79fde5984227d14afc24a5cddefde97`, confirmed the SHOULD consumed and again concluded **SIN MUST**. Two remaining NICE observations are non-blocking and pre-existing/scope-only.
 - **Preview evidence:** the canonical Preview and GitHub CI for exact HEAD `eeccd500f79fde5984227d14afc24a5cddefde97` passed, including both Vercel checks; Supabase Preview was correctly skipped because there is no schema change. Browser RPA loaded `/login` without console errors and an intentionally nonexistent account reached Supabase and produced the specific invalid-credentials path, rather than the generic client/network failure. Direct browser interception of `fetch` is unavailable in this RPA environment, so the same-tab transient retry itself remains verified by the behavioral test.
 - **Local verification:** 84/84 tests, typecheck, lint without errors (seven existing warnings), production webpack build and `git diff --check` pass after consuming Claude's SHOULD.
-- **State:** added to existing PR #53; local controls, two Claude reviews and Preview are green. The PR is not merged or deployed. No Supabase schema/config change is required.
-- **Next gate:** merge only with Fran's explicit authorization, verify the exact merge SHA in CI and canonical production, then run production login RPA before returning the native PDF validation to Fran.
+- **Integrated and deployed:** after Fran's explicit authorization, PR #53 was squash-merged as `21fe9819b1d85c9f3b2567d570b41ebd2651b020`. Main CI run `33959140426` passed; canonical production deployment `dpl_4U1Nqeb8X8JkZCAvdHpby462Bmnj` is `READY` on that exact SHA with alias `fornexasc.com`. No Supabase schema/config change was required.
+- **Production RPA:** an existing authenticated browser session requested `/login` and was correctly redirected to `/dashboard`, which loaded without console errors. The deployment showed no runtime `error`, `warning` or `fatal` entries during verification. A fresh credential submission was not automated or inferred; the user must perform it without sharing credentials.
+- **Independent closeout review:** Claude's scheduled Drive review `respuesta_claude_pr53_pr54_login_cierre_y_revision_20260905` independently confirmed PR #53's production closure and reviewed exact PR #54 HEAD `84e7a4a02f160c8d08e72c3aacecea3737c6cce1` with **SIN MUST, SIN SHOULD**. PR #54 remains open and unmerged pending Fran's specific merge decision.
+- **Remaining gate:** Fran validates a fresh real login and retry in the affected browser/session. The behavioral regression test proves a rejected initialization is not reused, but it does not replace this explicit production acceptance.
 
 ## Current priority
 
@@ -81,6 +88,7 @@ After the run: inspect sanitized evidence, remove the temporary route/page/flag,
 ## Governance
 
 - GPT owns implementation; Claude reviews security-sensitive or material changes.
+- DeepSeek is an optional independent second-review bot in Slack. Invoke it with the agreed `DEEPSEEK — ACCIÓN REQUERIDA` block containing PR, repository and exact HEAD; treat its MUST/SHOULD/NICE result as advisory evidence. Arbiter mode is not defined or active.
 - Preserve Pedido↔Expediente 1:1 and standard Supabase migration tracking.
 - Update `lib/memorandum.ts`, this handoff and `docs/pending-log.md` with material changes.
 - Mirror material handoffs in Slack `#fornexa`.

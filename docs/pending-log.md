@@ -4,26 +4,38 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-09-05 — Sincronización Claude / Slack / DeepSeek
+- **Área:** Gobernanza / Coordinación de agentes / Slack-Drive
+- **Estado:** PARCIALMENTE SINCRONIZADO; CLAUDE/GPT CONVERGENTES Y DEEPSEEK VALIDADO; PUNTERO CANÓNICO PR #54 PENDIENTE EN SLACK
+- **Evidencia:** Claude publicó en Drive `respuesta_claude_pr54_ux_qr_convergencia_y_catchup_20260905_1957`: confirma de forma independiente la redundancia QR, añade la duplicidad conflictiva de cursor CSS, coincide en que reintentar el SVG no rota la capability y revisa PR #54 `f7872c1` sin MUST. DeepSeek respondió automáticamente en `#fornexa` a las 20:09 CEST al caso deliberado PR #13 / `4ce9f229`: sin MUST, con un SHOULD sobre la política/cambio de 6.612 líneas de `package-lock.json` y NICE opcionales. El bot y el flujo extremo a extremo quedan así verificados.
+- **Gobernanza definida por Fran:** DeepSeek es una tercera opinión técnica independiente, automática, de solo lectura y consultiva; no implementa, fusiona, despliega ni actúa como árbitro. La convención de invocación exige PR, repositorio y HEAD exacto. El sondeo cada cinco minutos, servicio 24/7 y posible arranque en frío son datos operativos comunicados por Fran, no infraestructura inspeccionada directamente por Codex.
+- **Impacto restante:** Slack todavía no contiene el puntero canónico a PR #54/Drive y las dos respuestas de DeepSeek aparecieron como mensajes independientes, no dentro del hilo solicitante. No interpretar la prueba PR #13 como prioridad, revisión de PR #54 o autorización de merge.
+- **Criterio de cierre:** publicar en `#fornexa` un único puntero canónico a `main`, PR #54 y el documento Drive vigente; obtener acuse sobre el HEAD documental actual y conservar cada revisión DeepSeek vinculada de forma trazable a su solicitud. El envío a Slack debe usar el payload y destino autorizados.
+
 ### 2026-09-05 — Login recuperable tras fallo transitorio de cliente
 - **Área:** Auth / Login / Resiliencia
-- **Estado:** CORRECCIÓN EN PR #53; CLAUDE SIN MUST Y PREVIEW VERDE; PRODUCCIÓN Y VALIDACIÓN FINAL PENDIENTES
+- **Estado:** INTEGRADO Y DESPLEGADO; CI/CLAUDE/PREVIEW/RPA DE SESIÓN VERDES; LOGIN NUEVO DE FRAN PENDIENTE
 - **Evidencia:** la captura de Fran mostró el error genérico de cliente/red; dos eventos de intento/fallo llegaron a la telemetría HTTP, pero Supabase Auth no recibió una petición `/token`. La configuración pública responde 200, el proyecto está saludable y el preflight CORS permite el origen productivo.
 - **Causa confirmada en código:** `createClient()` conservaba una promesa rechazada, por lo que un fallo transitorio impedía que los reintentos posteriores de la misma pestaña volvieran a cargar la configuración o contactar con Auth.
 - **Solución preparada:** invalidar únicamente la promesa fallida, conservar el cliente cuando carga correctamente y ofrecer una instrucción de recuperación explícita. Los tests cubren ahora tanto el reintento tras rechazo como la conservación del singleton tras éxito.
 - **Revisión y Preview:** Claude revisó el HEAD exacto `0935458`, dictaminó SIN MUST y dejó un único SHOULD: probar el caché de éxito. Tras añadir el test complementario, rerevisó el HEAD exacto `eeccd50`, confirmó el SHOULD consumido y volvió a concluir SIN MUST. CI y ambos checks Vercel pasaron sobre ese HEAD; Supabase Preview se omitió correctamente por no haber esquema. La RPA de Preview cargó el login sin errores de consola y confirmó que una cuenta ficticia llega a Supabase y recibe el mensaje específico de credenciales inválidas.
 - **Controles locales:** 84/84 tests, typecheck, lint sin errores (siete warnings existentes), build productivo con webpack y `git diff --check` pasan tras consumir el SHOULD.
-- **Criterio de cierre:** prueba de regresión, controles completos, Claude sin MUST, Preview y producción `READY` en el SHA previsto, RPA de reintento y acceso real de Fran.
+- **Integración y producción:** PR #53 fusionada por squash como `21fe981`; CI de main `33959140426` verde y deployment productivo canónico `dpl_4U1Nqeb8X8JkZCAvdHpby462Bmnj` `READY` sobre ese SHA con alias `fornexasc.com`. No hubo cambio de esquema ni configuración Supabase.
+- **RPA productiva:** una sesión autenticada existente pidió `/login`, fue redirigida correctamente al dashboard y cargó sin errores de consola; no aparecieron logs runtime `error`, `warning` o `fatal` del deployment. No se manipuló la sesión ni se usaron credenciales del usuario.
+- **Criterio de cierre restante:** Fran valida un login nuevo y el reintento en la sesión afectada. La prueba de regresión cubre el reintento técnico, pero no sustituye esa aceptación productiva explícita.
 
 ### 2026-09-05 — QR visible y listo antes de imprimir/exportar CMR
 - **Área:** CMR / QR / Impresión-PDF / UX
-- **Estado:** INTEGRADO Y DESPLEGADO; CI/CLAUDE/RPA DE PANTALLA VERDES; VALIDACIÓN NATIVA DE FRAN PENDIENTE
+- **Estado:** INTEGRADO Y DESPLEGADO; GATING VERIFICADO; REDUNDANCIA UX Y VALIDACIÓN NATIVA DE FRAN PENDIENTES
 - **Evidencia productiva:** el detalle autenticado de `CMR-E2E-MOBILE-20260819` respondió 200, pero su endpoint QR respondió 401 porque la capability expiró el 22/08; el navegador mostró una imagen rota. Un CMR con capability vigente cargó el SVG correctamente.
 - **Causa raíz:** la pantalla no esperaba `onLoad` del recurso QR antes de ejecutar `window.print()` y tampoco representaba explícitamente el rechazo 401.
 - **Solución preparada:** impresión manual y automática bloqueadas hasta carga confirmada del QR exacto; error neutral visible y sin imagen rota, con reintento explícito para fallos transitorios. No se relaja expiración, revocación, tenant isolation ni exclusión de REVIEW.
 - **Evidencia de revisión:** exact HEAD `6e9dcaa` pasó 82/82 tests, typecheck, lint sin errores (siete warnings existentes), build productivo, memorandum gate, `git diff --check`, GitHub CI y ambos checks Vercel. Claude confirmó el HEAD final sin MUST; solo dejó como NICE una duplicidad cosmética de cursor CSS.
 - **Integración y producción:** PR #52 fusionada como `58513ba`; CI `33955972837` verde y deployment productivo canónico `READY` sobre ese SHA en `fornexasc.com`. Supabase Preview se omitió correctamente porque no hubo cambio de esquema.
 - **RPA productiva:** un CMR vigente cargó QR real 150×150 y habilitó Imprimir/Exportar; una capability caducada mostró `QR no disponible`, ocultó la imagen rota, bloqueó ambas acciones y mantuvo el fallo controlado tras reintentar. Sin logs `error/fatal` observados en el deployment durante la prueba.
-- **Criterio de cierre restante:** Fran valida visualmente el PDF/diálogo nativo con QR visible. La RPA de pantalla no sustituye esta aprobación explícita.
+- **Hallazgo UX posterior en Slack:** un único `qrState === "error"` se presenta cuatro veces (dos labels de acción, banner de reintento y badge junto al número CMR), y existen dos reglas `.qrNotice` en el CSS. Claude y Codex lo confirmaron directamente en el código; la redundancia no debe darse por validada por la auditoría UX.
+- **Semántica comprobada:** el endpoint genera un SVG nuevo en cada GET exitoso y no lo cachea, pero reutiliza la capability persistida. No existe una ruta de renovación/rotación al visualizar; un cache-busted retry no puede reparar una capability ausente, revocada o caducada. La captura no permite atribuir el fallo concreto a una de esas causas sin identificar la petición/CMR.
+- **Criterio de cierre restante:** consolidar el error en un único indicador/reintento sin relajar el bloqueo de imprimir/exportar; decidir explícitamente si el acceso móvil necesita renovación segura de capability; y validar visualmente el PDF/diálogo nativo con QR visible. La RPA de pantalla no sustituye esta aprobación explícita.
 
 ### 2026-09-05 — DeCA: cierre regulatorio y E2E del motor PDF/QR
 - **Área:** Documentación regulatoria / CMR / Acceso público
