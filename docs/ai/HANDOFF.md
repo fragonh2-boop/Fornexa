@@ -4,9 +4,9 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-05 10:30 CEST.
+- **Updated:** 2026-09-05 10:47 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
-- **Production:** `main` at `f030f23468de6b9089ca36c7e429e8c1335485e3` (551 commits). GitHub Actions CI run `33946697109` succeeded on that exact SHA. The canonical Vercel `fornexa` production deployment is `READY`, carries that exact SHA and aliases `fornexasc.com`.
+- **Production:** `main` at `58513ba954f2b37e58c9987421951370e5eb3a1d` (552 commits). GitHub Actions CI run `33955972837` succeeded on that exact SHA. The canonical Vercel `fornexa` production deployment is `READY`, carries that exact SHA and aliases `fornexasc.com`.
 - **DeCA-2:** PR #51 is integrated. Private PDF artifact intake, immutable versioning, explicit hashed public tokens, QR and a fail-closed FORNEXA resolver are deployed. The production migration list contains `20260905051522 deca_regulatory_storage`; its timestamp differs from the repository filename `20260905054500_deca_regulatory_storage.sql`, so retain it as A2 provenance work rather than rerunning it.
 - **Supabase Preview:** the check associated with current `main` reports failure, although the GitHub CI workflow itself is successful. The branch-preview integration remains unresolved; do not treat a migration-bearing preview as verified.
 - **CMR fixes:** PRs #44–#47 are merged and verified in production.
@@ -15,17 +15,18 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 - **MMO-1 gate:** provider execution is blocked until the seven server-side variables are configured only for the controlled Preview. Production must remain without the activation flag and provider keys.
 - **Supabase:** DeCA-1 foundation and T1 append-only foundations are applied. Preserve migration provenance differences under A2; do not rerun applied migrations.
 
-## Active unintegrated work
+## Recently deployed work awaiting final approval
 
 ### CMR print/PDF QR readiness — PR #52
 
 - **Production defect reproduced:** authenticated CMR detail returned 200 while its QR endpoint returned 401 for an expired, non-revoked capability; the browser rendered a broken image. A current non-expiring CMR loaded the QR successfully.
 - **Root cause:** the page rendered and invoked `window.print()` without waiting for the QR resource. The QR route correctly preserves expiry/revocation fail-closed behavior and is unchanged.
 - **Prepared fix:** print/export remain disabled until `onLoad` confirms the exact QR source; automatic `?print=1` also waits. A failed QR is hidden, replaced by a neutral unavailable state and can be retried with a cache-busted source; the UI no longer claims every network/render failure means expiry. The original behavior of the `Imprimir` button remains separate from PDF-title preparation.
-- **Verification on `7786f54`:** local 81/81 web tests, typecheck, lint without errors and production build passed. GitHub CI run `33953608992` and both Vercel previews passed on that exact SHA; canonical preview `dpl_4xrii7YP7w3Xa2oXummk6qHK2y78` is `READY` with no observed `error/fatal` logs. Supabase Preview was skipped because there is no schema change.
-- **Claude review:** Claude independently inspected PR #52 and exact HEAD `7786f54`; no security/fail-closed MUST was found. It correctly required RPA/visual evidence before treating the race as verified and raised a SHOULD for transient QR failures being mislabeled and unretryable. The follow-up described above consumes that SHOULD; local verification on the follow-up is 82/82 tests, typecheck, lint with the same seven warnings and no errors, production build, and `git diff --check`, but it still requires a fresh exact-head review/gate cycle.
-- **State:** branch `codex/persistent-fornexa-handoff-20260905`; not merged or deployed. Preview RPA is blocked by application authentication on the separate Vercel hostname; do not infer visual success from `READY`.
-- **Next gate:** run proportional checks on the follow-up, push it to PR #52, require fresh CI + canonical Preview `READY` and Claude confirmation, then run RPA on both a valid and expired-capability CMR. Merge/deploy only after those gates; final closure still requires Fran's visual approval.
+- **Final code verification:** exact PR HEAD `6e9dcaa46b29db9ac5144370e63823c317dfd36b` passed 82/82 web tests, typecheck, lint without errors (seven existing warnings), production build, memorandum gate and `git diff --check`. GitHub CI run `33955568773` and both Vercel checks passed; Supabase Preview was skipped because there is no schema change.
+- **Claude convergence:** Claude independently verified the final exact HEAD and reported no MUST. The earlier SHOULD items were consumed by neutral error copy, explicit safe retry and separation of `Imprimir` from PDF-title preparation. The remaining duplicate disabled-cursor CSS rule was classified as NICE only.
+- **Integrated and deployed:** PR #52 was squash-merged as `58513ba954f2b37e58c9987421951370e5eb3a1d`; CI run `33955972837` passed and the canonical production deployment for that exact SHA is `READY` on `fornexasc.com`.
+- **Production RPA:** a current CMR loaded a real 150×150 QR and enabled print/PDF only after load. An expired-capability fixture showed no broken image, kept both actions disabled, rendered `QR no disponible` in the document and returned to that controlled state after explicit retry. Runtime evidence contained no `error`/`fatal` entries during verification. Native browser print/PDF output is not machine-verified.
+- **Remaining gate:** Fran must visually validate the native print/PDF output. Keep this item open until that explicit approval; do not infer it from screen-level RPA.
 
 ## Current priority
 

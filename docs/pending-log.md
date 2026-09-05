@@ -6,13 +6,14 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ### 2026-09-05 — QR visible y listo antes de imprimir/exportar CMR
 - **Área:** CMR / QR / Impresión-PDF / UX
-- **Estado:** PR EN REVISIÓN; CI/PREVIEW DEL PRIMER HEAD VERDES; FOLLOW-UP, RPA Y PRODUCCIÓN PENDIENTES
+- **Estado:** INTEGRADO Y DESPLEGADO; CI/CLAUDE/RPA DE PANTALLA VERDES; VALIDACIÓN NATIVA DE FRAN PENDIENTE
 - **Evidencia productiva:** el detalle autenticado de `CMR-E2E-MOBILE-20260819` respondió 200, pero su endpoint QR respondió 401 porque la capability expiró el 22/08; el navegador mostró una imagen rota. Un CMR con capability vigente cargó el SVG correctamente.
 - **Causa raíz:** la pantalla no esperaba `onLoad` del recurso QR antes de ejecutar `window.print()` y tampoco representaba explícitamente el rechazo 401.
 - **Solución preparada:** impresión manual y automática bloqueadas hasta carga confirmada del QR exacto; error neutral visible y sin imagen rota, con reintento explícito para fallos transitorios. No se relaja expiración, revocación, tenant isolation ni exclusión de REVIEW.
-- **Evidencia de revisión:** CI y ambos Previews pasaron sobre `7786f54`; Claude revisó ese SHA sin MUST de seguridad y exigió correctamente RPA antes del cierre. Su SHOULD sobre errores transitorios mal etiquetados/sin reintento se consume en un follow-up todavía no publicado.
-- **Controles del follow-up:** 82/82 tests, typecheck, lint sin errores (siete warnings existentes), build productivo y `git diff --check` correctos.
-- **Criterio de cierre:** CI y Preview del HEAD final verdes; revisión Claude sin MUST; RPA demuestra QR visible en pantalla y PDF real para capability vigente, y bloqueo legible/reintentable para QR no disponible; merge, producción `READY` del SHA previsto y validación visual explícita de Fran.
+- **Evidencia de revisión:** exact HEAD `6e9dcaa` pasó 82/82 tests, typecheck, lint sin errores (siete warnings existentes), build productivo, memorandum gate, `git diff --check`, GitHub CI y ambos checks Vercel. Claude confirmó el HEAD final sin MUST; solo dejó como NICE una duplicidad cosmética de cursor CSS.
+- **Integración y producción:** PR #52 fusionada como `58513ba`; CI `33955972837` verde y deployment productivo canónico `READY` sobre ese SHA en `fornexasc.com`. Supabase Preview se omitió correctamente porque no hubo cambio de esquema.
+- **RPA productiva:** un CMR vigente cargó QR real 150×150 y habilitó Imprimir/Exportar; una capability caducada mostró `QR no disponible`, ocultó la imagen rota, bloqueó ambas acciones y mantuvo el fallo controlado tras reintentar. Sin logs `error/fatal` observados en el deployment durante la prueba.
+- **Criterio de cierre restante:** Fran valida visualmente el PDF/diálogo nativo con QR visible. La RPA de pantalla no sustituye esta aprobación explícita.
 
 ### 2026-09-05 — DeCA: cierre regulatorio y E2E del motor PDF/QR
 - **Área:** Documentación regulatoria / CMR / Acceso público
