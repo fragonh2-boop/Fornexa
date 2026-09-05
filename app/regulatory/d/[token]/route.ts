@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 const noStore = {
   "Cache-Control": "private, no-cache, no-store, max-age=0, must-revalidate",
   Pragma: "no-cache",
+  "Referrer-Policy": "no-referrer",
 };
 
 const unavailable = () => new Response("Documento no disponible.", { status: 404, headers: noStore });
@@ -38,9 +39,9 @@ export async function GET(_request: Request, context: { params: Promise<{ token:
       ...noStore,
       "Content-Type": "application/pdf",
       "Content-Length": String(bytes.byteLength),
-      "Content-Disposition": `inline; filename="${filename}"`,
+      "Content-Disposition": `attachment; filename="${filename}"`,
       "X-Content-Type-Options": "nosniff",
-      "Content-Security-Policy": "default-src 'none'; frame-ancestors 'self'",
+      "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
     },
   });
 }
