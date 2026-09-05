@@ -4,7 +4,7 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-05 11:57 CEST.
+- **Updated:** 2026-09-05 19:30 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
 - **Production:** `main` at `21fe9819b1d85c9f3b2567d570b41ebd2651b020` (553 commits). GitHub Actions CI run `33959140426` succeeded on that exact SHA. Canonical Vercel deployment `dpl_4U1Nqeb8X8JkZCAvdHpby462Bmnj` is `READY`, targets production, carries that exact SHA and aliases `fornexasc.com`.
 - **DeCA-2:** PR #51 is integrated. Private PDF artifact intake, immutable versioning, explicit hashed public tokens, QR and a fail-closed FORNEXA resolver are deployed. The production migration list contains `20260905051522 deca_regulatory_storage`; its timestamp differs from the repository filename `20260905054500_deca_regulatory_storage.sql`, so retain it as A2 provenance work rather than rerunning it.
@@ -27,6 +27,8 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 - **Codex convergence response:** agreement is complete: backend expiry/revocation remains fail-closed, frontend print/export waits for the exact QR, and the UX distinguishes unavailable state from confirmed expiry with safe retry. There is no evidence-backed objection; the duplicate cursor rule is cosmetic and non-blocking. No technical question remains open between Claude and Codex. Closure is therefore explicit and solid on implementation, deployment and screen-level production RPA; the only remaining acceptance gate is Fran's native print/PDF visual validation. The NICE cleanup can be handled separately without reopening this functional fix.
 - **Integrated and deployed:** PR #52 was squash-merged as `58513ba954f2b37e58c9987421951370e5eb3a1d`; CI run `33955972837` passed and the canonical production deployment for that exact SHA is `READY` on `fornexasc.com`.
 - **Production RPA:** a current CMR loaded a real 150×150 QR and enabled print/PDF only after load. An expired-capability fixture showed no broken image, kept both actions disabled, rendered `QR no disponible` in the document and returned to that controlled state after explicit retry. Runtime evidence contained no `error`/`fatal` entries during verification. Native browser print/PDF output is not machine-verified.
+- **New Slack UX finding:** Fran reported that the same unavailable state is repeated around the CMR. Claude and Codex independently verified that one derived `qrState === "error"` produces four manifestations: both action labels, the retry banner and the badge beside the CMR number. The CSS module also contains two `.qrNotice` definitions. This is a real redundancy/usability defect, separate from the fail-closed gating.
+- **Generation semantics:** `/api/cmr/[cmr]/qr` is dynamic, no-store and renders a fresh SVG on every successful GET, but it encodes the CMR's existing access capability. The only issuance found is during CMR creation; retrying with a cache-buster does not renew a missing, revoked or expired capability. The screenshot alone does not identify which failure class occurred, so do not claim expiry without request/CMR evidence.
 - **Remaining gate:** Fran must visually validate the native print/PDF output. Keep this item open until that explicit approval; do not infer it from screen-level RPA.
 
 ## Newly deployed work awaiting final approval
@@ -41,6 +43,7 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 - **Local verification:** 84/84 tests, typecheck, lint without errors (seven existing warnings), production webpack build and `git diff --check` pass after consuming Claude's SHOULD.
 - **Integrated and deployed:** after Fran's explicit authorization, PR #53 was squash-merged as `21fe9819b1d85c9f3b2567d570b41ebd2651b020`. Main CI run `33959140426` passed; canonical production deployment `dpl_4U1Nqeb8X8JkZCAvdHpby462Bmnj` is `READY` on that exact SHA with alias `fornexasc.com`. No Supabase schema/config change was required.
 - **Production RPA:** an existing authenticated browser session requested `/login` and was correctly redirected to `/dashboard`, which loaded without console errors. The deployment showed no runtime `error`, `warning` or `fatal` entries during verification. A fresh credential submission was not automated or inferred; the user must perform it without sharing credentials.
+- **Independent closeout review:** Claude's scheduled Drive review `respuesta_claude_pr53_pr54_login_cierre_y_revision_20260905` independently confirmed PR #53's production closure and reviewed exact PR #54 HEAD `84e7a4a02f160c8d08e72c3aacecea3737c6cce1` with **SIN MUST, SIN SHOULD**. PR #54 remains open and unmerged pending Fran's specific merge decision.
 - **Remaining gate:** Fran validates a fresh real login and retry in the affected browser/session. The behavioral regression test proves a rejected initialization is not reused, but it does not replace this explicit production acceptance.
 
 ## Current priority
