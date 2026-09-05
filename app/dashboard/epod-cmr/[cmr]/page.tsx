@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { companyMaster } from "../../../lib/company-master";
 import styles from "./cmr-document.module.css";
@@ -14,16 +14,20 @@ type CmrView={expedicion:string;viaje:string;fecha:string;estado:string;remitent
 export default function CmrDocumentPage(){
  const params=useParams<{cmr:string}>(),searchParams=useSearchParams(),didPrint=useRef(false);
  const cmr=decodeURIComponent(params.cmr),sharedKey=searchParams.get("key")??"";
- const [doc,setDoc]=useState<CmrView|null>(null),[ready,setReady]=useState(false),[isLive,setIsLive]=useState(false),[accessKey,setAccessKey]=useState("");
+ const [doc,setDoc]=useState<CmrView|null>(null),[ready,setReady]=useState(false),[isLive,setIsLive]=useState(false),[accessKey,setAccessKey]=useState(""),[qrAttempt,setQrAttempt]=useState(0),[qrStatus,setQrStatus]=useState<{src:string;state:"ready"|"error"}|null>(null);
+ const retryQuery=qrAttempt?`${accessKey?"&":"?"}attempt=${qrAttempt}`:"";
+ const qrSrc=isLive?(accessKey?`/api/cmr/${encodeURIComponent(cmr)}/qr?key=${encodeURIComponent(accessKey)}${retryQuery}`:`/api/cmr/${encodeURIComponent(cmr)}/qr${retryQuery}`):"";
+ const qrState=qrStatus?.src===qrSrc?qrStatus.state:"loading";
+ const printDocument=useCallback(()=>{if(!doc||!isLive||qrState!=="ready")return;window.print()},[doc,isLive,qrState]);
+ const exportPdf=useCallback(()=>{if(!doc||!isLive||qrState!=="ready")return;const previousTitle=document.title;document.title=`${cmr}-${doc.expedicion}`;window.print();window.setTimeout(()=>{document.title=previousTitle},500)},[cmr,doc,isLive,qrState]);
+ const retryQr=()=>{setQrStatus(null);setQrAttempt(attempt=>attempt+1)};
 
  useEffect(()=>{
   let cancelled=false;
   async function refresh(){try{const localDocuments=JSON.parse(localStorage.getItem("fornexa-cmr-documents")||"[]") as Array<{id?:string;cmrNumber?:string;cmrKey?:string}>;const localKey=localDocuments.find(item=>item.id===cmr||item.cmrNumber===cmr)?.cmrKey??"";const key=sharedKey||localKey;if(key)setAccessKey(key);const headers:Record<string,string>={};if(key)headers["x-fornexa-key"]=key;const response=await fetch(`/api/cmr/${encodeURIComponent(cmr)}`,{cache:"no-store",headers,credentials:"same-origin"});if(!response.ok){setDoc(null);setReady(true);return}const result=await response.json();if(cancelled)return;const item=result.document,events=Array.isArray(result.events)?result.events:[];const meta=(item.metadata&&typeof item.metadata==="object"?item.metadata:{}) as Record<string,unknown>;const cmrMeta=(meta.cmr&&typeof meta.cmr==="object"?meta.cmr:{}) as Record<string,unknown>;const signatures=events.filter((event:{event_type:string})=>event.event_type==="signature_added").length;setDoc({expedicion:item.expedition_id||"—",viaje:item.trip_id||"—",fecha:new Date(item.issued_at).toLocaleDateString("es-ES"),estado:item.status,remitente:item.sender,remitenteDireccion:item.pickup_location,destinatario:item.recipient,destinatarioDireccion:item.delivery_location,carga:item.pickup_location,entrega:item.delivery_location,transportista:item.carrier,tractor:item.vehicle_registration||"—",remolque:item.trailer_registration||"—",goodsLines:readGoodsLines(cmrMeta,item),senderInstructions:text(cmrMeta.senderInstructions)||item.instructions||"Sin instrucciones particulares",carrierReservations:text(cmrMeta.carrierReservations)||"Sin reservas",particularTerms:text(cmrMeta.particularTerms)||"Sin estipulaciones particulares",attachedDocuments:readAttachments(cmrMeta.attachedDocuments),successiveCarriers:readCarriers(cmrMeta.successiveCarriers),carriageCharges:objectSummary(cmrMeta.carriageCharges,"Según acuerdo comercial"),cashOnDelivery:objectSummary(cmrMeta.cashOnDelivery,"Sin reembolso"),established:[text(cmrMeta.establishedAt),text(cmrMeta.establishedOn)].filter(Boolean).join(" · ")||new Date(item.issued_at).toLocaleDateString("es-ES"),firmas:signatures?`${signatures} firma(s) electrónica(s) registrada(s).`:"Pendiente de completar firmas."});setIsLive(true);setReady(true)}catch{if(!cancelled){setDoc(null);setReady(true)}}}
   refresh();const timer=window.setInterval(refresh,15000);return()=>{cancelled=true;window.clearInterval(timer)};
  },[cmr,sharedKey]);
- useEffect(()=>{if(ready&&doc&&searchParams.get("print")==="1"&&!didPrint.current){didPrint.current=true;window.setTimeout(()=>exportPdf(),350)}},[ready,doc,searchParams]);
-
- function exportPdf(){if(!doc)return;const previousTitle=document.title;document.title=`${cmr}-${doc.expedicion}`;window.print();window.setTimeout(()=>{document.title=previousTitle},500)}
+ useEffect(()=>{if(ready&&doc&&isLive&&qrState==="ready"&&searchParams.get("print")==="1"&&!didPrint.current){didPrint.current=true;window.setTimeout(()=>exportPdf(),50)}},[ready,doc,isLive,qrState,searchParams,exportPdf]);
 
  if(!ready)return <CmrStatus message="Cargando CMR…"/>;
  if(!doc)return <CmrStatus message="CMR no disponible. El documento no existe o la clave/sesión de acceso no es válida."/>;
@@ -31,9 +35,9 @@ export default function CmrDocumentPage(){
  const adrLines=doc.goodsLines.filter(line=>line.adr?.declared||line.adr?.unNumber||line.adr?.class);
 
  return <main className={styles.page}>
-  <header className={styles.appHeader}><div><Link href="/dashboard/epod-cmr" className={styles.back}>← ePOD & CMR</Link><h1>{cmr}</h1><p>{doc.expedicion} · {doc.viaje} · {doc.estado}</p></div><div className={styles.actions}><button type="button" className={styles.secondary} onClick={()=>window.print()}>Imprimir</button><button type="button" className={styles.primary} onClick={exportPdf}>Exportar PDF</button></div></header>
+  <header className={styles.appHeader}><div><Link href="/dashboard/epod-cmr" className={styles.back}>← ePOD & CMR</Link><h1>{cmr}</h1><p>{doc.expedicion} · {doc.viaje} · {doc.estado}</p>{qrState==="error"?<div className={styles.qrNotice} role="alert"><span>El QR no se ha podido cargar. Reinténtalo; si el acceso ha caducado, genera uno nuevo antes de imprimir o exportar.</span><button type="button" onClick={retryQr}>Reintentar QR</button></div>:null}</div><div className={styles.actions}><button type="button" className={styles.secondary} onClick={printDocument} disabled={qrState!=="ready"}>{qrState==="loading"?"Preparando QR…":qrState==="error"?"QR no disponible":"Imprimir"}</button><button type="button" className={styles.primary} onClick={exportPdf} disabled={qrState!=="ready"}>{qrState==="loading"?"Preparando QR…":qrState==="error"?"QR no disponible":"Exportar PDF"}</button></div></header>
   <section className={styles.paper}>
-   <div className={styles.paperHeader}><div><strong>CARTA DE PORTE INTERNACIONAL</strong><span>Convention relative au contrat de transport international de marchandises par route (CMR)</span></div><div className={styles.documentNumber}><span>N.º CMR</span><strong>{cmr}</strong>{isLive?<img src={accessKey?`/api/cmr/${encodeURIComponent(cmr)}/qr?key=${encodeURIComponent(accessKey)}`:`/api/cmr/${encodeURIComponent(cmr)}/qr`} alt={`QR ${cmr}`}/>:null}</div></div>
+   <div className={styles.paperHeader}><div><strong>CARTA DE PORTE INTERNACIONAL</strong><span>Convention relative au contrat de transport international de marchandises par route (CMR)</span></div><div className={styles.documentNumber}><span>N.º CMR</span><strong>{cmr}</strong>{isLive&&qrState!=="error"?<img className={qrState==="ready"?styles.qrReady:styles.qrPending} src={qrSrc} alt={`QR ${cmr}`} onLoad={()=>setQrStatus({src:qrSrc,state:"ready"})} onError={()=>setQrStatus({src:qrSrc,state:"error"})}/>:null}{isLive&&qrState!=="ready"?<span className={styles.qrStatus}>{qrState==="error"?"QR no disponible":"Preparando QR"}</span>:null}</div></div>
    <div className={styles.gridTwo}>
     <article><span className={styles.boxNumber}>1</span><h2>Expedidor</h2><strong>{doc.remitente}</strong><p>{doc.remitenteDireccion}</p></article><article><span className={styles.boxNumber}>16</span><h2>Transportista</h2><strong>{doc.transportista}</strong><p>Tractor: {doc.tractor}<br/>Remolque: {doc.remolque}</p></article>
     <article><span className={styles.boxNumber}>2</span><h2>Destinatario</h2><strong>{doc.destinatario}</strong><p>{doc.destinatarioDireccion}</p></article><article><span className={styles.boxNumber}>17</span><h2>Transportistas sucesivos</h2><p>{doc.successiveCarriers.length?doc.successiveCarriers.map((carrier,index)=><span key={`${carrier.name}-${index}`}>{carrier.name}{carrier.taxId?` · ${carrier.taxId}`:""}{carrier.address?<><br/>{carrier.address}</>:null}<br/></span>):"No declarados"}</p></article>

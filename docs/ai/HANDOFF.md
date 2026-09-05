@@ -4,20 +4,34 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-04 13:55 CEST.
+- **Updated:** 2026-09-05 10:30 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
-- **Production:** `main` at `bb5e70edf8a84c86aaf7dcfcf5fa3988c59f7ec4`; latest GitHub CI on main succeeded and the canonical Vercel project `fornexa` is READY.
+- **Production:** `main` at `f030f23468de6b9089ca36c7e429e8c1335485e3` (551 commits). GitHub Actions CI run `33946697109` succeeded on that exact SHA. The canonical Vercel `fornexa` production deployment is `READY`, carries that exact SHA and aliases `fornexasc.com`.
+- **DeCA-2:** PR #51 is integrated. Private PDF artifact intake, immutable versioning, explicit hashed public tokens, QR and a fail-closed FORNEXA resolver are deployed. The production migration list contains `20260905051522 deca_regulatory_storage`; its timestamp differs from the repository filename `20260905054500_deca_regulatory_storage.sql`, so retain it as A2 provenance work rather than rerunning it.
+- **Supabase Preview:** the check associated with current `main` reports failure, although the GitHub CI workflow itself is successful. The branch-preview integration remains unresolved; do not treat a migration-bearing preview as verified.
 - **CMR fixes:** PRs #44–#47 are merged and verified in production.
 - **Login logo:** PR #39 is merged; `lib/memorandum.ts` records the unclipped logo as Production. Do not reopen the obsolete pending entry.
 - **MMO-1:** PR #38 remains draft at `865bee04f4581bb1d64cfd1fbe06941af8cee62a`; CI #187 and canonical preview are green, and Claude reported no MUST blocker.
 - **MMO-1 gate:** provider execution is blocked until the seven server-side variables are configured only for the controlled Preview. Production must remain without the activation flag and provider keys.
 - **Supabase:** DeCA-1 foundation and T1 append-only foundations are applied. Preserve migration provenance differences under A2; do not rerun applied migrations.
 
+## Active unintegrated work
+
+### CMR print/PDF QR readiness — PR #52
+
+- **Production defect reproduced:** authenticated CMR detail returned 200 while its QR endpoint returned 401 for an expired, non-revoked capability; the browser rendered a broken image. A current non-expiring CMR loaded the QR successfully.
+- **Root cause:** the page rendered and invoked `window.print()` without waiting for the QR resource. The QR route correctly preserves expiry/revocation fail-closed behavior and is unchanged.
+- **Prepared fix:** print/export remain disabled until `onLoad` confirms the exact QR source; automatic `?print=1` also waits. A failed QR is hidden, replaced by a neutral unavailable state and can be retried with a cache-busted source; the UI no longer claims every network/render failure means expiry. The original behavior of the `Imprimir` button remains separate from PDF-title preparation.
+- **Verification on `7786f54`:** local 81/81 web tests, typecheck, lint without errors and production build passed. GitHub CI run `33953608992` and both Vercel previews passed on that exact SHA; canonical preview `dpl_4xrii7YP7w3Xa2oXummk6qHK2y78` is `READY` with no observed `error/fatal` logs. Supabase Preview was skipped because there is no schema change.
+- **Claude review:** Claude independently inspected PR #52 and exact HEAD `7786f54`; no security/fail-closed MUST was found. It correctly required RPA/visual evidence before treating the race as verified and raised a SHOULD for transient QR failures being mislabeled and unretryable. The follow-up described above consumes that SHOULD; local verification on the follow-up is 82/82 tests, typecheck, lint with the same seven warnings and no errors, production build, and `git diff --check`, but it still requires a fresh exact-head review/gate cycle.
+- **State:** branch `codex/persistent-fornexa-handoff-20260905`; not merged or deployed. Preview RPA is blocked by application authentication on the separate Vercel hostname; do not infer visual success from `READY`.
+- **Next gate:** run proportional checks on the follow-up, push it to PR #52, require fresh CI + canonical Preview `READY` and Claude confirmation, then run RPA on both a valid and expired-capability CMR. Merge/deploy only after those gates; final closure still requires Fran's visual approval.
+
 ## Current priority
 
-### DeCA — PDF/QR engine and public access
+### DeCA — native PDF and regulatory completion
 
-Build on the canonical `cmr_documents` model and the existing `regulatory_document_artifacts` / `regulatory_document_access_tokens` tables.
+Build on the deployed canonical `cmr_documents` model, `regulatory_document_artifacts`, `regulatory_document_access_tokens` and the private `regulatory-documents` bucket.
 
 Preserve these boundaries:
 
@@ -27,6 +41,7 @@ Preserve these boundaries:
 - artifact retention and public URL lifecycle remain separate;
 - public access must fail closed for missing, inactive, premature or expired tokens;
 - M8 scope/exemptions, operational `service_completed_at/public_until`, eCMR authentication/sealing and A2 provenance remain explicit pending decisions.
+- A controlled E2E with non-production/test CMR data remains required before promoting DeCA-2 in the public memorandum beyond Preproducción.
 
 ## Backlog requiring Fran
 
@@ -43,7 +58,7 @@ After the run: inspect sanitized evidence, remove the temporary route/page/flag,
 
 ## Other open work
 
-- Reconcile and repair Supabase Git branch preview `MIGRATIONS_FAILED`.
+- Reconcile and repair the failing Supabase Git branch preview; include the DeCA-2 repository/remote migration-version discrepancy in A2 provenance work and do not rerun the applied migration.
 - Complete TLM-1 production configuration/verification for owner allowlist and dedicated hash secret.
 - Improve recovery-password confirmation contrast.
 - Continue ADR 2025 activation, tenant autonomy, Control Tower source-of-truth, critical E2E coverage and stable Mobile distribution per `lib/memorandum.ts`.
