@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "5 sep 2026";
-export const memorandumCommitCoverage = 552;
+export const memorandumCommitCoverage = 553;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -80,8 +80,8 @@ export const memorandumReleases: MemorandumRelease[] = [
     surface: ["Web"],
     title: "Reintento real ante fallos transitorios de acceso",
     purpose: "Evitar que un fallo puntual de configuración o red bloquee todos los intentos posteriores de inicio de sesión en la misma pestaña.",
-    outcome: "Corrección en preproducción: un fallo al preparar el cliente de acceso ya no queda memorizado; el siguiente intento vuelve a conectar y el mensaje indica cómo recuperar la sesión sin exponer detalles internos.",
-    status: "Preproducción",
+    outcome: "En producción, un fallo al preparar el cliente de acceso ya no queda memorizado; el siguiente intento vuelve a conectar y el mensaje indica cómo recuperar la sesión sin exponer detalles internos.",
+    status: "Producción",
   },
   {
     version: "2026.09.05.2",
