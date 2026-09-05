@@ -18,16 +18,16 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "4 sep 2026";
-export const memorandumCommitCoverage = 525;
+export const memorandumUpdatedAt = "5 sep 2026";
+export const memorandumCommitCoverage = 526;
 
 export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
     title: "DeCA — motor PDF/QR y acceso público",
-    summary: "Completar motor PDF nativo, QR con descarga HTTPS directa, matriz M8, retención y ruta pública sobre la base documental regulatoria versionada.",
+    summary: "Completar el motor PDF nativo y la validación regulatoria M8 sobre la base DeCA-2: almacenamiento PDF privado, artefactos versionados, token opaco hasheado, QR y ruta pública fail-closed. Mantener lifecycle service_completed_at/public_until y eCMR como decisiones separadas.",
     priority: "Ahora",
-    state: "Pendiente",
+    state: "En seguimiento",
   },
   {
     area: "Técnico",
@@ -74,6 +74,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.09.05",
+    date: "5 sep 2026",
+    surface: ["Web", "Plataforma"],
+    title: "DeCA-2 — artefactos privados y acceso público controlado",
+    purpose: "Separar la conservación probatoria del PDF regulatorio de su exposición temporal y evitar URLs públicas o credenciales persistentes de Storage.",
+    outcome: "Implementación en preproducción: bucket privado PDF-only de 5 MB, alta tenant-aware OWNER/ADMIN de versiones inmutables, token público opaco almacenado solo como SHA-256, QR a ruta FORNEXA y resolución fail-closed que revalida vigencia, tamaño y hash antes de servir el PDF. Crear el artefacto no lo publica; public_until debe configurarse explícitamente. M8, motor PDF nativo, lifecycle operativo y eCMR permanecen como gates separados.",
+    status: "Preproducción",
+  },
   {
     version: "2026.09.04",
     date: "4 sep 2026",

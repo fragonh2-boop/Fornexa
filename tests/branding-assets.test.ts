@@ -19,7 +19,8 @@ test("web logo sources use the rounded canonical mark without clipping", async (
     text("public/branding/fornexa-wordmark.svg"),
   ]);
 
-  assert.match(component, /viewBox="10 0 378\.33 170"/);
+  assert.match(component, /viewBox="10 0 400 170"/);
+  assert.match(component, /overflow="visible"/);
   assert.match(component, /strokeLinecap="round" strokeLinejoin="round"/);
   assert.doesNotMatch(component, /miter|strokeLinecap="butt"/);
   assert.match(icon, /stroke-linecap="round" stroke-linejoin="round"/);

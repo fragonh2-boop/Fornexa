@@ -19,7 +19,25 @@ function env() {
 export function normalizeTelemetryPath(value: string) {
   const raw = value.split("?")[0]?.split("#")[0] ?? "/";
   const cleaned = raw.replace(/\/+/g, "/").slice(0, 512);
-  return cleaned.startsWith("/") ? cleaned : `/${cleaned}`;
+  const normalized = cleaned.startsWith("/") ? cleaned : `/${cleaned}`;
+
+  // Capability URLs are bearer credentials. Persist only the route shape, never
+  // the raw token, in TLM-1 request telemetry.
+  return normalized.replace(
+    /^\/regulatory\/d\/[^/]+(?=\/|$)/,
+    "/regulatory/d/[token]",
+  );
+}
+
+export function normalizeTelemetryReferrer(value: string | null) {
+  if (!value) return null;
+  try {
+    const parsed = new URL(value);
+    const path = normalizeTelemetryPath(parsed.pathname);
+    return `${parsed.origin}${path}`.slice(0, 1024);
+  } catch {
+    return normalizeTelemetryPath(value).slice(0, 1024);
+  }
 }
 
 export function telemetryClientIp(headers: Headers) {
@@ -80,7 +98,7 @@ export function requestTelemetryPayload(request: NextRequest) {
     method: request.method.slice(0, 12),
     path: normalizeTelemetryPath(request.nextUrl.pathname),
     user_agent: request.headers.get("user-agent")?.slice(0, 1024) ?? null,
-    referrer: request.headers.get("referer")?.split("?")[0]?.slice(0, 1024) ?? null,
+    referrer: normalizeTelemetryReferrer(request.headers.get("referer")),
     accept_language: request.headers.get("accept-language")?.slice(0, 255) ?? null,
     country: request.headers.get("x-vercel-ip-country")?.slice(0, 8) ?? null,
     region: request.headers.get("x-vercel-ip-country-region")?.slice(0, 64) ?? null,

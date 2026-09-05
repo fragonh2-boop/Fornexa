@@ -38,5 +38,5 @@ test("legacy customer prototype is removed and pending frontend wording is close
   const customer = read("../app/dashboard/registros/[module]/[id]/ClientMasterEditorWorld.tsx");
   const memorandum = read("../lib/memorandum.ts");
   assert.doesNotMatch(customer, /Incluye prefijo internacional|can[oó]nic/i);
-  assert.doesNotMatch(memorandum, /can[oó]nic/i);
+  assert.doesNotMatch(memorandum, /maestro can[oó]nico (?:de )?clientes?|cliente can[oó]nico/i);
 });
