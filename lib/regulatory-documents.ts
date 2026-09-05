@@ -7,6 +7,7 @@ export const REGULATORY_PUBLIC_TOKEN_BYTES = 32;
 
 const regulatoryTokenPattern = /^[A-Za-z0-9_-]{43}$/;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const objectNoncePattern = /^[a-f0-9]{24}$/;
 
 export type RegulatoryAccessRow = {
   artifact_id: string;
@@ -24,6 +25,10 @@ export function generateRegulatoryPublicToken() {
   return randomBytes(REGULATORY_PUBLIC_TOKEN_BYTES).toString("base64url");
 }
 
+export function generateRegulatoryObjectNonce() {
+  return randomBytes(12).toString("hex");
+}
+
 export function normalizeRegulatoryPublicToken(value: string) {
   const token = value.trim();
   return regulatoryTokenPattern.test(token) ? token : null;
@@ -35,6 +40,7 @@ export function regulatoryArtifactStoragePath(input: {
   documentKind: "deca";
   regulatoryScope: "deca_es";
   version: number;
+  objectNonce: string;
 }) {
   if (!uuidPattern.test(input.tenantId) || !uuidPattern.test(input.cmrId)) {
     throw new Error("Identificador regulatorio no válido.");
@@ -42,8 +48,11 @@ export function regulatoryArtifactStoragePath(input: {
   if (!Number.isInteger(input.version) || input.version < 1) {
     throw new Error("Versión regulatoria no válida.");
   }
+  if (!objectNoncePattern.test(input.objectNonce)) {
+    throw new Error("Identificador de objeto regulatorio no válido.");
+  }
 
-  return `${input.tenantId}/${input.cmrId}/${input.documentKind}/${input.regulatoryScope}/v${input.version}.pdf`;
+  return `${input.tenantId}/${input.cmrId}/${input.documentKind}/${input.regulatoryScope}/v${input.version}-${input.objectNonce}.pdf`;
 }
 
 export function regulatoryAccessIsUsable(row: RegulatoryAccessRow, now = Date.now()) {
