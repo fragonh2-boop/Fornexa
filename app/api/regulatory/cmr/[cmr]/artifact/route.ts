@@ -1,5 +1,6 @@
 import { getAuthenticatedContext } from "@/lib/auth-context";
 import {
+  generateRegulatoryObjectNonce,
   REGULATORY_DOCUMENT_BUCKET,
   REGULATORY_PDF_MAX_BYTES,
   regulatoryArtifactStoragePath,
@@ -65,12 +66,14 @@ export async function POST(request: Request, context: { params: Promise<{ cmr: s
 
   if (latestError) throw latestError;
   const version = (latest?.version ?? 0) + 1;
+  const objectNonce = generateRegulatoryObjectNonce();
   const storagePath = regulatoryArtifactStoragePath({
     tenantId: authenticated.tenantId,
     cmrId: document.id,
     documentKind: "deca",
     regulatoryScope: "deca_es",
     version,
+    objectNonce,
   });
   const sha256 = sha256Hex(bytes);
 
@@ -110,6 +113,9 @@ export async function POST(request: Request, context: { params: Promise<{ cmr: s
 
   if (artifactError) {
     await admin.storage.from(REGULATORY_DOCUMENT_BUCKET).remove([storagePath]);
+    if (artifactError.code === "23505") {
+      return response("Otra versión regulatoria se emitió simultáneamente; reintenta sobre el estado actualizado.", 409);
+    }
     throw artifactError;
   }
 
