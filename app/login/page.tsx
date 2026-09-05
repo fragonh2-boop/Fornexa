@@ -123,7 +123,7 @@ function LoginForm() {
     } catch {
       emitAuthTelemetry("LOGIN_FAILURE", email, "CLIENT_OR_NETWORK_ERROR");
       setIsError(true);
-      setMessage("No se ha podido completar la solicitud. Inténtalo de nuevo más tarde.");
+      setMessage("No se ha podido conectar al servicio de acceso. Vuelve a intentarlo; si continúa, recarga la página.");
     } finally { setLoading(false); }
   }
 

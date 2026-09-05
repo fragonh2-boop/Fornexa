@@ -75,6 +75,15 @@ export const memorandumPending: MemorandumPending[] = [
 
 export const memorandumReleases: MemorandumRelease[] = [
   {
+    version: "2026.09.05.3",
+    date: "5 sep 2026",
+    surface: ["Web"],
+    title: "Reintento real ante fallos transitorios de acceso",
+    purpose: "Evitar que un fallo puntual de configuración o red bloquee todos los intentos posteriores de inicio de sesión en la misma pestaña.",
+    outcome: "Corrección en preproducción: un fallo al preparar el cliente de acceso ya no queda memorizado; el siguiente intento vuelve a conectar y el mensaje indica cómo recuperar la sesión sin exponer detalles internos.",
+    status: "Preproducción",
+  },
+  {
     version: "2026.09.05.2",
     date: "5 sep 2026",
     surface: ["Web"],

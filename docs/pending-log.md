@@ -4,6 +4,15 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-09-05 — Login recuperable tras fallo transitorio de cliente
+- **Área:** Auth / Login / Resiliencia
+- **Estado:** CORRECCIÓN EN PR #53; CONTROLES LOCALES VERDES; CLAUDE, PREVIEW, PRODUCCIÓN Y RPA PENDIENTES
+- **Evidencia:** la captura de Fran mostró el error genérico de cliente/red; dos eventos de intento/fallo llegaron a la telemetría HTTP, pero Supabase Auth no recibió una petición `/token`. La configuración pública responde 200, el proyecto está saludable y el preflight CORS permite el origen productivo.
+- **Causa confirmada en código:** `createClient()` conservaba una promesa rechazada, por lo que un fallo transitorio impedía que los reintentos posteriores de la misma pestaña volvieran a cargar la configuración o contactar con Auth.
+- **Solución preparada:** invalidar únicamente la promesa fallida, conservar el cliente cuando carga correctamente y ofrecer una instrucción de recuperación explícita.
+- **Controles locales:** 83/83 tests, typecheck, lint sin errores (siete warnings existentes), build productivo con webpack y `git diff --check` correctos.
+- **Criterio de cierre:** prueba de regresión, controles completos, Claude sin MUST, Preview y producción `READY` en el SHA previsto, RPA de reintento y acceso real de Fran.
+
 ### 2026-09-05 — QR visible y listo antes de imprimir/exportar CMR
 - **Área:** CMR / QR / Impresión-PDF / UX
 - **Estado:** INTEGRADO Y DESPLEGADO; CI/CLAUDE/RPA DE PANTALLA VERDES; VALIDACIÓN NATIVA DE FRAN PENDIENTE

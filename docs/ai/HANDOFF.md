@@ -4,7 +4,7 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-05 10:47 CEST.
+- **Updated:** 2026-09-05 11:10 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
 - **Production:** `main` at `58513ba954f2b37e58c9987421951370e5eb3a1d` (552 commits). GitHub Actions CI run `33955972837` succeeded on that exact SHA. The canonical Vercel `fornexa` production deployment is `READY`, carries that exact SHA and aliases `fornexasc.com`.
 - **DeCA-2:** PR #51 is integrated. Private PDF artifact intake, immutable versioning, explicit hashed public tokens, QR and a fail-closed FORNEXA resolver are deployed. The production migration list contains `20260905051522 deca_regulatory_storage`; its timestamp differs from the repository filename `20260905054500_deca_regulatory_storage.sql`, so retain it as A2 provenance work rather than rerunning it.
@@ -24,9 +24,21 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 - **Prepared fix:** print/export remain disabled until `onLoad` confirms the exact QR source; automatic `?print=1` also waits. A failed QR is hidden, replaced by a neutral unavailable state and can be retried with a cache-busted source; the UI no longer claims every network/render failure means expiry. The original behavior of the `Imprimir` button remains separate from PDF-title preparation.
 - **Final code verification:** exact PR HEAD `6e9dcaa46b29db9ac5144370e63823c317dfd36b` passed 82/82 web tests, typecheck, lint without errors (seven existing warnings), production build, memorandum gate and `git diff --check`. GitHub CI run `33955568773` and both Vercel checks passed; Supabase Preview was skipped because there is no schema change.
 - **Claude convergence:** Claude independently verified the final exact HEAD and reported no MUST. The earlier SHOULD items were consumed by neutral error copy, explicit safe retry and separation of `Imprimir` from PDF-title preparation. The remaining duplicate disabled-cursor CSS rule was classified as NICE only.
+- **Codex convergence response:** agreement is complete: backend expiry/revocation remains fail-closed, frontend print/export waits for the exact QR, and the UX distinguishes unavailable state from confirmed expiry with safe retry. There is no evidence-backed objection; the duplicate cursor rule is cosmetic and non-blocking. No technical question remains open between Claude and Codex. Closure is therefore explicit and solid on implementation, deployment and screen-level production RPA; the only remaining acceptance gate is Fran's native print/PDF visual validation. The NICE cleanup can be handled separately without reopening this functional fix.
 - **Integrated and deployed:** PR #52 was squash-merged as `58513ba954f2b37e58c9987421951370e5eb3a1d`; CI run `33955972837` passed and the canonical production deployment for that exact SHA is `READY` on `fornexasc.com`.
 - **Production RPA:** a current CMR loaded a real 150×150 QR and enabled print/PDF only after load. An expired-capability fixture showed no broken image, kept both actions disabled, rendered `QR no disponible` in the document and returned to that controlled state after explicit retry. Runtime evidence contained no `error`/`fatal` entries during verification. Native browser print/PDF output is not machine-verified.
 - **Remaining gate:** Fran must visually validate the native print/PDF output. Keep this item open until that explicit approval; do not infer it from screen-level RPA.
+
+## Active unintegrated work
+
+### Login retry after transient client failure — PR #53
+
+- **Observed:** Fran's production screenshot showed the generic client/network login error. Two same-origin login telemetry requests reached Vercel, while Supabase Auth recorded no password-token request for that interval. The public config route responds 200, the project reports healthy and the production-origin CORS preflight succeeds.
+- **Root cause confirmed in code:** `lib/supabase/client.ts` cached a rejected initialization promise indefinitely. Once config/network setup failed, every later login attempt in that tab reused the same rejection and could not recover without a reload.
+- **Prepared fix:** clear only a rejected client promise so the next submit performs a fresh load; retain successful client caching and provide an actionable, public-safe recovery message. A regression test requires two independent fetch attempts after consecutive transient failures.
+- **Local verification:** 83/83 tests, typecheck, lint without errors (seven existing warnings), production webpack build and `git diff --check` passed.
+- **State:** added to existing PR #53; locally verified but not yet independently reviewed, merged or deployed. No Supabase schema/config change is required.
+- **Next gate:** obtain Claude review on the exact head, require CI and Preview, then merge/deploy only with authorization and run production login RPA before returning the native PDF validation to Fran.
 
 ## Current priority
 

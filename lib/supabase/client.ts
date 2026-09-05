@@ -29,7 +29,13 @@ async function loadClient() {
 
 export function createClient() {
   if (!clientPromise) {
-    clientPromise = loadClient();
+    clientPromise = loadClient().catch((error: unknown) => {
+      // A transient config/network failure must not poison every later login
+      // attempt in this tab. Keep successful clients cached, but let retries
+      // perform a fresh load.
+      clientPromise = null;
+      throw error;
+    });
   }
   return clientPromise;
 }
