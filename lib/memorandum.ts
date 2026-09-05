@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "5 sep 2026";
-export const memorandumCommitCoverage = 527;
+export const memorandumCommitCoverage = 552;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -75,13 +75,22 @@ export const memorandumPending: MemorandumPending[] = [
 
 export const memorandumReleases: MemorandumRelease[] = [
   {
+    version: "2026.09.05.3",
+    date: "5 sep 2026",
+    surface: ["Web"],
+    title: "Reintento real ante fallos transitorios de acceso",
+    purpose: "Evitar que un fallo puntual de configuración o red bloquee todos los intentos posteriores de inicio de sesión en la misma pestaña.",
+    outcome: "Corrección en preproducción: un fallo al preparar el cliente de acceso ya no queda memorizado; el siguiente intento vuelve a conectar y el mensaje indica cómo recuperar la sesión sin exponer detalles internos.",
+    status: "Preproducción",
+  },
+  {
     version: "2026.09.05.2",
     date: "5 sep 2026",
     surface: ["Web"],
     title: "Impresión CMR condicionada al QR real",
     purpose: "Evitar PDFs o impresiones CMR con un QR pendiente o no disponible, sin confundir un fallo transitorio con una capability caducada.",
-    outcome: "Corrección en preproducción: imprimir y exportar esperan la carga confirmada del QR exacto; mientras se prepara o falla, las acciones permanecen bloqueadas, la imagen rota se sustituye por un estado legible y el usuario puede reintentar la carga.",
-    status: "Preproducción",
+    outcome: "Corrección desplegada: imprimir y exportar esperan la carga confirmada del QR exacto; mientras se prepara o falla, las acciones permanecen bloqueadas, la imagen rota se sustituye por un estado legible y el usuario puede reintentar la carga.",
+    status: "Producción",
   },
   {
     version: "2026.09.05",
