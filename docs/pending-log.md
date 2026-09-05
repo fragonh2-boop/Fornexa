@@ -4,6 +4,15 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-09-05 — QR visible y listo antes de imprimir/exportar CMR
+- **Área:** CMR / QR / Impresión-PDF / UX
+- **Estado:** CORRECCIÓN LOCAL VERIFICADA; PR, REVIEW, PREVIEW, RPA Y PRODUCCIÓN PENDIENTES
+- **Evidencia productiva:** el detalle autenticado de `CMR-E2E-MOBILE-20260819` respondió 200, pero su endpoint QR respondió 401 porque la capability expiró el 22/08; el navegador mostró una imagen rota. Un CMR con capability vigente cargó el SVG correctamente.
+- **Causa raíz:** la pantalla no esperaba `onLoad` del recurso QR antes de ejecutar `window.print()` y tampoco representaba explícitamente el rechazo 401.
+- **Solución preparada:** impresión manual y automática bloqueadas hasta carga confirmada del QR exacto; error visible y sin imagen rota cuando la capability no está vigente. No se relaja expiración, revocación, tenant isolation ni exclusión de REVIEW.
+- **Controles locales:** 81/81 tests, typecheck, lint sin errores y build productivo correctos.
+- **Criterio de cierre:** CI y Preview exact-head verdes; revisión Claude sin MUST; RPA demuestra QR visible en pantalla y PDF real para capability vigente y bloqueo legible para capability caducada; merge, producción `READY` del SHA previsto y validación visual explícita de Fran.
+
 ### 2026-09-05 — DeCA: cierre regulatorio y E2E del motor PDF/QR
 - **Área:** Documentación regulatoria / CMR / Acceso público
 - **Estado:** DECA-2 INTEGRADO, MIGRADO Y DESPLEGADO; CIERRE REGULATORIO/E2E PENDIENTE

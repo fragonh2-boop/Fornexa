@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "5 sep 2026";
-export const memorandumCommitCoverage = 526;
+export const memorandumCommitCoverage = 527;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -74,6 +74,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.09.05.2",
+    date: "5 sep 2026",
+    surface: ["Web"],
+    title: "Impresión CMR condicionada al QR real",
+    purpose: "Evitar PDFs o impresiones CMR con un QR todavía pendiente de carga o con una capability no vigente.",
+    outcome: "Corrección en preproducción: imprimir y exportar esperan la carga confirmada del QR exacto; mientras se prepara, las acciones permanecen bloqueadas, y una capability caducada o rechazada muestra un aviso explícito en lugar de producir un documento con imagen rota.",
+    status: "Preproducción",
+  },
   {
     version: "2026.09.05",
     date: "5 sep 2026",
