@@ -4,7 +4,7 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-05 11:10 CEST.
+- **Updated:** 2026-09-05 11:40 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
 - **Production:** `main` at `58513ba954f2b37e58c9987421951370e5eb3a1d` (552 commits). GitHub Actions CI run `33955972837` succeeded on that exact SHA. The canonical Vercel `fornexa` production deployment is `READY`, carries that exact SHA and aliases `fornexasc.com`.
 - **DeCA-2:** PR #51 is integrated. Private PDF artifact intake, immutable versioning, explicit hashed public tokens, QR and a fail-closed FORNEXA resolver are deployed. The production migration list contains `20260905051522 deca_regulatory_storage`; its timestamp differs from the repository filename `20260905054500_deca_regulatory_storage.sql`, so retain it as A2 provenance work rather than rerunning it.
@@ -35,10 +35,12 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 
 - **Observed:** Fran's production screenshot showed the generic client/network login error. Two same-origin login telemetry requests reached Vercel, while Supabase Auth recorded no password-token request for that interval. The public config route responds 200, the project reports healthy and the production-origin CORS preflight succeeds.
 - **Root cause confirmed in code:** `lib/supabase/client.ts` cached a rejected initialization promise indefinitely. Once config/network setup failed, every later login attempt in that tab reused the same rejection and could not recover without a reload.
-- **Prepared fix:** clear only a rejected client promise so the next submit performs a fresh load; retain successful client caching and provide an actionable, public-safe recovery message. A regression test requires two independent fetch attempts after consecutive transient failures.
-- **Local verification:** 83/83 tests, typecheck, lint without errors (seven existing warnings), production webpack build and `git diff --check` passed.
-- **State:** added to existing PR #53; locally verified but not yet independently reviewed, merged or deployed. No Supabase schema/config change is required.
-- **Next gate:** obtain Claude review on the exact head, require CI and Preview, then merge/deploy only with authorization and run production login RPA before returning the native PDF validation to Fran.
+- **Prepared fix:** clear only a rejected client promise so the next submit performs a fresh load; retain successful client caching and provide an actionable, public-safe recovery message. Regression tests require two independent fetch attempts after consecutive transient failures and exactly one fetch across repeated calls after a successful load.
+- **Claude convergence:** Claude reviewed exact HEAD `0935458acb9496b5c8bd4d7a68de05d4bcd68b45`, reported **SIN MUST**, and published `respuesta_claude_pr53_login_retry_cliente_transitorio_20260905_1124` in Drive. Its single SHOULD was the missing complementary success-cache test; that test is now implemented and requires a final exact-HEAD rereview. Two NICE observations are non-blocking and pre-existing/scope-only.
+- **Preview evidence:** the canonical Preview for `0935458` was `READY`; GitHub CI and both Vercel checks passed, while Supabase Preview was correctly skipped because there is no schema change. Browser RPA loaded `/login` without console errors and an intentionally nonexistent account reached Supabase and produced the specific invalid-credentials path, rather than the generic client/network failure. Direct browser interception of `fetch` is unavailable in this RPA environment, so the same-tab transient retry itself remains verified by the behavioral test.
+- **Local verification:** 84/84 tests, typecheck, lint without errors (seven existing warnings), production webpack build and `git diff --check` pass after consuming Claude's SHOULD.
+- **State:** added to existing PR #53; first Claude review and Preview are green, but the SHOULD follow-up is not yet committed, independently rereviewed, merged or deployed. No Supabase schema/config change is required.
+- **Next gate:** commit the success-cache regression test, obtain final Claude review and green CI/Preview on the exact head, then merge/deploy only with authorization and run production login RPA before returning the native PDF validation to Fran.
 
 ## Current priority
 
