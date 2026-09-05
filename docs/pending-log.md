@@ -4,6 +4,13 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-09-05 — Sincronización Claude / Slack / DeepSeek
+- **Área:** Gobernanza / Coordinación de agentes / Slack-Drive
+- **Estado:** DESALINEADO; DRIVE ACTUAL, SLACK SIN PUNTERO VIGENTE, DEEPSEEK SIN RESPUESTA
+- **Evidencia:** Drive contiene la respuesta GPT sobre QR/PR #54 y la revisión Claude de PR #53/#54. Slack no contiene `PR #54` ni `f7872c1`. Su mensaje más reciente, enviado usando Claude a las 19:40 CEST, repite una prueba contra PR #13 / `4ce9f229`; GitHub confirma que esa PR de agosto sigue draft y `DIRTY`. No existe ningún mensaje del usuario `Fornexa DeepSeek Reviewer` en `#fornexa`, ni respuesta en el hilo de ninguno de los dos intentos.
+- **Impacto:** Slack no permite reconstruir el estado canónico actual y mezcla una prueba antigua de pipeline con el trabajo vigente. No interpretar PR #13 como prioridad, revisión válida de PR #54, autorización de merge ni evidencia de que DeepSeek funciona.
+- **Criterio de cierre:** publicar en `#fornexa` un único puntero canónico a `main`, PR #54 y el documento Drive vigente; obtener acuse de Claude sobre el HEAD actual; y recibir una respuesta trazable del bot DeepSeek o registrar explícitamente el pipeline como fallido. El envío a Slack requiere autorización literal del payload/destino.
+
 ### 2026-09-05 — Login recuperable tras fallo transitorio de cliente
 - **Área:** Auth / Login / Resiliencia
 - **Estado:** INTEGRADO Y DESPLEGADO; CI/CLAUDE/PREVIEW/RPA DE SESIÓN VERDES; LOGIN NUEVO DE FRAN PENDIENTE

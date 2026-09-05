@@ -4,7 +4,7 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-05 19:30 CEST.
+- **Updated:** 2026-09-05 20:00 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
 - **Production:** `main` at `21fe9819b1d85c9f3b2567d570b41ebd2651b020` (553 commits). GitHub Actions CI run `33959140426` succeeded on that exact SHA. Canonical Vercel deployment `dpl_4U1Nqeb8X8JkZCAvdHpby462Bmnj` is `READY`, targets production, carries that exact SHA and aliases `fornexasc.com`.
 - **DeCA-2:** PR #51 is integrated. Private PDF artifact intake, immutable versioning, explicit hashed public tokens, QR and a fail-closed FORNEXA resolver are deployed. The production migration list contains `20260905051522 deca_regulatory_storage`; its timestamp differs from the repository filename `20260905054500_deca_regulatory_storage.sql`, so retain it as A2 provenance work rather than rerunning it.
@@ -14,6 +14,8 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 - **MMO-1:** PR #38 remains draft at `865bee04f4581bb1d64cfd1fbe06941af8cee62a`; CI #187 and canonical preview are green, and Claude reported no MUST blocker.
 - **MMO-1 gate:** provider execution is blocked until the seven server-side variables are configured only for the controlled Preview. Production must remain without the activation flag and provider keys.
 - **Supabase:** DeCA-1 foundation and T1 append-only foundations are applied. Preserve migration provenance differences under A2; do not rerun applied migrations.
+- **Coordination drift:** Drive contains the current GPT handoff for the QR follow-up and Claude's independent PR #53/#54 review, but Slack contains no reference to PR #54 or audit-base HEAD `f7872c1`. The latest Slack message sent using Claude instead invokes DeepSeek on PR #13 / `4ce9f229` as a second pipeline test. PR #13 is an August draft, currently `DIRTY`, and there is no Slack response from the DeepSeek reviewer bot. Treat that message as a failed or still-pending pipeline test, not as the current FORNEXA handoff, priority change or approval.
+- **Canonical coordination pointer:** production remains `main@21fe9819`; the only current documentation closeout is PR #54; the QR analysis is in Drive document `respuesta_gpt_slack_qr_ux_y_pr54_20260905_1930`. Slack needs one explicit canonical pointer to this state and an acknowledgement from Claude before the channels can be considered synchronized.
 
 ## Recently deployed work awaiting final approval
 
