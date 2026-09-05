@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const helper = readFileSync("lib/regulatory-documents.ts", "utf8");
+const telemetry = readFileSync("lib/platform-telemetry.ts", "utf8");
 const artifactRoute = readFileSync("app/api/regulatory/cmr/[cmr]/artifact/route.ts", "utf8");
 const accessRoute = readFileSync("app/api/regulatory/artifacts/[artifact]/access/route.ts", "utf8");
 const publicRoute = readFileSync("app/regulatory/d/[token]/route.ts", "utf8");
@@ -25,6 +26,15 @@ test("artifact intake uses normal authenticated tenant context and excludes REVI
   assert.match(artifactRoute, /public_access: null/);
 });
 
+test("concurrent artifact issuance uses isolated objects and cleans up losing versions", () => {
+  assert.match(helper, /generateRegulatoryObjectNonce/);
+  assert.match(helper, /v\$\{input\.version\}-\$\{input\.objectNonce\}\.pdf/);
+  assert.match(artifactRoute, /generateRegulatoryObjectNonce\(\)/);
+  assert.match(artifactRoute, /remove\(\[storagePath\]\)/);
+  assert.match(artifactRoute, /artifactError\.code === "23505"/);
+  assert.match(artifactRoute, /409/);
+});
+
 test("public access requires an explicit future public_until and stores only token hash", () => {
   assert.match(accessRoute, /public_until es obligatorio/);
   assert.match(accessRoute, /public_until debe estar en el futuro/);
@@ -40,6 +50,8 @@ test("public resolver is fail-closed and integrity checks the private PDF", () =
   assert.match(publicRoute, /Documento no disponible/);
   assert.match(publicRoute, /bytes\.byteLength !== Number\(artifact\.byte_size\)/);
   assert.match(publicRoute, /sha256Hex\(bytes\)/);
+  assert.match(publicRoute, /Content-Disposition.*attachment/);
+  assert.match(publicRoute, /Referrer-Policy.*no-referrer/);
   assert.doesNotMatch(publicRoute, /createSignedUrl|getPublicUrl/);
 });
 
@@ -48,4 +60,11 @@ test("opaque public tokens are generated server-side and raw token is never look
   assert.match(helper, /const tokenHash = sha256Hex\(token\)/);
   assert.match(helper, /\.eq\("token_hash", tokenHash\)/);
   assert.doesNotMatch(helper, /\.eq\("token_hash", token\)/);
+});
+
+test("TLM-1 never persists regulatory bearer capabilities in path or referrer", () => {
+  assert.match(telemetry, /\/regulatory\/d\/\[token\]/);
+  assert.match(telemetry, /normalizeTelemetryReferrer/);
+  assert.match(telemetry, /referrer: normalizeTelemetryReferrer/);
+  assert.doesNotMatch(telemetry, /referrer: request\.headers\.get\("referer"\)\?\.split/);
 });
