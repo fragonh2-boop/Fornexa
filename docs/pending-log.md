@@ -4,13 +4,14 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
-### 2026-09-04 — DeCA: motor PDF/QR y acceso público
+### 2026-09-05 — DeCA: cierre regulatorio y E2E del motor PDF/QR
 - **Área:** Documentación regulatoria / CMR / Acceso público
-- **Estado:** FUNDACIÓN EN PRODUCCIÓN; MOTOR FUNCIONAL PENDIENTE
-- **Base disponible:** `cmr_documents`, `regulatory_document_artifacts` inmutable y `regulatory_document_access_tokens` server-only.
-- **Acción requerida:** emitir PDF versionado, generar token opaco guardando solo SHA-256, resolver una ruta HTTPS pública fail-closed y producir QR hacia esa ruta.
-- **Límites:** no crear una segunda pila documental; separar retención del artefacto y lifecycle de URL; preservar M8, `service_completed_at/public_until`, eCMR y A2 como decisiones separadas.
-- **Criterio de cierre:** tests/CI verdes, revisión independiente, preview funcional, migraciones trazables cuando procedan y producción verificada.
+- **Estado:** DECA-2 INTEGRADO, MIGRADO Y DESPLEGADO; CIERRE REGULATORIO/E2E PENDIENTE
+- **Evidencia integrada:** PR #51 se fusionó en `f030f234`; CI `33946697109` y el deployment productivo canónico del mismo SHA terminaron `READY`. La lista de migraciones de producción contiene `20260905051522 deca_regulatory_storage`.
+- **Base disponible:** bucket privado PDF-only de 5 MB, artefactos inmutables tenant-aware, token opaco guardado solo como SHA-256, QR a ruta FORNEXA y resolución pública fail-closed con comprobación de hash/tamaño.
+- **Acción requerida:** realizar E2E controlado usando CMR no productivo/de prueba; completar motor PDF nativo, decisión M8, lifecycle operativo y eCMR.
+- **Límites y riesgo:** no crear una segunda pila documental ni rerun de migraciones aplicadas. La marca temporal de la migración remota difiere del archivo versionado `20260905054500`; reconciliar bajo A2.
+- **Criterio de cierre:** E2E documentado, revisión regulatoria/de seguridad aplicable y provenance A2 trazable; entonces promover el estado público desde Preproducción.
 
 ### 2026-09-04 — MMO-1 ejecución Preview controlada
 - **Área:** IA / Orquestación / Seguridad
@@ -29,8 +30,8 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 ### 2026-08-27 — Integración de ramas Supabase en estado fallido
 - **Área:** Plataforma / CI / Supabase Preview
 - **Estado:** PENDIENTE DE DIAGNÓSTICO Y CORRECCIÓN
-- **Evidencia:** producción está sana, pero la integración Git de `main` reportó `MIGRATIONS_FAILED`.
-- **Criterio de cierre:** preview Supabase con migración real aprobada, sin alterar producción.
+- **Evidencia:** la comprobación Supabase Preview de `main` en `f030f234` sigue fallando, mientras que el workflow CI de GitHub del mismo SHA terminó verde. Producción está sana y registra `20260905051522 deca_regulatory_storage`, con timestamp distinto del archivo versionado DeCA-2.
+- **Criterio de cierre:** preview Supabase con migración real aprobada y provenance A2 reconciliada, sin alterar ni rerun de producción.
 
 ### 2026-08-20 — Contraste de recuperación de contraseña
 - **Área:** Auth / Login

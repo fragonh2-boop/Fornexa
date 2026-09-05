@@ -4,9 +4,11 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-04 13:55 CEST.
+- **Updated:** 2026-09-05 09:11 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
-- **Production:** `main` at `bb5e70edf8a84c86aaf7dcfcf5fa3988c59f7ec4`; latest GitHub CI on main succeeded and the canonical Vercel project `fornexa` is READY.
+- **Production:** `main` at `f030f23468de6b9089ca36c7e429e8c1335485e3` (551 commits). GitHub Actions CI run `33946697109` succeeded on that exact SHA. The canonical Vercel `fornexa` production deployment is `READY`, carries that exact SHA and aliases `fornexasc.com`.
+- **DeCA-2:** PR #51 is integrated. Private PDF artifact intake, immutable versioning, explicit hashed public tokens, QR and a fail-closed FORNEXA resolver are deployed. The production migration list contains `20260905051522 deca_regulatory_storage`; its timestamp differs from the repository filename `20260905054500_deca_regulatory_storage.sql`, so retain it as A2 provenance work rather than rerunning it.
+- **Supabase Preview:** the check associated with current `main` reports failure, although the GitHub CI workflow itself is successful. The branch-preview integration remains unresolved; do not treat a migration-bearing preview as verified.
 - **CMR fixes:** PRs #44–#47 are merged and verified in production.
 - **Login logo:** PR #39 is merged; `lib/memorandum.ts` records the unclipped logo as Production. Do not reopen the obsolete pending entry.
 - **MMO-1:** PR #38 remains draft at `865bee04f4581bb1d64cfd1fbe06941af8cee62a`; CI #187 and canonical preview are green, and Claude reported no MUST blocker.
@@ -15,9 +17,9 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 
 ## Current priority
 
-### DeCA — PDF/QR engine and public access
+### DeCA — native PDF and regulatory completion
 
-Build on the canonical `cmr_documents` model and the existing `regulatory_document_artifacts` / `regulatory_document_access_tokens` tables.
+Build on the deployed canonical `cmr_documents` model, `regulatory_document_artifacts`, `regulatory_document_access_tokens` and the private `regulatory-documents` bucket.
 
 Preserve these boundaries:
 
@@ -27,6 +29,7 @@ Preserve these boundaries:
 - artifact retention and public URL lifecycle remain separate;
 - public access must fail closed for missing, inactive, premature or expired tokens;
 - M8 scope/exemptions, operational `service_completed_at/public_until`, eCMR authentication/sealing and A2 provenance remain explicit pending decisions.
+- A controlled E2E with non-production/test CMR data remains required before promoting DeCA-2 in the public memorandum beyond Preproducción.
 
 ## Backlog requiring Fran
 
@@ -43,7 +46,7 @@ After the run: inspect sanitized evidence, remove the temporary route/page/flag,
 
 ## Other open work
 
-- Reconcile and repair Supabase Git branch preview `MIGRATIONS_FAILED`.
+- Reconcile and repair the failing Supabase Git branch preview; include the DeCA-2 repository/remote migration-version discrepancy in A2 provenance work and do not rerun the applied migration.
 - Complete TLM-1 production configuration/verification for owner allowlist and dedicated hash secret.
 - Improve recovery-password confirmation contrast.
 - Continue ADR 2025 activation, tenant autonomy, Control Tower source-of-truth, critical E2E coverage and stable Mobile distribution per `lib/memorandum.ts`.
