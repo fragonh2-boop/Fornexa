@@ -6,13 +6,15 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ### 2026-09-05 — Login recuperable tras fallo transitorio de cliente
 - **Área:** Auth / Login / Resiliencia
-- **Estado:** CORRECCIÓN EN PR #53; CLAUDE SIN MUST Y PREVIEW VERDE; PRODUCCIÓN Y VALIDACIÓN FINAL PENDIENTES
+- **Estado:** INTEGRADO Y DESPLEGADO; CI/CLAUDE/PREVIEW/RPA DE SESIÓN VERDES; LOGIN NUEVO DE FRAN PENDIENTE
 - **Evidencia:** la captura de Fran mostró el error genérico de cliente/red; dos eventos de intento/fallo llegaron a la telemetría HTTP, pero Supabase Auth no recibió una petición `/token`. La configuración pública responde 200, el proyecto está saludable y el preflight CORS permite el origen productivo.
 - **Causa confirmada en código:** `createClient()` conservaba una promesa rechazada, por lo que un fallo transitorio impedía que los reintentos posteriores de la misma pestaña volvieran a cargar la configuración o contactar con Auth.
 - **Solución preparada:** invalidar únicamente la promesa fallida, conservar el cliente cuando carga correctamente y ofrecer una instrucción de recuperación explícita. Los tests cubren ahora tanto el reintento tras rechazo como la conservación del singleton tras éxito.
 - **Revisión y Preview:** Claude revisó el HEAD exacto `0935458`, dictaminó SIN MUST y dejó un único SHOULD: probar el caché de éxito. Tras añadir el test complementario, rerevisó el HEAD exacto `eeccd50`, confirmó el SHOULD consumido y volvió a concluir SIN MUST. CI y ambos checks Vercel pasaron sobre ese HEAD; Supabase Preview se omitió correctamente por no haber esquema. La RPA de Preview cargó el login sin errores de consola y confirmó que una cuenta ficticia llega a Supabase y recibe el mensaje específico de credenciales inválidas.
 - **Controles locales:** 84/84 tests, typecheck, lint sin errores (siete warnings existentes), build productivo con webpack y `git diff --check` pasan tras consumir el SHOULD.
-- **Criterio de cierre:** prueba de regresión, controles completos, Claude sin MUST, Preview y producción `READY` en el SHA previsto, RPA de reintento y acceso real de Fran.
+- **Integración y producción:** PR #53 fusionada por squash como `21fe981`; CI de main `33959140426` verde y deployment productivo canónico `dpl_4U1Nqeb8X8JkZCAvdHpby462Bmnj` `READY` sobre ese SHA con alias `fornexasc.com`. No hubo cambio de esquema ni configuración Supabase.
+- **RPA productiva:** una sesión autenticada existente pidió `/login`, fue redirigida correctamente al dashboard y cargó sin errores de consola; no aparecieron logs runtime `error`, `warning` o `fatal` del deployment. No se manipuló la sesión ni se usaron credenciales del usuario.
+- **Criterio de cierre restante:** Fran valida un login nuevo y el reintento en la sesión afectada. La prueba de regresión cubre el reintento técnico, pero no sustituye esa aceptación productiva explícita.
 
 ### 2026-09-05 — QR visible y listo antes de imprimir/exportar CMR
 - **Área:** CMR / QR / Impresión-PDF / UX

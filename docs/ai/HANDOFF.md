@@ -4,9 +4,9 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-05 11:47 CEST.
+- **Updated:** 2026-09-05 11:57 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
-- **Production:** `main` at `58513ba954f2b37e58c9987421951370e5eb3a1d` (552 commits). GitHub Actions CI run `33955972837` succeeded on that exact SHA. The canonical Vercel `fornexa` production deployment is `READY`, carries that exact SHA and aliases `fornexasc.com`.
+- **Production:** `main` at `21fe9819b1d85c9f3b2567d570b41ebd2651b020` (553 commits). GitHub Actions CI run `33959140426` succeeded on that exact SHA. Canonical Vercel deployment `dpl_4U1Nqeb8X8JkZCAvdHpby462Bmnj` is `READY`, targets production, carries that exact SHA and aliases `fornexasc.com`.
 - **DeCA-2:** PR #51 is integrated. Private PDF artifact intake, immutable versioning, explicit hashed public tokens, QR and a fail-closed FORNEXA resolver are deployed. The production migration list contains `20260905051522 deca_regulatory_storage`; its timestamp differs from the repository filename `20260905054500_deca_regulatory_storage.sql`, so retain it as A2 provenance work rather than rerunning it.
 - **Supabase Preview:** the check associated with current `main` reports failure, although the GitHub CI workflow itself is successful. The branch-preview integration remains unresolved; do not treat a migration-bearing preview as verified.
 - **CMR fixes:** PRs #44–#47 are merged and verified in production.
@@ -29,7 +29,7 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 - **Production RPA:** a current CMR loaded a real 150×150 QR and enabled print/PDF only after load. An expired-capability fixture showed no broken image, kept both actions disabled, rendered `QR no disponible` in the document and returned to that controlled state after explicit retry. Runtime evidence contained no `error`/`fatal` entries during verification. Native browser print/PDF output is not machine-verified.
 - **Remaining gate:** Fran must visually validate the native print/PDF output. Keep this item open until that explicit approval; do not infer it from screen-level RPA.
 
-## Active unintegrated work
+## Newly deployed work awaiting final approval
 
 ### Login retry after transient client failure — PR #53
 
@@ -39,8 +39,9 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 - **Claude convergence:** Claude reviewed exact HEAD `0935458acb9496b5c8bd4d7a68de05d4bcd68b45`, reported **SIN MUST**, and published `respuesta_claude_pr53_login_retry_cliente_transitorio_20260905_1124` in Drive. Its single SHOULD was the missing complementary success-cache test. After that test was added, Claude rereviewed exact HEAD `eeccd500f79fde5984227d14afc24a5cddefde97`, confirmed the SHOULD consumed and again concluded **SIN MUST**. Two remaining NICE observations are non-blocking and pre-existing/scope-only.
 - **Preview evidence:** the canonical Preview and GitHub CI for exact HEAD `eeccd500f79fde5984227d14afc24a5cddefde97` passed, including both Vercel checks; Supabase Preview was correctly skipped because there is no schema change. Browser RPA loaded `/login` without console errors and an intentionally nonexistent account reached Supabase and produced the specific invalid-credentials path, rather than the generic client/network failure. Direct browser interception of `fetch` is unavailable in this RPA environment, so the same-tab transient retry itself remains verified by the behavioral test.
 - **Local verification:** 84/84 tests, typecheck, lint without errors (seven existing warnings), production webpack build and `git diff --check` pass after consuming Claude's SHOULD.
-- **State:** added to existing PR #53; local controls, two Claude reviews and Preview are green. The PR is not merged or deployed. No Supabase schema/config change is required.
-- **Next gate:** merge only with Fran's explicit authorization, verify the exact merge SHA in CI and canonical production, then run production login RPA before returning the native PDF validation to Fran.
+- **Integrated and deployed:** after Fran's explicit authorization, PR #53 was squash-merged as `21fe9819b1d85c9f3b2567d570b41ebd2651b020`. Main CI run `33959140426` passed; canonical production deployment `dpl_4U1Nqeb8X8JkZCAvdHpby462Bmnj` is `READY` on that exact SHA with alias `fornexasc.com`. No Supabase schema/config change was required.
+- **Production RPA:** an existing authenticated browser session requested `/login` and was correctly redirected to `/dashboard`, which loaded without console errors. The deployment showed no runtime `error`, `warning` or `fatal` entries during verification. A fresh credential submission was not automated or inferred; the user must perform it without sharing credentials.
+- **Remaining gate:** Fran validates a fresh real login and retry in the affected browser/session. The behavioral regression test proves a rejected initialization is not reused, but it does not replace this explicit production acceptance.
 
 ## Current priority
 
