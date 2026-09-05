@@ -79,8 +79,8 @@ export const memorandumReleases: MemorandumRelease[] = [
     date: "5 sep 2026",
     surface: ["Web"],
     title: "Impresión CMR condicionada al QR real",
-    purpose: "Evitar PDFs o impresiones CMR con un QR todavía pendiente de carga o con una capability no vigente.",
-    outcome: "Corrección en preproducción: imprimir y exportar esperan la carga confirmada del QR exacto; mientras se prepara, las acciones permanecen bloqueadas, y una capability caducada o rechazada muestra un aviso explícito en lugar de producir un documento con imagen rota.",
+    purpose: "Evitar PDFs o impresiones CMR con un QR pendiente o no disponible, sin confundir un fallo transitorio con una capability caducada.",
+    outcome: "Corrección en preproducción: imprimir y exportar esperan la carga confirmada del QR exacto; mientras se prepara o falla, las acciones permanecen bloqueadas, la imagen rota se sustituye por un estado legible y el usuario puede reintentar la carga.",
     status: "Preproducción",
   },
   {

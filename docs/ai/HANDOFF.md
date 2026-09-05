@@ -4,7 +4,7 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-05 09:46 CEST.
+- **Updated:** 2026-09-05 10:30 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
 - **Production:** `main` at `f030f23468de6b9089ca36c7e429e8c1335485e3` (551 commits). GitHub Actions CI run `33946697109` succeeded on that exact SHA. The canonical Vercel `fornexa` production deployment is `READY`, carries that exact SHA and aliases `fornexasc.com`.
 - **DeCA-2:** PR #51 is integrated. Private PDF artifact intake, immutable versioning, explicit hashed public tokens, QR and a fail-closed FORNEXA resolver are deployed. The production migration list contains `20260905051522 deca_regulatory_storage`; its timestamp differs from the repository filename `20260905054500_deca_regulatory_storage.sql`, so retain it as A2 provenance work rather than rerunning it.
@@ -21,10 +21,11 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 
 - **Production defect reproduced:** authenticated CMR detail returned 200 while its QR endpoint returned 401 for an expired, non-revoked capability; the browser rendered a broken image. A current non-expiring CMR loaded the QR successfully.
 - **Root cause:** the page rendered and invoked `window.print()` without waiting for the QR resource. The QR route correctly preserves expiry/revocation fail-closed behavior and is unchanged.
-- **Prepared fix:** print/export remain disabled until `onLoad` confirms the exact QR source; automatic `?print=1` also waits. A rejected QR is hidden and replaced by an explicit renewal notice, so a broken QR cannot enter the PDF.
-- **Local verification:** 81/81 web tests passed, including three new readiness regressions; typecheck passed; lint passed with seven pre-existing warnings and no errors; production build passed after network access allowed Next.js to fetch Manrope. No schema or production data changed.
-- **State:** branch `codex/persistent-fornexa-handoff-20260905`; not merged, not deployed and not yet reviewed by Claude or visually verified on an exact-head Preview.
-- **Next gate:** push the exact HEAD to PR #52, require CI + canonical Preview `READY`, obtain Claude review, then run RPA on both a valid and expired-capability CMR. Merge/deploy only after those gates; final closure still requires Fran's visual approval.
+- **Prepared fix:** print/export remain disabled until `onLoad` confirms the exact QR source; automatic `?print=1` also waits. A failed QR is hidden, replaced by a neutral unavailable state and can be retried with a cache-busted source; the UI no longer claims every network/render failure means expiry. The original behavior of the `Imprimir` button remains separate from PDF-title preparation.
+- **Verification on `7786f54`:** local 81/81 web tests, typecheck, lint without errors and production build passed. GitHub CI run `33953608992` and both Vercel previews passed on that exact SHA; canonical preview `dpl_4xrii7YP7w3Xa2oXummk6qHK2y78` is `READY` with no observed `error/fatal` logs. Supabase Preview was skipped because there is no schema change.
+- **Claude review:** Claude independently inspected PR #52 and exact HEAD `7786f54`; no security/fail-closed MUST was found. It correctly required RPA/visual evidence before treating the race as verified and raised a SHOULD for transient QR failures being mislabeled and unretryable. The follow-up described above consumes that SHOULD; local verification on the follow-up is 82/82 tests, typecheck, lint with the same seven warnings and no errors, production build, and `git diff --check`, but it still requires a fresh exact-head review/gate cycle.
+- **State:** branch `codex/persistent-fornexa-handoff-20260905`; not merged or deployed. Preview RPA is blocked by application authentication on the separate Vercel hostname; do not infer visual success from `READY`.
+- **Next gate:** run proportional checks on the follow-up, push it to PR #52, require fresh CI + canonical Preview `READY` and Claude confirmation, then run RPA on both a valid and expired-capability CMR. Merge/deploy only after those gates; final closure still requires Fran's visual approval.
 
 ## Current priority
 
