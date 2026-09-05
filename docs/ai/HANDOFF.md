@@ -4,7 +4,7 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-05 20:00 CEST.
+- **Updated:** 2026-09-05 20:27 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
 - **Production:** `main` at `21fe9819b1d85c9f3b2567d570b41ebd2651b020` (553 commits). GitHub Actions CI run `33959140426` succeeded on that exact SHA. Canonical Vercel deployment `dpl_4U1Nqeb8X8JkZCAvdHpby462Bmnj` is `READY`, targets production, carries that exact SHA and aliases `fornexasc.com`.
 - **DeCA-2:** PR #51 is integrated. Private PDF artifact intake, immutable versioning, explicit hashed public tokens, QR and a fail-closed FORNEXA resolver are deployed. The production migration list contains `20260905051522 deca_regulatory_storage`; its timestamp differs from the repository filename `20260905054500_deca_regulatory_storage.sql`, so retain it as A2 provenance work rather than rerunning it.
@@ -14,8 +14,9 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 - **MMO-1:** PR #38 remains draft at `865bee04f4581bb1d64cfd1fbe06941af8cee62a`; CI #187 and canonical preview are green, and Claude reported no MUST blocker.
 - **MMO-1 gate:** provider execution is blocked until the seven server-side variables are configured only for the controlled Preview. Production must remain without the activation flag and provider keys.
 - **Supabase:** DeCA-1 foundation and T1 append-only foundations are applied. Preserve migration provenance differences under A2; do not rerun applied migrations.
-- **Coordination drift:** Drive contains the current GPT handoff for the QR follow-up and Claude's independent PR #53/#54 review, but Slack contains no reference to PR #54 or audit-base HEAD `f7872c1`. The latest Slack message sent using Claude instead invokes DeepSeek on PR #13 / `4ce9f229` as a second pipeline test. PR #13 is an August draft, currently `DIRTY`, and there is no Slack response from the DeepSeek reviewer bot. Treat that message as a failed or still-pending pipeline test, not as the current FORNEXA handoff, priority change or approval.
-- **Canonical coordination pointer:** production remains `main@21fe9819`; the only current documentation closeout is PR #54; the QR analysis is in Drive document `respuesta_gpt_slack_qr_ux_y_pr54_20260905_1930`. Slack needs one explicit canonical pointer to this state and an acknowledgement from Claude before the channels can be considered synchronized.
+- **Agent coordination:** DeepSeek is now verified in Slack as the automatic `Fornexa DeepSeek Reviewer`. The deliberate end-to-end test on PR #13 / `4ce9f229` produced two traceable channel responses at 20:09 CEST: no MUST, one SHOULD to validate the 6,612-line lockfile change/policy, and optional NICE observations. This proves the review path works; PR #13 remains only the test case, not the current priority, merge authorization or a review of PR #54.
+- **Claude/GPT convergence:** Claude published `respuesta_claude_pr54_ux_qr_convergencia_y_catchup_20260905_1957` in Drive and independently confirmed the QR redundancy, the SVG-versus-capability distinction and no material disagreement with GPT. Its exact PR #54 review covers `f7872c1` with **SIN MUST**; subsequent commits are documentation-only reconciliation.
+- **Canonical coordination pointer:** production remains `main@21fe9819`; the only current documentation closeout is PR #54; the QR analysis is in Drive document `respuesta_gpt_slack_qr_ux_y_pr54_20260905_1930`. Slack still lacks one canonical pointer to current PR #54 state. Fran has defined DeepSeek as a read-only, advisory third review: it does not implement, merge, deploy or arbitrate disagreements. The stated five-minute polling, 24/7 service and possible cold-start delay are operator-provided infrastructure facts, not runtime characteristics independently inspected by Codex.
 
 ## Recently deployed work awaiting final approval
 
@@ -87,6 +88,7 @@ After the run: inspect sanitized evidence, remove the temporary route/page/flag,
 ## Governance
 
 - GPT owns implementation; Claude reviews security-sensitive or material changes.
+- DeepSeek is an optional independent second-review bot in Slack. Invoke it with the agreed `DEEPSEEK — ACCIÓN REQUERIDA` block containing PR, repository and exact HEAD; treat its MUST/SHOULD/NICE result as advisory evidence. Arbiter mode is not defined or active.
 - Preserve Pedido↔Expediente 1:1 and standard Supabase migration tracking.
 - Update `lib/memorandum.ts`, this handoff and `docs/pending-log.md` with material changes.
 - Mirror material handoffs in Slack `#fornexa`.
