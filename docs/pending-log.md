@@ -6,13 +6,14 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ### 2026-09-05 — Login recuperable tras fallo transitorio de cliente
 - **Área:** Auth / Login / Resiliencia
-- **Estado:** CORRECCIÓN EN PR #53; CLAUDE SIN MUST Y PREVIEW VERDE; PRODUCCIÓN Y VALIDACIÓN FINAL PENDIENTES
+- **Estado:** INTEGRADA EN `main` COMO `21fe981`; CI Y CHECKS VERCEL VERDES; SUPABASE PREVIEW FALLIDO; PRODUCCIÓN Y VALIDACIÓN FINAL NO VERIFICADAS
 - **Evidencia:** la captura de Fran mostró el error genérico de cliente/red; dos eventos de intento/fallo llegaron a la telemetría HTTP, pero Supabase Auth no recibió una petición `/token`. La configuración pública responde 200, el proyecto está saludable y el preflight CORS permite el origen productivo.
 - **Causa confirmada en código:** `createClient()` conservaba una promesa rechazada, por lo que un fallo transitorio impedía que los reintentos posteriores de la misma pestaña volvieran a cargar la configuración o contactar con Auth.
 - **Solución preparada:** invalidar únicamente la promesa fallida, conservar el cliente cuando carga correctamente y ofrecer una instrucción de recuperación explícita. Los tests cubren ahora tanto el reintento tras rechazo como la conservación del singleton tras éxito.
 - **Revisión y Preview:** Claude revisó el HEAD exacto `0935458`, dictaminó SIN MUST y dejó un único SHOULD: probar el caché de éxito. Tras añadir el test complementario, rerevisó el HEAD exacto `eeccd50`, confirmó el SHOULD consumido y volvió a concluir SIN MUST. CI y ambos checks Vercel pasaron sobre ese HEAD; Supabase Preview se omitió correctamente por no haber esquema. La RPA de Preview cargó el login sin errores de consola y confirmó que una cuenta ficticia llega a Supabase y recibe el mensaje específico de credenciales inválidas.
+- **Integración posterior:** PR #53 se fusionó como `21fe981`. En el SHA integrado, CI `33959140426` y los dos checks Vercel finalizaron correctamente; Supabase Preview finalizó en fallo. No se verificó un deployment canónico de producción, su alias de dominio ni RPA de login productivo en esta actualización.
 - **Controles locales:** 84/84 tests, typecheck, lint sin errores (siete warnings existentes), build productivo con webpack y `git diff --check` pasan tras consumir el SHOULD.
-- **Criterio de cierre:** prueba de regresión, controles completos, Claude sin MUST, Preview y producción `READY` en el SHA previsto, RPA de reintento y acceso real de Fran.
+- **Criterio de cierre:** prueba de regresión, controles completos, Claude sin MUST, producción `READY` verificada en `21fe981`, RPA de reintento y acceso real de Fran. El fallo de Supabase Preview requiere diagnóstico separado; no se debe inferir que está resuelto.
 
 ### 2026-09-05 — QR visible y listo antes de imprimir/exportar CMR
 - **Área:** CMR / QR / Impresión-PDF / UX
@@ -51,7 +52,7 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 ### 2026-08-27 — Integración de ramas Supabase en estado fallido
 - **Área:** Plataforma / CI / Supabase Preview
 - **Estado:** PENDIENTE DE DIAGNÓSTICO Y CORRECCIÓN
-- **Evidencia:** la comprobación Supabase Preview de `main` en `f030f234` sigue fallando, mientras que el workflow CI de GitHub del mismo SHA terminó verde. Producción está sana y registra `20260905051522 deca_regulatory_storage`, con timestamp distinto del archivo versionado DeCA-2.
+- **Evidencia:** la comprobación Supabase Preview de `main` sigue fallando en el SHA actual `21fe981`, mientras que el workflow CI de GitHub `33959140426` terminó verde. Producción previa registra `20260905051522 deca_regulatory_storage`, con timestamp distinto del archivo versionado DeCA-2.
 - **Criterio de cierre:** preview Supabase con migración real aprobada y provenance A2 reconciliada, sin alterar ni rerun de producción.
 
 ### 2026-08-20 — Contraste de recuperación de contraseña

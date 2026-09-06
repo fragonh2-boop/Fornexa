@@ -4,11 +4,11 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-05 11:47 CEST.
+- **Updated:** 2026-09-06 08:33 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
-- **Production:** `main` at `58513ba954f2b37e58c9987421951370e5eb3a1d` (552 commits). GitHub Actions CI run `33955972837` succeeded on that exact SHA. The canonical Vercel `fornexa` production deployment is `READY`, carries that exact SHA and aliases `fornexasc.com`.
+- **Integrated:** `main` is at `21fe9819b1d85c9f3b2567d570b41ebd2651b020` (553 commits), the squash merge of PR #53. GitHub Actions CI run `33959140426` succeeded on that exact SHA; both Vercel status checks are successful. The canonical production deployment and domain association for this SHA were not available from the deployment source queried, so production is **not verified**.
 - **DeCA-2:** PR #51 is integrated. Private PDF artifact intake, immutable versioning, explicit hashed public tokens, QR and a fail-closed FORNEXA resolver are deployed. The production migration list contains `20260905051522 deca_regulatory_storage`; its timestamp differs from the repository filename `20260905054500_deca_regulatory_storage.sql`, so retain it as A2 provenance work rather than rerunning it.
-- **Supabase Preview:** the check associated with current `main` reports failure, although the GitHub CI workflow itself is successful. The branch-preview integration remains unresolved; do not treat a migration-bearing preview as verified.
+- **Supabase Preview:** the check associated with current `main` (`21fe981`) failed, while GitHub Actions CI succeeded. The branch-preview integration remains unresolved; do not treat a migration-bearing preview as verified.
 - **CMR fixes:** PRs #44–#47 are merged and verified in production.
 - **Login logo:** PR #39 is merged; `lib/memorandum.ts` records the unclipped logo as Production. Do not reopen the obsolete pending entry.
 - **MMO-1:** PR #38 remains draft at `865bee04f4581bb1d64cfd1fbe06941af8cee62a`; CI #187 and canonical preview are green, and Claude reported no MUST blocker.
@@ -29,7 +29,7 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 - **Production RPA:** a current CMR loaded a real 150×150 QR and enabled print/PDF only after load. An expired-capability fixture showed no broken image, kept both actions disabled, rendered `QR no disponible` in the document and returned to that controlled state after explicit retry. Runtime evidence contained no `error`/`fatal` entries during verification. Native browser print/PDF output is not machine-verified.
 - **Remaining gate:** Fran must visually validate the native print/PDF output. Keep this item open until that explicit approval; do not infer it from screen-level RPA.
 
-## Active unintegrated work
+## Integrated work awaiting production verification
 
 ### Login retry after transient client failure — PR #53
 
@@ -37,10 +37,11 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 - **Root cause confirmed in code:** `lib/supabase/client.ts` cached a rejected initialization promise indefinitely. Once config/network setup failed, every later login attempt in that tab reused the same rejection and could not recover without a reload.
 - **Prepared fix:** clear only a rejected client promise so the next submit performs a fresh load; retain successful client caching and provide an actionable, public-safe recovery message. Regression tests require two independent fetch attempts after consecutive transient failures and exactly one fetch across repeated calls after a successful load.
 - **Claude convergence:** Claude reviewed exact HEAD `0935458acb9496b5c8bd4d7a68de05d4bcd68b45`, reported **SIN MUST**, and published `respuesta_claude_pr53_login_retry_cliente_transitorio_20260905_1124` in Drive. Its single SHOULD was the missing complementary success-cache test. After that test was added, Claude rereviewed exact HEAD `eeccd500f79fde5984227d14afc24a5cddefde97`, confirmed the SHOULD consumed and again concluded **SIN MUST**. Two remaining NICE observations are non-blocking and pre-existing/scope-only.
-- **Preview evidence:** the canonical Preview and GitHub CI for exact HEAD `eeccd500f79fde5984227d14afc24a5cddefde97` passed, including both Vercel checks; Supabase Preview was correctly skipped because there is no schema change. Browser RPA loaded `/login` without console errors and an intentionally nonexistent account reached Supabase and produced the specific invalid-credentials path, rather than the generic client/network failure. Direct browser interception of `fetch` is unavailable in this RPA environment, so the same-tab transient retry itself remains verified by the behavioral test.
+- **Preview evidence:** the canonical Preview and GitHub CI for exact PR HEAD `eeccd500f79fde5984227d14afc24a5cddefde97` passed, including both Vercel checks; Supabase Preview was skipped because there is no schema change. Browser RPA loaded `/login` without console errors and an intentionally nonexistent account reached Supabase and produced the specific invalid-credentials path, rather than the generic client/network failure. Direct browser interception of `fetch` is unavailable in this RPA environment, so the same-tab transient retry itself remains verified by the behavioral test.
 - **Local verification:** 84/84 tests, typecheck, lint without errors (seven existing warnings), production webpack build and `git diff --check` pass after consuming Claude's SHOULD.
-- **State:** added to existing PR #53; local controls, two Claude reviews and Preview are green. The PR is not merged or deployed. No Supabase schema/config change is required.
-- **Next gate:** merge only with Fran's explicit authorization, verify the exact merge SHA in CI and canonical production, then run production login RPA before returning the native PDF validation to Fran.
+- **Integrated:** PR #53 was squash-merged as `21fe9819b1d85c9f3b2567d570b41ebd2651b020`. CI run `33959140426` and both Vercel status checks on that SHA are successful. Its Supabase Preview check failed (rather than being skipped); no schema change is part of this PR, but the unresolved integration remains a platform risk.
+- **Not verified:** the canonical Vercel production deployment/domain association for `21fe981` could not be confirmed from the deployment source queried. No production login RPA or real access validation was run in this update.
+- **Next gate:** verify the exact production deployment and run production login RPA before treating the fix as deployed; Fran's real-access validation remains required.
 
 ## Current priority
 
