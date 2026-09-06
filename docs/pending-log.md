@@ -4,15 +4,24 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-09-06 — Completar el contexto de DeepSeek
+- **Área:** Gobierno de IA / Contexto / Negocio y cumplimiento
+- **Estado:** FASE 0 RECIBIDA; VALIDACIÓN Y RESPUESTAS DE FRAN PENDIENTES
+- **Evidencia:** el bot desplegado reconstruyó los siete paquetes autorizados del hilo de incorporación y respondió en siete bloques con 40 preguntas P0/P1/P2, paquete mínimo de contexto y conexiones a considerar, sin adelantar un análisis de producto.
+- **Acción requerida:** Fran valida la utilidad y prioridad de las preguntas y decide qué respuestas, documentos o accesos de mínimo privilegio se facilitan. GitHub y Vercel se propusieron como imprescindibles; Supabase redactado y documentos concretos de Drive como útiles; el acceso adicional a Slack como prescindible y limitado a hilos autorizados.
+- **Criterio de cierre:** prioridades confirmadas por Fran, respuestas trazables y cualquier acceso adicional expresamente autorizado y limitado. No interpretar la ejecución correcta del bot como aprobación del contenido.
+
 ### 2026-09-05 — Login recuperable tras fallo transitorio de cliente
 - **Área:** Auth / Login / Resiliencia
-- **Estado:** CORRECCIÓN EN PR #53; CLAUDE SIN MUST Y PREVIEW VERDE; PRODUCCIÓN Y VALIDACIÓN FINAL PENDIENTES
+- **Estado:** INTEGRADA Y DESPLEGADA COMO `21fe981`; CI Y VERCEL PRODUCCIÓN VERDES; SUPABASE PREVIEW FALLIDO; RPA Y VALIDACIÓN FINAL PENDIENTES
 - **Evidencia:** la captura de Fran mostró el error genérico de cliente/red; dos eventos de intento/fallo llegaron a la telemetría HTTP, pero Supabase Auth no recibió una petición `/token`. La configuración pública responde 200, el proyecto está saludable y el preflight CORS permite el origen productivo.
 - **Causa confirmada en código:** `createClient()` conservaba una promesa rechazada, por lo que un fallo transitorio impedía que los reintentos posteriores de la misma pestaña volvieran a cargar la configuración o contactar con Auth.
 - **Solución preparada:** invalidar únicamente la promesa fallida, conservar el cliente cuando carga correctamente y ofrecer una instrucción de recuperación explícita. Los tests cubren ahora tanto el reintento tras rechazo como la conservación del singleton tras éxito.
 - **Revisión y Preview:** Claude revisó el HEAD exacto `0935458`, dictaminó SIN MUST y dejó un único SHOULD: probar el caché de éxito. Tras añadir el test complementario, rerevisó el HEAD exacto `eeccd50`, confirmó el SHOULD consumido y volvió a concluir SIN MUST. CI y ambos checks Vercel pasaron sobre ese HEAD; Supabase Preview se omitió correctamente por no haber esquema. La RPA de Preview cargó el login sin errores de consola y confirmó que una cuenta ficticia llega a Supabase y recibe el mensaje específico de credenciales inválidas.
+- **Integración y producción:** PR #53 se fusionó como `21fe981`. En el SHA integrado, CI `33959140426` y los dos checks Vercel finalizaron correctamente; el deployment canónico `dpl_4U1Nqeb8X8JkZCAvdHpby462Bmnj` está `READY`, apunta a producción, porta el SHA exacto y tiene `fornexasc.com` como alias sin error. Supabase Preview finalizó en fallo. No se ejecutó RPA de login productivo en esta actualización.
+- **Fallo observado aclarado:** la captura de Fran corresponde a `fornexa-oqvccv5up-fornexasc.vercel.app`, un Preview. Su `/api/supabase-config` devuelve HTTP 500 e informa que faltan la URL y la clave pública de Supabase; en `fornexasc.com`, tanto `/api/supabase-config` como `/login` responden 200. La captura no prueba un fallo de contraseña ni del deployment productivo.
 - **Controles locales:** 84/84 tests, typecheck, lint sin errores (siete warnings existentes), build productivo con webpack y `git diff --check` pasan tras consumir el SHOULD.
-- **Criterio de cierre:** prueba de regresión, controles completos, Claude sin MUST, Preview y producción `READY` en el SHA previsto, RPA de reintento y acceso real de Fran.
+- **Criterio de cierre:** prueba de regresión, controles completos, Claude sin MUST y producción `READY` ya están verificados; falta acceso real de Fran desde `fornexasc.com`. El Preview seguirá sin login mientras no reciba configuración Supabase; decidir y documentar por separado si debe configurarse o permanecer deliberadamente aislado.
 
 ### 2026-09-05 — QR visible y listo antes de imprimir/exportar CMR
 - **Área:** CMR / QR / Impresión-PDF / UX
@@ -51,7 +60,7 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 ### 2026-08-27 — Integración de ramas Supabase en estado fallido
 - **Área:** Plataforma / CI / Supabase Preview
 - **Estado:** PENDIENTE DE DIAGNÓSTICO Y CORRECCIÓN
-- **Evidencia:** la comprobación Supabase Preview de `main` en `f030f234` sigue fallando, mientras que el workflow CI de GitHub del mismo SHA terminó verde. Producción está sana y registra `20260905051522 deca_regulatory_storage`, con timestamp distinto del archivo versionado DeCA-2.
+- **Evidencia:** la comprobación Supabase Preview de `main` sigue fallando en el SHA actual `21fe981`, mientras que el workflow CI de GitHub `33959140426` terminó verde. Producción previa registra `20260905051522 deca_regulatory_storage`, con timestamp distinto del archivo versionado DeCA-2.
 - **Criterio de cierre:** preview Supabase con migración real aprobada y provenance A2 reconciliada, sin alterar ni rerun de producción.
 
 ### 2026-08-20 — Contraste de recuperación de contraseña
@@ -60,6 +69,11 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 - **Acción requerida:** mejorar contraste del mensaje de confirmación y validar WCAG AA en escritorio y móvil.
 
 ## DONE
+
+### 2026-09-06 — Ingestión contextual del bot DeepSeek en Slack
+- **Estado:** PRS #2–#5 DEL REPOSITORIO DEL BOT INTEGRADAS; SHA `349bf3b` DESPLEGADO Y RPA VERDE
+- **Cierre:** se incorporaron ingestión de hilos por paquetes, paginación, identidad estable de autores y detección correcta de raíces Slack. PR #5 exact HEAD `5aec036` pasó build, 11/11 tests, `git diff --check`, auditoría de dependencias sin vulnerabilidades y revisión DeepSeek sin hallazgos. Render dejó el squash `349bf3b` en estado `Live`; el hilo original recibió las siete respuestas esperadas y 40 preguntas de contexto sin análisis inicial.
+- **Regla operativa:** si Claude no está disponible, la revisión o negociación se solicita a DeepSeek por Slack con autorización y evidencia; DeepSeek no implementa, fusiona ni despliega.
 
 ### 2026-09-04 — Regresión visual del logotipo de acceso
 - **Estado:** PR #49 INTEGRADO Y VERIFICADO EN PRODUCCIÓN
