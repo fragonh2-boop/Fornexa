@@ -4,6 +4,13 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-09-06 — Completar el contexto de DeepSeek
+- **Área:** Gobierno de IA / Contexto / Negocio y cumplimiento
+- **Estado:** FASE 0 RECIBIDA; VALIDACIÓN Y RESPUESTAS DE FRAN PENDIENTES
+- **Evidencia:** el bot desplegado reconstruyó los siete paquetes autorizados del hilo de incorporación y respondió en siete bloques con 40 preguntas P0/P1/P2, paquete mínimo de contexto y conexiones a considerar, sin adelantar un análisis de producto.
+- **Acción requerida:** Fran valida la utilidad y prioridad de las preguntas y decide qué respuestas, documentos o accesos de mínimo privilegio se facilitan. GitHub y Vercel se propusieron como imprescindibles; Supabase redactado y documentos concretos de Drive como útiles; el acceso adicional a Slack como prescindible y limitado a hilos autorizados.
+- **Criterio de cierre:** prioridades confirmadas por Fran, respuestas trazables y cualquier acceso adicional expresamente autorizado y limitado. No interpretar la ejecución correcta del bot como aprobación del contenido.
+
 ### 2026-09-05 — Login recuperable tras fallo transitorio de cliente
 - **Área:** Auth / Login / Resiliencia
 - **Estado:** INTEGRADA EN `main` COMO `21fe981`; CI Y CHECKS VERCEL VERDES; SUPABASE PREVIEW FALLIDO; PRODUCCIÓN Y VALIDACIÓN FINAL NO VERIFICADAS
@@ -61,6 +68,11 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 - **Acción requerida:** mejorar contraste del mensaje de confirmación y validar WCAG AA en escritorio y móvil.
 
 ## DONE
+
+### 2026-09-06 — Ingestión contextual del bot DeepSeek en Slack
+- **Estado:** PRS #2–#5 DEL REPOSITORIO DEL BOT INTEGRADAS; SHA `349bf3b` DESPLEGADO Y RPA VERDE
+- **Cierre:** se incorporaron ingestión de hilos por paquetes, paginación, identidad estable de autores y detección correcta de raíces Slack. PR #5 exact HEAD `5aec036` pasó build, 11/11 tests, `git diff --check`, auditoría de dependencias sin vulnerabilidades y revisión DeepSeek sin hallazgos. Render dejó el squash `349bf3b` en estado `Live`; el hilo original recibió las siete respuestas esperadas y 40 preguntas de contexto sin análisis inicial.
+- **Regla operativa:** si Claude no está disponible, la revisión o negociación se solicita a DeepSeek por Slack con autorización y evidencia; DeepSeek no implementa, fusiona ni despliega.
 
 ### 2026-09-04 — Regresión visual del logotipo de acceso
 - **Estado:** PR #49 INTEGRADO Y VERIFICADO EN PRODUCCIÓN

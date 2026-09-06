@@ -4,7 +4,7 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-06 08:33 CEST.
+- **Updated:** 2026-09-06 20:47 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
 - **Integrated:** `main` is at `21fe9819b1d85c9f3b2567d570b41ebd2651b020` (553 commits), the squash merge of PR #53. GitHub Actions CI run `33959140426` succeeded on that exact SHA; both Vercel status checks are successful. The canonical production deployment and domain association for this SHA were not available from the deployment source queried, so production is **not verified**.
 - **DeCA-2:** PR #51 is integrated. Private PDF artifact intake, immutable versioning, explicit hashed public tokens, QR and a fail-closed FORNEXA resolver are deployed. The production migration list contains `20260905051522 deca_regulatory_storage`; its timestamp differs from the repository filename `20260905054500_deca_regulatory_storage.sql`, so retain it as A2 provenance work rather than rerunning it.
@@ -14,6 +14,16 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 - **MMO-1:** PR #38 remains draft at `865bee04f4581bb1d64cfd1fbe06941af8cee62a`; CI #187 and canonical preview are green, and Claude reported no MUST blocker.
 - **MMO-1 gate:** provider execution is blocked until the seven server-side variables are configured only for the controlled Preview. Production must remain without the activation flag and provider keys.
 - **Supabase:** DeCA-1 foundation and T1 append-only foundations are applied. Preserve migration provenance differences under A2; do not rerun applied migrations.
+
+## AI review infrastructure — DeepSeek Slack bot
+
+- **Integrated:** the separate repository `fragonh2-boop/fornexa-ai-reviewer` is at `349bf3bfbfc60b2fc0b24d3294b283189043441e`, the squash merge of PR #5. PRs #2–#5 added contextual-thread ingestion, pagination, stable Slack author identity and correct root detection for parent messages whose `thread_ts` equals `ts`.
+- **Review and checks:** DeepSeek independently reviewed PR #5 exact HEAD `5aec0366f3c08fe1b48aa989ac4239b50dc10980` and reported no MUST, SHOULD or NICE findings. That HEAD passed the production build, 11/11 tests, `git diff --check` and `npm audit --omit=dev` with zero vulnerabilities.
+- **Deployed:** Render reported `Deploy succeeded` and `Live` for exact integrated SHA `349bf3bfbfc60b2fc0b24d3294b283189043441e`.
+- **Slack RPA:** the deployed bot reconstructed the seven authorized onboarding packages from the original thread and returned seven response chunks headed `DEEPSEEK — FASE 0: PREGUNTAS PARA COMPLETAR CONTEXTO`. The response contained 40 questions split into P0/P1/P2, a minimum context package and access questions; it did not emit the prohibited initial product analysis.
+- **Access assessment from DeepSeek:** GitHub and Vercel read-only were classified as essential; redacted Supabase and specific Drive documents as useful; additional Slack-thread access as optional and authorization-bound. No new connection has been granted by this assessment.
+- **Governance decision:** when Claude is unavailable, GPT will negotiate or request independent review from DeepSeek through authorized Slack messages. DeepSeek remains consultative and read-only; its output is evidence, not proof of merge, deployment, legal compliance or Fran's approval.
+- **Remaining gate:** Fran must validate the usefulness and priority of the 40 questions and decide which requested context or connections to provide. Do not infer that validation from successful RPA.
 
 ## Recently deployed work awaiting final approval
 
