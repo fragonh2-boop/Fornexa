@@ -13,14 +13,14 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ### 2026-09-05 — Login recuperable tras fallo transitorio de cliente
 - **Área:** Auth / Login / Resiliencia
-- **Estado:** INTEGRADA EN `main` COMO `21fe981`; CI Y CHECKS VERCEL VERDES; SUPABASE PREVIEW FALLIDO; PRODUCCIÓN Y VALIDACIÓN FINAL NO VERIFICADAS
+- **Estado:** INTEGRADA Y DESPLEGADA COMO `21fe981`; CI Y VERCEL PRODUCCIÓN VERDES; SUPABASE PREVIEW FALLIDO; RPA Y VALIDACIÓN FINAL PENDIENTES
 - **Evidencia:** la captura de Fran mostró el error genérico de cliente/red; dos eventos de intento/fallo llegaron a la telemetría HTTP, pero Supabase Auth no recibió una petición `/token`. La configuración pública responde 200, el proyecto está saludable y el preflight CORS permite el origen productivo.
 - **Causa confirmada en código:** `createClient()` conservaba una promesa rechazada, por lo que un fallo transitorio impedía que los reintentos posteriores de la misma pestaña volvieran a cargar la configuración o contactar con Auth.
 - **Solución preparada:** invalidar únicamente la promesa fallida, conservar el cliente cuando carga correctamente y ofrecer una instrucción de recuperación explícita. Los tests cubren ahora tanto el reintento tras rechazo como la conservación del singleton tras éxito.
 - **Revisión y Preview:** Claude revisó el HEAD exacto `0935458`, dictaminó SIN MUST y dejó un único SHOULD: probar el caché de éxito. Tras añadir el test complementario, rerevisó el HEAD exacto `eeccd50`, confirmó el SHOULD consumido y volvió a concluir SIN MUST. CI y ambos checks Vercel pasaron sobre ese HEAD; Supabase Preview se omitió correctamente por no haber esquema. La RPA de Preview cargó el login sin errores de consola y confirmó que una cuenta ficticia llega a Supabase y recibe el mensaje específico de credenciales inválidas.
-- **Integración posterior:** PR #53 se fusionó como `21fe981`. En el SHA integrado, CI `33959140426` y los dos checks Vercel finalizaron correctamente; Supabase Preview finalizó en fallo. No se verificó un deployment canónico de producción, su alias de dominio ni RPA de login productivo en esta actualización.
+- **Integración y producción:** PR #53 se fusionó como `21fe981`. En el SHA integrado, CI `33959140426` y los dos checks Vercel finalizaron correctamente; el deployment canónico `dpl_4U1Nqeb8X8JkZCAvdHpby462Bmnj` está `READY`, apunta a producción, porta el SHA exacto y tiene `fornexasc.com` como alias sin error. Supabase Preview finalizó en fallo. No se ejecutó RPA de login productivo en esta actualización.
 - **Controles locales:** 84/84 tests, typecheck, lint sin errores (siete warnings existentes), build productivo con webpack y `git diff --check` pasan tras consumir el SHOULD.
-- **Criterio de cierre:** prueba de regresión, controles completos, Claude sin MUST, producción `READY` verificada en `21fe981`, RPA de reintento y acceso real de Fran. El fallo de Supabase Preview requiere diagnóstico separado; no se debe inferir que está resuelto.
+- **Criterio de cierre:** prueba de regresión, controles completos, Claude sin MUST y producción `READY` ya están verificados; faltan RPA de login productivo y acceso real de Fran. El fallo de Supabase Preview requiere diagnóstico separado; no se debe inferir que está resuelto.
 
 ### 2026-09-05 — QR visible y listo antes de imprimir/exportar CMR
 - **Área:** CMR / QR / Impresión-PDF / UX
