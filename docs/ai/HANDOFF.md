@@ -4,7 +4,7 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-06 20:53 CEST.
+- **Updated:** 2026-09-06 21:02 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
 - **Integrated and deployed:** `main` is at `21fe9819b1d85c9f3b2567d570b41ebd2651b020` (553 commits), the squash merge of PR #53. GitHub Actions CI run `33959140426` succeeded on that exact SHA; both Vercel status checks are successful. Vercel deployment `dpl_4U1Nqeb8X8JkZCAvdHpby462Bmnj` is `READY`, targets production, carries that exact verified GitHub SHA and aliases `fornexasc.com` without alias error.
 - **DeCA-2:** PR #51 is integrated. Private PDF artifact intake, immutable versioning, explicit hashed public tokens, QR and a fail-closed FORNEXA resolver are deployed. The production migration list contains `20260905051522 deca_regulatory_storage`; its timestamp differs from the repository filename `20260905054500_deca_regulatory_storage.sql`, so retain it as A2 provenance work rather than rerunning it.
@@ -50,8 +50,9 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 - **Preview evidence:** the canonical Preview and GitHub CI for exact PR HEAD `eeccd500f79fde5984227d14afc24a5cddefde97` passed, including both Vercel checks; Supabase Preview was skipped because there is no schema change. Browser RPA loaded `/login` without console errors and an intentionally nonexistent account reached Supabase and produced the specific invalid-credentials path, rather than the generic client/network failure. Direct browser interception of `fetch` is unavailable in this RPA environment, so the same-tab transient retry itself remains verified by the behavioral test.
 - **Local verification:** 84/84 tests, typecheck, lint without errors (seven existing warnings), production webpack build and `git diff --check` pass after consuming Claude's SHOULD.
 - **Integrated and deployed:** PR #53 was squash-merged as `21fe9819b1d85c9f3b2567d570b41ebd2651b020`. CI run `33959140426` and both Vercel status checks on that SHA are successful. Canonical Vercel deployment `dpl_4U1Nqeb8X8JkZCAvdHpby462Bmnj` is `READY`, targets production, carries exact SHA `21fe981` and aliases `fornexasc.com` without alias error. Its Supabase Preview check failed (rather than being skipped); no schema change is part of this PR, but the unresolved integration remains a platform risk.
-- **Not verified:** no production login RPA or real access validation was run in this update.
-- **Next gate:** run production login RPA and obtain Fran's real-access validation; do not infer either from deployment readiness.
+- **Preview failure explained:** Fran's failed-login screenshot used `fornexa-oqvccv5up-fornexasc.vercel.app`, not the production domain. Direct readback of that preview's `/api/supabase-config` returned HTTP 500 with both the Supabase URL and public key reported missing. The same endpoint on `fornexasc.com` returned HTTP 200 and `/login` also returned 200. This explains the screenshot without attributing it to the supplied credentials.
+- **Not verified:** a successful production sign-in and real access validation have not been observed.
+- **Next gate:** retry through `https://fornexasc.com/login` and obtain Fran's real-access validation. If it fails there, investigate that production request separately; do not transfer the preview diagnosis to production without evidence.
 
 ## Current priority
 
