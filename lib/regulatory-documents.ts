@@ -66,8 +66,7 @@ export function regulatoryAccessIsUsable(row: RegulatoryAccessRow, now = Date.no
   if (row.service_completed_at) {
     const completedAt = Date.parse(row.service_completed_at);
     if (!Number.isFinite(completedAt)) return false;
-    const sevenDays = 7 * 24 * 60 * 60 * 1000;
-    if (publicUntil > completedAt + sevenDays) return false;
+    if (publicUntil < completedAt) return false;
   }
 
   return true;

@@ -48,9 +48,8 @@ export async function POST(request: Request, context: { params: Promise<{ artifa
   if (Date.parse(publicUntil) <= now) return errorResponse("public_until debe estar en el futuro.", 400);
   if (serviceCompletedAt) {
     const completion = Date.parse(serviceCompletedAt);
-    const sevenDays = 7 * 24 * 60 * 60 * 1000;
-    if (Date.parse(publicUntil) > completion + sevenDays) {
-      return errorResponse("public_until no puede superar siete días desde la finalización del servicio.", 400);
+    if (Date.parse(publicUntil) < completion) {
+      return errorResponse("public_until no puede caducar antes de la finalización del servicio.", 400);
     }
   }
 

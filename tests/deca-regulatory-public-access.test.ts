@@ -41,12 +41,15 @@ test("public access requires an explicit future public_until and stores only tok
   assert.match(accessRoute, /sha256Hex\(rawToken\)/);
   assert.match(accessRoute, /token_hash: tokenHash/);
   assert.doesNotMatch(accessRoute, /token_hash: rawToken/);
-  assert.match(accessRoute, /siete días desde la finalización del servicio/);
+  assert.match(accessRoute, /no puede caducar antes de la finalización del servicio/);
+  assert.doesNotMatch(accessRoute, /siete días desde la finalización del servicio/);
 });
 
 test("public resolver is fail-closed and integrity checks the private PDF", () => {
   assert.match(helper, /if \(row\.deactivated_at \|\| !row\.public_until\) return false/);
   assert.match(helper, /publicUntil <= now/);
+  assert.match(helper, /publicUntil < completedAt/);
+  assert.doesNotMatch(helper, /publicUntil > completedAt \+ sevenDays/);
   assert.match(publicRoute, /Documento no disponible/);
   assert.match(publicRoute, /bytes\.byteLength !== Number\(artifact\.byte_size\)/);
   assert.match(publicRoute, /sha256Hex\(bytes\)/);
