@@ -34,6 +34,37 @@ declare
   v_access_id uuid;
   v_issued_at timestamptz;
 begin
+  if p_version is null or p_version <= 0 then
+    raise exception 'Invalid DeCA version' using errcode = '22023';
+  end if;
+
+  if p_byte_size is null or p_byte_size <= 0 or p_byte_size > 5242880 then
+    raise exception 'Invalid DeCA PDF byte size' using errcode = '22023';
+  end if;
+
+  if p_sha256 is null or p_sha256 !~ '^[0-9a-fA-F]{64}$' then
+    raise exception 'Invalid DeCA PDF SHA-256' using errcode = '22023';
+  end if;
+
+  if p_token_hash is null or p_token_hash !~ '^[0-9a-fA-F]{64}$' then
+    raise exception 'Invalid DeCA capability SHA-256' using errcode = '22023';
+  end if;
+
+  if p_document_created_at is null
+     or p_document_modified_at is null
+     or p_document_modified_at < p_document_created_at then
+    raise exception 'Invalid DeCA document timestamps' using errcode = '22023';
+  end if;
+
+  if p_valid_from is null or p_public_until is null or p_public_until <= p_valid_from then
+    raise exception 'Invalid DeCA public access window' using errcode = '22023';
+  end if;
+
+  if p_service_completed_at is not null
+     and p_public_until < p_service_completed_at + interval '7 days' then
+    raise exception 'DeCA public access window below seven-day minimum' using errcode = '22023';
+  end if;
+
   if not exists (
     select 1
     from public.cmr_documents
