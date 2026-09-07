@@ -5,6 +5,7 @@ import {
   regulatoryPublicUrl,
   sha256Hex,
 } from "@/lib/regulatory-documents";
+import { decaMinimumPublicUntilMs } from "@/lib/regulatory-lifecycle";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
@@ -47,9 +48,12 @@ export async function POST(request: Request, context: { params: Promise<{ artifa
   const now = Date.now();
   if (Date.parse(publicUntil) <= now) return errorResponse("public_until debe estar en el futuro.", 400);
   if (serviceCompletedAt) {
-    const completion = Date.parse(serviceCompletedAt);
-    if (Date.parse(publicUntil) < completion) {
-      return errorResponse("public_until no puede caducar antes de la finalización del servicio.", 400);
+    const minimumPublicUntil = decaMinimumPublicUntilMs(serviceCompletedAt);
+    if (minimumPublicUntil == null || Date.parse(publicUntil) < minimumPublicUntil) {
+      return errorResponse(
+        "public_until debe cubrir al menos siete días naturales tras la finalización del servicio.",
+        400,
+      );
     }
   }
 

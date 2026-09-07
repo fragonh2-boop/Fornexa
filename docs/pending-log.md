@@ -4,14 +4,6 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
-### 2026-09-06 — DeCA P0: lifecycle de URL pública
-- **Área:** Documentación regulatoria / Acceso público
-- **Estado:** CORRECCIÓN LOCAL PREPARADA; SIN PR, CI, PREVIEW NI DESPLIEGUE TODAVÍA
-- **Evidencia:** `origin/main` contiene un límite máximo de siete días tanto en la migración DeCA-1 como en la emisión y el resolver. La resolución oficial DeCA exige que una URL con expiración no caduque antes de finalizar el servicio y permite desactivar la descarga tras siete días naturales; no fija una ventana mínima ni máxima obligatoria.
-- **Solución preparada:** migración aditiva que retira solo el check heredado de máximo y exige `public_until >= service_completed_at` cuando ambos campos constan; emisión y resolución pública pasan a rechazar un vencimiento anterior a la finalización y conservan el fail-closed por expiración, desactivación, fecha prematura o dato inválido.
-- **Riesgo/decisión:** confirmar con asesoría regulatoria la política operativa de desactivación posterior. No aplicar la migración ni declarar cumplimiento normativo hasta completar la revisión y los controles de Preview/Supabase.
-- **Criterio de cierre:** tests, typecheck, lint, build y `git diff --check`; revisión independiente; PR/CI/Preview válidos; migración aplicada con evidencia y producción `READY` en el SHA previsto.
-
 ### 2026-09-05 — Login recuperable tras fallo transitorio de cliente
 - **Área:** Auth / Login / Resiliencia
 - **Estado:** CORRECCIÓN EN PR #53; CLAUDE SIN MUST Y PREVIEW VERDE; PRODUCCIÓN Y VALIDACIÓN FINAL PENDIENTES

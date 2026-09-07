@@ -4,7 +4,7 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-06 14:30 CEST.
+- **Updated:** 2026-09-05 11:47 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
 - **Production:** `main` at `58513ba954f2b37e58c9987421951370e5eb3a1d` (552 commits). GitHub Actions CI run `33955972837` succeeded on that exact SHA. The canonical Vercel `fornexa` production deployment is `READY`, carries that exact SHA and aliases `fornexasc.com`.
 - **DeCA-2:** PR #51 is integrated. Private PDF artifact intake, immutable versioning, explicit hashed public tokens, QR and a fail-closed FORNEXA resolver are deployed. The production migration list contains `20260905051522 deca_regulatory_storage`; its timestamp differs from the repository filename `20260905054500_deca_regulatory_storage.sql`, so retain it as A2 provenance work rather than rerunning it.
@@ -14,16 +14,6 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 - **MMO-1:** PR #38 remains draft at `865bee04f4581bb1d64cfd1fbe06941af8cee62a`; CI #187 and canonical preview are green, and Claude reported no MUST blocker.
 - **MMO-1 gate:** provider execution is blocked until the seven server-side variables are configured only for the controlled Preview. Production must remain without the activation flag and provider keys.
 - **Supabase:** DeCA-1 foundation and T1 append-only foundations are applied. Preserve migration provenance differences under A2; do not rerun applied migrations.
-
-## Prepared, not yet integrated
-
-### DeCA P0 — lifecycle of public document URLs
-
-- **Branch:** `codex/deca-p0-lifecycle`, based on `origin/main` at `21fe9819b1d85c9f3b2567d570b41ebd2651b020`.
-- **Decision implemented locally:** replace the legacy seven-day *maximum* with the invariant that `public_until` cannot precede `service_completed_at`. The resolver remains fail-closed for a missing, premature, expired or deactivated token.
-- **Regulatory evidence:** the official DeCA resolution requires that URL expiry does not occur before completion of the transport service; download may be disabled after seven calendar days, which is not a compulsory minimum or maximum duration. Confirm the final operational policy with regulatory counsel before production rollout.
-- **Migration:** `20260906143000_deca_public_url_lifecycle.sql` removes only the legacy upper-bound check and adds the named lifecycle constraint. It has not been applied to any environment.
-- **Next safe action:** run repository controls, obtain an independent review, then commit/push and open a migration-bearing PR; verify Preview/Supabase before any production promotion.
 
 ## Recently deployed work awaiting final approval
 

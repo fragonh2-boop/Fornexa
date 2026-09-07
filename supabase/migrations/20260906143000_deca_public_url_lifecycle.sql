@@ -1,9 +1,8 @@
 begin;
 
--- DeCA P0: a public URL must remain usable through service completion. The
--- seven-day post-completion period is an optional deactivation point, not a
--- maximum lifetime, so remove the legacy upper-bound check before adding the
--- lifecycle invariant.
+-- DeCA P0-A: the public URL must remain downloadable for at least seven
+-- calendar days after service completion. The URL may remain active longer.
+-- Remove the legacy upper-bound constraint before adding the minimum window.
 do $$
 declare
   legacy_constraint text;
@@ -24,20 +23,21 @@ end $$;
 
 alter table public.regulatory_document_access_tokens
   drop constraint if exists regulatory_document_access_tokens_public_until_not_before_service_completion_check,
-  add constraint regulatory_document_access_tokens_public_until_not_before_service_completion_check
+  drop constraint if exists regulatory_document_access_tokens_public_until_minimum_check,
+  add constraint regulatory_document_access_tokens_public_until_minimum_check
     check (
       service_completed_at is null
       or public_until is null
-      or public_until >= service_completed_at
+      or public_until >= service_completed_at + interval '7 days'
     );
 
 comment on column public.regulatory_document_access_tokens.public_until is
-  'Explicit end of public access. It must not precede service completion; disabling download after seven calendar days is an operational option, not a mandatory maximum lifetime.';
+  'Explicit end of public access. When service_completed_at is known, public access must remain available for at least seven calendar days after completion; a longer window is allowed.';
 
 insert into public.fornexa_schema_migrations (version, description)
 values (
   '20260906143000_deca_public_url_lifecycle',
-  'DeCA public URL lifecycle: remove seven-day upper cap and prevent expiry before service completion'
+  'DeCA public URL lifecycle: replace seven-day upper cap with seven-day minimum after service completion'
 )
 on conflict (version) do nothing;
 
