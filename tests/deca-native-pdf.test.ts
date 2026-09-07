@@ -46,6 +46,35 @@ const validInput: DeCANativePdfInput = {
   modifiedAt: "2026-09-07T12:30:00.000Z",
 };
 
+function assertPdfCrossReferenceIsConsistent(pdf: Uint8Array) {
+  const bytes = Buffer.from(pdf);
+  const source = bytes.toString("latin1");
+  const startXrefMatch = source.match(/startxref\n(\d+)\n%%EOF\s*$/);
+  assert.ok(startXrefMatch, "PDF must end with startxref and %%EOF");
+
+  const xrefOffset = Number(startXrefMatch[1]);
+  assert.equal(source.slice(xrefOffset, xrefOffset + 4), "xref", "startxref must point to xref");
+
+  const xrefSection = source.slice(xrefOffset);
+  const headerMatch = xrefSection.match(/^xref\n0 (\d+)\n/);
+  assert.ok(headerMatch, "xref must declare object count");
+  const declaredEntries = Number(headerMatch[1]);
+  assert.ok(declaredEntries > 1);
+
+  const xrefLines = xrefSection.split("\n").slice(2, 2 + declaredEntries);
+  assert.equal(xrefLines[0], "0000000000 65535 f ");
+  for (let objectId = 1; objectId < declaredEntries; objectId += 1) {
+    const line = xrefLines[objectId];
+    assert.match(line, /^\d{10} 00000 n $/);
+    const objectOffset = Number(line.slice(0, 10));
+    assert.equal(
+      source.slice(objectOffset, objectOffset + `${objectId} 0 obj`.length),
+      `${objectId} 0 obj`,
+      `xref offset for object ${objectId} must point to its object header`,
+    );
+  }
+}
+
 test("native DeCA PDF is digital, bounded, metadata-stamped and contains vector QR content", () => {
   const pdf = generateDeCANativePdf(validInput);
   const source = Buffer.from(pdf).toString("latin1");
@@ -60,6 +89,7 @@ test("native DeCA PDF is digital, bounded, metadata-stamped and contains vector 
   assert.ok((source.match(/ re f/g) ?? []).length > 100, "QR must be drawn as native vector modules");
   assert.ok(pdf.byteLength > 1000);
   assert.ok(pdf.byteLength <= 5 * 1024 * 1024);
+  assertPdfCrossReferenceIsConsistent(pdf);
 });
 
 test("native DeCA validation fails closed on mandatory article 6 data", () => {
@@ -104,7 +134,7 @@ test("native DeCA endpoint keeps regulatory roles explicit and canonical", () =>
   assert.doesNotMatch(route.slice(metadataStart, metadataEnd), /rawToken/);
 });
 
-test("atomic issuance RPC is invoker-only, service-role-only and writes artifact plus capability transactionally", () => {
+test("atomic issuance RPC is invoker-only, service-role-only and validates defense-in-depth invariants", () => {
   const sql = fs.readFileSync(
     "supabase/migrations/20260907175000_deca_native_atomic_issuance.sql",
     "utf8",
@@ -119,4 +149,9 @@ test("atomic issuance RPC is invoker-only, service-role-only and writes artifact
   assert.match(sql, /insert into public\.regulatory_document_access_tokens/i);
   assert.match(sql, /CMR tenant mismatch/);
   assert.match(sql, /Superseded artifact mismatch/);
+  assert.match(sql, /p_byte_size > 5242880/);
+  assert.match(sql, /p_sha256 !~ '\^\[0-9a-fA-F\]\{64\}\$'/);
+  assert.match(sql, /p_token_hash !~ '\^\[0-9a-fA-F\]\{64\}\$'/);
+  assert.match(sql, /p_public_until <= p_valid_from/);
+  assert.match(sql, /p_public_until < p_service_completed_at \+ interval '7 days'/);
 });
