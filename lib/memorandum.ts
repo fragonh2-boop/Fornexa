@@ -25,8 +25,15 @@ export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
     title: "DeCA — motor PDF/QR y acceso público",
-    summary: "El lifecycle regulatorio de la URL pública ya está corregido en producción: cuando existe service_completed_at, public_until debe cubrir al menos siete días naturales y puede durar más. Permanecen como siguientes gates el motor PDF nativo, la validación regulatoria M8, el E2E controlado y eCMR.",
+    summary: "P0-A ya está en producción con el mínimo regulatorio de siete días. P0-B está en desarrollo: PDF DeCA nativo desde datos estructurados, QR embebido, metadatos de creación/modificación, roles regulatorios explícitos y emisión atómica de artefacto + capability. M8, E2E controlado, lifecycle operativo automático y eCMR permanecen como gates separados antes de cierre.",
     priority: "Ahora",
+    state: "En seguimiento",
+  },
+  {
+    area: "Técnico",
+    title: "Conectividades",
+    summary: "Mejorar las capacidades de verificación de Claude y DeepSeek con accesos de solo lectura y mínimo privilegio a la evidencia que necesiten para revisar FORNEXA: repositorio y migraciones históricas en GitHub, esquema/constraints y configuración de Storage en Supabase, estado de Preview/runtime en Vercel y documentación técnica autorizada. El objetivo es que puedan confirmar directamente invariantes como unicidad de versionado, privacidad de buckets, compatibilidad de migraciones y comportamiento desplegado, reduciendo MUST de confirmación causados únicamente por falta de conectividad. Sin secretos, escritura, merge ni deploy para revisores independientes.",
+    priority: "Siguiente",
     state: "En seguimiento",
   },
   {
