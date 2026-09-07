@@ -97,7 +97,11 @@ test("native DeCA endpoint keeps regulatory roles explicit and canonical", () =>
   assert.match(route, /generateDeCANativePdf/);
   assert.match(route, /fornexa_issue_deca_native_artifact/);
   assert.match(route, /public_capability_storage: "sha256_only"/);
-  assert.doesNotMatch(route, /metadata\s*=\s*\{[^}]*rawToken/s);
+
+  const metadataStart = route.indexOf("const metadata = {");
+  const metadataEnd = route.indexOf("const { data: issuanceData", metadataStart);
+  assert.ok(metadataStart >= 0 && metadataEnd > metadataStart);
+  assert.doesNotMatch(route.slice(metadataStart, metadataEnd), /rawToken/);
 });
 
 test("atomic issuance RPC is invoker-only, service-role-only and writes artifact plus capability transactionally", () => {
