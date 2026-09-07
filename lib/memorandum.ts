@@ -18,14 +18,14 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "5 sep 2026";
-export const memorandumCommitCoverage = 552;
+export const memorandumUpdatedAt = "6 sep 2026";
+export const memorandumCommitCoverage = 554;
 
 export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
     title: "DeCA — motor PDF/QR y acceso público",
-    summary: "Completar el motor PDF nativo y la validación regulatoria M8 sobre la base DeCA-2: almacenamiento PDF privado, artefactos versionados, token opaco hasheado, QR y ruta pública fail-closed. Mantener lifecycle service_completed_at/public_until y eCMR como decisiones separadas.",
+    summary: "Completar el motor PDF nativo y la validación regulatoria M8 sobre la base DeCA-2: almacenamiento PDF privado, artefactos versionados, token opaco hasheado, QR y ruta pública fail-closed. El lifecycle impide caducar antes de completar el servicio; la desactivación posterior sigue siendo una decisión operativa separada.",
     priority: "Ahora",
     state: "En seguimiento",
   },
