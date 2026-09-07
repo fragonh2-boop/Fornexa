@@ -25,7 +25,7 @@ export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
     title: "DeCA — motor PDF/QR y acceso público",
-    summary: "El lifecycle regulatorio de la URL pública ya está corregido en producción: cuando existe service_completed_at, public_until debe cubrir al menos siete días naturales y puede durar más. Permanecen como siguientes gates el motor PDF nativo, la validación regulatoria M8, el E2E controlado y eCMR.",
+    summary: "P0-A ya está en producción con el mínimo regulatorio de siete días. P0-B está en desarrollo: PDF DeCA nativo desde datos estructurados, QR embebido, metadatos de creación/modificación, roles regulatorios explícitos y emisión atómica de artefacto + capability. M8, E2E controlado, lifecycle operativo automático y eCMR permanecen como gates separados antes de cierre.",
     priority: "Ahora",
     state: "En seguimiento",
   },
