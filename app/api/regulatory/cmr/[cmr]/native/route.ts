@@ -19,6 +19,12 @@ const noStore = { "Cache-Control": "private, no-cache, no-store, max-age=0, must
 const issuerRoles = new Set(["OWNER", "ADMIN"]);
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+type IssuanceRow = {
+  artifact_id: string;
+  access_id: string;
+  artifact_issued_at: string;
+};
+
 function errorResponse(message: string, status: number) {
   return Response.json({ error: message }, { status, headers: noStore });
 }
@@ -80,15 +86,17 @@ export async function POST(request: Request, context: { params: Promise<{ cmr: s
   const transportDate = parseDateOnly(body.transport_date);
   const publicUntil = parseIso(body.public_until);
   const serviceCompletedAt = body.service_completed_at == null ? null : parseIso(body.service_completed_at);
+  const articulatedVehicle = body.articulated_vehicle;
+  const specialAuthorizationRequired = body.special_circulation_authorization_required;
 
   if (!contractualShipperPartyId) return errorResponse("contractual_shipper_party_id es obligatorio.", 400);
   if (!contractualShipperAddressId) return errorResponse("contractual_shipper_address_id es obligatorio.", 400);
   if (!effectiveCarrierPartyId) return errorResponse("effective_carrier_party_id es obligatorio.", 400);
   if (!transportDate) return errorResponse("transport_date es obligatorio en formato YYYY-MM-DD.", 400);
-  if (typeof body.articulated_vehicle !== "boolean") {
+  if (typeof articulatedVehicle !== "boolean") {
     return errorResponse("articulated_vehicle debe indicarse explícitamente.", 400);
   }
-  if (typeof body.special_circulation_authorization_required !== "boolean") {
+  if (typeof specialAuthorizationRequired !== "boolean") {
     return errorResponse("special_circulation_authorization_required debe indicarse explícitamente.", 400);
   }
   if (!publicUntil) return errorResponse("public_until es obligatorio y debe ser una fecha ISO válida.", 400);
@@ -118,41 +126,27 @@ export async function POST(request: Request, context: { params: Promise<{ cmr: s
   if (!document) return errorResponse("CMR no disponible.", 404);
 
   const [shipperResult, shipperAddressResult, carrierResult, goodsResult, latestResult] = await Promise.all([
-    admin
-      .from("parties")
-      .select("id,legal_name,tax_id")
-      .eq("id", contractualShipperPartyId)
-      .eq("tenant_id", authenticated.tenantId)
-      .maybeSingle(),
-    admin
-      .from("party_addresses")
+    admin.from("parties").select("id,legal_name,tax_id")
+      .eq("id", contractualShipperPartyId).eq("tenant_id", authenticated.tenantId).maybeSingle(),
+    admin.from("party_addresses")
       .select("id,party_id,address_type,address_line1,address_line2,postal_code,city,region,country_code")
       .eq("id", contractualShipperAddressId)
       .eq("tenant_id", authenticated.tenantId)
       .eq("party_id", contractualShipperPartyId)
       .eq("address_type", "FISCAL")
       .maybeSingle(),
-    admin
-      .from("parties")
-      .select("id,legal_name,tax_id")
-      .eq("id", effectiveCarrierPartyId)
-      .eq("tenant_id", authenticated.tenantId)
-      .maybeSingle(),
-    admin
-      .from("cmr_goods_lines")
+    admin.from("parties").select("id,legal_name,tax_id")
+      .eq("id", effectiveCarrierPartyId).eq("tenant_id", authenticated.tenantId).maybeSingle(),
+    admin.from("cmr_goods_lines")
       .select("sequence,goods_description,packages,packaging_code,packaging_description,gross_weight")
-      .eq("cmr_id", document.id)
-      .order("sequence", { ascending: true }),
-    admin
-      .from("regulatory_document_artifacts")
+      .eq("cmr_id", document.id).order("sequence", { ascending: true }),
+    admin.from("regulatory_document_artifacts")
       .select("id,version,document_created_at")
       .eq("cmr_id", document.id)
       .eq("tenant_id", authenticated.tenantId)
       .eq("document_kind", "deca")
       .eq("regulatory_scope", "deca_es")
-      .order("version", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .order("version", { ascending: false }).limit(1).maybeSingle(),
   ]);
 
   if (shipperResult.error) throw shipperResult.error;
@@ -169,21 +163,14 @@ export async function POST(request: Request, context: { params: Promise<{ cmr: s
   let linkedTrip: { vehicle_id: string | null; trailer_registration: string | null } | null = null;
   let linkedVehicleRegistration: string | null = null;
   if (document.trip_record_id) {
-    const { data: trip, error: tripError } = await admin
-      .from("trips")
+    const { data: trip, error: tripError } = await admin.from("trips")
       .select("vehicle_id,trailer_registration")
-      .eq("id", document.trip_record_id)
-      .eq("tenant_id", authenticated.tenantId)
-      .maybeSingle();
+      .eq("id", document.trip_record_id).eq("tenant_id", authenticated.tenantId).maybeSingle();
     if (tripError) throw tripError;
     linkedTrip = trip;
     if (trip?.vehicle_id) {
-      const { data: vehicle, error: vehicleError } = await admin
-        .from("vehicles")
-        .select("registration")
-        .eq("id", trip.vehicle_id)
-        .eq("tenant_id", authenticated.tenantId)
-        .maybeSingle();
+      const { data: vehicle, error: vehicleError } = await admin.from("vehicles")
+        .select("registration").eq("id", trip.vehicle_id).eq("tenant_id", authenticated.tenantId).maybeSingle();
       if (vehicleError) throw vehicleError;
       linkedVehicleRegistration = vehicle?.registration ?? null;
     }
@@ -230,9 +217,9 @@ export async function POST(request: Request, context: { params: Promise<{ cmr: s
       goodsLines,
       transportDate,
       tractorRegistration,
-      articulatedVehicle: body.articulated_vehicle,
+      articulatedVehicle,
       trailerRegistration,
-      specialCirculationAuthorizationRequired: body.special_circulation_authorization_required,
+      specialCirculationAuthorizationRequired: specialAuthorizationRequired,
       specialCirculationAuthorization: optionalText(body.special_circulation_authorization),
       observations: optionalText(body.observations),
       publicUrl,
@@ -260,13 +247,11 @@ export async function POST(request: Request, context: { params: Promise<{ cmr: s
   const tokenHash = sha256Hex(rawToken);
   const validFrom = nowIso;
 
-  const { error: uploadError } = await admin.storage
-    .from(REGULATORY_DOCUMENT_BUCKET)
-    .upload(storagePath, pdf, {
-      contentType: "application/pdf",
-      cacheControl: "0",
-      upsert: false,
-    });
+  const { error: uploadError } = await admin.storage.from(REGULATORY_DOCUMENT_BUCKET).upload(storagePath, pdf, {
+    contentType: "application/pdf",
+    cacheControl: "0",
+    upsert: false,
+  });
   if (uploadError) throw uploadError;
 
   const metadata = {
@@ -278,29 +263,27 @@ export async function POST(request: Request, context: { params: Promise<{ cmr: s
     contractual_shipper_address_id: contractualShipperAddressId,
     effective_carrier_party_id: effectiveCarrierPartyId,
     transport_date: transportDate,
-    articulated_vehicle: body.articulated_vehicle,
-    special_circulation_authorization_required: body.special_circulation_authorization_required,
+    articulated_vehicle: articulatedVehicle,
+    special_circulation_authorization_required: specialAuthorizationRequired,
     public_capability_storage: "sha256_only",
   };
 
-  const { data: issuance, error: issuanceError } = await admin
-    .rpc("fornexa_issue_deca_native_artifact", {
-      p_tenant_id: authenticated.tenantId,
-      p_cmr_id: document.id,
-      p_version: version,
-      p_storage_path: storagePath,
-      p_sha256: sha256,
-      p_byte_size: pdf.byteLength,
-      p_document_created_at: documentCreatedAt,
-      p_document_modified_at: nowIso,
-      p_supersedes_artifact_id: latestResult.data?.id ?? null,
-      p_metadata: metadata,
-      p_token_hash: tokenHash,
-      p_valid_from: validFrom,
-      p_service_completed_at: serviceCompletedAt,
-      p_public_until: publicUntil,
-    })
-    .single();
+  const { data: issuanceData, error: issuanceError } = await admin.rpc("fornexa_issue_deca_native_artifact", {
+    p_tenant_id: authenticated.tenantId,
+    p_cmr_id: document.id,
+    p_version: version,
+    p_storage_path: storagePath,
+    p_sha256: sha256,
+    p_byte_size: pdf.byteLength,
+    p_document_created_at: documentCreatedAt,
+    p_document_modified_at: nowIso,
+    p_supersedes_artifact_id: latestResult.data?.id ?? null,
+    p_metadata: metadata,
+    p_token_hash: tokenHash,
+    p_valid_from: validFrom,
+    p_service_completed_at: serviceCompletedAt,
+    p_public_until: publicUntil,
+  }).single();
 
   if (issuanceError) {
     const { error: cleanupError } = await admin.storage.from(REGULATORY_DOCUMENT_BUCKET).remove([storagePath]);
@@ -311,27 +294,31 @@ export async function POST(request: Request, context: { params: Promise<{ cmr: s
     throw issuanceError;
   }
 
-  return Response.json(
-    {
-      artifact: {
-        id: issuance.artifact_id,
-        version,
-        sha256,
-        byte_size: pdf.byteLength,
-        issued_at: issuance.artifact_issued_at,
-        document_created_at: documentCreatedAt,
-        document_modified_at: nowIso,
-      },
-      access: {
-        id: issuance.access_id,
-        valid_from: validFrom,
-        service_completed_at: serviceCompletedAt,
-        public_until: publicUntil,
-      },
-      public_url: publicUrl,
-      token: rawToken,
-      token_notice: "El token se muestra una sola vez; FORNEXA solo persiste su SHA-256.",
+  const issuance = issuanceData as IssuanceRow | null;
+  if (!issuance) {
+    const { error: cleanupError } = await admin.storage.from(REGULATORY_DOCUMENT_BUCKET).remove([storagePath]);
+    if (cleanupError) throw cleanupError;
+    throw new Error("La emisión DeCA no devolvió trazabilidad de artefacto y capability.");
+  }
+
+  return Response.json({
+    artifact: {
+      id: issuance.artifact_id,
+      version,
+      sha256,
+      byte_size: pdf.byteLength,
+      issued_at: issuance.artifact_issued_at,
+      document_created_at: documentCreatedAt,
+      document_modified_at: nowIso,
     },
-    { status: 201, headers: noStore },
-  );
+    access: {
+      id: issuance.access_id,
+      valid_from: validFrom,
+      service_completed_at: serviceCompletedAt,
+      public_until: publicUntil,
+    },
+    public_url: publicUrl,
+    token: rawToken,
+    token_notice: "El token se muestra una sola vez; FORNEXA solo persiste su SHA-256.",
+  }, { status: 201, headers: noStore });
 }
