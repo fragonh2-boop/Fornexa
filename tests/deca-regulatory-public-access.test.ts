@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const helper = readFileSync("lib/regulatory-documents.ts", "utf8");
+const lifecycle = readFileSync("lib/regulatory-lifecycle.ts", "utf8");
 const telemetry = readFileSync("lib/platform-telemetry.ts", "utf8");
 const artifactRoute = readFileSync("app/api/regulatory/cmr/[cmr]/artifact/route.ts", "utf8");
 const accessRoute = readFileSync("app/api/regulatory/artifacts/[artifact]/access/route.ts", "utf8");
@@ -41,12 +42,16 @@ test("public access requires an explicit future public_until and stores only tok
   assert.match(accessRoute, /sha256Hex\(rawToken\)/);
   assert.match(accessRoute, /token_hash: tokenHash/);
   assert.doesNotMatch(accessRoute, /token_hash: rawToken/);
-  assert.match(accessRoute, /siete días desde la finalización del servicio/);
+  assert.match(accessRoute, /siete días naturales tras la finalización del servicio/);
+  assert.match(accessRoute, /decaMinimumPublicUntilMs/);
 });
 
 test("public resolver is fail-closed and integrity checks the private PDF", () => {
-  assert.match(helper, /if \(row\.deactivated_at \|\| !row\.public_until\) return false/);
-  assert.match(helper, /publicUntil <= now/);
+  assert.match(helper, /decaPublicAccessWindowIsUsable/);
+  assert.match(lifecycle, /if \(row\.deactivated_at \|\| !row\.public_until\) return false/);
+  assert.match(lifecycle, /publicUntil < now/);
+  assert.match(lifecycle, /publicUntil < minimumPublicUntil/);
+  assert.doesNotMatch(lifecycle, /publicUntil > completedAt \+ sevenDays/);
   assert.match(publicRoute, /Documento no disponible/);
   assert.match(publicRoute, /bytes\.byteLength !== Number\(artifact\.byte_size\)/);
   assert.match(publicRoute, /sha256Hex\(bytes\)/);

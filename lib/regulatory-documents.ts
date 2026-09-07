@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { decaPublicAccessWindowIsUsable } from "@/lib/regulatory-lifecycle";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
 
 export const REGULATORY_DOCUMENT_BUCKET = "regulatory-documents";
@@ -56,21 +57,7 @@ export function regulatoryArtifactStoragePath(input: {
 }
 
 export function regulatoryAccessIsUsable(row: RegulatoryAccessRow, now = Date.now()) {
-  if (row.deactivated_at || !row.public_until) return false;
-
-  const validFrom = Date.parse(row.valid_from);
-  const publicUntil = Date.parse(row.public_until);
-  if (!Number.isFinite(validFrom) || !Number.isFinite(publicUntil)) return false;
-  if (validFrom > now || publicUntil <= now) return false;
-
-  if (row.service_completed_at) {
-    const completedAt = Date.parse(row.service_completed_at);
-    if (!Number.isFinite(completedAt)) return false;
-    const sevenDays = 7 * 24 * 60 * 60 * 1000;
-    if (publicUntil > completedAt + sevenDays) return false;
-  }
-
-  return true;
+  return decaPublicAccessWindowIsUsable(row, now);
 }
 
 export function regulatoryPublicUrl(origin: string, token: string) {

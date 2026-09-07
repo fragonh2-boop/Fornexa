@@ -8,6 +8,11 @@ const migrationPath = path.join(
   "supabase/migrations/20260903062500_deca_regulatory_document_foundation.sql",
 );
 const sql = fs.readFileSync(migrationPath, "utf8");
+const lifecycleMigrationPath = path.join(
+  process.cwd(),
+  "supabase/migrations/20260906143000_deca_public_url_lifecycle.sql",
+);
+const lifecycleSql = fs.readFileSync(lifecycleMigrationPath, "utf8");
 
 describe("DeCA regulatory document foundation", () => {
   it("adds controlled document kind and regulatory scope without breaking legacy CMR rows", () => {
@@ -42,7 +47,9 @@ describe("DeCA regulatory document foundation", () => {
     assert.equal(sql.includes("grant select on table public.regulatory_document_access_tokens to authenticated"), false);
   });
 
-  it("caps public URL lifetime at seven days after service completion when both dates are known", () => {
-    assert.ok(sql.includes("public_until <= service_completed_at + interval '7 days'"));
+  it("replaces the seven-day upper cap with a seven-day post-completion minimum", () => {
+    assert.ok(lifecycleSql.includes("pg_get_constraintdef(oid) like '%public_until <=%service_completed_at%7 days%'"));
+    assert.ok(lifecycleSql.includes("public_until >= service_completed_at + interval '7 days'"));
+    assert.equal(lifecycleSql.includes("public_until <= service_completed_at + interval '7 days'"), false);
   });
 });
