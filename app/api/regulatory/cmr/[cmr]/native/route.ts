@@ -112,7 +112,12 @@ export async function POST(request: Request, context: { params: Promise<{ cmr: s
   }
 
   const { cmr } = await context.params;
-  const cmrNumber = decodeURIComponent(cmr).trim().toUpperCase();
+  let cmrNumber: string;
+  try {
+    cmrNumber = decodeURIComponent(cmr).trim().toUpperCase();
+  } catch {
+    return errorResponse("CMR no válido.", 400);
+  }
   if (!cmrNumber) return errorResponse("CMR no válido.", 400);
 
   const admin = createSupabaseAdmin();
@@ -290,6 +295,9 @@ export async function POST(request: Request, context: { params: Promise<{ cmr: s
     if (cleanupError) throw cleanupError;
     if (issuanceError.code === "23505") {
       return errorResponse("Otra versión DeCA se emitió simultáneamente; reintenta sobre el estado actualizado.", 409);
+    }
+    if (issuanceError.code === "22023") {
+      return errorResponse("Los datos de emisión DeCA no superan las validaciones de integridad.", 400);
     }
     throw issuanceError;
   }
