@@ -18,14 +18,14 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "6 sep 2026";
+export const memorandumUpdatedAt = "7 sep 2026";
 export const memorandumCommitCoverage = 554;
 
 export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
     title: "DeCA — motor PDF/QR y acceso público",
-    summary: "Completar el motor PDF nativo y la validación regulatoria M8 sobre la base DeCA-2: almacenamiento PDF privado, artefactos versionados, token opaco hasheado, QR y ruta pública fail-closed. El lifecycle impide caducar antes de completar el servicio; la desactivación posterior sigue siendo una decisión operativa separada.",
+    summary: "El lifecycle regulatorio de la URL pública ya está corregido en producción: cuando existe service_completed_at, public_until debe cubrir al menos siete días naturales y puede durar más. Permanecen como siguientes gates el motor PDF nativo, la validación regulatoria M8, el E2E controlado y eCMR.",
     priority: "Ahora",
     state: "En seguimiento",
   },
@@ -74,6 +74,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.09.07",
+    date: "7 sep 2026",
+    surface: ["Web", "Plataforma"],
+    title: "Lifecycle DeCA de siete días corregido",
+    purpose: "Alinear la vigencia de la URL pública DeCA con la Resolución de 5 de junio de 2026 y eliminar el antiguo techo de siete días tras la finalización del servicio.",
+    outcome: "P0-A desplegado y verificado en producción: public_until debe cubrir al menos siete días naturales tras service_completed_at, las ventanas superiores siguen permitidas y el acceso permanece válido hasta public_until inclusive. CI y Vercel quedaron verdes, el constraint productivo de Supabase fue sustituido y el resolver público mantiene fail-closed, token opaco hasheado y descarga privada verificada.",
+    status: "Producción",
+  },
   {
     version: "2026.09.05.3",
     date: "5 sep 2026",
