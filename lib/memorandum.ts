@@ -31,6 +31,13 @@ export const memorandumPending: MemorandumPending[] = [
   },
   {
     area: "Técnico",
+    title: "Conectividades",
+    summary: "Mejorar las capacidades de verificación de Claude y DeepSeek con accesos de solo lectura y mínimo privilegio a la evidencia que necesiten para revisar FORNEXA: repositorio y migraciones históricas en GitHub, esquema/constraints y configuración de Storage en Supabase, estado de Preview/runtime en Vercel y documentación técnica autorizada. El objetivo es que puedan confirmar directamente invariantes como unicidad de versionado, privacidad de buckets, compatibilidad de migraciones y comportamiento desplegado, reduciendo MUST de confirmación causados únicamente por falta de conectividad. Sin secretos, escritura, merge ni deploy para revisores independientes.",
+    priority: "Siguiente",
+    state: "En seguimiento",
+  },
+  {
+    area: "Técnico",
     title: "Auditoría UX transversal",
     summary: "Aplicar evidencia visual obligatoria en Preview para cambios de layout, tipografía, SVG, responsive o impresión; revisar clipping/overflow, estados, accesibilidad y breakpoints representativos antes de declarar cierre productivo. Los tests de fuente protegen invariantes, pero no sustituyen la comprobación visual desplegada.",
     priority: "Siguiente",
