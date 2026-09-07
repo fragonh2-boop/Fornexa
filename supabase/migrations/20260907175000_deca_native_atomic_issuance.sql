@@ -65,6 +65,14 @@ begin
     raise exception 'DeCA public access window below seven-day minimum' using errcode = '22023';
   end if;
 
+  if p_storage_path is null
+     or p_storage_path !~ (
+       '^' || p_tenant_id::text || '/' || p_cmr_id::text ||
+       '/deca/deca_es/v' || p_version::text || '-[a-f0-9]{24}\.pdf$'
+     ) then
+    raise exception 'Invalid DeCA storage path' using errcode = '22023';
+  end if;
+
   if not exists (
     select 1
     from public.cmr_documents
@@ -72,6 +80,14 @@ begin
       and tenant_id = p_tenant_id
   ) then
     raise exception 'CMR tenant mismatch' using errcode = '23503';
+  end if;
+
+  if p_version = 1 and p_supersedes_artifact_id is not null then
+    raise exception 'First DeCA version cannot supersede another artifact' using errcode = '22023';
+  end if;
+
+  if p_version > 1 and p_supersedes_artifact_id is null then
+    raise exception 'DeCA version chain requires previous artifact' using errcode = '22023';
   end if;
 
   if p_supersedes_artifact_id is not null and not exists (
@@ -82,6 +98,7 @@ begin
       and cmr_id = p_cmr_id
       and document_kind = 'deca'
       and regulatory_scope = 'deca_es'
+      and version = p_version - 1
   ) then
     raise exception 'Superseded artifact mismatch' using errcode = '23503';
   end if;
