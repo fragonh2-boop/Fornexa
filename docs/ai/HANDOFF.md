@@ -4,9 +4,9 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-05 11:47 CEST.
+- **Updated:** 2026-09-08 21:45 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
-- **Production:** `main` at `58513ba954f2b37e58c9987421951370e5eb3a1d` (552 commits). GitHub Actions CI run `33955972837` succeeded on that exact SHA. The canonical Vercel `fornexa` production deployment is `READY`, carries that exact SHA and aliases `fornexasc.com`.
+- **Production:** `main` at `7bf09528039588efc37f17d9859f481ee84c7e8c` (558 commits), the squash merge of PR #60. GitHub Actions CI run `34215545223` succeeded on that exact SHA. Vercel deployment `dpl_58s6fKw3x1g7MfZmxsM4hx2tjSPq` is `READY`, targets production, carries the same SHA and aliases `fornexasc.com` without error.
 - **DeCA-2:** PR #51 is integrated. Private PDF artifact intake, immutable versioning, explicit hashed public tokens, QR and a fail-closed FORNEXA resolver are deployed. The production migration list contains `20260905051522 deca_regulatory_storage`; its timestamp differs from the repository filename `20260905054500_deca_regulatory_storage.sql`, so retain it as A2 provenance work rather than rerunning it.
 - **Supabase Preview:** the check associated with current `main` reports failure, although the GitHub CI workflow itself is successful. The branch-preview integration remains unresolved; do not treat a migration-bearing preview as verified.
 - **CMR fixes:** PRs #44–#47 are merged and verified in production.
@@ -14,6 +14,15 @@ This file is the portable source of truth for resuming FORNEXA work. Read it tog
 - **MMO-1:** PR #38 remains draft at `865bee04f4581bb1d64cfd1fbe06941af8cee62a`; CI #187 and canonical preview are green, and Claude reported no MUST blocker.
 - **MMO-1 gate:** provider execution is blocked until the seven server-side variables are configured only for the controlled Preview. Production must remain without the activation flag and provider keys.
 - **Supabase:** DeCA-1 foundation and T1 append-only foundations are applied. Preserve migration provenance differences under A2; do not rerun applied migrations.
+
+## AI review infrastructure — DeepSeek Slack bot recovered
+
+- **Incident and root cause:** the reviewer responded to PR #59 but ignored PR #60 because the handoff parser accepted only `HEAD:` while the operational messages used `HEAD exacto:`. A second defect treated any later message beginning with `DEEPSEEK —` as if it were a reviewer response, so a newer human request could hide an older pending review.
+- **Integrated fixes:** PR #6 of `fragonh2-boop/fornexa-ai-reviewer` was merged as `53fdc8ae52553bca759108c41bcf6f04dbd9e174`; it accepts both HEAD forms, including when preceded by a direct Slack mention, and explicitly selects `deepseek-v4-pro`. PR #7 was merged as `16fa7599efa4a0971a34296f7d35024f779e43f0`; only real review messages published by the bot now suppress pending handoffs.
+- **Slack and secrets:** Event Subscriptions remains enabled with its existing verified HTTPS endpoint and `message.channels`; the bot retains only `channels:history`, `channels:read` and `chat:write`. No scope expansion or reinstall was necessary. Required Render variables were present and remained masked; no credential value was copied into code or documentation.
+- **Verification:** final reviewer HEAD passed 13/13 tests, TypeScript build and `git diff --check`; the preceding dependency audit reported zero production vulnerabilities. Render deployment `dep-dag691m1egvs73ag26b0` is `Live` on exact SHA `16fa759`, using the explicit `deepseek-v4-pro` model and the existing DeepSeek API base URL.
+- **End to end:** on startup the deployed service recovered the original direct mention for PR #60, fetched the requested exact HEAD, completed the DeepSeek review and published the result as three bot messages in `#fornexa` at 21:40:46 CEST. Render logged both handoff detection and successful Slack publication.
+- **Remaining operational characteristic:** the free Render instance can sleep after inactivity; signed Slack Events plus the five-minute polling fallback remain the recovery path during cold starts.
 
 ## Recently deployed work awaiting final approval
 
