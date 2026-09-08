@@ -19,13 +19,13 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "8 sep 2026";
-export const memorandumCommitCoverage = 557;
+export const memorandumCommitCoverage = 558;
 
 export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
-    title: "CMR — integridad de firmas impresas",
-    summary: "PR #59 corrige las casillas 22-24 del CMR impreso/exportado para que el expedidor, transportista y destinatario se relacionen con las partes reales y con las firmas canónicas por rol. Se elimina el sello fijo de FORNEXA en la casilla 22 y la afirmación incondicional de firma del transportista. Pendiente cierre de CI/Preview y revisión independiente antes de producción.",
+    title: "CMR — integridad y maquetación de impresión",
+    summary: "PR #59 ya está en producción y corrige las casillas 22-24 para usar las partes reales y las firmas canónicas por rol. Siguiente mejora en preproducción: corregir la geometría A4 del CMR, reduciendo márgenes extremos, eliminando el gran vacío inferior y anclando las firmas 22-24 cerca del final de página sin cambiar el contenido funcional.",
     priority: "Ahora",
     state: "En seguimiento",
   },
@@ -89,13 +89,22 @@ export const memorandumPending: MemorandumPending[] = [
 
 export const memorandumReleases: MemorandumRelease[] = [
   {
+    version: "2026.09.08.2",
+    date: "8 sep 2026",
+    surface: ["Web"],
+    title: "CMR A4 con ocupación documental equilibrada",
+    purpose: "Aprovechar correctamente el folio A4 impreso y acercar el CMR de FORNEXA a las proporciones de un documento operativo real sin copiar su estética heredada.",
+    outcome: "Corrección en preproducción: margen de impresión de 9 mm, superficie útil 192×279 mm, reparto vertical proporcional entre las casillas 1-21 y bloque de firmas 22-24 anclado al final de página. Se elimina el gran vacío inferior y se preservan QR, datos, firmas y estructura funcional existentes.",
+    status: "Preproducción",
+  },
+  {
     version: "2026.09.08",
     date: "8 sep 2026",
     surface: ["Web"],
     title: "Firmas CMR vinculadas a las partes reales",
     purpose: "Evitar que el CMR impreso o exportado atribuya a FORNEXA el sello del expedidor o afirme firmas electrónicas inexistentes.",
-    outcome: "Corrección en revisión: las casillas 22, 23 y 24 usan las partes reales del CMR y el estado de firma canónico por rol sender/carrier/consignee. La casilla 22 deja de usar el sello fijo provisional de FORNEXA y la casilla 23 deja de declarar una firma sin evidencia.",
-    status: "Preproducción",
+    outcome: "Corrección desplegada: las casillas 22, 23 y 24 usan las partes reales del CMR y el estado de firma canónico por rol sender/carrier/consignee. La casilla 22 deja de usar el sello fijo provisional de FORNEXA y la casilla 23 deja de declarar una firma sin evidencia.",
+    status: "Producción",
   },
   {
     version: "2026.09.07",

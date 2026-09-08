@@ -14,7 +14,7 @@ test("dashboard chrome is excluded from printed CMR output", () => {
 
 test("CMR keeps its dedicated A4 print contract", () => {
   assert.match(cmrCss, /@media\s+print\s*\{/);
-  assert.match(cmrCss, /@page\s*\{\s*size:\s*A4 portrait;/);
+  assert.match(cmrCss, /@page\s*\{\s*size:\s*A4 portrait;\s*margin:\s*9mm/);
   assert.match(cmrCss, /\.appHeader\s*\{\s*display:\s*none\s*\}/);
-  assert.match(cmrCss, /\.paper\s*\{[\s\S]*?width:\s*204mm;/);
+  assert.match(cmrCss, /\.paper\s*\{[\s\S]*?box-sizing:\s*border-box;[\s\S]*?width:\s*192mm;[\s\S]*?height:\s*279mm;/);
 });
