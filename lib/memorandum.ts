@@ -18,14 +18,21 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "7 sep 2026";
-export const memorandumCommitCoverage = 554;
+export const memorandumUpdatedAt = "8 sep 2026";
+export const memorandumCommitCoverage = 557;
 
 export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
+    title: "CMR — integridad de firmas impresas",
+    summary: "PR #59 corrige las casillas 22-24 del CMR impreso/exportado para que el expedidor, transportista y destinatario se relacionen con las partes reales y con las firmas canónicas por rol. Se elimina el sello fijo de FORNEXA en la casilla 22 y la afirmación incondicional de firma del transportista. Pendiente cierre de CI/Preview y revisión independiente antes de producción.",
+    priority: "Ahora",
+    state: "En seguimiento",
+  },
+  {
+    area: "Técnico",
     title: "DeCA — motor PDF/QR y acceso público",
-    summary: "P0-A ya está en producción con el mínimo regulatorio de siete días. P0-B está en desarrollo: PDF DeCA nativo desde datos estructurados, QR embebido, metadatos de creación/modificación, roles regulatorios explícitos y emisión atómica de artefacto + capability. M8, E2E controlado, lifecycle operativo automático y eCMR permanecen como gates separados antes de cierre.",
+    summary: "P0-A y P0-B ya están desplegados en producción: PDF DeCA nativo desde datos estructurados, QR embebido, metadatos de creación/modificación, roles regulatorios explícitos y emisión atómica de artefacto + capability. Quedan como gates separados el E2E funcional completo con datos FISCAL controlados, M8, lifecycle operativo automático y eCMR.",
     priority: "Ahora",
     state: "En seguimiento",
   },
@@ -81,6 +88,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.09.08",
+    date: "8 sep 2026",
+    surface: ["Web"],
+    title: "Firmas CMR vinculadas a las partes reales",
+    purpose: "Evitar que el CMR impreso o exportado atribuya a FORNEXA el sello del expedidor o afirme firmas electrónicas inexistentes.",
+    outcome: "Corrección en revisión: las casillas 22, 23 y 24 usan las partes reales del CMR y el estado de firma canónico por rol sender/carrier/consignee. La casilla 22 deja de usar el sello fijo provisional de FORNEXA y la casilla 23 deja de declarar una firma sin evidencia.",
+    status: "Preproducción",
+  },
   {
     version: "2026.09.07",
     date: "7 sep 2026",

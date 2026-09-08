@@ -36,3 +36,14 @@ test("loaded QR remains part of the dedicated A4 print surface", () => {
   assert.ok(page.includes('className={styles.qrStatus}'));
   assert.doesNotMatch(styles, /@media print\{[\s\S]*?\.qrStatus\{[^}]*display:none/);
 });
+
+test("CMR signature boxes use canonical party roles and never stamp FORNEXA as the sender", () => {
+  assert.ok(page.includes('canonicalSignatures=Array.isArray(result.canonical?.signatures)?result.canonical.signatures:[]'));
+  assert.ok(page.includes('firmaExpedidor:signatureStatus(canonicalSignatures,"sender",item.sender)'));
+  assert.ok(page.includes('firmaTransportista:signatureStatus(canonicalSignatures,"carrier",item.carrier)'));
+  assert.ok(page.includes('firmaDestinatario:signatureStatus(canonicalSignatures,"consignee",item.recipient)'));
+  assert.ok(page.includes('<strong>{doc.remitente}</strong><br/>{doc.remitenteDireccion}<br/>{doc.firmaExpedidor}'));
+  assert.ok(page.includes('<strong>{doc.transportista}</strong><br/>{doc.firmaTransportista}'));
+  assert.doesNotMatch(page, /companyMaster\.cmrStamp/);
+  assert.doesNotMatch(page, /Firma electrónica registrada en trazabilidad/);
+});
