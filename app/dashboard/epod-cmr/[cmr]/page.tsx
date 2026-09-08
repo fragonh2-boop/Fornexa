@@ -58,14 +58,15 @@ function CmrStatus({message}:{message:string}){
  return <main style={{minHeight:"100vh",display:"grid",placeItems:"center",padding:24,background:"#eef3f9"}}><section style={{maxWidth:560,padding:28,borderRadius:16,background:"white",border:"1px solid #dbe4ef",fontFamily:"Arial, sans-serif",color:"#172033"}}>{message}</section></main>
 }
 
-function signatureStatus(signatures:unknown[],role:"sender"|"carrier"|"consignee",fallbackCompany:string){
+function signatureStatus(signatures:unknown[],role:"sender"|"carrier"|"consignee",partyName:string){
  const signature=signatures.find(raw=>raw&&typeof raw==="object"&&(raw as Record<string,unknown>).role===role) as Record<string,unknown>|undefined;
  if(!signature)return "Firma pendiente.";
  const signer=text(signature.signer_name);
- const company=text(signature.company_name)||fallbackCompany;
  const signedAt=text(signature.signed_at);
- const details=[signer?`Firmado por ${signer}`:"Firma electrónica registrada",company?`· ${company}`:"",signedAt?`· ${new Date(signedAt).toLocaleString("es-ES")}`:""].filter(Boolean);
- return details.join(" ");
+ const signedAtMs=Date.parse(signedAt);
+ const signedAtLabel=Number.isFinite(signedAtMs)?new Date(signedAtMs).toLocaleString("es-ES"):"fecha no disponible";
+ const details=[signer?`Firmado por ${signer}`:"Firma electrónica registrada",partyName?`· ${partyName}`:"",`· ${signedAtLabel}`];
+ return details.filter(Boolean).join(" ");
 }
 function readGoodsLines(meta:Record<string,unknown>,item:Record<string,unknown>):GoodsLine[]{
  const source=Array.isArray(meta.goodsLines)?meta.goodsLines:[];
