@@ -32,9 +32,17 @@ test("CMR QR failures can retry a fresh resource without weakening the print gat
 
 test("loaded QR remains part of the dedicated A4 print surface", () => {
   assert.match(styles, /@media print\{[\s\S]*?\.documentNumber img\{[^}]*width:10mm;height:10mm/);
-  assert.match(styles, /@media print\{[\s\S]*?\.paper\{[^}]*width:204mm[^}]*height:291mm/);
+  assert.match(styles, /@page\{size:A4 portrait;margin:9mm\}/);
+  assert.match(styles, /@media print\{[\s\S]*?\.paper\{[^}]*width:192mm[^}]*height:279mm[^}]*display:flex;flex-direction:column/);
   assert.ok(page.includes('className={styles.qrStatus}'));
   assert.doesNotMatch(styles, /@media print\{[\s\S]*?\.qrStatus\{[^}]*display:none/);
+});
+
+test("CMR print geometry fills the A4 height and anchors signatures near the bottom", () => {
+  assert.match(styles, /@media print\{[\s\S]*?\.gridTwo\{[^}]*flex:5 1 0;grid-auto-rows:minmax\(18mm,1fr\)/);
+  assert.match(styles, /@media print\{[\s\S]*?\.gridTwoBottom\{[^}]*flex:2 1 0;grid-auto-rows:minmax\(18mm,1fr\)/);
+  assert.match(styles, /@media print\{[\s\S]*?\.signatures\{[^}]*flex:0 0 32mm/);
+  assert.match(styles, /@media print\{[\s\S]*?\.signatureState\{[^}]*margin-top:auto/);
 });
 
 test("CMR signature boxes use canonical party roles and never stamp FORNEXA as the sender", () => {
