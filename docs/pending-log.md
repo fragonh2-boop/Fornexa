@@ -61,6 +61,11 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## DONE
 
+### 2026-09-08 — Recuperación del reviewer DeepSeek en Slack
+- **Estado:** PRS #6 Y #7 DEL REPOSITORIO DEL BOT INTEGRADAS; SHA `16fa759` DESPLEGADO Y E2E VERDE
+- **Cierre:** se corrigió la incompatibilidad entre `HEAD:` y `HEAD exacto:` y la deduplicación que confundía solicitudes humanas posteriores con respuestas del bot. El servicio usa explícitamente `deepseek-v4-pro`; mantiene el endpoint existente, los secretos enmascarados y los tres scopes mínimos de Slack sin ampliaciones. El HEAD final pasó 13/13 tests, build y `git diff --check`; Render quedó `Live` y recuperó la mención original de PR #60 hasta publicar la revisión completa en `#fornexa`.
+- **Riesgo residual:** el plan gratuito de Render puede dormir; Slack Events firmado y el sondeo cada cinco minutos mantienen la recuperación ante arranque en frío.
+
 ### 2026-09-04 — Regresión visual del logotipo de acceso
 - **Estado:** PR #49 INTEGRADO Y VERIFICADO EN PRODUCCIÓN
 - **Cierre:** Fran validó visualmente el Preview exacto; CI #191 terminó verde sobre `caea2d10f1ae0bc380cc404ae95f0c7c6c42d8c2`; PR #49 se fusionó por squash en `c450862f6262f8f3f864f2d744c20e0b1fb43b73`; el deployment productivo canónico `dpl_9HkCv3bVwypBSL3QkVtsV2GSDovH` quedó READY con alias `fornexasc.com`; `/login` responde 200 y sirve `viewBox="10 0 400 170"` con `overflow="visible"`; no hay logs runtime `error/fatal` del deployment.

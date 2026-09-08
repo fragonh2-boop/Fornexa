@@ -19,13 +19,13 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "8 sep 2026";
-export const memorandumCommitCoverage = 558;
+export const memorandumCommitCoverage = 559;
 
 export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
     title: "CMR — integridad y maquetación de impresión",
-    summary: "PR #59 ya está en producción y corrige las casillas 22-24 para usar las partes reales y las firmas canónicas por rol. Siguiente mejora en preproducción: corregir la geometría A4 del CMR, reduciendo márgenes extremos, eliminando el gran vacío inferior y anclando las firmas 22-24 cerca del final de página sin cambiar el contenido funcional.",
+    summary: "PRs #59 y #60 ya están en producción: las casillas 22-24 usan las partes reales y firmas canónicas por rol, y la geometría A4 elimina el gran vacío inferior con las firmas ancladas cerca del final. Permanece pendiente la validación visual con datos extremos para descartar recortes por nombres, direcciones o mercancías extensas.",
     priority: "Ahora",
     state: "En seguimiento",
   },
@@ -89,13 +89,22 @@ export const memorandumPending: MemorandumPending[] = [
 
 export const memorandumReleases: MemorandumRelease[] = [
   {
+    version: "2026.09.08.3",
+    date: "8 sep 2026",
+    surface: ["Plataforma"],
+    title: "Revisor DeepSeek recuperado en Slack",
+    purpose: "Restablecer la revisión independiente cuando los handoffs usan la forma operativa de HEAD exacto o una mención directa al bot.",
+    outcome: "Canal interno recuperado y verificado de extremo a extremo: el reviewer reconoce ambas formas de HEAD, distingue solicitudes humanas de respuestas propias, usa explícitamente DeepSeek V4 Pro y volvió a publicar una revisión pendiente en el canal autorizado sin ampliar permisos.",
+    status: "Canal interno",
+  },
+  {
     version: "2026.09.08.2",
     date: "8 sep 2026",
     surface: ["Web"],
     title: "CMR A4 con ocupación documental equilibrada",
     purpose: "Aprovechar correctamente el folio A4 impreso y acercar el CMR de FORNEXA a las proporciones de un documento operativo real sin copiar su estética heredada.",
-    outcome: "Corrección en preproducción: margen de impresión de 9 mm, superficie útil 192×279 mm, reparto vertical proporcional entre las casillas 1-21 y bloque de firmas 22-24 anclado al final de página. Se elimina el gran vacío inferior y se preservan QR, datos, firmas y estructura funcional existentes.",
-    status: "Preproducción",
+    outcome: "Corrección desplegada: margen de impresión de 9 mm, superficie útil 192×279 mm, reparto vertical proporcional entre las casillas 1-21 y bloque de firmas 22-24 anclado al final de página. Se elimina el gran vacío inferior y se preservan QR, datos, firmas y estructura funcional existentes.",
+    status: "Producción",
   },
   {
     version: "2026.09.08",
