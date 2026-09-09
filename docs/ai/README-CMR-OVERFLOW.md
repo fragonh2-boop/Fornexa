@@ -1,0 +1,1 @@
+Current scoped change: `fix/cmr-print-overflow-safety`. See `docs/handovers/cmr-print-overflow-safety-20260909.md`. This file is intentionally narrow and does not supersede the canonical `docs/ai/HANDOFF.md`.
