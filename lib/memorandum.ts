@@ -18,14 +18,14 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "8 sep 2026";
-export const memorandumCommitCoverage = 559;
+export const memorandumUpdatedAt = "9 sep 2026";
+export const memorandumCommitCoverage = 560;
 
 export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
     title: "CMR — integridad y maquetación de impresión",
-    summary: "PRs #59 y #60 ya están en producción: las casillas 22-24 usan las partes reales y firmas canónicas por rol, y la geometría A4 elimina el gran vacío inferior con las firmas ancladas cerca del final. Permanece pendiente la validación visual con datos extremos para descartar recortes por nombres, direcciones o mercancías extensas.",
+    summary: "PRs #59 y #60 ya están en producción. La corrección siguiente está en preproducción para eliminar el recorte silencioso de contenido extremo: conserva A4 con 192 mm de ancho y 279 mm como altura mínima, permite paginación si el documento real excede la primera hoja y evita partir internamente cabecera, filas de mercancía, ADR, firmas y footer cuando el motor de impresión lo respeta. Quedan CI/Preview, revisión independiente y evidencia visual con datos largos antes del merge.",
     priority: "Ahora",
     state: "En seguimiento",
   },
@@ -88,6 +88,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.09.09",
+    date: "9 sep 2026",
+    surface: ["Web"],
+    title: "CMR resistente a recortes por contenido extenso",
+    purpose: "Preservar la integridad del CMR impreso cuando nombres, direcciones, ADR o líneas de mercancía exceden la capacidad de la primera hoja A4.",
+    outcome: "Corrección en preproducción: se mantiene A4 portrait con margen de 9 mm y ancho útil de 192 mm, pero 279 mm pasa de límite rígido a altura mínima; el documento puede paginar sin ocultar información y los bloques documentales principales incorporan protección frente a cortes internos. Pendiente de CI, Preview, revisión independiente y evidencia visual con datos extremos.",
+    status: "Preproducción",
+  },
   {
     version: "2026.09.08.3",
     date: "8 sep 2026",
