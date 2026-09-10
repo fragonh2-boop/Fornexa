@@ -139,6 +139,7 @@ export async function POST(request: Request, context: { params: Promise<{ cmr: s
       .eq("tenant_id", authenticated.tenantId)
       .eq("party_id", contractualShipperPartyId)
       .eq("address_type", "FISCAL")
+      .eq("is_active", true)
       .maybeSingle(),
     admin.from("parties").select("id,legal_name,tax_id")
       .eq("id", effectiveCarrierPartyId).eq("tenant_id", authenticated.tenantId).maybeSingle(),
