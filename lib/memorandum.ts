@@ -32,7 +32,7 @@ export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
     title: "DeCA — motor PDF/QR y acceso público",
-    summary: "P0-A y P0-B ya están desplegados en producción: PDF DeCA nativo desde datos estructurados, QR embebido, metadatos de creación/modificación, roles regulatorios explícitos y emisión atómica de artefacto + capability. Quedan como gates separados el E2E funcional completo con datos FISCAL controlados, M8, lifecycle operativo automático y eCMR.",
+    summary: "P0-A y P0-B ya están desplegados en producción: PDF DeCA nativo desde datos estructurados, QR embebido, metadatos de creación/modificación, roles regulatorios explícitos y emisión atómica de artefacto + capability. La integración actual prepara un domicilio FISCAL canónico separado de los centros operativos y fail-closed ante duplicados, para desbloquear un E2E funcional sin inferir el domicilio legal desde recogida o entrega. Quedan como gates separados ese E2E controlado, la superficie operativa de emisión, M8, lifecycle operativo automático y eCMR.",
     priority: "Ahora",
     state: "En seguimiento",
   },

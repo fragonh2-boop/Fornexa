@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useState } from "react";
 import EntityServicesManager from "../../../../components/EntityServicesManager";
 import ClientMasterEditor from "./ClientMasterEditor";
 import CustomerSubmasters from "./CustomerSubmasters";
+import FiscalAddressEditor from "./FiscalAddressEditor";
 import OfferEmailEditor from "./OfferEmailEditor";
 import styles from "./record.module.css";
 
@@ -12,7 +13,7 @@ const nav=[["Control Tower","/dashboard"],["Decision Center","/dashboard/decisio
 
 type Item=Record<string,unknown>;
 export default function RecordEditor({module,id}:{module:string;id:string}){
- if(module==="clientes")return <div className={styles.clientStack}><ClientMasterEditor id={id}/><div className={styles.clientServices}><CustomerSubmasters id={id}/><div id="control-adr"><CustomerAdrSettings id={id}/></div><EntityServicesManager entityType="cliente" entityId={id}/></div></div>;
+ if(module==="clientes")return <div className={styles.clientStack}><ClientMasterEditor id={id}/><div className={styles.clientServices}>{id!=="nuevo"&&<FiscalAddressEditor id={id}/>}<CustomerSubmasters id={id}/><div id="control-adr"><CustomerAdrSettings id={id}/></div><EntityServicesManager entityType="cliente" entityId={id}/></div></div>;
  if(module==="ofertas-tarifas"&&id!=="nuevo")return <OfferEmailEditor id={id}/>;
  return <GenericRecordEditor module={module} id={id}/>;
 }
