@@ -19,13 +19,13 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "10 sep 2026";
-export const memorandumCommitCoverage = 562;
+export const memorandumCommitCoverage = 563;
 
 export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
-    title: "CMR — continuidad visual multipágina",
-    summary: "PRs #59, #60 y #62 ya están en producción y el recorte silencioso está cerrado. En preproducción se valida ahora una mejora separada: convertir mercancías 6-12 en tabla semántica con cabecera repetible para que cada hoja de continuación muestre el número CMR y los encabezados de columnas. Debe conservar una sola hoja cuando el contenido cabe y demostrar repetición real del thead en Chromium antes de producción; el marco físico por página queda fuera de este cambio.",
+    title: "CMR — marco físico por hoja de continuación",
+    summary: "PR #66 ya está en producción: las mercancías 6-12 usan tabla semántica con thead repetible y cada hoja que contiene mercancía repite la identidad CMR y los encabezados de columnas. La integridad multipágina y la continuidad de cabeceras quedan cerradas; como mejora visual futura y no bloqueante puede hacerse explícito el marco físico de cada hoja de continuación sin reabrir la geometría ni la paginación ya validadas.",
     priority: "Siguiente",
     state: "En seguimiento",
   },
@@ -88,6 +88,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.09.10.2",
+    date: "10 sep 2026",
+    surface: ["Web"],
+    title: "CMR multipágina con identidad y cabeceras repetidas",
+    purpose: "Hacer que las hojas de continuación del CMR mantengan contexto documental visible sin sacrificar integridad, paginación ni el caso normal de una sola hoja.",
+    outcome: "PR #66 está en producción como f7bfa5701a0b27d83cf63a77c2e036377a37b2c9. Las mercancías 6-12 usan tabla semántica con thead repetible, identidad CMR y encabezados de columna en cada hoja que contiene mercancía. CI #282 terminó success y Vercel producción dpl_6AaVKan2Qbbf7Hu6ozHRcjCGvZF3 quedó READY en el mismo SHA sirviendo fornexasc.com. La evidencia manual con Chromium 144.0.7559.96 conservó 42/42 y 80/80 líneas, soportó una fila excepcionalmente larga sin hoja vacía y mantuvo 1 página en el fixture sintético normal. El marco físico por hoja queda como mejora visual futura no bloqueante.",
+    status: "Producción",
+  },
   {
     version: "2026.09.10",
     date: "10 sep 2026",
