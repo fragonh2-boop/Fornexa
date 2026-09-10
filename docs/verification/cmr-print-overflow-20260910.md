@@ -11,7 +11,7 @@ The verification uses a controlled synthetic CMR with the same document structur
 - PR #62 merged on 2026-09-09.
 - GitHub Actions CI #253 (`34394379972`) completed successfully on exact merge SHA `5ee1966d395b6b8c3206b18bddf7c478cf2200bd`.
 - Vercel production deployment `dpl_5SCoG4J42weTaGs2QBFGA9HeZJQv` is READY on the same SHA.
-- Vercel runtime query for warning/error/fatal events over the following 24 hours returned none.
+- A Vercel runtime query over the last 24 hours returned no warning/error/fatal entries for this deployment at verification time.
 - DeepSeek reviewed the exact PR HEAD `28b54c53ff7d9a3c9e0ee409412d997936fb9c43` before merge and reported no MUST blocker; its main SHOULD was to verify actual multi-page browser output.
 
 ## Chromium print verification
