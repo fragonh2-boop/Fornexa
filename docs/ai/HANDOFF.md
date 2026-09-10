@@ -1,96 +1,80 @@
 # FORNEXA — Technical handoff
 
-This file is the portable source of truth for resuming FORNEXA work. Read it together with `docs/pending-log.md` and verify remote state before acting.
+This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-08 21:45 CEST.
+- **Updated:** 2026-09-10 09:30 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
-- **Production:** `main` at `7bf09528039588efc37f17d9859f481ee84c7e8c` (558 commits), the squash merge of PR #60. GitHub Actions CI run `34215545223` succeeded on that exact SHA. Vercel deployment `dpl_58s6fKw3x1g7MfZmxsM4hx2tjSPq` is `READY`, targets production, carries the same SHA and aliases `fornexasc.com` without error.
-- **DeCA-2:** PR #51 is integrated. Private PDF artifact intake, immutable versioning, explicit hashed public tokens, QR and a fail-closed FORNEXA resolver are deployed. The production migration list contains `20260905051522 deca_regulatory_storage`; its timestamp differs from the repository filename `20260905054500_deca_regulatory_storage.sql`, so retain it as A2 provenance work rather than rerunning it.
-- **Supabase Preview:** the check associated with current `main` reports failure, although the GitHub CI workflow itself is successful. The branch-preview integration remains unresolved; do not treat a migration-bearing preview as verified.
-- **CMR fixes:** PRs #44–#47 are merged and verified in production.
-- **Login logo:** PR #39 is merged; `lib/memorandum.ts` records the unclipped logo as Production. Do not reopen the obsolete pending entry.
-- **MMO-1:** PR #38 remains draft at `865bee04f4581bb1d64cfd1fbe06941af8cee62a`; CI #187 and canonical preview are green, and Claude reported no MUST blocker.
-- **MMO-1 gate:** provider execution is blocked until the seven server-side variables are configured only for the controlled Preview. Production must remain without the activation flag and provider keys.
-- **Supabase:** DeCA-1 foundation and T1 append-only foundations are applied. Preserve migration provenance differences under A2; do not rerun applied migrations.
+- **Production main:** `5ee1966d395b6b8c3206b18bddf7c478cf2200bd`, squash merge of PR #62.
+- **CI:** GitHub Actions run #253 (`34394379972`) completed `success` on that exact production SHA.
+- **Vercel production:** deployment `dpl_5SCoG4J42weTaGs2QBFGA9HeZJQv` is `READY`, targets production and carries the same SHA. A runtime query over the last 24 hours returned no warning/error/fatal entries for this deployment at verification time.
+- **Supabase production:** DeCA foundations/P0-A/P0-B are deployed. Preserve known migration-provenance differences under A2 and do not rerun already-applied migrations.
+- **MMO-1:** PR #38 remains draft and separate from current product delivery work.
 
-## AI review infrastructure — DeepSeek Slack bot recovered
+## CMR print integrity — PR #62 closed
 
-- **Incident and root cause:** the reviewer responded to PR #59 but ignored PR #60 because the handoff parser accepted only `HEAD:` while the operational messages used `HEAD exacto:`. A second defect treated any later message beginning with `DEEPSEEK —` as if it were a reviewer response, so a newer human request could hide an older pending review.
-- **Integrated fixes:** PR #6 of `fragonh2-boop/fornexa-ai-reviewer` was merged as `53fdc8ae52553bca759108c41bcf6f04dbd9e174`; it accepts both HEAD forms, including when preceded by a direct Slack mention, and explicitly selects `deepseek-v4-pro`. PR #7 was merged as `16fa7599efa4a0971a34296f7d35024f779e43f0`; only real review messages published by the bot now suppress pending handoffs.
-- **Slack and secrets:** Event Subscriptions remains enabled with its existing verified HTTPS endpoint and `message.channels`; the bot retains only `channels:history`, `channels:read` and `chat:write`. No scope expansion or reinstall was necessary. Required Render variables were present and remained masked; no credential value was copied into code or documentation.
-- **Verification:** final reviewer HEAD passed 13/13 tests, TypeScript build and `git diff --check`; the preceding dependency audit reported zero production vulnerabilities. Render deployment `dep-dag691m1egvs73ag26b0` is `Live` on exact SHA `16fa759`, using the explicit `deepseek-v4-pro` model and the existing DeepSeek API base URL.
-- **End to end:** on startup the deployed service recovered the original direct mention for PR #60, fetched the requested exact HEAD, completed the DeepSeek review and published the result as three bot messages in `#fornexa` at 21:40:46 CEST. Render logged both handoff detection and successful Slack publication.
-- **Remaining operational characteristic:** the free Render instance can sleep after inactivity; signed Slack Events plus the five-minute polling fallback remain the recovery path during cold starts.
+PR #62 removed the rigid print clipping introduced by the previous single-page A4 geometry. The production CSS keeps A4 portrait, 9 mm page margins and 192 mm usable width, but uses 279 mm as a minimum rather than a hard maximum and allows content to paginate.
 
-## Recently deployed work awaiting final approval
+Post-merge browser verification was completed on 2026-09-10 with system Chromium 144 using a controlled synthetic CMR, the production document structure and the exact production print CSS. No customer/production shipment data was used.
 
-### CMR print/PDF QR readiness — PR #52
+- normal fixture: 2 goods lines + 1 ADR line → exactly 1 A4 page;
+- extreme fixture: long legal names/addresses, 28 goods lines + 10 ADR lines → exactly 2 A4 pages;
+- PDF text extraction confirmed 28/28 goods markers plus ADR, boxes 13–21, signatures 22–24 and footer;
+- rendered pages showed no silent clipping or visible text overlap.
 
-- **Production defect reproduced:** authenticated CMR detail returned 200 while its QR endpoint returned 401 for an expired, non-revoked capability; the browser rendered a broken image. A current non-expiring CMR loaded the QR successfully.
-- **Root cause:** the page rendered and invoked `window.print()` without waiting for the QR resource. The QR route correctly preserves expiry/revocation fail-closed behavior and is unchanged.
-- **Prepared fix:** print/export remain disabled until `onLoad` confirms the exact QR source; automatic `?print=1` also waits. A failed QR is hidden, replaced by a neutral unavailable state and can be retried with a cache-busted source; the UI no longer claims every network/render failure means expiry. The original behavior of the `Imprimir` button remains separate from PDF-title preparation.
-- **Final code verification:** exact PR HEAD `6e9dcaa46b29db9ac5144370e63823c317dfd36b` passed 82/82 web tests, typecheck, lint without errors (seven existing warnings), production build, memorandum gate and `git diff --check`. GitHub CI run `33955568773` and both Vercel checks passed; Supabase Preview was skipped because there is no schema change.
-- **Claude convergence:** Claude independently verified the final exact HEAD and reported no MUST. The earlier SHOULD items were consumed by neutral error copy, explicit safe retry and separation of `Imprimir` from PDF-title preparation. The remaining duplicate disabled-cursor CSS rule was classified as NICE only.
-- **Codex convergence response:** agreement is complete: backend expiry/revocation remains fail-closed, frontend print/export waits for the exact QR, and the UX distinguishes unavailable state from confirmed expiry with safe retry. There is no evidence-backed objection; the duplicate cursor rule is cosmetic and non-blocking. No technical question remains open between Claude and Codex. Closure is therefore explicit and solid on implementation, deployment and screen-level production RPA; the only remaining acceptance gate is Fran's native print/PDF visual validation. The NICE cleanup can be handled separately without reopening this functional fix.
-- **Integrated and deployed:** PR #52 was squash-merged as `58513ba954f2b37e58c9987421951370e5eb3a1d`; CI run `33955972837` passed and the canonical production deployment for that exact SHA is `READY` on `fornexasc.com`.
-- **Production RPA:** a current CMR loaded a real 150×150 QR and enabled print/PDF only after load. An expired-capability fixture showed no broken image, kept both actions disabled, rendered `QR no disponible` in the document and returned to that controlled state after explicit retry. Runtime evidence contained no `error`/`fatal` entries during verification. Native browser print/PDF output is not machine-verified.
-- **Remaining gate:** Fran must visually validate the native print/PDF output. Keep this item open until that explicit approval; do not infer it from screen-level RPA.
+Evidence: `docs/verification/cmr-print-overflow-20260910.md`.
 
-## Active unintegrated work
+**Residual, non-blocking:** continuation page 2 starts directly with the goods grid and does not repeat the CMR identity/header or the goods-column headings. Track this as a separate print-continuation UX improvement; it is not a data-loss defect.
 
-### Login retry after transient client failure — PR #53
+## DeepSeek independent reviewer
 
-- **Observed:** Fran's production screenshot showed the generic client/network login error. Two same-origin login telemetry requests reached Vercel, while Supabase Auth recorded no password-token request for that interval. The public config route responds 200, the project reports healthy and the production-origin CORS preflight succeeds.
-- **Root cause confirmed in code:** `lib/supabase/client.ts` cached a rejected initialization promise indefinitely. Once config/network setup failed, every later login attempt in that tab reused the same rejection and could not recover without a reload.
-- **Prepared fix:** clear only a rejected client promise so the next submit performs a fresh load; retain successful client caching and provide an actionable, public-safe recovery message. Regression tests require two independent fetch attempts after consecutive transient failures and exactly one fetch across repeated calls after a successful load.
-- **Claude convergence:** Claude reviewed exact HEAD `0935458acb9496b5c8bd4d7a68de05d4bcd68b45`, reported **SIN MUST**, and published `respuesta_claude_pr53_login_retry_cliente_transitorio_20260905_1124` in Drive. Its single SHOULD was the missing complementary success-cache test. After that test was added, Claude rereviewed exact HEAD `eeccd500f79fde5984227d14afc24a5cddefde97`, confirmed the SHOULD consumed and again concluded **SIN MUST**. Two remaining NICE observations are non-blocking and pre-existing/scope-only.
-- **Preview evidence:** the canonical Preview and GitHub CI for exact HEAD `eeccd500f79fde5984227d14afc24a5cddefde97` passed, including both Vercel checks; Supabase Preview was correctly skipped because there is no schema change. Browser RPA loaded `/login` without console errors and an intentionally nonexistent account reached Supabase and produced the specific invalid-credentials path, rather than the generic client/network failure. Direct browser interception of `fetch` is unavailable in this RPA environment, so the same-tab transient retry itself remains verified by the behavioral test.
-- **Local verification:** 84/84 tests, typecheck, lint without errors (seven existing warnings), production webpack build and `git diff --check` pass after consuming Claude's SHOULD.
-- **State:** added to existing PR #53; local controls, two Claude reviews and Preview are green. The PR is not merged or deployed. No Supabase schema/config change is required.
-- **Next gate:** merge only with Fran's explicit authorization, verify the exact merge SHA in CI and canonical production, then run production login RPA before returning the native PDF validation to Fran.
+Reviewer repository: `fragonh2-boop/fornexa-ai-reviewer`.
+
+- PRs #6/#7 recovered operational Slack triggers and response deduplication.
+- PR #8 added explicit repository-state (`main`) reviews.
+- PR #9 added permanent Node 22 CI for tests + TypeScript build.
+- PR #10 is merged; reviewer `main` is `6461eb0a16c3b7ffbeff9f558de64ebb945f23e0` and explicitly separates MAIN and PR review protocols so narrative references to historical PRs cannot select the wrong target.
+- Reviewer remains independent/read-only for FORNEXA: no merge/deploy authority and no need to expose secrets in review requests.
+
+Operational requests should identify the target explicitly. For repository state, use explicit MAIN semantics (`MODE: MAIN`, `TARGET: main` and exact HEAD). For a PR review, use explicit PR semantics with a standalone PR number and exact HEAD.
 
 ## Current priority
 
-### DeCA — native PDF and regulatory completion
+### 1. DeCA controlled E2E
 
-Build on the deployed canonical `cmr_documents` model, `regulatory_document_artifacts`, `regulatory_document_access_tokens` and the private `regulatory-documents` bucket.
+P0-A and P0-B are already integrated/deployed. The next material gate is a controlled end-to-end DeCA issuance using safe test/non-customer CMR data with canonical FISCAL address data.
 
 Preserve these boundaries:
 
-- issued PDF artifacts are immutable and corrections create a new version;
+- issued regulatory PDF artifacts are immutable; corrections create a new version;
 - raw public tokens are never persisted, only SHA-256 hashes;
-- token resolution is server-only and tenant data never crosses boundaries;
+- public resolution remains server-side, tenant-aware and fail-closed;
 - artifact retention and public URL lifecycle remain separate;
-- public access must fail closed for missing, inactive, premature or expired tokens;
-- M8 scope/exemptions, operational `service_completed_at/public_until`, eCMR authentication/sealing and A2 provenance remain explicit pending decisions.
-- A controlled E2E with non-production/test CMR data remains required before promoting DeCA-2 in the public memorandum beyond Preproducción.
+- do not infer contractual shipper/effective carrier roles from display strings;
+- M8 remains an explicit unresolved legal/governance gate and must not be invented or silently closed;
+- eCMR authentication/sealing/jurisdiction and operational lifecycle automation remain separate follow-on work;
+- do not create a paid Supabase development/preview branch without explicit approval.
 
-## Backlog requiring Fran
+### 2. Supabase Preview / A2 provenance
 
-### MMO-1 controlled Preview execution
+Reconcile the Git-branch Preview integration and the known repository/remote migration-version provenance differences. Do not rerun migrations already applied to production.
 
-Before a single controlled run on `public_code`, configure only for Preview on branch `feat/multi-model-orchestrator`:
+### 3. CMR continuation-page polish
 
-- `FORNEXA_AI_REVIEW_ENABLED=true`
-- `OPENAI_API_KEY`, `FORNEXA_OPENAI_MODEL`
-- `ANTHROPIC_API_KEY`, `FORNEXA_ANTHROPIC_MODEL`
-- `DEEPSEEK_API_KEY`, `FORNEXA_DEEPSEEK_MODEL`
-
-After the run: inspect sanitized evidence, remove the temporary route/page/flag, rerun CI and preview, obtain final independent review, then merge only if all gates pass.
+Consider repeating document identity and goods-column headings on continuation pages and making the per-page frame visually explicit. Keep this separate from the now-closed clipping/integrity defect.
 
 ## Other open work
 
-- Reconcile and repair the failing Supabase Git branch preview; include the DeCA-2 repository/remote migration-version discrepancy in A2 provenance work and do not rerun the applied migration.
+- MMO-1 controlled Preview execution remains blocked on its dedicated, Preview-only provider configuration and must remain isolated from Production.
 - Complete TLM-1 production configuration/verification for owner allowlist and dedicated hash secret.
 - Improve recovery-password confirmation contrast.
-- Continue ADR 2025 activation, tenant autonomy, Control Tower source-of-truth, critical E2E coverage and stable Mobile distribution per `lib/memorandum.ts`.
+- Continue ADR 2025 activation, tenant autonomy, Control Tower source-of-truth, critical E2E coverage and stable Mobile distribution according to `lib/memorandum.ts`.
 
 ## Governance
 
-- GPT owns implementation; Claude reviews security-sensitive or material changes.
+- GPT owns implementation/integration work; Claude and DeepSeek provide independent review where appropriate; Fran decides ties.
 - Preserve Pedido↔Expediente 1:1 and standard Supabase migration tracking.
-- Update `lib/memorandum.ts`, this handoff and `docs/pending-log.md` with material changes.
+- Update `lib/memorandum.ts`, this handoff and `docs/pending-log.md` when material state changes.
 - Mirror material handoffs in Slack `#fornexa`.
-- Do not claim tested, merged or deployed without direct evidence.
+- Do not claim tested, merged, migrated or deployed without direct evidence.

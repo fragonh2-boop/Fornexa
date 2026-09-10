@@ -18,15 +18,15 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "9 sep 2026";
-export const memorandumCommitCoverage = 560;
+export const memorandumUpdatedAt = "10 sep 2026";
+export const memorandumCommitCoverage = 561;
 
 export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
-    title: "CMR — integridad y maquetación de impresión",
-    summary: "PRs #59 y #60 ya están en producción. La corrección siguiente está en preproducción para eliminar el recorte silencioso de contenido extremo: conserva A4 con 192 mm de ancho y 279 mm como altura mínima, permite paginación si el documento real excede la primera hoja y evita partir internamente cabecera, filas de mercancía, ADR, firmas y footer cuando el motor de impresión lo respeta. Quedan CI/Preview, revisión independiente y evidencia visual con datos largos antes del merge.",
-    priority: "Ahora",
+    title: "CMR — continuidad visual multipágina",
+    summary: "PRs #59, #60 y #62 ya están en producción y el riesgo de recorte silencioso queda cerrado: un CMR normal conserva una hoja A4 y un caso extremo verificado con Chromium pagina a dos hojas sin perder mercancía, ADR, bloques 13-21, firmas 22-24 ni footer. Como mejora visual separada, la hoja de continuación debería repetir la identidad del CMR y los encabezados de columnas de mercancía y mantener un marco de página más explícito.",
+    priority: "Siguiente",
     state: "En seguimiento",
   },
   {
@@ -94,8 +94,8 @@ export const memorandumReleases: MemorandumRelease[] = [
     surface: ["Web"],
     title: "CMR resistente a recortes por contenido extenso",
     purpose: "Preservar la integridad del CMR impreso cuando nombres, direcciones, ADR o líneas de mercancía exceden la capacidad de la primera hoja A4.",
-    outcome: "Corrección en preproducción: se mantiene A4 portrait con margen de 9 mm y ancho útil de 192 mm, pero 279 mm pasa de límite rígido a altura mínima; el documento puede paginar sin ocultar información y los bloques documentales principales incorporan protección frente a cortes internos. Pendiente de CI, Preview, revisión independiente y evidencia visual con datos extremos.",
-    status: "Preproducción",
+    outcome: "Corrección desplegada y verificada: se mantiene A4 portrait con margen de 9 mm y ancho útil de 192 mm, pero 279 mm es altura mínima y no un límite que oculte contenido. CI #253 y Vercel producción quedaron verdes en el merge SHA de PR #62; una verificación controlada con Chromium confirmó 1 página para un CMR normal y 2 páginas para un caso extremo con 28 líneas de mercancía y 10 ADR, preservando todos los bloques y firmas sin clipping visible.",
+    status: "Producción",
   },
   {
     version: "2026.09.08.3",
