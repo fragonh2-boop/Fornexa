@@ -22,9 +22,11 @@ python scripts/verify-cmr-continuation-print.py --out-dir /tmp/fornexa-cmr-print
 
 Requisitos: Chromium, Playwright Python y `pypdf`.
 
-El script falla si cambia el número de páginas esperado de los fixtures controlados, falta cualquier `MK-n`, una página con mercancía no repite identidad/encabezados o aparece una página completamente vacía. Las comparaciones de texto se hacen sin depender de mayúsculas/minúsculas para no acoplar el resultado a cómo Chromium exponga `text-transform` en la capa de texto PDF.
+El harness valida invariantes de impresión, no un número rígido de páginas para documentos extensos: exige exactamente una página al fixture normal, multipágina para los fixtures extensos, conservación de todos los `MK-n`, identidad/encabezados en toda página con mercancía y ausencia de páginas completamente vacías. Las comparaciones de texto son case-insensitive para no depender de cómo Chromium exponga `text-transform` en la capa PDF.
 
-## Entorno observado
+## Entorno y ejecución observada
+
+El harness endurecido se ejecutó manualmente el 10/09/2026 después de incorporar la comparación case-insensitive y el criterio por invariantes.
 
 - Chromium: **144.0.7559.96**, Debian GNU/Linux 13.
 - Binario: `/usr/bin/chromium`.
@@ -34,7 +36,7 @@ El script falla si cambia el número de páginas esperado de los fixtures contro
 - Filas: `break-inside: avoid` / `page-break-inside: avoid`.
 - Cabecera de mercancías: `thead` como `table-header-group`.
 
-Los SHA-256 indicados abajo identifican únicamente los PDFs de la ejecución observada el 10/09/2026. Son **informativos, no criterios de pass/fail ni hashes deterministas**: pueden variar con versión de Chromium, fuentes o metadatos sin que exista una regresión.
+Los SHA-256 siguientes identifican únicamente los PDFs de esta ejecución. Son **informativos, no criterios de pass/fail ni hashes deterministas**: pueden variar con Chromium, fuentes o metadatos sin que exista una regresión.
 
 ## Fixtures y resultados
 
@@ -42,35 +44,39 @@ Los SHA-256 indicados abajo identifican únicamente los PDFs de la ejecución ob
 
 - 2 líneas de mercancía.
 - Resultado: **1 página A4**.
-- `MK-1` y `MK-2` presentes.
-- SHA-256 informativo: `57a27cb34f1130a8000e120956a0dcac77fa74b58cc01b97b38b26fde539c102`.
+- Distribución: p1 `MK-1…2`.
+- Identidad y encabezados presentes.
+- SHA-256 informativo: `bb5713a146ba6cb9af98ba6027a0fcefa9a8c78b4be18cf94b0ed1bd313882a6`.
 
-Este resultado demuestra una sola hoja **solo para el fixture sintético**. No afirma que todo CMR real/autenticado con contenido de longitud arbitraria permanezca en una sola página; esa comprobación requiere una sesión/dato real de Preview.
+Este resultado demuestra una sola hoja **solo para el fixture sintético**. No afirma que todo CMR real/autenticado con contenido de longitud arbitraria permanezca en una sola página; esa comprobación requiere un CMR real de Preview accesible con sesión legítima.
 
 ### 42 líneas
 
-- Resultado: **3 páginas A4**.
-- Distribución: p1 `MK-1…14`; p2 `MK-15…37`; p3 `MK-38…42`.
+- Resultado observado: **3 páginas A4**.
+- Mercancías: p1 `MK-1…17`; p2 `MK-18…42`; p3 contiene bloques finales, sin mercancías.
 - **42/42** marcadores conservados.
-- Toda página con mercancía repite identidad CMR + encabezados 6–12.
-- SHA-256 informativo: `684c599831cb0e20e2278c7af78ed4c34634104e67f007e7c8cdff2fd06e65a6`.
+- Páginas 1–2 repiten identidad CMR + encabezados 6–12; p3 correctamente no repite el `thead`.
+- SHA-256 informativo: `a148d947adfd5b6ac6068b693eb60345f3d3a9dff5df3dc44fe0722170292fc4`.
 
 ### 42 líneas con descripción excepcionalmente larga
 
-- Resultado: **3 páginas A4**, sin hoja vacía.
-- Distribución: p1 `MK-1…14`; p2 `MK-15…35`; p3 `MK-36…42`.
+- Resultado observado: **3 páginas A4**, sin hoja vacía.
+- Mercancías: p1 `MK-1…17`; p2 `MK-18…38`; p3 `MK-39…42`.
 - **42/42** marcadores conservados.
+- Las tres páginas con mercancía repiten identidad + encabezados.
 - La fila larga permanece íntegra y no provoca pérdida de datos ni página vacía.
-- SHA-256 informativo: `31a802b5c5d4147cecf23593b2a54209991fc722f0d4e996ca8913d0688c4d6b`.
+- SHA-256 informativo: `5617ff8d669d8f0956b2e016a15d188a5b28c784eab65e9d260411f02b037913`.
 
 ### 80 líneas
 
-- Resultado: **5 páginas A4**.
-- Distribución: p1 `MK-1…14`; p2 `MK-15…37`; p3 `MK-38…60`; p4 `MK-61…80`; p5 contiene únicamente bloques finales.
+- Resultado observado: **4 páginas A4**.
+- Mercancías: p1 `MK-1…17`; p2 `MK-18…44`; p3 `MK-45…71`; p4 `MK-72…80`.
 - **80/80** marcadores conservados.
-- Páginas 1–4 repiten identidad + encabezados; p5 no repite el `thead` porque ya no contiene mercancía.
+- Las cuatro páginas repiten identidad CMR + encabezados 6–12.
 - Sin páginas vacías.
-- SHA-256 informativo: `1f712cf4f57e2d2129d01d301ef3effb61eeb790705ef491bb5e132057de792e`.
+- SHA-256 informativo: `c7ce02f65ca5c224dee85c49e28be32fe925e3d57693c9224b2185e4ba2dd2a0`.
+
+La paginación exacta de documentos extensos no forma parte del contrato: puede variar por versión de Chromium, fuentes o contenido. El contrato es preservar el documento, evitar hojas vacías patológicas y repetir el `thead` en cada página que continúe mercancías.
 
 ## Alcance y límites
 
@@ -80,4 +86,4 @@ No sustituye un E2E autenticado contra la ruta real de un CMR ni prueba el caso 
 
 ## Veredicto
 
-El mecanismo de tabla semántica pagina de forma controlada en los fixtures verificados y repite identidad CMR + encabezados 6–12 en cada hoja que contiene mercancía, sin pérdida de líneas ni páginas vacías en esos casos. La promoción a producción sigue condicionada a CI/Preview y revisión exact-HEAD.
+El harness endurecido pasa en Chromium 144.0.7559.96: el fixture normal conserva una hoja; los casos extensos paginan, preservan todas las líneas y repiten identidad CMR + encabezados 6–12 en cada hoja que contiene mercancía, sin páginas vacías. La promoción a producción sigue condicionada a CI/Preview y revisión exact-HEAD.
