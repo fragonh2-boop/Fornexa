@@ -81,10 +81,10 @@ begin
 
   -- Serialize all canonical-FISCAL writes for one party and verify tenant scope.
   perform 1
-  from public.parties
-  where id = p_party_id
-    and tenant_id = p_tenant_id
-    and is_customer = true
+  from public.parties as p
+  where p.id = p_party_id
+    and p.tenant_id = p_tenant_id
+    and p.is_customer = true
   for update;
 
   if not found then
@@ -93,7 +93,7 @@ begin
 
   select pa.*
   into v_active
-  from public.party_addresses pa
+  from public.party_addresses as pa
   where pa.tenant_id = p_tenant_id
     and pa.party_id = p_party_id
     and pa.address_type = 'FISCAL'
@@ -104,7 +104,7 @@ begin
 
   select pa.*
   into v_reserved
-  from public.party_addresses pa
+  from public.party_addresses as pa
   where pa.tenant_id = p_tenant_id
     and pa.party_id = p_party_id
     and pa.code = 'FISCAL'
@@ -129,7 +129,7 @@ begin
       'isActive', v_active.is_active
     );
 
-    update public.party_addresses
+    update public.party_addresses as pa
     set code = 'FISCAL',
         address_type = 'FISCAL',
         name = coalesce(nullif(btrim(p_name), ''), 'Domicilio fiscal'),
@@ -141,10 +141,10 @@ begin
         country_code = upper(btrim(p_country_code)),
         is_active = true,
         updated_at = now()
-    where id = v_active.id
-      and tenant_id = p_tenant_id
-      and party_id = p_party_id
-    returning * into v_persisted;
+    where pa.id = v_active.id
+      and pa.tenant_id = p_tenant_id
+      and pa.party_id = p_party_id
+    returning pa.* into v_persisted;
 
     v_action := 'UPDATE_FISCAL';
   elsif v_reserved.id is not null then
@@ -155,7 +155,7 @@ begin
       'isActive', v_reserved.is_active
     );
 
-    update public.party_addresses
+    update public.party_addresses as pa
     set address_type = 'FISCAL',
         name = coalesce(nullif(btrim(p_name), ''), 'Domicilio fiscal'),
         address_line1 = btrim(p_address_line1),
@@ -166,10 +166,10 @@ begin
         country_code = upper(btrim(p_country_code)),
         is_active = true,
         updated_at = now()
-    where id = v_reserved.id
-      and tenant_id = p_tenant_id
-      and party_id = p_party_id
-    returning * into v_persisted;
+    where pa.id = v_reserved.id
+      and pa.tenant_id = p_tenant_id
+      and pa.party_id = p_party_id
+    returning pa.* into v_persisted;
 
     v_action := 'UPDATE_FISCAL';
   else
