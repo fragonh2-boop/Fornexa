@@ -94,7 +94,7 @@ export const memorandumReleases: MemorandumRelease[] = [
     surface: ["Web"],
     title: "CMR multipágina con identidad y cabeceras repetidas",
     purpose: "Hacer que las hojas de continuación del CMR mantengan contexto documental visible sin sacrificar integridad, paginación ni el caso normal de una sola hoja.",
-    outcome: "PR #66 está en producción como f7bfa5701a0b27d83cf63a77c2e036377a37b2c9. Las mercancías 6-12 usan tabla semántica con thead repetible, identidad CMR y encabezados de columna en cada hoja que contiene mercancía. CI #282 terminó success y Vercel producción dpl_6AaVKan2Qbbf7Hu6ozHRcjCGvZF3 quedó READY en el mismo SHA sirviendo fornexasc.com. La evidencia manual con Chromium 144.0.7559.96 conservó 42/42 y 80/80 líneas, soportó una fila excepcionalmente larga sin hoja vacía y mantuvo 1 página en el fixture sintético normal. El marco físico por hoja queda como mejora visual futura no bloqueante.",
+    outcome: "PR #66 está en producción. Las mercancías 6-12 usan tabla semántica con thead repetible, identidad CMR y encabezados de columna en cada hoja que contiene mercancía. CI y Vercel producción quedaron verdes sobre la misma revisión y fornexasc.com sirve el cambio. La evidencia manual con Chromium 144.0.7559.96 conservó 42/42 y 80/80 líneas, soportó una fila excepcionalmente larga sin hoja vacía y mantuvo 1 página en el fixture sintético normal. El marco físico por hoja queda como mejora visual futura no bloqueante.",
     status: "Producción",
   },
   {
