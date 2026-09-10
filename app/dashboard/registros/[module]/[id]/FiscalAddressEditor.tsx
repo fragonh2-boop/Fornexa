@@ -11,7 +11,6 @@ type FiscalAddress = {
   postalCode: string;
   city: string;
   region: string;
-  subdivisionKey: string;
   countryCode: string;
 };
 
@@ -22,7 +21,6 @@ const emptyAddress: FiscalAddress = {
   postalCode: "",
   city: "",
   region: "",
-  subdivisionKey: "",
   countryCode: "ES",
 };
 
@@ -51,7 +49,6 @@ export default function FiscalAddressEditor({ id }: { id: string }) {
           postalCode: fiscal.postalCode || "",
           city: fiscal.city || "",
           region: fiscal.region || "",
-          subdivisionKey: fiscal.subdivisionKey || "",
           countryCode: fiscal.countryCode || result.item?.defaultCountryCode || "ES",
         } : { ...emptyAddress, countryCode: result.item?.defaultCountryCode || "ES" });
         setError("");
@@ -94,7 +91,7 @@ export default function FiscalAddressEditor({ id }: { id: string }) {
 
   return <section className={styles.card}>
     <h2>Domicilio fiscal / legal</h2>
-    <p>Dato canónico separado de centros de carga y descarga. DeCA y otros documentos regulatorios solo pueden usar este domicilio FISCAL; nunca se sustituye automáticamente por una dirección operativa.</p>
+    <p>Dato canónico separado de centros de carga y descarga. DeCA y otros documentos regulatorios solo pueden usar este domicilio FISCAL; nunca se sustituye automáticamente por una dirección operativa. Su edición queda limitada a OWNER y ADMIN.</p>
     {loading ? <p className={styles.message}>Cargando domicilio fiscal…</p> : <form onSubmit={save}>
       <div className={styles.grid}>
         <label>Nombre del domicilio<input value={address.name} onChange={event => update("name", event.target.value)} disabled={!canEdit}/></label>
