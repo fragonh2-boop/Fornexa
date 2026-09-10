@@ -1,58 +1,48 @@
 # FORNEXA — Pending log
 
-Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Supabase y Vercel antes de actuar.
+Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Supabase, Vercel y Slack antes de actuar. El historial detallado anterior permanece en Git; este archivo prioriza el estado operativo vigente.
 
 ## OPEN
 
-### 2026-09-05 — Login recuperable tras fallo transitorio de cliente
-- **Área:** Auth / Login / Resiliencia
-- **Estado:** CORRECCIÓN EN PR #53; CLAUDE SIN MUST Y PREVIEW VERDE; PRODUCCIÓN Y VALIDACIÓN FINAL PENDIENTES
-- **Evidencia:** la captura de Fran mostró el error genérico de cliente/red; dos eventos de intento/fallo llegaron a la telemetría HTTP, pero Supabase Auth no recibió una petición `/token`. La configuración pública responde 200, el proyecto está saludable y el preflight CORS permite el origen productivo.
-- **Causa confirmada en código:** `createClient()` conservaba una promesa rechazada, por lo que un fallo transitorio impedía que los reintentos posteriores de la misma pestaña volvieran a cargar la configuración o contactar con Auth.
-- **Solución preparada:** invalidar únicamente la promesa fallida, conservar el cliente cuando carga correctamente y ofrecer una instrucción de recuperación explícita. Los tests cubren ahora tanto el reintento tras rechazo como la conservación del singleton tras éxito.
-- **Revisión y Preview:** Claude revisó el HEAD exacto `0935458`, dictaminó SIN MUST y dejó un único SHOULD: probar el caché de éxito. Tras añadir el test complementario, rerevisó el HEAD exacto `eeccd50`, confirmó el SHOULD consumido y volvió a concluir SIN MUST. CI y ambos checks Vercel pasaron sobre ese HEAD; Supabase Preview se omitió correctamente por no haber esquema. La RPA de Preview cargó el login sin errores de consola y confirmó que una cuenta ficticia llega a Supabase y recibe el mensaje específico de credenciales inválidas.
-- **Controles locales:** 84/84 tests, typecheck, lint sin errores (siete warnings existentes), build productivo con webpack y `git diff --check` pasan tras consumir el SHOULD.
-- **Criterio de cierre:** prueba de regresión, controles completos, Claude sin MUST, Preview y producción `READY` en el SHA previsto, RPA de reintento y acceso real de Fran.
+### 2026-09-10 — CMR: continuidad visual de páginas adicionales
+- **Área:** CMR / Impresión-PDF / UX
+- **Estado:** MEJORA NO BLOQUEANTE; INTEGRIDAD DE PR #62 CERRADA
+- **Evidencia:** PR #62 está en producción como `5ee1966d395b6b8c3206b18bddf7c478cf2200bd`; CI #253 y Vercel producción están verdes. La verificación Chromium documentada en `docs/verification/cmr-print-overflow-20260910.md` produjo 1 página para el caso normal y 2 para un caso extremo, con 28/28 líneas de mercancía, ADR, bloques 13–21, firmas 22–24 y footer presentes, sin clipping visible.
+- **Mejora pendiente:** la segunda hoja continúa directamente con mercancía. Valorar repetición de identidad CMR, encabezados de columnas y marco de continuación por página, además de un futuro test browser-level estable de paginación.
+- **Criterio de cierre:** Preview/browser evidence del formato de continuación sin reabrir la corrección de integridad ya desplegada.
 
 ### 2026-09-05 — QR visible y listo antes de imprimir/exportar CMR
 - **Área:** CMR / QR / Impresión-PDF / UX
-- **Estado:** INTEGRADO Y DESPLEGADO; CI/CLAUDE/RPA DE PANTALLA VERDES; VALIDACIÓN NATIVA DE FRAN PENDIENTE
-- **Evidencia productiva:** el detalle autenticado de `CMR-E2E-MOBILE-20260819` respondió 200, pero su endpoint QR respondió 401 porque la capability expiró el 22/08; el navegador mostró una imagen rota. Un CMR con capability vigente cargó el SVG correctamente.
-- **Causa raíz:** la pantalla no esperaba `onLoad` del recurso QR antes de ejecutar `window.print()` y tampoco representaba explícitamente el rechazo 401.
-- **Solución preparada:** impresión manual y automática bloqueadas hasta carga confirmada del QR exacto; error neutral visible y sin imagen rota, con reintento explícito para fallos transitorios. No se relaja expiración, revocación, tenant isolation ni exclusión de REVIEW.
-- **Evidencia de revisión:** exact HEAD `6e9dcaa` pasó 82/82 tests, typecheck, lint sin errores (siete warnings existentes), build productivo, memorandum gate, `git diff --check`, GitHub CI y ambos checks Vercel. Claude confirmó el HEAD final sin MUST; solo dejó como NICE una duplicidad cosmética de cursor CSS.
-- **Integración y producción:** PR #52 fusionada como `58513ba`; CI `33955972837` verde y deployment productivo canónico `READY` sobre ese SHA en `fornexasc.com`. Supabase Preview se omitió correctamente porque no hubo cambio de esquema.
-- **RPA productiva:** un CMR vigente cargó QR real 150×150 y habilitó Imprimir/Exportar; una capability caducada mostró `QR no disponible`, ocultó la imagen rota, bloqueó ambas acciones y mantuvo el fallo controlado tras reintentar. Sin logs `error/fatal` observados en el deployment durante la prueba.
-- **Criterio de cierre restante:** Fran valida visualmente el PDF/diálogo nativo con QR visible. La RPA de pantalla no sustituye esta aprobación explícita.
+- **Estado:** INTEGRADO Y DESPLEGADO; VALIDACIÓN NATIVA CON QR REAL DE FRAN SIGUE SEPARADA
+- **Cierre técnico:** PR #52 está integrada y la lógica bloquea imprimir/exportar hasta que el QR exacto carga; el fallo se representa sin imagen rota y permite retry sin relajar expiración/revocación.
+- **Pendiente de aceptación:** Fran valida cuando convenga un PDF/diálogo nativo con QR real y un CMR operativo. La verificación sintética de paginación de 2026-09-10 valida layout/clipping, no sustituye esta aceptación de QR real.
 
-### 2026-09-05 — DeCA: cierre regulatorio y E2E del motor PDF/QR
+### 2026-09-05 — DeCA: E2E funcional y cierre regulatorio restante
 - **Área:** Documentación regulatoria / CMR / Acceso público
-- **Estado:** DECA-2 INTEGRADO, MIGRADO Y DESPLEGADO; CIERRE REGULATORIO/E2E PENDIENTE
-- **Evidencia integrada:** PR #51 se fusionó en `f030f234`; CI `33946697109` y el deployment productivo canónico del mismo SHA terminaron `READY`. La lista de migraciones de producción contiene `20260905051522 deca_regulatory_storage`.
-- **Base disponible:** bucket privado PDF-only de 5 MB, artefactos inmutables tenant-aware, token opaco guardado solo como SHA-256, QR a ruta FORNEXA y resolución pública fail-closed con comprobación de hash/tamaño.
-- **Acción requerida:** realizar E2E controlado usando CMR no productivo/de prueba; completar motor PDF nativo, decisión M8, lifecycle operativo y eCMR.
-- **Límites y riesgo:** no crear una segunda pila documental ni rerun de migraciones aplicadas. La marca temporal de la migración remota difiere del archivo versionado `20260905054500`; reconciliar bajo A2.
-- **Criterio de cierre:** E2E documentado, revisión regulatoria/de seguridad aplicable y provenance A2 trazable; entonces promover el estado público desde Preproducción.
+- **Estado:** P0-A Y P0-B EN PRODUCCIÓN; E2E CONTROLADO PENDIENTE
+- **Base disponible:** PDF DeCA nativo desde datos estructurados, QR embebido, metadatos PDF, roles regulatorios explícitos, artefactos privados e inmutables, emisión atómica con capability y persistencia exclusiva del SHA-256 del token.
+- **Acción requerida:** ejecutar un E2E controlado con datos de prueba/no cliente y domicilio FISCAL canónico; verificar emisión, Storage privado, artefacto/token, resolución pública, hash/tamaño, lifecycle y evidencia descargable.
+- **Límites:** M8 continúa como decisión jurídica/técnica independiente; no inferir roles desde strings CMR; no rerun de migraciones aplicadas; no crear una rama Supabase de pago sin aprobación expresa; eCMR signing/auth/jurisdiction queda como siguiente bloque separado.
+- **Criterio de cierre:** E2E documentado y revisado, con provenance A2 trazable y sin mezclar M8/eCMR como si ya estuvieran decididos.
 
 ### 2026-09-04 — MMO-1 ejecución Preview controlada
 - **Área:** IA / Orquestación / Seguridad
-- **Estado:** BACKLOG — REQUIERE INTERVENCIÓN DE FRAN
-- **Evidencia:** PR #38 draft, HEAD `865bee04f4581bb1d64cfd1fbe06941af8cee62a`, CI #187 verde, preview canónico READY y revisión Claude sin MUST.
-- **Bloqueo:** configurar las siete variables server-side exclusivamente para Preview; Production debe permanecer sin flag activo ni claves de proveedores.
-- **Después:** una ejecución sobre `public_code`, revisión de salida sanitizada, retirada de route/page/flag, nuevo CI/preview, revisión final y merge condicionado.
+- **Estado:** BACKLOG — REQUIERE CONFIGURACIÓN PREVIEW AISLADA
+- **Evidencia:** PR #38 sigue draft y separada del flujo productivo actual.
+- **Bloqueo:** configurar sus variables server-side exclusivamente para Preview; Production debe permanecer sin flag activo ni claves de proveedores.
+- **Después:** una ejecución sobre `public_code`, revisión de salida sanitizada, retirada de route/page/flag temporal, nuevo CI/Preview, revisión final y merge condicionado.
 
 ### 2026-09-01 — TLM-1 telemetría privada de plataforma
 - **Área:** Plataforma / Observabilidad / Seguridad
 - **Estado:** CANAL INTERNO; CONFIGURACIÓN Y VERIFICACIÓN FINAL PENDIENTES
-- **Decisión:** analítica general de `fornexasc.com`, esquema separado, OWNER + allowlist server-side, sin DOM replay ni secretos en cliente.
-- **Acción requerida:** configurar/verificar allowlist y hash secret, validar captura real y confirmar 404 para usuarios no autorizados.
-- **Privacidad:** IP en claro 7 días; eventos/metadatos 90 días; sin contraseñas, tokens, payloads arbitrarios ni query strings.
+- **Acción requerida:** configurar/verificar allowlist OWNER y hash secret dedicado, validar captura real y confirmar fail-closed para usuarios no autorizados.
+- **Privacidad:** mantener exclusión de contraseñas, tokens, payloads arbitrarios y query strings.
 
-### 2026-08-27 — Integración de ramas Supabase en estado fallido
+### 2026-08-27 — Integración de ramas Supabase / provenance A2
 - **Área:** Plataforma / CI / Supabase Preview
-- **Estado:** PENDIENTE DE DIAGNÓSTICO Y CORRECCIÓN
-- **Evidencia:** la comprobación Supabase Preview de `main` en `f030f234` sigue fallando, mientras que el workflow CI de GitHub del mismo SHA terminó verde. Producción está sana y registra `20260905051522 deca_regulatory_storage`, con timestamp distinto del archivo versionado DeCA-2.
-- **Criterio de cierre:** preview Supabase con migración real aprobada y provenance A2 reconciliada, sin alterar ni rerun de producción.
+- **Estado:** PENDIENTE DE RECONCILIACIÓN
+- **Acción requerida:** reparar/verificar Supabase Git branch Preview con una migración real segura y reconciliar diferencias de versiones/timestamps entre repositorio y remoto bajo A2.
+- **Límite:** no alterar ni rerun de migraciones ya aplicadas en producción.
 
 ### 2026-08-20 — Contraste de recuperación de contraseña
 - **Área:** Auth / Login
@@ -61,18 +51,36 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## DONE
 
+### 2026-09-10 — CMR sin clipping silencioso en contenido extremo
+- **Estado:** PR #62 INTEGRADA, DESPLEGADA Y VERIFICADA
+- **Cierre:** merge SHA `5ee1966d395b6b8c3206b18bddf7c478cf2200bd`; GitHub CI #253 `success`; Vercel producción `dpl_5SCoG4J42weTaGs2QBFGA9HeZJQv` READY en el mismo SHA; sin warning/error/fatal en la ventana runtime comprobada. Chromium confirmó 1 página normal y 2 páginas extremas sin pérdida de los 28 goods, ADR, bloques inferiores, firmas o footer. La continuidad visual de la página 2 se mantiene como mejora separada.
+
+### 2026-09-09 — Reviewer DeepSeek: protocolo MAIN vs PR
+- **Estado:** PRS #8, #9 Y #10 DEL REPOSITORIO DEL REVIEWER INTEGRADAS
+- **Cierre:** el reviewer admite revisiones explícitas de estado de repositorio y separa MAIN de PR; `MODE: MAIN`/`TARGET: main` no puede quedar secuestrado por referencias narrativas a PR históricas. El reviewer `main` está en `6461eb0a16c3b7ffbeff9f558de64ebb945f23e0`. Sigue siendo independiente/read-only para FORNEXA.
+
 ### 2026-09-08 — Recuperación del reviewer DeepSeek en Slack
-- **Estado:** PRS #6 Y #7 DEL REPOSITORIO DEL BOT INTEGRADAS; SHA `16fa759` DESPLEGADO Y E2E VERDE
-- **Cierre:** se corrigió la incompatibilidad entre `HEAD:` y `HEAD exacto:` y la deduplicación que confundía solicitudes humanas posteriores con respuestas del bot. El servicio usa explícitamente `deepseek-v4-pro`; mantiene el endpoint existente, los secretos enmascarados y los tres scopes mínimos de Slack sin ampliaciones. El HEAD final pasó 13/13 tests, build y `git diff --check`; Render quedó `Live` y recuperó la mención original de PR #60 hasta publicar la revisión completa en `#fornexa`.
-- **Riesgo residual:** el plan gratuito de Render puede dormir; Slack Events firmado y el sondeo cada cinco minutos mantienen la recuperación ante arranque en frío.
+- **Estado:** PRS #6 Y #7 DEL REPOSITORIO DEL BOT INTEGRADAS
+- **Cierre:** se corrigieron `HEAD:`/`HEAD exacto:` y la deduplicación que confundía solicitudes humanas posteriores con respuestas del bot; el servicio usa explícitamente DeepSeek V4 Pro sin ampliar permisos.
+
+### 2026-09-08 — CMR firmas y geometría A4
+- **Estado:** PRS #59 Y #60 INTEGRADAS Y DESPLEGADAS
+- **Cierre:** firmas 22–24 vinculadas a partes/evidencias reales y aprovechamiento de la página A4 corregido. PR #62 añadió después la protección de paginación para contenido extremo.
+
+### 2026-09-07 — DeCA P0-A / P0-B
+- **Estado:** INTEGRADO Y DESPLEGADO
+- **Cierre técnico:** lifecycle mínimo público corregido y generador PDF DeCA nativo/emisión atómica incorporados. El E2E funcional completo, M8, lifecycle automático y eCMR permanecen como gates separados.
+
+### 2026-09-05 — Login recuperable tras fallo transitorio de cliente
+- **Estado:** PR #53 INTEGRADA EN `21fe9819b1d85c9f3b2567d570b41ebd2651b020`; PRESENTE EN PRODUCCIÓN ACTUAL
+- **Cierre:** una inicialización Supabase cliente rechazada ya no queda cacheada para toda la pestaña; un intento posterior vuelve a cargar configuración/red y los tests cubren tanto recuperación tras fallo como conservación del singleton tras éxito.
 
 ### 2026-09-04 — Regresión visual del logotipo de acceso
-- **Estado:** PR #49 INTEGRADO Y VERIFICADO EN PRODUCCIÓN
-- **Cierre:** Fran validó visualmente el Preview exacto; CI #191 terminó verde sobre `caea2d10f1ae0bc380cc404ae95f0c7c6c42d8c2`; PR #49 se fusionó por squash en `c450862f6262f8f3f864f2d744c20e0b1fb43b73`; el deployment productivo canónico `dpl_9HkCv3bVwypBSL3QkVtsV2GSDovH` quedó READY con alias `fornexasc.com`; `/login` responde 200 y sirve `viewBox="10 0 400 170"` con `overflow="visible"`; no hay logs runtime `error/fatal` del deployment.
-- **Control permanente:** `docs/ux/UX_AUDIT_PROTOCOL.md` exige evidencia visual desplegada para cerrar cambios de layout, tipografía, SVG, responsive o impresión; CI/source tests protegen invariantes, pero no sustituyen la comprobación visual.
+- **Estado:** INTEGRADA Y VERIFICADA EN PRODUCCIÓN
+- **Cierre:** viewport/overflow del SVG corregido y protocolo UX reforzado para exigir evidencia visual desplegada en cambios de layout, SVG, responsive o impresión.
 
 ### 2026-09-03 — CMR interno, QR e impresión
-- **Estado:** PRs #44–#47 integrados y verificados en producción.
+- **Estado:** PRS #44–#47 INTEGRADAS Y VERIFICADAS EN PRODUCCIÓN
 - **Cierre:** acceso tenant-aware, QR interno seguro y exportación A4 sin chrome del dashboard.
 
 ### 2026-09-03 — DeCA-1 fundación documental
@@ -82,15 +90,3 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 ### 2026-09-03 — T1 histórico operativo append-only
 - **Estado:** IMPLEMENTADO, MIGRADO Y DESPLEGADO
 - **Cierre:** eventos solo lectura/inserción para roles de aplicación; correcciones mediante eventos compensatorios.
-
-### 2026-09-01 — Logotipo de acceso sin recortes (wrapper)
-- **Estado:** PR #39 IMPLEMENTADO Y DESPLEGADO EN PRODUCCIÓN
-- **Cierre:** se eliminó el clipping heredado del wrapper y se preservó la proporción natural; la regresión posterior del glifo `A` causada por el viewport interno del SVG se trató como un defecto nuevo y quedó cerrada posteriormente por PR #49.
-
-### 2026-08-25 — Maestro mundial de países y subdivisiones
-- **Estado:** IMPLEMENTADO, MIGRADO Y DESPLEGADO
-- **Cierre:** catálogo ISO mundial, subdivisiones y validación postal fiable.
-
-### 2026-08-25 — Maestro de clientes y submaestros persistentes
-- **Estado:** IMPLEMENTADO Y DESPLEGADO
-- **Cierre:** datos fiscales, contactos, servicios, bloqueos, direcciones y tarifas versionadas con aislamiento tenant.
