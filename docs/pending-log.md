@@ -15,12 +15,12 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 - **Límites:** M8 sigue separado; no inferir roles desde strings; eCMR signing/auth/jurisdiction y lifecycle automático siguen como bloques distintos.
 - **Criterio de cierre:** E2E HTTP autenticado documentado con trazabilidad completa y sin mutar credenciales personales.
 
-### 2026-09-10 — CMR: continuidad visual de páginas adicionales
+### 2026-09-10 — CMR: marco físico de hojas de continuación
 - **Área:** CMR / Impresión-PDF / UX
-- **Estado:** MEJORA NO BLOQUEANTE; INTEGRIDAD DE PR #62 CERRADA
-- **Evidencia:** PR #62 está en producción como `5ee1966d395b6b8c3206b18bddf7c478cf2200bd`; CI #253 y Vercel producción están verdes. La verificación Chromium documentada en `docs/verification/cmr-print-overflow-20260910.md` produjo 1 página para el caso normal y 2 para un caso extremo, con 28/28 líneas de mercancía, ADR, bloques 13–21, firmas 22–24 y footer presentes, sin clipping visible.
-- **Mejora pendiente:** la segunda hoja continúa directamente con mercancía. Valorar repetición de identidad CMR, encabezados de columnas y marco de continuación por página, además de un futuro test browser-level estable de paginación.
-- **Criterio de cierre:** Preview/browser evidence del formato de continuación sin reabrir la corrección de integridad ya desplegada.
+- **Estado:** MEJORA VISUAL OPCIONAL; CONTINUIDAD E INTEGRIDAD CERRADAS
+- **Base productiva:** PR #66 está en producción como `f7bfa5701a0b27d83cf63a77c2e036377a37b2c9`; CI #282 `success`; Vercel producción `dpl_6AaVKan2Qbbf7Hu6ozHRcjCGvZF3` READY en el mismo SHA. La identidad CMR y los encabezados 6–12 ya se repiten en cada hoja con mercancía.
+- **Mejora pendiente:** valorar un marco físico explícito por cada hoja de continuación. Debe tratarse como refinamiento cosmético independiente, sin reabrir no-clipping, integridad, repetición de `thead` ni el contrato A4 ya desplegado.
+- **Criterio de cierre:** evidencia visual en Preview que confirme el marco por hoja sin alterar la paginación validada.
 
 ### 2026-09-05 — QR visible y listo antes de imprimir/exportar CMR
 - **Área:** CMR / QR / Impresión-PDF / UX
@@ -54,13 +54,17 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## DONE
 
+### 2026-09-10 — CMR: identidad y cabeceras repetidas en hojas de continuación
+- **Estado:** PR #66 INTEGRADA, DESPLEGADA Y VERIFICADA
+- **Cierre:** PR #66 se fusionó por squash en `f7bfa5701a0b27d83cf63a77c2e036377a37b2c9`; GitHub CI #282 (`34475309230`) terminó `success`; Vercel producción `dpl_6AaVKan2Qbbf7Hu6ozHRcjCGvZF3` quedó READY en el mismo SHA, sirve `fornexasc.com` y la consulta runtime no devolvió warning/error/fatal en la ventana comprobada. Las mercancías 6–12 usan tabla semántica con `thead` repetible, identidad CMR y encabezados de columna en cada hoja que contiene mercancía. El harness manual versionado se ejecutó con Chromium 144.0.7559.96: normal 2 líneas→1 página; 42→3 páginas/42 de 42; 42 con fila larga→3 páginas/42 de 42 sin hoja vacía; 80→4 páginas/80 de 80. DeepSeek revisó el HEAD final `c7a203853f319df637cc3aa14577e9a01aa9cac3` con MUST ninguno. Claude no respondió al handoff exact-HEAD antes del merge; bajo instrucción de Fran se registra como excepción de gobernanza y no como aprobación Claude. El marco físico por hoja permanece como mejora cosmética separada.
+
 ### 2026-09-10 — Domicilio FISCAL canónico para documentación regulatoria
 - **Estado:** PR #64 INTEGRADA, MIGRADA Y DESPLEGADA
 - **Cierre:** la migración `canonical_fiscal_address` se aplicó primero en Supabase producción; smoke posterior confirmó índice/constraint/RPC, `service_role` con EXECUTE y `authenticated/anon` sin EXECUTE, sin crear filas FISCAL. PR #64 se fusionó después por squash en `e594b2d0ca40105c3d0c5ce41e735ddf98b21e79`; CI #270 terminó `success`; Vercel producción `dpl_5rMsn1b39JA4GiefVjHPZivvNEpG` quedó READY en el mismo SHA y sin warning/error/fatal en la ventana comprobada. DeepSeek cerró sus MUST sobre el HEAD final de PR; el handoff Claude exact-head no respondió antes del rollout y Fran autorizó explícitamente continuar, por lo que se registra como excepción de gobernanza y no como aprobación Claude.
 
 ### 2026-09-10 — CMR sin clipping silencioso en contenido extremo
 - **Estado:** PR #62 INTEGRADA, DESPLEGADA Y VERIFICADA
-- **Cierre:** merge SHA `5ee1966d395b6b8c3206b18bddf7c478cf2200bd`; GitHub CI #253 `success`; Vercel producción `dpl_5SCoG4J42weTaGs2QBFGA9HeZJQv` READY en el mismo SHA; sin warning/error/fatal en la ventana runtime comprobada. Chromium confirmó 1 página normal y 2 páginas extremas sin pérdida de los 28 goods, ADR, bloques inferiores, firmas o footer. La continuidad visual de la página 2 se mantiene como mejora separada.
+- **Cierre:** merge SHA `5ee1966d395b6b8c3206b18bddf7c478cf2200bd`; GitHub CI #253 `success`; Vercel producción `dpl_5SCoG4J42weTaGs2QBFGA9HeZJQv` READY en el mismo SHA; sin warning/error/fatal en la ventana runtime comprobada. Chromium confirmó 1 página normal y 2 páginas extremas sin pérdida de los 28 goods, ADR, bloques inferiores, firmas o footer. La continuidad visual de identidad/cabeceras fue cerrada posteriormente por PR #66.
 
 ### 2026-09-09 — Reviewer DeepSeek: protocolo MAIN vs PR
 - **Estado:** PRS #8, #9 Y #10 DEL REPOSITORIO DEL REVIEWER INTEGRADAS
@@ -68,7 +72,7 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ### 2026-09-08 — Recuperación del reviewer DeepSeek en Slack
 - **Estado:** PRS #6 Y #7 DEL REPOSITORIO DEL BOT INTEGRADAS
-- **Cierre:** se corrigieron `HEAD:`/`HEAD exacto:` y la deduplicación que confundía solicitudes humanas posteriores con respuestas del bot; el servicio usa explícitamente DeepSeek V4 Pro sin ampliar permisos.
+- **Cierre:** se corrigieron `HEAD:`/`HEAD exacto:` y la deduplicación que confundía solicitudes humanas posteriores con respuestas propias; el servicio usa explícitamente DeepSeek V4 Pro sin ampliar permisos.
 
 ### 2026-09-08 — CMR firmas y geometría A4
 - **Estado:** PRS #59 Y #60 INTEGRADAS Y DESPLEGADAS
