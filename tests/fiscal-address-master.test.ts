@@ -24,13 +24,14 @@ test("fiscal address API is tenant-aware and writes through the atomic RPC", () 
   assert.doesNotMatch(route, /from\("audit_events"\)\.insert/);
 });
 
-test("canonical FISCAL migration enforces uniqueness, reserved code and atomic audit", () => {
+test("canonical FISCAL migration enforces uniqueness, canonical code and atomic audit", () => {
   const migration = read("../supabase/migrations/20260910084703_canonical_fiscal_address.sql");
 
   assert.match(migration, /create unique index if not exists party_addresses_one_active_fiscal_per_party_idx/);
   assert.match(migration, /where address_type = 'FISCAL' and is_active/);
   assert.match(migration, /party_addresses_reserved_fiscal_code_check/);
-  assert.match(migration, /check \(code is distinct from 'FISCAL' or address_type = 'FISCAL'\)/);
+  assert.match(migration, /where \(code is not distinct from 'FISCAL'\) <> \(address_type = 'FISCAL'\)/);
+  assert.match(migration, /check \(\(code is not distinct from 'FISCAL'\) = \(address_type = 'FISCAL'\)\)/);
   assert.match(migration, /create or replace function public\.fornexa_upsert_canonical_fiscal_address/);
   assert.match(migration, /security invoker/);
   assert.match(migration, /for update/);
