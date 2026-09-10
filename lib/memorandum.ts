@@ -25,7 +25,7 @@ export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
     title: "CMR — continuidad visual multipágina",
-    summary: "PRs #59, #60 y #62 ya están en producción y el riesgo de recorte silencioso queda cerrado: un CMR normal conserva una hoja A4 y un caso extremo verificado con Chromium pagina a dos hojas sin perder mercancía, ADR, bloques 13-21, firmas 22-24 ni footer. Como mejora visual separada, la hoja de continuación debería repetir la identidad del CMR y los encabezados de columnas de mercancía y mantener un marco de página más explícito.",
+    summary: "PRs #59, #60 y #62 ya están en producción y el recorte silencioso está cerrado. En preproducción se valida ahora una mejora separada: convertir mercancías 6-12 en tabla semántica con cabecera repetible para que cada hoja de continuación muestre el número CMR y los encabezados de columnas. Debe conservar una sola hoja cuando el contenido cabe y demostrar repetición real del thead en Chromium antes de producción; el marco físico por página queda fuera de este cambio.",
     priority: "Siguiente",
     state: "En seguimiento",
   },

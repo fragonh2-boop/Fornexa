@@ -46,6 +46,16 @@ test("CMR print geometry fills one A4 page when content fits and never clips ove
   assert.match(styles, /@media print\{[\s\S]*?\.signatures\{[^}]*break-inside:avoid;page-break-inside:avoid/);
 });
 
+test("CMR goods use a repeatable table header with document identity on continuation pages", () => {
+  assert.ok(page.includes('<table className={styles.goods}><thead>'));
+  assert.ok(page.includes('<tr className={styles.goodsIdentity}><th scope="colgroup" colSpan={7}>CMR {cmr} · Mercancías</th></tr>'));
+  assert.ok(page.includes('<tr className={styles.goodsHead}><th scope="col">6 Marcas y números</th>'));
+  assert.ok(page.includes('<tbody>{doc.goodsLines.map((line,index)=><tr className={styles.goodsRow}'));
+  assert.match(styles, /@media print\{[\s\S]*?\.goods thead\{display:table-header-group\}/);
+  assert.match(styles, /@media print\{[\s\S]*?\.goodsIdentity\{display:table-row\}/);
+  assert.match(styles, /\.goods\{[^}]*table-layout:fixed/);
+});
+
 test("CMR print geometry keeps the balanced layout and anchors signatures near the bottom", () => {
   assert.match(styles, /@media print\{[\s\S]*?\.gridTwo\{[^}]*flex:5 1 0;grid-auto-rows:minmax\(18mm,1fr\)/);
   assert.match(styles, /@media print\{[\s\S]*?\.gridTwoBottom\{[^}]*flex:2 1 0;grid-auto-rows:minmax\(18mm,1fr\)/);
