@@ -18,10 +18,9 @@ begin
   if exists (
     select 1
     from public.party_addresses
-    where code = 'FISCAL'
-      and address_type <> 'FISCAL'
+    where (code is not distinct from 'FISCAL') <> (address_type = 'FISCAL')
   ) then
-    raise exception 'Reserved FISCAL code is already used by a non-FISCAL address';
+    raise exception 'Canonical FISCAL code and address type must be reconciled before migration';
   end if;
 end
 $$;
@@ -32,7 +31,7 @@ create unique index if not exists party_addresses_one_active_fiscal_per_party_id
 
 alter table public.party_addresses
   add constraint party_addresses_reserved_fiscal_code_check
-  check (code is distinct from 'FISCAL' or address_type = 'FISCAL');
+  check ((code is not distinct from 'FISCAL') = (address_type = 'FISCAL'));
 
 create or replace function public.fornexa_upsert_canonical_fiscal_address(
   p_tenant_id uuid,
