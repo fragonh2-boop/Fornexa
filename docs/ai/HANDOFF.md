@@ -4,13 +4,33 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-10 09:30 CEST.
+- **Updated:** 2026-09-10 11:50 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
-- **Production main:** `5ee1966d395b6b8c3206b18bddf7c478cf2200bd`, squash merge of PR #62.
-- **CI:** GitHub Actions run #253 (`34394379972`) completed `success` on that exact production SHA.
-- **Vercel production:** deployment `dpl_5SCoG4J42weTaGs2QBFGA9HeZJQv` is `READY`, targets production and carries the same SHA. A runtime query over the last 24 hours returned no warning/error/fatal entries for this deployment at verification time.
-- **Supabase production:** DeCA foundations/P0-A/P0-B are deployed. Preserve known migration-provenance differences under A2 and do not rerun already-applied migrations.
+- **Production main:** `e594b2d0ca40105c3d0c5ce41e735ddf98b21e79`, squash merge of PR #64.
+- **CI:** GitHub Actions run #270 (`34462094053`) completed `success` on that exact production SHA.
+- **Vercel production:** deployment `dpl_5rMsn1b39JA4GiefVjHPZivvNEpG` is `READY`, targets production, carries the same SHA and serves `fornexasc.com`. A runtime query on the deployment returned no warning/error/fatal entries at verification time.
+- **Supabase production:** DeCA foundations/P0-A/P0-B and the canonical FISCAL-address migration `canonical_fiscal_address` are deployed. The new FISCAL partial unique index, bidirectional FISCAL code/type constraint and service-role-only RPC are present. Immediately after rollout there were 0 FISCAL rows, 0 regulatory artifacts and 0 regulatory access tokens, confirming no synthetic business/regulatory data was created by the migration.
 - **MMO-1:** PR #38 remains draft and separate from current product delivery work.
+
+## Canonical FISCAL domicile — PR #64 closed in production
+
+PR #64 added a canonical legal/fiscal domicile separate from operational pickup/delivery centers so DeCA does not infer a contractual shipper domicile from operational addresses.
+
+Production rollout was deliberately DB-first: the additive/fail-closed migration was applied before merging the API, then schema/privilege smoke checks passed, PR #64 was squash-merged and the exact main SHA completed CI and Vercel production successfully.
+
+Verified production invariants:
+
+- `code='FISCAL'` if and only if `address_type='FISCAL'`;
+- maximum one active FISCAL address per `(tenant_id, party_id)`;
+- the pre-existing UNIQUE `(tenant_id, party_id, code) NULLS NOT DISTINCT` prevents duplicate canonical FISCAL codes per party;
+- writes serialize per party through `FOR UPDATE` and address mutation + audit event share one database transaction;
+- RPC is `SECURITY INVOKER`, executable by `service_role`, not by `authenticated` or `anon`;
+- the Web API permits FISCAL edits only to OWNER/ADMIN;
+- native DeCA lookup requires the explicitly selected address to be both `FISCAL` and active; no fallback to an operational address exists.
+
+Pre-merge transactional evidence, including the PL/pgSQL ambiguity found and fixed during real execution, remains in `docs/verification/canonical-fiscal-address-20260910.md`.
+
+**Review state:** DeepSeek reviewed final PR HEAD `89b07574e4af2029288abebec59c71f39256891d` and closed all MUST findings. The exact-HEAD Claude handoff did not return before rollout; Fran explicitly instructed GPT to continue, so this is recorded as a governance exception rather than a fabricated Claude approval.
 
 ## CMR print integrity — PR #62 closed
 
@@ -41,9 +61,15 @@ Operational requests should identify the target explicitly. For repository state
 
 ## Current priority
 
-### 1. DeCA controlled E2E
+### 1. DeCA authenticated controlled E2E
 
-P0-A and P0-B are already integrated/deployed. The next material gate is a controlled end-to-end DeCA issuance using safe test/non-customer CMR data with canonical FISCAL address data.
+P0-A, P0-B and the canonical FISCAL source-data foundation are now in production. The remaining material gate is an authenticated OWNER/ADMIN end-to-end DeCA issuance using an isolated, explicitly synthetic canonical CMR fixture.
+
+No suitable existing CMR can be reused: the legacy `CMR-E2E-MOBILE-20260819` lacks canonical sender/carrier party relationships and vehicle data, and production currently has no CMR with both canonical sender and carrier party IDs. Do not infer these roles from display strings or retrofit an operational CMR merely to make the test pass.
+
+The current automation environment does not possess a legitimate FORNEXA Web user session. The normal login path is email + password; the first-access/recovery paths create or change a password. Do not reset Fran's credentials, reuse secrets or fabricate an auth user just to automate this gate.
+
+When a legitimate OWNER/ADMIN session is available, execute the E2E through the production HTTP route and verify HTTP 201, native PDF, Storage object, artifact/version/hash/size, capability token hashing, public unauthenticated PDF resolution, downloaded-PDF hash and lifecycle semantics.
 
 Preserve these boundaries:
 
