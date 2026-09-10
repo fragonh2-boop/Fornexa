@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "10 sep 2026";
-export const memorandumCommitCoverage = 561;
+export const memorandumCommitCoverage = 562;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -32,7 +32,7 @@ export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
     title: "DeCA — motor PDF/QR y acceso público",
-    summary: "P0-A y P0-B ya están desplegados en producción: PDF DeCA nativo desde datos estructurados, QR embebido, metadatos de creación/modificación, roles regulatorios explícitos y emisión atómica de artefacto + capability. La integración actual prepara un domicilio FISCAL canónico separado de los centros operativos y fail-closed ante duplicados, para desbloquear un E2E funcional sin inferir el domicilio legal desde recogida o entrega. Quedan como gates separados ese E2E controlado, la superficie operativa de emisión, M8, lifecycle operativo automático y eCMR.",
+    summary: "P0-A, P0-B y el domicilio FISCAL canónico ya están desplegados en producción. La fuente legal queda separada de los centros operativos, con unicidad y auditoría transaccional, edición OWNER/ADMIN y DeCA fail-closed sobre una dirección FISCAL activa seleccionada explícitamente. El siguiente gate es el E2E HTTP autenticado con un fixture CMR sintético completo; debe ejecutarse con una sesión OWNER/ADMIN legítima, sin resetear credenciales ni inferir roles desde strings. La superficie operativa de emisión, M8, lifecycle operativo automático y eCMR siguen separados.",
     priority: "Ahora",
     state: "En seguimiento",
   },
@@ -88,6 +88,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.09.10",
+    date: "10 sep 2026",
+    surface: ["Web", "Plataforma"],
+    title: "Domicilio FISCAL canónico para documentación regulatoria",
+    purpose: "Separar el domicilio legal del cliente de sus centros operativos y evitar que DeCA infiera datos jurídicos desde recogidas o entregas.",
+    outcome: "PR #64 y la migración canonical_fiscal_address están en producción mediante rollout DB-first. El modelo impone FISCAL canónico único por empresa, auditoría transaccional y permisos OWNER/ADMIN; la emisión DeCA exige una dirección FISCAL activa seleccionada explícitamente. CI #270 y Vercel producción quedaron verdes en el mismo SHA y la migración no creó datos FISCAL ni artefactos regulatorios por sí sola. El E2E HTTP autenticado con fixture sintético completo permanece como gate separado.",
+    status: "Producción",
+  },
   {
     version: "2026.09.09",
     date: "9 sep 2026",
