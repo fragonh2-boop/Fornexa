@@ -4,6 +4,17 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-09-10 — DeCA: E2E autenticado sobre domicilio FISCAL canónico
+- **Área:** Documentación regulatoria / CMR / Acceso público / Auth
+- **Estado:** INFRAESTRUCTURA FISCAL EN PRODUCCIÓN; POST AUTENTICADO CONTROLADO PENDIENTE
+- **Base productiva:** PR #64 está fusionada en `e594b2d0ca40105c3d0c5ce41e735ddf98b21e79`; CI #270 `success`; Vercel producción `dpl_5rMsn1b39JA4GiefVjHPZivvNEpG` READY en el mismo SHA. La migración `canonical_fiscal_address` se aplicó DB-first y el smoke confirmó índice parcial FISCAL, constraint bidireccional, RPC disponible solo para `service_role`, y 0 filas FISCAL creadas accidentalmente.
+- **Evidencia previa:** `docs/verification/canonical-fiscal-address-20260910.md` documenta ejecución real `BEGIN…ROLLBACK` de la RPC create+update con 1 FISCAL canónico/activo, 2 audit_events y rollback completo.
+- **Bloqueo actual:** el endpoint nativo DeCA exige una sesión FORNEXA real OWNER/ADMIN. El entorno automatizado no dispone de una sesión Web legítima; el login normal es email+contraseña y los flujos de primera activación/recuperación crearían o cambiarían contraseña. No resetear credenciales, no reutilizar secretos y no fabricar usuarios para hacer pasar el gate.
+- **Fixture:** no reutilizar `CMR-E2E-MOBILE-20260819`: carece de relaciones canónicas sender/carrier y de datos de vehículo. Producción no contiene actualmente ningún CMR con sender_party_id y carrier_party_id canónicos simultáneamente. El E2E debe usar un fixture explícitamente sintético y aislado.
+- **Acción requerida:** con una sesión OWNER/ADMIN legítima, ejecutar POST real a la ruta productiva y verificar 201, PDF nativo, Storage privado, artifact/version/hash/size, token público almacenado solo como SHA-256, resolución pública sin credenciales, hash del PDF descargado y lifecycle.
+- **Límites:** M8 sigue separado; no inferir roles desde strings; eCMR signing/auth/jurisdiction y lifecycle automático siguen como bloques distintos.
+- **Criterio de cierre:** E2E HTTP autenticado documentado con trazabilidad completa y sin mutar credenciales personales.
+
 ### 2026-09-10 — CMR: continuidad visual de páginas adicionales
 - **Área:** CMR / Impresión-PDF / UX
 - **Estado:** MEJORA NO BLOQUEANTE; INTEGRIDAD DE PR #62 CERRADA
@@ -16,14 +27,6 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 - **Estado:** INTEGRADO Y DESPLEGADO; VALIDACIÓN NATIVA CON QR REAL DE FRAN SIGUE SEPARADA
 - **Cierre técnico:** PR #52 está integrada y la lógica bloquea imprimir/exportar hasta que el QR exacto carga; el fallo se representa sin imagen rota y permite retry sin relajar expiración/revocación.
 - **Pendiente de aceptación:** Fran valida cuando convenga un PDF/diálogo nativo con QR real y un CMR operativo. La verificación sintética de paginación de 2026-09-10 valida layout/clipping, no sustituye esta aceptación de QR real.
-
-### 2026-09-05 — DeCA: E2E funcional y cierre regulatorio restante
-- **Área:** Documentación regulatoria / CMR / Acceso público
-- **Estado:** P0-A Y P0-B EN PRODUCCIÓN; E2E CONTROLADO PENDIENTE
-- **Base disponible:** PDF DeCA nativo desde datos estructurados, QR embebido, metadatos PDF, roles regulatorios explícitos, artefactos privados e inmutables, emisión atómica con capability y persistencia exclusiva del SHA-256 del token.
-- **Acción requerida:** ejecutar un E2E controlado con datos de prueba/no cliente y domicilio FISCAL canónico; verificar emisión, Storage privado, artefacto/token, resolución pública, hash/tamaño, lifecycle y evidencia descargable.
-- **Límites:** M8 continúa como decisión jurídica/técnica independiente; no inferir roles desde strings CMR; no rerun de migraciones aplicadas; no crear una rama Supabase de pago sin aprobación expresa; eCMR signing/auth/jurisdiction queda como siguiente bloque separado.
-- **Criterio de cierre:** E2E documentado y revisado, con provenance A2 trazable y sin mezclar M8/eCMR como si ya estuvieran decididos.
 
 ### 2026-09-04 — MMO-1 ejecución Preview controlada
 - **Área:** IA / Orquestación / Seguridad
@@ -50,6 +53,10 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 - **Acción requerida:** mejorar contraste del mensaje de confirmación y validar WCAG AA en escritorio y móvil.
 
 ## DONE
+
+### 2026-09-10 — Domicilio FISCAL canónico para documentación regulatoria
+- **Estado:** PR #64 INTEGRADA, MIGRADA Y DESPLEGADA
+- **Cierre:** la migración `canonical_fiscal_address` se aplicó primero en Supabase producción; smoke posterior confirmó índice/constraint/RPC, `service_role` con EXECUTE y `authenticated/anon` sin EXECUTE, sin crear filas FISCAL. PR #64 se fusionó después por squash en `e594b2d0ca40105c3d0c5ce41e735ddf98b21e79`; CI #270 terminó `success`; Vercel producción `dpl_5rMsn1b39JA4GiefVjHPZivvNEpG` quedó READY en el mismo SHA y sin warning/error/fatal en la ventana comprobada. DeepSeek cerró sus MUST sobre el HEAD final de PR; el handoff Claude exact-head no respondió antes del rollout y Fran autorizó explícitamente continuar, por lo que se registra como excepción de gobernanza y no como aprobación Claude.
 
 ### 2026-09-10 — CMR sin clipping silencioso en contenido extremo
 - **Estado:** PR #62 INTEGRADA, DESPLEGADA Y VERIFICADA
