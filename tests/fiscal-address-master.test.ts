@@ -34,6 +34,10 @@ test("canonical FISCAL migration enforces uniqueness, reserved code and atomic a
   assert.match(migration, /create or replace function public\.fornexa_upsert_canonical_fiscal_address/);
   assert.match(migration, /security invoker/);
   assert.match(migration, /for update/);
+  assert.match(migration, /from public\.parties as p/);
+  assert.match(migration, /where p\.id = p_party_id/);
+  assert.match(migration, /update public\.party_addresses as pa/);
+  assert.match(migration, /returning pa\.\* into v_persisted/);
   assert.match(migration, /insert into public\.audit_events/);
   assert.match(migration, /array\['fiscal_domicile'\]::text\[\]/);
   assert.match(migration, /revoke execute on function public\.fornexa_upsert_canonical_fiscal_address[\s\S]*from public, anon, authenticated/);
