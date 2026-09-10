@@ -8,7 +8,7 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 - **Repository:** `fragonh2-boop/Fornexa`.
 - **Production main:** `5ee1966d395b6b8c3206b18bddf7c478cf2200bd`, squash merge of PR #62.
 - **CI:** GitHub Actions run #253 (`34394379972`) completed `success` on that exact production SHA.
-- **Vercel production:** deployment `dpl_5SCoG4J42weTaGs2QBFGA9HeZJQv` is `READY`, targets production and carries the same SHA. No warning/error/fatal runtime entries were returned for the following 24-hour verification window.
+- **Vercel production:** deployment `dpl_5SCoG4J42weTaGs2QBFGA9HeZJQv` is `READY`, targets production and carries the same SHA. A runtime query over the last 24 hours returned no warning/error/fatal entries for this deployment at verification time.
 - **Supabase production:** DeCA foundations/P0-A/P0-B are deployed. Preserve known migration-provenance differences under A2 and do not rerun already-applied migrations.
 - **MMO-1:** PR #38 remains draft and separate from current product delivery work.
 
