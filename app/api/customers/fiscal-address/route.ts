@@ -5,9 +5,21 @@ import { createSupabaseAdmin } from "@/lib/supabase-admin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const EDIT_ROLES = new Set(["OWNER", "ADMIN", "OPERATOR"]);
+const EDIT_ROLES = new Set(["OWNER", "ADMIN"]);
 const COUNTRY_PATTERN = /^[A-Z]{2}$/;
-const FISCAL_CODE = "FISCAL";
+
+type FiscalAddressRow = {
+  id: string;
+  code: string | null;
+  name: string | null;
+  address_line1: string;
+  address_line2: string | null;
+  postal_code: string | null;
+  city: string;
+  region: string | null;
+  country_code: string;
+  updated_at: string;
+};
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -24,7 +36,7 @@ async function findCustomer(supabase: ReturnType<typeof createSupabaseAdmin>, te
   return data;
 }
 
-function fiscalItem(address: any) {
+function fiscalItem(address: FiscalAddressRow | null | undefined) {
   if (!address) return null;
   return {
     id: address.id,
@@ -35,7 +47,6 @@ function fiscalItem(address: any) {
     postalCode: address.postal_code ?? "",
     city: address.city,
     region: address.region ?? "",
-    subdivisionKey: address.subdivision_key ?? "",
     countryCode: String(address.country_code).trim(),
     updatedAt: address.updated_at,
   };
@@ -54,7 +65,7 @@ export async function GET(request: Request) {
     if (!customer) return NextResponse.json({ error: "Cliente no encontrado." }, { status: 404 });
 
     const { data: fiscalRows, error } = await supabase.from("party_addresses")
-      .select("id,code,name,address_line1,address_line2,postal_code,city,region,subdivision_key,country_code,updated_at")
+      .select("id,code,name,address_line1,address_line2,postal_code,city,region,country_code,updated_at")
       .eq("tenant_id", auth.tenantId)
       .eq("party_id", customer.id)
       .eq("address_type", "FISCAL")
@@ -71,7 +82,7 @@ export async function GET(request: Request) {
         customerCode,
         customerName: customer.trade_name ?? customer.legal_name ?? customerCode,
         defaultCountryCode: String(customer.country_code ?? "ES").trim(),
-        fiscalAddress: fiscalItem(fiscalRows?.[0]),
+        fiscalAddress: fiscalItem((fiscalRows?.[0] ?? null) as FiscalAddressRow | null),
       },
       canEdit: !auth.isReview && EDIT_ROLES.has(auth.role.toUpperCase()),
     }, { headers: { "Cache-Control": "no-store" } });
@@ -100,7 +111,6 @@ export async function PUT(request: Request) {
     const postalCode = text(address.postalCode);
     const city = text(address.city);
     const region = text(address.region);
-    const subdivisionKey = text(address.subdivisionKey);
     const countryCode = text(address.countryCode).toUpperCase();
 
     if (!customerCode) return NextResponse.json({ error: "Customer ID obligatorio." }, { status: 400 });
@@ -112,78 +122,30 @@ export async function PUT(request: Request) {
     const customer = await findCustomer(supabase, auth.tenantId, customerCode);
     if (!customer) return NextResponse.json({ error: "Cliente no encontrado." }, { status: 404 });
 
-    const { data: existingFiscal, error: existingError } = await supabase.from("party_addresses")
-      .select("id,code")
-      .eq("tenant_id", auth.tenantId)
-      .eq("party_id", customer.id)
-      .eq("address_type", "FISCAL")
-      .limit(2);
-    if (existingError) throw existingError;
-    if ((existingFiscal ?? []).length > 1) {
-      return NextResponse.json({ error: "La empresa tiene más de un domicilio FISCAL. Requiere reconciliación antes de guardar." }, { status: 409 });
+    const { data, error } = await supabase.rpc("fornexa_upsert_canonical_fiscal_address", {
+      p_tenant_id: auth.tenantId,
+      p_party_id: customer.id,
+      p_actor_user_id: auth.userId,
+      p_name: text(address.name) || "Domicilio fiscal",
+      p_address_line1: addressLine1,
+      p_address_line2: addressLine2 || null,
+      p_postal_code: postalCode || null,
+      p_city: city,
+      p_region: region || null,
+      p_country_code: countryCode,
+    }).single();
+
+    if (error) {
+      if (error.code === "23505" || error.code === "22023") {
+        return NextResponse.json({ error: "El domicilio FISCAL canónico está en un estado incompatible o se modificó simultáneamente. Recarga la ficha antes de continuar." }, { status: 409 });
+      }
+      if (error.code === "23503") {
+        return NextResponse.json({ error: "El cliente ya no está disponible en esta organización." }, { status: 409 });
+      }
+      throw error;
     }
 
-    const { data: reservedCodeRow, error: reservedError } = await supabase.from("party_addresses")
-      .select("id,address_type")
-      .eq("tenant_id", auth.tenantId)
-      .eq("party_id", customer.id)
-      .eq("code", FISCAL_CODE)
-      .maybeSingle();
-    if (reservedError) throw reservedError;
-    if (reservedCodeRow && reservedCodeRow.address_type !== "FISCAL") {
-      return NextResponse.json({ error: "El código canónico FISCAL está ocupado por una dirección no fiscal." }, { status: 409 });
-    }
-
-    const values = {
-      tenant_id: auth.tenantId,
-      party_id: customer.id,
-      code: FISCAL_CODE,
-      address_type: "FISCAL",
-      name: text(address.name) || "Domicilio fiscal",
-      address_line1: addressLine1,
-      address_line2: addressLine2 || null,
-      postal_code: postalCode || null,
-      city,
-      region: region || null,
-      subdivision_key: subdivisionKey || null,
-      country_code: countryCode,
-      is_active: true,
-      updated_at: new Date().toISOString(),
-    };
-
-    let persisted: any;
-    const current = existingFiscal?.[0];
-    if (current && current.code !== FISCAL_CODE) {
-      const { data, error } = await supabase.from("party_addresses")
-        .update(values)
-        .eq("tenant_id", auth.tenantId)
-        .eq("party_id", customer.id)
-        .eq("id", current.id)
-        .select("id,code,name,address_line1,address_line2,postal_code,city,region,subdivision_key,country_code,updated_at")
-        .single();
-      if (error) throw error;
-      persisted = data;
-    } else {
-      const { data, error } = await supabase.from("party_addresses")
-        .upsert(values, { onConflict: "tenant_id,party_id,code" })
-        .select("id,code,name,address_line1,address_line2,postal_code,city,region,subdivision_key,country_code,updated_at")
-        .single();
-      if (error) throw error;
-      persisted = data;
-    }
-
-    await supabase.from("audit_events").insert({
-      tenant_id: auth.tenantId,
-      entity_type: "party_address",
-      entity_id: persisted.id,
-      action: current ? "UPDATE_FISCAL" : "CREATE_FISCAL",
-      actor_user_id: auth.userId,
-      source_channel: "FORNEXA_WEB",
-      changed_fields: ["fiscal_domicile"],
-      after_data: { customerCode, addressType: "FISCAL", code: FISCAL_CODE, countryCode },
-    });
-
-    return NextResponse.json({ item: fiscalItem(persisted) }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ item: fiscalItem(data as FiscalAddressRow | null) }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     console.error("Customer fiscal address PUT", error);
     return NextResponse.json({ error: "No se pudo guardar el domicilio fiscal." }, { status: 500 });
