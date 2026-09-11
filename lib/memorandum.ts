@@ -19,13 +19,13 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "11 sep 2026";
-export const memorandumCommitCoverage = 564;
+export const memorandumCommitCoverage = 565;
 
 export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
     title: "TLM-1 — identidad de red fail-safe",
-    summary: "En revisión se centraliza la identidad de red de la telemetría: con secreto dedicado se conserva IP junto con su HMAC SHA-256; sin secreto, IP e ip_hash se degradan conjuntamente a null para no persistir IP en claro por un fallo de configuración. Requests y eventos de acceso comparten el mismo helper y tienen pruebas de secreto presente/ausente y redacción de capabilities. El cierre productivo sigue condicionado a configurar y verificar el secreto dedicado y la allowlist OWNER; la retención de IP a siete días continúa siendo oportunista y queda como riesgo residual documentado.",
+    summary: "El endurecimiento fail-safe ya está desplegado en producción: requests y eventos de acceso comparten una identidad de red única; con secreto dedicado se conserva IP junto con su HMAC SHA-256 y, sin secreto o sin IP disponible, ambos campos quedan en null. Un smoke productivo confirmó que, mientras el secreto sigue sin configurar, una petición nueva se registra sin IP en claro ni hash. TLM-1 no está cerrado: falta configurar y verificar el secreto dedicado y la allowlist OWNER. La retención de IP a siete días continúa siendo oportunista y queda como riesgo residual documentado.",
     priority: "Ahora",
     state: "En seguimiento",
   },
@@ -101,8 +101,8 @@ export const memorandumReleases: MemorandumRelease[] = [
     surface: ["Web", "Plataforma"],
     title: "TLM-1 con privacidad fail-safe ante configuración incompleta",
     purpose: "Evitar que una ausencia del secreto de hashing convierta silenciosamente la telemetría en un canal de persistencia de IP en claro.",
-    outcome: "Corrección en preproducción: requests y eventos de acceso usan una única identidad de red; con secreto dedicado se conserva IP con HMAC SHA-256 y, sin secreto, ambos campos quedan en null mientras el resto de la telemetría continúa best-effort. Se añaden pruebas conductuales y se mantiene como gate separado la configuración y verificación productiva del secreto dedicado y de la allowlist OWNER. La retención de IP sigue siendo oportunista y no se presenta como cron garantizado.",
-    status: "Preproducción",
+    outcome: "Corrección desplegada y verificada en producción: requests y eventos de acceso usan una única identidad de red; con secreto dedicado se conserva IP con HMAC SHA-256 y, sin secreto, ambos campos quedan en null mientras el resto de la telemetría continúa best-effort. CI y Vercel producción quedaron verdes y un smoke posterior al despliegue confirmó una petición nueva con IP e ip_hash nulos mientras el secreto sigue sin configurar. La configuración y verificación del secreto dedicado y de la allowlist OWNER permanece como gate separado antes de cerrar TLM-1. La retención de IP sigue siendo oportunista y no se presenta como cron garantizado.",
+    status: "Producción",
   },
   {
     version: "2026.09.10.2",

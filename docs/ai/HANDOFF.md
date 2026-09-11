@@ -4,123 +4,119 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-10 16:23 CEST.
+- **Updated:** 2026-09-11 09:35 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
-- **Production main:** `f7bfa5701a0b27d83cf63a77c2e036377a37b2c9`, squash merge of PR #66.
-- **CI:** GitHub Actions run #282 (`34475309230`) completed `success` on that exact production SHA.
-- **Vercel production:** deployment `dpl_6AaVKan2Qbbf7Hu6ozHRcjCGvZF3` is `READY`, targets production, carries the same SHA and serves `fornexasc.com`. A runtime query on the deployment returned no warning/error/fatal entries in the checked window.
-- **Supabase production:** DeCA foundations/P0-A/P0-B and the canonical FISCAL-address migration `canonical_fiscal_address` remain deployed. PR #66 made no database, auth, API or tenant-isolation changes.
-- **MMO-1:** PR #38 remains draft and separate from current product delivery work.
+- **Production main:** `c9e9b76550162c9d549803e0b02031d8716bf401`, squash merge of PR #68.
+- **CI:** GitHub Actions run #287 completed `success` on that exact production SHA, including memorandum gate, Web typecheck/lint/tests/build and Mobile typecheck.
+- **Vercel production:** deployment `dpl_FFpT54jAjjeZVek6z81bHNdzQHjK` is `READY`, targets production, carries the same SHA and serves `fornexasc.com`. Runtime query returned no warning/error/fatal entries in the checked window.
+- **Supabase production:** DeCA foundations/P0-A/P0-B and canonical FISCAL remain deployed. PR #68 made no database/schema changes.
+- **MMO-1:** PR #38 remains draft and isolated from Production.
 
-## CMR continuation identity and headers — PR #66 closed in production
+## TLM-1 network identity privacy — PR #68 deployed, configuration gate still open
 
-PR #66 closed the non-blocking continuation-page context gap left after the clipping fix. Goods boxes 6–12 now use semantic table markup with a real `thead`, and print CSS repeats both the CMR identity row and goods-column headings on every page that contains goods.
+PR #68 hardens platform telemetry so an absent hashing secret cannot silently leave a raw IP persisted.
 
-Verified production state:
+Production behavior now is:
 
-- merge SHA `f7bfa5701a0b27d83cf63a77c2e036377a37b2c9` on `main`;
-- GitHub CI #282 (`34475309230`) completed `success` on that exact SHA;
-- Vercel production `dpl_6AaVKan2Qbbf7Hu6ozHRcjCGvZF3` is `READY` on the same SHA and serves `fornexasc.com`;
-- runtime log query returned no warning/error/fatal entries in the checked window;
-- DeepSeek reviewed final PR HEAD `c7a203853f319df637cc3aa14577e9a01aa9cac3` and reported MUST: none;
-- the exact-HEAD Claude handoff did not return before merge; Fran instructed GPT to continue, so this is recorded as a governance exception and not as a Claude approval.
+- `telemetryNetworkIdentity(headers)` is the single network-identity decision point used by request telemetry and auth telemetry;
+- when `FORNEXA_TELEMETRY_HASH_SECRET` is configured and a client IP exists, telemetry carries the raw IP plus HMAC SHA-256;
+- when the secret is absent, or no client IP is available, **both `ip` and `ip_hash` are `null`**;
+- telemetry remains best-effort and capability URLs continue to be redacted as `/regulatory/d/[token]`;
+- no migration or new cron was introduced; existing nullable `ip inet` / `ip_hash text` columns and RPCs are reused.
 
-Manual Chromium evidence is versioned in `docs/verification/cmr-continuation-headers-20260910.md` together with `scripts/verify-cmr-continuation-print.py`. The hardened harness was executed with Chromium 144.0.7559.96 using synthetic data only:
+Verified rollout evidence:
 
-- normal fixture, 2 goods lines → 1 A4 page;
-- 42 lines → 3 pages with 42/42 markers preserved;
-- 42 lines with one exceptionally long row → 3 pages, 42/42 preserved, no blank page;
-- 80 lines → 4 pages with 80/80 markers preserved;
-- each page containing goods repeated the CMR identity and boxes 6–12 headings.
+- PR #68 final HEAD `229c4ce3870f63db6fe3f18ff6e52fd0ba7695d2`;
+- PR CI #286 `success` exact-HEAD;
+- Preview `dpl_D5JurVjg4WQNJoD4eXfTwNsRa2SU` READY exact-HEAD with no warning/error/fatal in the checked runtime window;
+- DeepSeek exact-HEAD review: MUST none;
+- Claude design review before implementation: MUST none and implementation approved; the final exact-HEAD request had not replied before merge, so this is recorded as a governance exception and **not** as an exact-HEAD Claude approval;
+- Fran explicitly instructed GPT to proceed;
+- squash merge production SHA `c9e9b76550162c9d549803e0b02031d8716bf401`;
+- main CI #287 `success` on that SHA;
+- Vercel production `dpl_FFpT54jAjjeZVek6z81bHNdzQHjK` READY on the same SHA and serving `fornexasc.com`;
+- controlled production GET `/` after deployment created a new `platform_telemetry.telemetry_requests` row with `ip IS NULL = true` and `ip_hash IS NULL = true`, directly confirming the fail-safe behavior while the dedicated secret remains unconfigured.
 
-The extended-page count is intentionally not contractual: the harness gates integrity, minimum multipage behavior, repeated headers and absence of blank pages. The exact single-page result is proven only for the synthetic normal fixture, not a real authenticated customer CMR.
+**TLM-1 is not closed yet.** Remaining product/configuration gate:
 
-**Residual, non-blocking:** a future visual refinement may make the physical page frame explicit on continuation pages. This is separate from PR #66 and must not be treated as a reopened clipping, integrity or repeated-header defect.
+1. configure a dedicated, high-entropy `FORNEXA_TELEMETRY_HASH_SECRET` in Production;
+2. configure and verify `FORNEXA_TELEMETRY_OWNER_EMAILS` for the intended OWNER account(s);
+3. generate controlled traffic and verify new rows carry raw IP + a deterministic 64-hex HMAC only when the secret is present;
+4. verify `/internal/telemetry` works for an authorized OWNER and still returns 404 for unauthorized users;
+5. preserve the privacy invariant: never persist raw IP without a configured dedicated secret.
 
-## Canonical FISCAL domicile — PR #64 closed in production
+Residuals / SHOULDs:
 
-PR #64 added a canonical legal/fiscal domicile separate from operational pickup/delivery centers so DeCA does not infer a contractual shipper domicile from operational addresses.
+- retention of raw IP remains opportunistic: `platform_telemetry.run_retention_if_due()` runs on capture with a one-hour throttle; it is not a guaranteed scheduler if traffic stops;
+- adding `/internal/telemetry` to proxy-level auth resolution would be defense in depth; current Server Component OWNER + allowlist check remains the authoritative gate;
+- final secret configuration should use a strong dedicated value; do not reuse application, Supabase or auth secrets;
+- DeepSeek suggested making `telemetryClientIp` non-exported and complementing source-contract coverage with a behavioral `requestTelemetryPayload` test; neither is a blocker for the deployed fix.
 
-Production rollout was deliberately DB-first: the additive/fail-closed migration was applied before merging the API, then schema/privilege smoke checks passed, PR #64 was squash-merged and the exact main SHA completed CI and Vercel production successfully.
+## CMR continuation identity and headers — closed in production
 
-Verified production invariants:
+PR #66 closed continuation-page context and clipping-related integrity. Goods boxes 6–12 use semantic table markup with a real `thead`; print repeats CMR identity and goods headings on each page containing goods.
 
-- `code='FISCAL'` if and only if `address_type='FISCAL'`;
-- maximum one active FISCAL address per `(tenant_id, party_id)`;
-- the pre-existing UNIQUE `(tenant_id, party_id, code) NULLS NOT DISTINCT` prevents duplicate canonical FISCAL codes per party;
-- writes serialize per party through `FOR UPDATE` and address mutation + audit event share one database transaction;
-- RPC is `SECURITY INVOKER`, executable by `service_role`, not by `authenticated` or `anon`;
-- the Web API permits FISCAL edits only to OWNER/ADMIN;
-- native DeCA lookup requires the explicitly selected address to be both `FISCAL` and active; no fallback to an operational address exists.
+- functional production SHA: `f7bfa5701a0b27d83cf63a77c2e036377a37b2c9`;
+- CI #282 success and Vercel production READY on that SHA;
+- manual Chromium 144.0.7559.96 synthetic evidence: normal 2 lines → 1 page; 42 lines → 3 pages/42 of 42; long-row case → 3 pages/42 of 42/no blank page; 80 lines → 4 pages/80 of 80;
+- residual only: optional physical frame polish on continuation pages. Do not reopen no-clipping, integrity or repeated-header work.
 
-Pre-merge transactional evidence, including the PL/pgSQL ambiguity found and fixed during real execution, remains in `docs/verification/canonical-fiscal-address-20260910.md`.
+Evidence: `docs/verification/cmr-continuation-headers-20260910.md` and `scripts/verify-cmr-continuation-print.py`.
 
-**Review state:** DeepSeek reviewed final PR HEAD `89b07574e4af2029288abebec59c71f39256891d` and closed all MUST findings. The exact-HEAD Claude handoff did not return before rollout; Fran explicitly instructed GPT to continue, so this is recorded as a governance exception rather than a fabricated Claude approval.
+## Canonical FISCAL domicile / DeCA foundation — deployed
 
-## CMR print integrity — PR #62 closed
+PR #64 added the canonical legal/fiscal domicile separate from operational pickup/delivery addresses. Production invariants remain:
 
-PR #62 removed the rigid print clipping introduced by the previous single-page A4 geometry. The production CSS keeps A4 portrait, 9 mm page margins and 192 mm usable width, but uses 279 mm as a minimum rather than a hard maximum and allows content to paginate.
+- `code='FISCAL'` iff `address_type='FISCAL'`;
+- one canonical FISCAL row per party and at most one active FISCAL;
+- writes serialize per party and address mutation + audit share one transaction;
+- RPC is service-role only; Web edit is OWNER/ADMIN;
+- native DeCA requires the explicitly selected address to be active FISCAL; no operational-address fallback.
 
-Post-merge browser verification was completed on 2026-09-10 with system Chromium 144 using a controlled synthetic CMR, the production document structure and the exact production print CSS. No customer/production shipment data was used.
+Evidence: `docs/verification/canonical-fiscal-address-20260910.md`.
 
-- normal fixture: 2 goods lines + 1 ADR line → exactly 1 A4 page;
-- extreme fixture: long legal names/addresses, 28 goods lines + 10 ADR lines → exactly 2 A4 pages;
-- PDF text extraction confirmed 28/28 goods markers plus ADR, boxes 13–21, signatures 22–24 and footer;
-- rendered pages showed no silent clipping or visible text overlap.
+### DeCA authenticated controlled E2E — device/session backlog
 
-Evidence: `docs/verification/cmr-print-overflow-20260910.md`.
+The remaining material DeCA gate needs a legitimate authenticated OWNER/ADMIN browser session. Do not reset credentials, reuse secrets, fabricate auth users, cookies or JWTs to make it pass.
 
-The former residual — continuation pages lacking repeated CMR identity and goods-column headings — is closed by PR #66. Only the separate, cosmetic per-page frame refinement remains open.
+When such a session is available, use an isolated synthetic canonical CMR fixture and verify HTTP 201, native PDF, private Storage object, artifact/version/hash/size, capability token persisted only as SHA-256, public unauthenticated resolution, downloaded-PDF hash and lifecycle semantics.
+
+Keep separate:
+
+- M8 remains unresolved legal/governance state;
+- eCMR signing/auth/jurisdiction remains a follow-on block;
+- automatic operational lifecycle remains separate from the already deployed minimum lifecycle semantics.
+
+## Supabase Preview / A2 provenance
+
+Production is healthy, but the Git integration has been observed as `MIGRATIONS_FAILED`. Diagnostic map from 2026-09-10:
+
+- 34 active SQL migrations in Git vs 33 rows in standard Supabase migration history;
+- 29 logical equivalents have different timestamps/versions;
+- 2 repo-only entries and 1 remote-only entry;
+- repository also contains duplicated active timestamp families around 20260812/17/18/19.
+
+Do **not** rerun applied migrations or use `migration repair` blindly. First perform a controlled replay/Preview and establish exact equivalence/provenance. Do not create a paid Supabase branch without explicit approval.
+
+## Other backlog
+
+- Password-recovery success-message contrast was rechecked: current success colors already exceed WCAG AA; close documentation only, no color change needed.
+- CMR native/PDF acceptance with a real QR remains device-dependent acceptance, separate from synthetic print integrity.
+- ADR 2025 activation: verify/import official source and packaging/rules before enabling regulatory calculation.
+- Control Tower: continue replacing demo metrics with tenant-aware traceable operational data.
+- Mobile: establish stable promotion/distribution channel.
+- MMO-1: Preview-only, isolated provider configuration; Production must remain without its temporary flags/keys.
+- Tenant autonomy and critical E2E coverage remain open product work.
 
 ## DeepSeek independent reviewer
 
-Reviewer repository: `fragonh2-boop/fornexa-ai-reviewer`.
+Reviewer repository: `fragonh2-boop/fornexa-ai-reviewer`. Reviewer remains independent/read-only: no merge/deploy authority and no need for secrets.
 
-- PRs #6/#7 recovered operational Slack triggers and response deduplication.
-- PR #8 added explicit repository-state (`main`) reviews.
-- PR #9 added permanent Node 22 CI for tests + TypeScript build.
-- PR #10 is merged; reviewer `main` is `6461eb0a16c3b7ffbeff9f558de64ebb945f23e0` and explicitly separates MAIN and PR review protocols so narrative references to historical PRs cannot select the wrong target.
-- Reviewer remains independent/read-only for FORNEXA: no merge/deploy authority and no need to expose secrets in review requests.
+Use explicit target semantics:
 
-Operational requests should identify the target explicitly. For repository state, use explicit MAIN semantics (`MODE: MAIN`, `TARGET: main` and exact HEAD). For a PR review, use explicit PR semantics with a standalone PR number and exact HEAD.
-
-## Current priority
-
-### 1. DeCA authenticated controlled E2E
-
-P0-A, P0-B and the canonical FISCAL source-data foundation are now in production. The remaining material gate is an authenticated OWNER/ADMIN end-to-end DeCA issuance using an isolated, explicitly synthetic canonical CMR fixture.
-
-No suitable existing CMR can be reused: the legacy `CMR-E2E-MOBILE-20260819` lacks canonical sender/carrier party relationships and vehicle data, and production currently has no CMR with both canonical sender and carrier party IDs. Do not infer these roles from display strings or retrofit an operational CMR merely to make the test pass.
-
-The current automation environment does not possess a legitimate FORNEXA Web user session. The normal login path is email + password; the first-access/recovery paths create or change a password. Do not reset Fran's credentials, reuse secrets or fabricate an auth user just to automate this gate.
-
-When a legitimate OWNER/ADMIN session is available, execute the E2E through the production HTTP route and verify HTTP 201, native PDF, Storage object, artifact/version/hash/size, capability token hashing, public unauthenticated PDF resolution, downloaded-PDF hash and lifecycle semantics.
-
-Preserve these boundaries:
-
-- issued regulatory PDF artifacts are immutable; corrections create a new version;
-- raw public tokens are never persisted, only SHA-256 hashes;
-- public resolution remains server-side, tenant-aware and fail-closed;
-- artifact retention and public URL lifecycle remain separate;
-- do not infer contractual shipper/effective carrier roles from display strings;
-- M8 remains an explicit unresolved legal/governance gate and must not be invented or silently closed;
-- eCMR authentication/sealing/jurisdiction and operational lifecycle automation remain separate follow-on work;
-- do not create a paid Supabase development/preview branch without explicit approval.
-
-### 2. Supabase Preview / A2 provenance
-
-Reconcile the Git-branch Preview integration and the known repository/remote migration-version provenance differences. Do not rerun migrations already applied to production.
-
-### 3. CMR per-page frame polish
-
-If product value justifies it, make the physical frame visually explicit on continuation pages. Repeated CMR identity, goods headings, pagination integrity and no-clipping are already closed in production; do not reopen them as part of this optional visual refinement.
-
-## Other open work
-
-- MMO-1 controlled Preview execution remains blocked on its dedicated, Preview-only provider configuration and must remain isolated from Production.
-- Complete TLM-1 production configuration/verification for owner allowlist and dedicated hash secret.
-- Improve recovery-password confirmation contrast.
-- Continue ADR 2025 activation, tenant autonomy, Control Tower source-of-truth, critical E2E coverage and stable Mobile distribution according to `lib/memorandum.ts`.
+- repository review: `MODE: MAIN`, `TARGET: main`, exact `HEAD`;
+- PR review: `MODE: PR`, standalone PR number and exact `HEAD`;
+- canonical trigger: `DEEPSEEK — ACCIÓN REQUERIDA`.
 
 ## Governance
 
@@ -128,4 +124,4 @@ If product value justifies it, make the physical frame visually explicit on cont
 - Preserve Pedido↔Expediente 1:1 and standard Supabase migration tracking.
 - Update `lib/memorandum.ts`, this handoff and `docs/pending-log.md` when material state changes.
 - Mirror material handoffs in Slack `#fornexa`.
-- Do not claim tested, merged, migrated or deployed without direct evidence.
+- Do not claim tested, merged, migrated, configured or deployed without direct evidence.
