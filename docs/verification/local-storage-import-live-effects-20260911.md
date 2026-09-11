@@ -6,6 +6,19 @@ Fecha: 2026-09-11.
 
 Verificación **read-only** de los efectos de `supabase/migrations/20260812_local_storage_import.sql` sobre Supabase producción (`gqkjqhpmyejmehbuombk`). No se ejecutó DDL, no se reejecutó la migración y no se modificó historial estándar ni interno.
 
+## Método de verificación
+
+Se contrastó el SQL Git actual con catálogo PostgreSQL leído directamente en producción mediante consultas read-only:
+
+- `information_schema.columns` para columnas, nullability y defaults;
+- `pg_constraint` para PK, FK, UNIQUE y CHECK;
+- `pg_class.relrowsecurity` y `pg_policies` para RLS y policies;
+- `pg_indexes` / `to_regclass(...)` para existencia y definición de índices;
+- `public.fornexa_schema_migrations` para provenance del ledger interno;
+- `supabase_migrations.schema_migrations` para comprobar ausencia en historial estándar.
+
+No se normalizaron ni alteraron objetos para realizar la comprobación: se comparó el estado catalogado de producción con los efectos declarados por el fichero Git.
+
 ## Provenance
 
 - `20260812_local_storage_import.sql` no figura en `supabase_migrations.schema_migrations`.
@@ -19,11 +32,13 @@ Verificación **read-only** de los efectos de `supabase/migrations/20260812_loca
 Existen `public.local_storage_imports` y `public.local_storage_sync_runs` con las columnas, nullability y defaults esperados por la migración, incluyendo:
 
 - UUID PK con `gen_random_uuid()`;
-- `tenant_id` obligatorio con tenant piloto por defecto;
+- `tenant_id` obligatorio con default explícito `'00000000-0000-4000-8000-000000000001'::uuid` (tenant piloto histórico);
 - payload/summary JSONB;
 - timestamps `first_seen_at`, `last_synced_at`, `started_at` con `now()`;
 - contadores de sync con default `0`;
 - `status` con default `RUNNING`.
+
+El default de tenant es un dato histórico del esquema actual; esta verificación no lo presenta como patrón recomendado para nuevos tenants.
 
 ### Constraints
 
