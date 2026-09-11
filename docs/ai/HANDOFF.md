@@ -4,7 +4,7 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-11 11:10 CEST.
+- **Updated:** 2026-09-11 11:15 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
 - **Production main:** `6a17adcb6bb381b4a788008c44ed8fff199889da`, squash merge of PR #69 (TLM-1 rollout documentation closeout).
 - **CI:** GitHub Actions run #289 completed `success` on that exact production SHA, including memorandum gate, Web typecheck/lint/tests/build and Mobile typecheck.
@@ -58,8 +58,16 @@ Live read-only reconciliation on 2026-09-11 confirmed:
 - Supabase production/preview project status: `ACTIVE_HEALTHY`;
 - integrated Git branch `main`: `MIGRATIONS_FAILED`;
 - 34 active SQL migrations in Git vs 33 rows in standard `supabase_migrations.schema_migrations`;
-- 3 exact versions, 29 logical/name matches with different version prefixes/timestamps, 2 Git-only entries and 1 remote-only entry;
+- 3 exact version prefixes, 29 logical/name matches with different version prefixes/timestamps, 2 Git-only entries and 1 remote-only entry;
 - production also has historical `public.fornexa_schema_migrations`, a second/internal ledger which records several Git-style versions not present in standard history.
+
+SQL-content fingerprinting is now complete at byte level. The SQL stored in standard migration history was hashed using the Git blob algorithm and compared with repository blob SHAs, also allowing a single final LF difference:
+
+- **16/33 standard rows match current Git SQL by content**;
+- **16/33 standard rows differ materially from current Git SQL**;
+- **1/33 is remote-only** (`cmr_canonical_model_rls_and_hardening`).
+
+Importantly, the three migrations whose version prefixes already match (`customs_core`, `mobile_cmr`, `fornexa_operational_core`) are among the 16 whose current Git content differs from what production originally executed. Therefore timestamp repair alone cannot prove replay safety.
 
 Special cases now classified:
 
@@ -68,12 +76,12 @@ Special cases now classified:
 - standard-history-only `20260817212235 cmr_canonical_model_rls_and_hardening`: exact SQL recovered from `supabase_migrations.schema_migrations.statements`. Production confirms its six CMR `tenant_isolation` policies, RLS on the internal ledger and `search_path=''` on `fornexa_check_expedition_delivery_note_order()` are still active.
 - `20260818_fix_order_expedition_cardinality` appears in the internal ledger but its current Git file is `.sql.obsolete` comments only. The active restore migration is defensive/idempotent and converges to the canonical Pedido↔Expediente 1:1 invariant, but current Git no longer reproduces production's exact historical path.
 
-Full map and safe plan: `docs/verification/supabase-migration-provenance-20260911.md`.
+Full map, content classifications and safe plan: `docs/verification/supabase-migration-provenance-20260911.md`.
 
 **Do not** rename historical migration files on `main`, rerun applied SQL, use blanket `migration repair`, edit standard migration history or create a Supabase development/Preview branch yet. The next gates are:
 
-1. exact SQL-content comparison for all 29 timestamp-drift pairs;
-2. prepare a reconciliation branch containing the recovered hardening source and classified special cases;
+1. inspect semantic diffs for the 16 files whose current Git SQL differs from the stored production statements;
+2. prepare a non-production reconciliation branch that preserves the recovered hardening source and classifies the two Git-only migrations;
 3. replay from an empty DB/Preview;
 4. verify schema/RLS/functions/cardinalities/DeCA/telemetry invariants;
 5. only then propose an explicit per-version history-alignment plan and re-test Git integration.
@@ -127,7 +135,7 @@ Keep separate:
 
 ### Executable from current tooling
 
-- A2: continue exact content comparison of mapped migrations and prepare a non-production reconciliation plan/branch without touching `supabase/**` on `main`.
+- A2: inspect semantic diffs for the 16 historical migrations whose current Git SQL differs from the SQL actually stored as executed; prepare replay-safe reconciliation without touching production history.
 - eCMR design/implementation work that does not depend on the blocked authenticated DeCA E2E: signer identity/authentication model, evidence, integrity/sealing, jurisdiction and lifecycle boundaries.
 - ADR 2025 source verification/import preparation.
 - Control Tower replacement of demo metrics with tenant-aware traceable sources.
