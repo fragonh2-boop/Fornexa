@@ -71,8 +71,8 @@ The first three historical rows are stored as arrays of 8/20/83 statements, so a
 
 Special cases remain:
 
-- `20260812_local_storage_import.sql`: absent from standard history but present in the internal ledger as historically applied; verify all live effects before history alignment.
-- `20260818_cmr_number_sequence_resync.sql`: absent from both ledgers. Current sequence is 11 while the highest persisted 2026 canonical CMR suffix is 3, so its intended invariant currently holds, but the migration **must not be marked applied by inference**.
+- `20260812_local_storage_import.sql`: absent from standard history but present in the internal ledger as historically applied. Its live effects are now verified read-only against production: expected tables/columns/defaults, constraints, RLS/policies, indexes and the partial tax-ID uniqueness replacement are present. Evidence: `docs/verification/local-storage-import-live-effects-20260911.md`. This does **not** authorize standard-history alignment without replay.
+- `20260818_cmr_number_sequence_resync.sql`: absent from both ledgers. Current sequence is 11 while the highest persisted 2026 canonical CMR suffix is 3; there is no current evidence of invariant violation, but the migration **must not be marked applied by inference**.
 - standard-history-only `20260817212235 cmr_canonical_model_rls_and_hardening`: exact SQL recovered from `supabase_migrations.schema_migrations.statements`. Production confirms its six CMR `tenant_isolation` policies, RLS on the internal ledger and `search_path=''` on `fornexa_check_expedition_delivery_note_order()` are still active.
 - `20260818_fix_order_expedition_cardinality` appears in the internal ledger but its current Git file is `.sql.obsolete` comments only. The active restore migration is defensive/idempotent and converges to the canonical Pedido↔Expediente 1:1 invariant, but current Git no longer reproduces production's exact historical path.
 
@@ -81,11 +81,10 @@ Full map and safe plan: `docs/verification/supabase-migration-provenance-2026091
 **Do not** rename historical migration files on `main`, rerun applied SQL, use blanket `migration repair`, edit standard migration history or create a Supabase development/Preview branch yet. The next gates are:
 
 1. finish canonical statement-by-statement comparison of `fornexa_operational_core`;
-2. verify all live effects of `local_storage_import`;
-3. prepare a non-production reconciliation branch preserving the recovered remote-only hardening source and explicitly classifying both Git-only migrations;
-4. replay from an empty DB/Preview;
-5. verify schema/RLS/functions/cardinalities/DeCA/telemetry invariants;
-6. only then propose explicit per-version history alignment and re-test Git integration.
+2. prepare a non-production reconciliation branch preserving the recovered remote-only hardening source and explicitly classifying both Git-only migrations;
+3. replay from an empty DB/Preview;
+4. verify schema/RLS/functions/cardinalities/DeCA/telemetry invariants;
+5. only then propose explicit per-version history alignment and re-test Git integration.
 
 A Supabase Preview/development branch may incur cost; use `get_cost` and obtain explicit user approval before creating one.
 
@@ -136,7 +135,7 @@ Keep separate:
 
 ### Executable from current tooling
 
-- A2: finish `fornexa_operational_core` canonical comparison; verify `local_storage_import` live effects; prepare replay-safe reconciliation without touching production history.
+- A2: finish `fornexa_operational_core` canonical comparison; prepare replay-safe reconciliation without touching production history. `local_storage_import` live-effect verification is already closed and evidenced.
 - eCMR design/implementation work that does not depend on the blocked authenticated DeCA E2E: signer identity/authentication model, evidence, integrity/sealing, jurisdiction and lifecycle boundaries.
 - ADR 2025 source verification/import preparation.
 - Control Tower replacement of demo metrics with tenant-aware traceable sources.
