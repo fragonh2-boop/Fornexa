@@ -32,6 +32,15 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 - **Límites:** no renombrar migraciones históricas en `main`, no rerun de SQL aplicado, no `migration repair` global, no editar historial estándar y no crear rama Supabase de pago sin `get_cost` + aprobación explícita.
 - **Criterio de cierre:** replay limpio + comparación canónica restante + alineación de historial revisada + Git integration deja `MIGRATIONS_FAILED` sin alterar invariantes productivos.
 
+### 2026-09-11 — Defaults históricos de tenant en importación local
+- **Área:** Multi-tenant / Integridad de datos / Seguridad
+- **Estado:** BACKLOG TÉCNICO — REVISAR DESPUÉS DE A2 Y ANTES DE AMPLIAR AUTONOMÍA DE TENANTS
+- **Hallazgo live:** `local_storage_imports.tenant_id` y `local_storage_sync_runs.tenant_id` mantienen el default histórico `'00000000-0000-4000-8000-000000000001'::uuid`.
+- **Riesgo:** RLS protege el acceso de aplicación, pero un productor interno/service-role que inserte sin `tenant_id` explícito podría atribuir datos al tenant piloto por defecto. El default fijo no debe tratarse como invariante multi-tenant deseable.
+- **Acción requerida:** auditar todos los productores/inserts de estas tablas y, en un cambio separado tras estabilizar A2, valorar eliminar el default fijo y exigir `tenant_id` explícito; acompañar con migración dedicada, tests y verificación de compatibilidad de importadores existentes.
+- **No mezclar con A2:** no modificar el default dentro de una alineación de provenance o `migration repair`; es un cambio funcional/esquema independiente.
+- **Criterio de cierre:** ningún flujo puede insertar sin tenant explícito, tests cubren el fallo por omisión y producción deja de depender del UUID piloto como fallback implícito.
+
 ### 2026-09-10 — DeCA: E2E autenticado sobre domicilio FISCAL canónico
 - **Área:** Documentación regulatoria / CMR / Acceso público / Auth
 - **Estado:** INFRAESTRUCTURA FISCAL EN PRODUCCIÓN; POST AUTENTICADO CONTROLADO PENDIENTE — OTRO DISPOSITIVO/SESIÓN
