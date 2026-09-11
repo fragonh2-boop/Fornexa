@@ -4,17 +4,17 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-11 09:35 CEST.
+- **Updated:** 2026-09-11 11:10 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
-- **Production main:** `c9e9b76550162c9d549803e0b02031d8716bf401`, squash merge of PR #68.
-- **CI:** GitHub Actions run #287 completed `success` on that exact production SHA, including memorandum gate, Web typecheck/lint/tests/build and Mobile typecheck.
-- **Vercel production:** deployment `dpl_FFpT54jAjjeZVek6z81bHNdzQHjK` is `READY`, targets production, carries the same SHA and serves `fornexasc.com`. Runtime query returned no warning/error/fatal entries in the checked window.
-- **Supabase production:** DeCA foundations/P0-A/P0-B and canonical FISCAL remain deployed. PR #68 made no database/schema changes.
+- **Production main:** `6a17adcb6bb381b4a788008c44ed8fff199889da`, squash merge of PR #69 (TLM-1 rollout documentation closeout).
+- **CI:** GitHub Actions run #289 completed `success` on that exact production SHA, including memorandum gate, Web typecheck/lint/tests/build and Mobile typecheck.
+- **Vercel production:** deployment `dpl_DxCgVXAbKXjiFziGmWHxPbnd6pRM` is `READY`, targets production, carries the same SHA and serves `fornexasc.com`. Runtime query returned no warning/error/fatal entries in the checked window.
+- **Supabase production:** project is healthy; Git branch integration `main` is currently `MIGRATIONS_FAILED` because migration provenance/history differs from Git. No production schema/history mutation was performed during the A2 investigation.
 - **MMO-1:** PR #38 remains draft and isolated from Production.
 
-## TLM-1 network identity privacy — PR #68 deployed, configuration gate still open
+## TLM-1 network identity privacy — fail-safe deployed, configuration gate still open
 
-PR #68 hardens platform telemetry so an absent hashing secret cannot silently leave a raw IP persisted.
+PR #68 hardens platform telemetry so an absent hashing secret cannot silently leave a raw IP persisted. PR #69 reconciled the rollout documentation.
 
 Production behavior now is:
 
@@ -28,29 +28,57 @@ Verified rollout evidence:
 
 - PR #68 final HEAD `229c4ce3870f63db6fe3f18ff6e52fd0ba7695d2`;
 - PR CI #286 `success` exact-HEAD;
-- Preview `dpl_D5JurVjg4WQNJoD4eXfTwNsRa2SU` READY exact-HEAD with no warning/error/fatal in the checked runtime window;
+- Preview `dpl_D5JurVjg4WQNJoD4eXfTwNsRa2SU` READY exact-HEAD;
 - DeepSeek exact-HEAD review: MUST none;
-- Claude design review before implementation: MUST none and implementation approved; the final exact-HEAD request had not replied before merge, so this is recorded as a governance exception and **not** as an exact-HEAD Claude approval;
-- Fran explicitly instructed GPT to proceed;
-- squash merge production SHA `c9e9b76550162c9d549803e0b02031d8716bf401`;
-- main CI #287 `success` on that SHA;
-- Vercel production `dpl_FFpT54jAjjeZVek6z81bHNdzQHjK` READY on the same SHA and serving `fornexasc.com`;
-- controlled production GET `/` after deployment created a new `platform_telemetry.telemetry_requests` row with `ip IS NULL = true` and `ip_hash IS NULL = true`, directly confirming the fail-safe behavior while the dedicated secret remains unconfigured.
+- Claude design review before implementation: MUST none and implementation approved; final exact-HEAD request did not reply before merge, so this is a governance exception and **not** an exact-HEAD Claude approval;
+- functional squash merge SHA `c9e9b76550162c9d549803e0b02031d8716bf401`, main CI #287 success and Vercel production READY;
+- controlled production GET `/` created a new telemetry row with `ip IS NULL = true` and `ip_hash IS NULL = true` while the dedicated secret remained unconfigured;
+- PR #69 documentation closeout is current production `main` `6a17adcb6bb381b4a788008c44ed8fff199889da`; CI #289 success and Vercel production `dpl_DxCgVXAbKXjiFziGmWHxPbnd6pRM` READY on the same SHA.
 
-**TLM-1 is not closed yet.** Remaining product/configuration gate:
+**TLM-1 is not closed yet.** Remaining device/configuration gate:
 
 1. configure a dedicated, high-entropy `FORNEXA_TELEMETRY_HASH_SECRET` in Production;
 2. configure and verify `FORNEXA_TELEMETRY_OWNER_EMAILS` for the intended OWNER account(s);
-3. generate controlled traffic and verify new rows carry raw IP + a deterministic 64-hex HMAC only when the secret is present;
+3. generate controlled traffic and verify new rows carry raw IP + deterministic 64-hex HMAC only when the secret is present;
 4. verify `/internal/telemetry` works for an authorized OWNER and still returns 404 for unauthorized users;
 5. preserve the privacy invariant: never persist raw IP without a configured dedicated secret.
+
+The Vercel connector available in the current chat runtime does not expose environment-variable read/write. Do not fabricate a secret or allowlist; finish this gate from a device/session with legitimate Vercel configuration access.
 
 Residuals / SHOULDs:
 
 - retention of raw IP remains opportunistic: `platform_telemetry.run_retention_if_due()` runs on capture with a one-hour throttle; it is not a guaranteed scheduler if traffic stops;
 - adding `/internal/telemetry` to proxy-level auth resolution would be defense in depth; current Server Component OWNER + allowlist check remains the authoritative gate;
-- final secret configuration should use a strong dedicated value; do not reuse application, Supabase or auth secrets;
-- DeepSeek suggested making `telemetryClientIp` non-exported and complementing source-contract coverage with a behavioral `requestTelemetryPayload` test; neither is a blocker for the deployed fix.
+- DeepSeek suggested making `telemetryClientIp` non-exported and complementing source-contract coverage with a behavioral `requestTelemetryPayload` test; neither blocks the deployed fix.
+
+## Supabase Preview / A2 provenance — diagnosed, replay required before repair
+
+Live read-only reconciliation on 2026-09-11 confirmed:
+
+- Supabase production/preview project status: `ACTIVE_HEALTHY`;
+- integrated Git branch `main`: `MIGRATIONS_FAILED`;
+- 34 active SQL migrations in Git vs 33 rows in standard `supabase_migrations.schema_migrations`;
+- 3 exact versions, 29 logical/name matches with different version prefixes/timestamps, 2 Git-only entries and 1 remote-only entry;
+- production also has historical `public.fornexa_schema_migrations`, a second/internal ledger which records several Git-style versions not present in standard history.
+
+Special cases now classified:
+
+- `20260812_local_storage_import.sql`: absent from standard history but present in the internal ledger as historically applied; all live effects still need exact verification before any history alignment.
+- `20260818_cmr_number_sequence_resync.sql`: absent from both ledgers. Current sequence is 11 while the highest persisted 2026 canonical CMR suffix is 3, so its intended invariant currently holds, but the migration **must not be marked applied by inference**.
+- standard-history-only `20260817212235 cmr_canonical_model_rls_and_hardening`: exact SQL recovered from `supabase_migrations.schema_migrations.statements`. Production confirms its six CMR `tenant_isolation` policies, RLS on the internal ledger and `search_path=''` on `fornexa_check_expedition_delivery_note_order()` are still active.
+- `20260818_fix_order_expedition_cardinality` appears in the internal ledger but its current Git file is `.sql.obsolete` comments only. The active restore migration is defensive/idempotent and converges to the canonical Pedido↔Expediente 1:1 invariant, but current Git no longer reproduces production's exact historical path.
+
+Full map and safe plan: `docs/verification/supabase-migration-provenance-20260911.md`.
+
+**Do not** rename historical migration files on `main`, rerun applied SQL, use blanket `migration repair`, edit standard migration history or create a Supabase development/Preview branch yet. The next gates are:
+
+1. exact SQL-content comparison for all 29 timestamp-drift pairs;
+2. prepare a reconciliation branch containing the recovered hardening source and classified special cases;
+3. replay from an empty DB/Preview;
+4. verify schema/RLS/functions/cardinalities/DeCA/telemetry invariants;
+5. only then propose an explicit per-version history-alignment plan and re-test Git integration.
+
+A Supabase Preview/development branch may incur cost; use `get_cost` and obtain explicit user approval before creating one.
 
 ## CMR continuation identity and headers — closed in production
 
@@ -87,25 +115,28 @@ Keep separate:
 - eCMR signing/auth/jurisdiction remains a follow-on block;
 - automatic operational lifecycle remains separate from the already deployed minimum lifecycle semantics.
 
-## Supabase Preview / A2 provenance
+## Backlog by execution context
 
-Production is healthy, but the Git integration has been observed as `MIGRATIONS_FAILED`. Diagnostic map from 2026-09-10:
+### Requires another device/session or explicit cost approval
 
-- 34 active SQL migrations in Git vs 33 rows in standard Supabase migration history;
-- 29 logical equivalents have different timestamps/versions;
-- 2 repo-only entries and 1 remote-only entry;
-- repository also contains duplicated active timestamp families around 20260812/17/18/19.
+- TLM-1 production env configuration: dedicated hash secret + OWNER allowlist + controlled access/hash verification.
+- DeCA authenticated OWNER/ADMIN E2E.
+- CMR/PDF native acceptance with a real QR.
+- Supabase paid Preview/development branch for A2 replay: cost must be obtained and explicitly approved before creation.
+- Claude exact-HEAD review where the available Slack workflow does not return a response; never convert a non-response into approval.
 
-Do **not** rerun applied migrations or use `migration repair` blindly. First perform a controlled replay/Preview and establish exact equivalence/provenance. Do not create a paid Supabase branch without explicit approval.
+### Executable from current tooling
 
-## Other backlog
+- A2: continue exact content comparison of mapped migrations and prepare a non-production reconciliation plan/branch without touching `supabase/**` on `main`.
+- eCMR design/implementation work that does not depend on the blocked authenticated DeCA E2E: signer identity/authentication model, evidence, integrity/sealing, jurisdiction and lifecycle boundaries.
+- ADR 2025 source verification/import preparation.
+- Control Tower replacement of demo metrics with tenant-aware traceable sources.
+- Mobile stable-channel planning and CI/distribution hardening.
+- Optional CMR continuation-page physical-frame polish.
 
-- Password-recovery success-message contrast was rechecked: current success colors already exceed WCAG AA; close documentation only, no color change needed.
-- CMR native/PDF acceptance with a real QR remains device-dependent acceptance, separate from synthetic print integrity.
-- ADR 2025 activation: verify/import official source and packaging/rules before enabling regulatory calculation.
-- Control Tower: continue replacing demo metrics with tenant-aware traceable operational data.
-- Mobile: establish stable promotion/distribution channel.
-- MMO-1: Preview-only, isolated provider configuration; Production must remain without its temporary flags/keys.
+### Other backlog
+
+- MMO-1: Preview-only, isolated provider configuration; Production must remain without temporary flags/keys.
 - Tenant autonomy and critical E2E coverage remain open product work.
 
 ## DeepSeek independent reviewer
