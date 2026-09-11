@@ -4,8 +4,7 @@ import { getAuthenticatedUser } from "@/lib/supabase/server";
 import {
   callTelemetryRpc,
   normalizeTelemetryPath,
-  telemetryClientIp,
-  telemetryIpHash,
+  telemetryNetworkIdentity,
 } from "@/lib/platform-telemetry";
 
 const authEvents = new Set([
@@ -33,7 +32,7 @@ export async function POST(request: NextRequest) {
   const sessionId = uuid(body.session_id);
   if (!sessionId) return NextResponse.json({ error: "Sesión inválida." }, { status: 400 });
 
-  const ip = telemetryClientIp(request.headers);
+  const network = telemetryNetworkIdentity(request.headers);
   const user = await getAuthenticatedUser().catch(() => null);
   const now = new Date().toISOString();
 
@@ -60,8 +59,7 @@ export async function POST(request: NextRequest) {
         session_id: sessionId,
         user_id: user?.id ?? null,
         email_hash: email ? createHash("sha256").update(email).digest("hex") : null,
-        ip,
-        ip_hash: telemetryIpHash(ip),
+        ...network,
         path: "/login",
         failure_code: typeof body.failure_code === "string" ? body.failure_code.slice(0, 128) : null,
       });
