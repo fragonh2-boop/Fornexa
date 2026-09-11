@@ -92,7 +92,11 @@ The 16 byte/content-equivalent timestamp-drift pairs are:
 
 ### Semantic review of the 13 content-different single-string rows
 
-Each of the 13 content-different pairs was then compared manually at the executable SQL level against the SQL retained in standard Supabase history. Result: **13/13 are semantically equivalent**. The observed differences are comments, whitespace, line wrapping or equivalent formatting of the same DDL/DML; no executable statement addition, deletion or behavior change was found.
+Review date: 2026-09-11.
+
+Method: each current Git migration was read side-by-side with the SQL string retained for the same logical migration in `supabase_migrations.schema_migrations.statements`. The comparison ignored only SQL comments, whitespace, line breaks and presentation formatting. Identifiers, literals, expressions, statement order, DDL/DML operations, grants, policies, function bodies and transaction semantics were **not** normalized away. A pair was classified equivalent only when no executable statement addition, deletion or behavior change was found.
+
+Result: **13/13 are semantically equivalent**. The observed differences are comments, whitespace, line wrapping or equivalent formatting of the same DDL/DML.
 
 Reviewed pairs:
 
@@ -160,14 +164,15 @@ Therefore the remote-only migration is genuinely applied and its exact source ca
 
 ### `20260812_local_storage_import.sql`
 
-Status: **applied historically, but not registered in standard Supabase history**.
+Status: **applied historically, effects verified live, but not registered in standard Supabase history**.
 
 Evidence:
 
 - internal ledger contains `20260812_local_storage_import`;
-- current migration creates the local-storage import/sync tables, related indexes/RLS, adjusts party tax-ID uniqueness and inserts the internal-ledger row.
+- `docs/verification/local-storage-import-live-effects-20260911.md` records the read-only catalogue checks;
+- production has the expected local-storage import/sync tables, columns/defaults, PK/FK/UNIQUE/CHECK constraints, RLS/policies, indexes and partial tax-ID uniqueness replacement.
 
-Before any standard-history repair, verify each of these schema effects against production and compare the stored SQL/content, not just the migration name.
+This closes the live-effect verification gate. It does **not** authorize a standard-history repair. The fixed pilot-tenant default observed on both tables is tracked separately as multi-tenant technical debt and must not be silently changed inside provenance reconciliation.
 
 ### `20260818_cmr_number_sequence_resync.sql`
 
@@ -178,7 +183,7 @@ Current production read-only observation:
 - `cmr_number_seq.last_value = 11`;
 - highest persisted 2026 canonical CMR suffix matching `CMR-26NNNNNN` = 3.
 
-The intended invariant (sequence not behind persisted numbers) is currently satisfied, but this is **not evidence that the migration ran**. Do not mark it applied by inference. It needs an explicit decision during replay/history reconciliation: either execute it as a legitimate pending idempotent migration after validation, or retire it with documented rationale.
+There is currently no evidence that the sequence is behind persisted CMR numbers, but this is **not evidence that the migration ran**. Do not mark it applied by inference. It needs an explicit decision during replay/history reconciliation: either execute it as a legitimate pending idempotent migration after validation, or retire it with documented rationale.
 
 ## Obsolete cardinality migration provenance
 
@@ -191,23 +196,22 @@ Two consequences:
 - current Git does not reproduce the exact historical path that production followed;
 - the restore migration is designed to converge to the correct final invariant even when the erroneous migration is absent on a fresh replay.
 
-The restore file currently says the erroneous migration was applied outside Supabase tracking “sin registro en `fornexa_schema_migrations`”; production now does contain such an internal-ledger row. Treat that wording as stale provenance commentary, not as live evidence.
+The restore file currently says the erroneous migration was applied outside Supabase tracking “sin registro en `fornexa_schema_migrations`”; production now does contain such an internal-ledger row. Treat that wording as stale provenance commentary, not as live evidence. Correcting historical migration commentary is outside this docs-only A2 classification change and should not be mixed with replay/history repair.
 
 ## Safe reconciliation plan
 
 No production history mutation should happen until these gates are complete:
 
 1. **Finish the one remaining name-matched semantic classification.** Compare the 83 stored statements of `fornexa_operational_core` canonically against the current Git migration. Do not classify it from guessed delimiters, byte size or version alone.
-2. **Verify `local_storage_import` live effects.** Confirm its tables, indexes, RLS and tax-ID uniqueness behavior before any history-only alignment.
-3. **Preserve remote-only hardening source.** Stage the recovered `20260817212235_cmr_canonical_model_rls_and_hardening` SQL in a non-production reconciliation branch so a fresh database can replay the security hardening.
-4. **Classify the two Git-only migrations.** `local_storage_import` requires proof of all live effects before any history-only alignment; `cmr_number_sequence_resync` remains pending/not-applied until explicitly executed or retired.
-5. **Fresh replay required.** Run the reconciled set from an empty database/Preview and verify schema, RLS, functions, Pedido↔Expediente 1:1, DeCA/FISCAL invariants, telemetry RPCs and representative tests.
-6. **Only after a clean replay**, prepare an explicit history-alignment plan. If `migration repair` is used, each applied/reverted version must be listed and justified; never use a blanket repair.
-7. **Re-test Git integration** until the branch no longer reports `MIGRATIONS_FAILED`.
-8. **Production changes last.** No migration file renames, standard-history edits or SQL reruns go to production before the replay evidence and independent review are green.
+2. **Preserve remote-only hardening source.** Stage the recovered `20260817212235_cmr_canonical_model_rls_and_hardening` SQL in a non-production reconciliation branch so a fresh database can replay the security hardening.
+3. **Classify the two Git-only migrations for replay/history treatment.** `local_storage_import` has its live effects proven but remains absent from standard history; do not align history until replay. `cmr_number_sequence_resync` remains pending/not-applied until explicitly executed or retired.
+4. **Fresh replay required.** Run the reconciled set from an empty database/Preview and verify schema, RLS, functions, Pedido↔Expediente 1:1, DeCA/FISCAL invariants, telemetry RPCs and representative tests.
+5. **Only after a clean replay**, prepare an explicit history-alignment plan. If `migration repair` is used, each applied/reverted version must be listed and justified; never use a blanket repair.
+6. **Re-test Git integration** until the branch no longer reports `MIGRATIONS_FAILED`.
+7. **Production changes last.** No migration file renames, standard-history edits or SQL reruns go to production before the replay evidence and independent review are green.
 
 A Supabase development/Preview branch may incur cost and must not be created without explicit user approval after `get_cost` and confirmation.
 
 ## Current decision
 
-A2 remains **OPEN / diagnosed**. Production is healthy. The earlier 13 single-string content mismatches have now been closed as semantic false positives: 13/13 contain the same executable SQL. The next executable steps are the canonical comparison of `fornexa_operational_core`, live verification of `local_storage_import` effects and preparation of a replay-safe reconciliation branch. The actual Preview/replay remains cost-gated. No production migration or migration-history state was modified during this investigation.
+A2 remains **OPEN / diagnosed**. Production is healthy. The earlier 13 single-string content mismatches are closed as semantic false positives, and `local_storage_import` live effects are now verified. The next executable steps are the canonical comparison of `fornexa_operational_core` and preparation of a replay-safe reconciliation branch. The actual Preview/replay remains cost-gated. No production migration or migration-history state was modified during this investigation.
