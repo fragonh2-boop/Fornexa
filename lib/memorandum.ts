@@ -19,9 +19,16 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "11 sep 2026";
-export const memorandumCommitCoverage = 565;
+export const memorandumCommitCoverage = 566;
 
 export const memorandumPending: MemorandumPending[] = [
+  {
+    area: "Técnico",
+    title: "A2 — reproducibilidad de migraciones",
+    summary: "Una revisión independiente reabrió la comparación histórica al encontrar en el repositorio una migración sin un requisito de unicidad que sí fue ejecutado y existe en producción. La reparación en curso alinea la fuente versionada y añade una comprobación preventiva sin modificar la base productiva. Antes del replay controlado deben contrastarse directamente las migraciones todavía no verificadas y mantenerse separada cualquier alineación del historial.",
+    priority: "Ahora",
+    state: "En seguimiento",
+  },
   {
     area: "Técnico",
     title: "TLM-1 — identidad de red fail-safe",
