@@ -54,11 +54,17 @@ export function telemetryClientIp(headers: Headers) {
   return null;
 }
 
-export function telemetryIpHash(ip: string | null) {
-  if (!ip) return null;
+export function telemetryNetworkIdentity(headers: Headers) {
+  const ip = telemetryClientIp(headers);
   const secret = process.env.FORNEXA_TELEMETRY_HASH_SECRET;
-  if (!secret) return null;
-  return createHmac("sha256", secret).update(ip).digest("hex");
+
+  // Fail-safe privacy: if hashing is not configured, never persist the raw IP.
+  if (!ip || !secret) return { ip: null, ip_hash: null };
+
+  return {
+    ip,
+    ip_hash: createHmac("sha256", secret).update(ip).digest("hex"),
+  };
 }
 
 export function telemetrySessionId(request: NextRequest) {
@@ -87,13 +93,12 @@ export async function callTelemetryRpc(kind: TelemetryKind, payload: Record<stri
 }
 
 export function requestTelemetryPayload(request: NextRequest) {
-  const ip = telemetryClientIp(request.headers);
+  const network = telemetryNetworkIdentity(request.headers);
   return {
     occurred_at: new Date().toISOString(),
     request_id: request.headers.get("x-vercel-id")?.slice(0, 200) ?? crypto.randomUUID(),
     session_id: telemetrySessionId(request),
-    ip,
-    ip_hash: telemetryIpHash(ip),
+    ...network,
     host: request.headers.get("host")?.slice(0, 255) ?? null,
     method: request.method.slice(0, 12),
     path: normalizeTelemetryPath(request.nextUrl.pathname),
