@@ -59,17 +59,19 @@ The database being healthy and the Git integration reporting `MIGRATIONS_FAILED`
 | `20260910084703_canonical_fiscal_address.sql` | `20260910094055 canonical_fiscal_address` | timestamp drift |
 | — | `20260817212235 cmr_canonical_model_rls_and_hardening` | remote-only in current Git |
 
-## SQL content fingerprints
+## SQL content comparison
 
-The standard migration table stores the actual executed SQL in `statements`. To avoid treating equal names as proof of equivalence, the stored SQL was converted to the Git object SHA-1 form (`SHA1("blob <bytes>\0<content>")`) and compared with each migration file's Git blob SHA. A second candidate appending one final LF was calculated because several remote statements omit the repository's trailing newline.
+`supabase_migrations.schema_migrations.statements` retains the SQL applied by the migration system, but its representation is not uniform: the first three historical rows contain arrays of **8, 20 and 83 separate statements**, while every later row currently contains one SQL string. Joining multi-statement arrays without their original delimiters loses semicolons/formatting, so a raw Git-blob fingerprint is **not valid** for those three rows.
 
-Result across the 33 standard-history rows:
+For the **30 single-string standard-history rows**, a Git-object SHA-1 was calculated from the stored SQL and compared with the repository blob SHA, also allowing one final LF because the remote value can omit the file's trailing newline.
 
-- **16 rows match the current Git SQL by content**, either byte-for-byte or with only one final LF difference;
-- **16 rows do not match the current Git SQL** — the file has materially changed since the SQL recorded in production history;
-- **1 row is remote-only** (`20260817212235 cmr_canonical_model_rls_and_hardening`).
+Verified result for those 30 rows:
 
-Content-equivalent timestamp-drift pairs (exact or trailing-LF-only):
+- **16 are content-equivalent** to current Git (exactly or trailing-LF-only);
+- **13 have materially different current Git content** from the SQL stored as executed;
+- **1 is remote-only** (`20260817212235 cmr_canonical_model_rls_and_hardening`).
+
+Content-equivalent timestamp-drift pairs:
 
 - `expedition_order_link`
 - `cmr_canonical_model`
@@ -88,7 +90,7 @@ Content-equivalent timestamp-drift pairs (exact or trailing-LF-only):
 - `deca_regulatory_storage`
 - `canonical_fiscal_address`
 
-Timestamp-drift pairs whose **current Git SQL differs materially** from the SQL stored as executed:
+Single-string rows whose current Git SQL differs materially from the SQL stored as executed:
 
 - `restrict_tenant_members_writes`
 - `cmr_access_key_lifecycle` / `add_cmr_access_key_lifecycle`
@@ -104,13 +106,13 @@ Timestamp-drift pairs whose **current Git SQL differs materially** from the SQL 
 - `deca_public_url_lifecycle`
 - `deca_native_atomic_issuance`
 
-Additionally, all three rows whose **version already matches Git exactly** have current Git content that differs from the SQL stored as originally executed:
+For the three multi-statement rows with exact version prefixes:
 
-- `20260807_customs_core`
-- `20260808_mobile_cmr`
-- `20260812_fornexa_operational_core`
+- `20260807_customs_core`: manual statement-by-statement inspection confirms the current Git SQL and the 8 stored statements are semantically the same; the earlier blob mismatch was delimiter/format representation only.
+- `20260808_mobile_cmr`: manual statement-by-statement inspection confirms the current Git SQL and the 20 stored statements are semantically the same; the earlier blob mismatch was delimiter/format representation only.
+- `20260812_fornexa_operational_core`: 83 stored statements; canonical/semantic comparison remains pending and is deliberately **not** inferred from name, size or version.
 
-This is the decisive A2 finding: **filename/version reconciliation alone is insufficient**. A clean replay must validate the *current Git SQL as a whole* because 16 historical files no longer equal the statements production originally executed, including the first three migrations whose version names already match.
+Therefore the safe conclusion is narrower but still decisive: **at least 13 historical single-string migrations have real content drift, one foundation migration still needs canonical comparison, and filename/version reconciliation alone is insufficient.** A clean replay is mandatory before changing migration history.
 
 ## Dual-ledger provenance
 
@@ -189,7 +191,7 @@ The restore file currently says the erroneous migration was applied outside Supa
 
 No production history mutation should happen until these gates are complete:
 
-1. **Content classification is now complete at fingerprint level.** Sixteen standard rows match Git content (allowing a final LF); sixteen differ materially; one is remote-only. For the 16 changed rows, inspect semantic diffs and determine whether the current Git form is a deliberate replay-safe evolution or an accidental rewrite of historical migration source.
+1. **Finish semantic classification.** Thirteen single-string migration pairs are confirmed content-different and need semantic diff review; `fornexa_operational_core` still needs canonical statement-sequence comparison. Do not classify differences from byte size alone.
 2. **Preserve remote-only hardening source.** Stage the recovered `20260817212235_cmr_canonical_model_rls_and_hardening` SQL in a non-production reconciliation branch so a fresh database can replay the security hardening.
 3. **Classify the two Git-only migrations.** `local_storage_import` requires proof of all live effects before any history-only alignment; `cmr_number_sequence_resync` remains pending/not-applied until explicitly executed or retired.
 4. **Fresh replay required.** Run the reconciled set from an empty database/Preview and verify schema, RLS, functions, Pedido↔Expediente 1:1, DeCA/FISCAL invariants, telemetry RPCs and representative tests.
@@ -201,4 +203,4 @@ A Supabase development/Preview branch may incur cost and must not be created wit
 
 ## Current decision
 
-A2 remains **OPEN / diagnosed**. Production is healthy. Fingerprint-level content classification is complete; the next executable step is semantic diff review of the 16 changed historical files and preparation of a replay-safe reconciliation branch. The actual Preview/replay remains cost-gated. No production migration or migration-history state was modified during this investigation.
+A2 remains **OPEN / diagnosed**. Production is healthy. The next executable step is semantic diff review of the 13 confirmed content-drift migrations plus canonical comparison of `fornexa_operational_core`, followed by preparation of a replay-safe reconciliation branch. The actual Preview/replay remains cost-gated. No production migration or migration-history state was modified during this investigation.
