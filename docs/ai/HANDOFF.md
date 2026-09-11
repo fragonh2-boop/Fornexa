@@ -136,6 +136,7 @@ Keep separate:
 ### Executable from current tooling
 
 - A2: finish `fornexa_operational_core` canonical comparison; prepare replay-safe reconciliation without touching production history. `local_storage_import` live-effect verification is already closed and evidenced.
+- Multi-tenant debt: audit every producer of `local_storage_imports` / `local_storage_sync_runs`; both tables still default missing `tenant_id` to the historical pilot UUID. Treat removal of that default as a dedicated post-A2 schema change with tests, not as provenance repair.
 - eCMR design/implementation work that does not depend on the blocked authenticated DeCA E2E: signer identity/authentication model, evidence, integrity/sealing, jurisdiction and lifecycle boundaries.
 - ADR 2025 source verification/import preparation.
 - Control Tower replacement of demo metrics with tenant-aware traceable sources.
