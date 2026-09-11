@@ -4,7 +4,7 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-11 11:15 CEST.
+- **Updated:** 2026-09-11 11:25 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
 - **Production main:** `6a17adcb6bb381b4a788008c44ed8fff199889da`, squash merge of PR #69 (TLM-1 rollout documentation closeout).
 - **CI:** GitHub Actions run #289 completed `success` on that exact production SHA, including memorandum gate, Web typecheck/lint/tests/build and Mobile typecheck.
@@ -61,13 +61,15 @@ Live read-only reconciliation on 2026-09-11 confirmed:
 - 3 exact version prefixes, 29 logical/name matches with different version prefixes/timestamps, 2 Git-only entries and 1 remote-only entry;
 - production also has historical `public.fornexa_schema_migrations`, a second/internal ledger which records several Git-style versions not present in standard history.
 
-SQL-content fingerprinting is now complete at byte level. The SQL stored in standard migration history was hashed using the Git blob algorithm and compared with repository blob SHAs, also allowing a single final LF difference:
+Content comparison is now reliable for the 30 standard rows stored as one SQL string:
 
-- **16/33 standard rows match current Git SQL by content**;
-- **16/33 standard rows differ materially from current Git SQL**;
-- **1/33 is remote-only** (`cmr_canonical_model_rls_and_hardening`).
+- **16/30 match current Git SQL by content** (exact or only final LF differs);
+- **13/30 have materially different current Git SQL** from the SQL stored as executed;
+- **1/30 is remote-only** (`cmr_canonical_model_rls_and_hardening`).
 
-Importantly, the three migrations whose version prefixes already match (`customs_core`, `mobile_cmr`, `fornexa_operational_core`) are among the 16 whose current Git content differs from what production originally executed. Therefore timestamp repair alone cannot prove replay safety.
+The first three historical rows are stored as arrays of 8/20/83 statements, so a raw blob hash cannot be compared without reconstructing delimiters. Manual statement-level checks have confirmed `customs_core` and `mobile_cmr` are semantically equivalent; `fornexa_operational_core` still needs canonical statement-sequence comparison. An earlier intermediate 16/33 vs 16/33 blob interpretation was rejected before merge because joining statement arrays without semicolons creates false mismatches.
+
+Confirmed single-string content drift exists in 13 migrations, including review-token/mobile access, shared addresses, tariff engine, T1 append-only and DeCA lifecycle/native issuance. Therefore timestamp repair alone cannot prove replay safety.
 
 Special cases now classified:
 
@@ -80,7 +82,7 @@ Full map, content classifications and safe plan: `docs/verification/supabase-mig
 
 **Do not** rename historical migration files on `main`, rerun applied SQL, use blanket `migration repair`, edit standard migration history or create a Supabase development/Preview branch yet. The next gates are:
 
-1. inspect semantic diffs for the 16 files whose current Git SQL differs from the stored production statements;
+1. inspect semantic diffs for the 13 confirmed content-drift migrations and finish canonical comparison of `fornexa_operational_core`;
 2. prepare a non-production reconciliation branch that preserves the recovered hardening source and classifies the two Git-only migrations;
 3. replay from an empty DB/Preview;
 4. verify schema/RLS/functions/cardinalities/DeCA/telemetry invariants;
@@ -135,7 +137,7 @@ Keep separate:
 
 ### Executable from current tooling
 
-- A2: inspect semantic diffs for the 16 historical migrations whose current Git SQL differs from the SQL actually stored as executed; prepare replay-safe reconciliation without touching production history.
+- A2: inspect semantic diffs for the 13 confirmed historical content-drift migrations and finish canonical comparison of `fornexa_operational_core`; prepare replay-safe reconciliation without touching production history.
 - eCMR design/implementation work that does not depend on the blocked authenticated DeCA E2E: signer identity/authentication model, evidence, integrity/sealing, jurisdiction and lifecycle boundaries.
 - ADR 2025 source verification/import preparation.
 - Control Tower replacement of demo metrics with tenant-aware traceable sources.
