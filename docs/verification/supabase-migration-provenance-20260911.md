@@ -23,9 +23,9 @@ The database being healthy and the Git integration reporting `MIGRATIONS_FAILED`
 
 | Git migration | Standard Supabase history | Classification |
 | --- | --- | --- |
-| `20260807_customs_core.sql` | `20260807 customs_core` | exact |
-| `20260808_mobile_cmr.sql` | `20260808 mobile_cmr` | exact |
-| `20260812_fornexa_operational_core.sql` | `20260812 fornexa_operational_core` | exact |
+| `20260807_customs_core.sql` | `20260807 customs_core` | exact version |
+| `20260808_mobile_cmr.sql` | `20260808 mobile_cmr` | exact version |
+| `20260812_fornexa_operational_core.sql` | `20260812 fornexa_operational_core` | exact version |
 | `20260812_local_storage_import.sql` | — | Git-only in standard history; internal ledger says applied |
 | `20260814_cmr_canonical_model.sql` | `20260817142325 cmr_canonical_model` | timestamp drift |
 | `20260817_expedition_order_link.sql` | `20260817142306 expedition_order_link` | timestamp drift |
@@ -58,6 +58,59 @@ The database being healthy and the Git integration reporting `MIGRATIONS_FAILED`
 | `20260907175000_deca_native_atomic_issuance.sql` | `20260907182639 deca_native_atomic_issuance` | timestamp drift |
 | `20260910084703_canonical_fiscal_address.sql` | `20260910094055 canonical_fiscal_address` | timestamp drift |
 | — | `20260817212235 cmr_canonical_model_rls_and_hardening` | remote-only in current Git |
+
+## SQL content fingerprints
+
+The standard migration table stores the actual executed SQL in `statements`. To avoid treating equal names as proof of equivalence, the stored SQL was converted to the Git object SHA-1 form (`SHA1("blob <bytes>\0<content>")`) and compared with each migration file's Git blob SHA. A second candidate appending one final LF was calculated because several remote statements omit the repository's trailing newline.
+
+Result across the 33 standard-history rows:
+
+- **16 rows match the current Git SQL by content**, either byte-for-byte or with only one final LF difference;
+- **16 rows do not match the current Git SQL** — the file has materially changed since the SQL recorded in production history;
+- **1 row is remote-only** (`20260817212235 cmr_canonical_model_rls_and_hardening`).
+
+Content-equivalent timestamp-drift pairs (exact or trailing-LF-only):
+
+- `expedition_order_link`
+- `cmr_canonical_model`
+- `cmr_expeditions_bridge`
+- `expeditions_order_id_unique`
+- `restore_order_expedition_1to1`
+- `harden_tenant_access_function`
+- `enable_private_review_access_tokens_rls`
+- `adr_classification_foundation`
+- `adr_foundation_indexes`
+- `address_subdivision_key`
+- `allow_party_review_status`
+- `customer_master_foundation`
+- `platform_telemetry`
+- `deca_regulatory_document_foundation`
+- `deca_regulatory_storage`
+- `canonical_fiscal_address`
+
+Timestamp-drift pairs whose **current Git SQL differs materially** from the SQL stored as executed:
+
+- `restrict_tenant_members_writes`
+- `cmr_access_key_lifecycle` / `add_cmr_access_key_lifecycle`
+- `review_access_token_registry`
+- `harden_review_token_rpc`
+- `cmr_view_sessions`
+- `mobile_trip_access`
+- `shared_party_addresses`
+- `shared_party_address_indexes`
+- `remove_legacy_route_service`
+- `tariff_engine_foundation`
+- `t1_append_only_events`
+- `deca_public_url_lifecycle`
+- `deca_native_atomic_issuance`
+
+Additionally, all three rows whose **version already matches Git exactly** have current Git content that differs from the SQL stored as originally executed:
+
+- `20260807_customs_core`
+- `20260808_mobile_cmr`
+- `20260812_fornexa_operational_core`
+
+This is the decisive A2 finding: **filename/version reconciliation alone is insufficient**. A clean replay must validate the *current Git SQL as a whole* because 16 historical files no longer equal the statements production originally executed, including the first three migrations whose version names already match.
 
 ## Dual-ledger provenance
 
@@ -136,7 +189,7 @@ The restore file currently says the erroneous migration was applied outside Supa
 
 No production history mutation should happen until these gates are complete:
 
-1. **Content equivalence, not name equivalence.** For every one of the 29 timestamp-drift pairs, compare the exact SQL stored in `supabase_migrations.schema_migrations.statements` against the corresponding Git migration, allowing only understood wrapper/metadata differences. Record the result per pair.
+1. **Content classification is now complete at fingerprint level.** Sixteen standard rows match Git content (allowing a final LF); sixteen differ materially; one is remote-only. For the 16 changed rows, inspect semantic diffs and determine whether the current Git form is a deliberate replay-safe evolution or an accidental rewrite of historical migration source.
 2. **Preserve remote-only hardening source.** Stage the recovered `20260817212235_cmr_canonical_model_rls_and_hardening` SQL in a non-production reconciliation branch so a fresh database can replay the security hardening.
 3. **Classify the two Git-only migrations.** `local_storage_import` requires proof of all live effects before any history-only alignment; `cmr_number_sequence_resync` remains pending/not-applied until explicitly executed or retired.
 4. **Fresh replay required.** Run the reconciled set from an empty database/Preview and verify schema, RLS, functions, Pedido↔Expediente 1:1, DeCA/FISCAL invariants, telemetry RPCs and representative tests.
@@ -148,4 +201,4 @@ A Supabase development/Preview branch may incur cost and must not be created wit
 
 ## Current decision
 
-A2 remains **OPEN / diagnosed**. Production is healthy. The next executable technical step is exact content comparison of the 29 mapped pairs and preparation of a replay branch; the actual Preview/replay remains cost-gated. No production migration or migration-history state was modified during this investigation.
+A2 remains **OPEN / diagnosed**. Production is healthy. Fingerprint-level content classification is complete; the next executable step is semantic diff review of the 16 changed historical files and preparation of a replay-safe reconciliation branch. The actual Preview/replay remains cost-gated. No production migration or migration-history state was modified during this investigation.
