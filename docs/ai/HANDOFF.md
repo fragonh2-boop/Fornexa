@@ -10,7 +10,7 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 - **CI:** GitHub Actions run #303 (`34590289710`) completed `success` on that exact production SHA.
 - **Vercel production:** deployment `dpl_H59bc1eTxqWh3GzziFr2eefQQ7zh` is `READY`, targets production and carries the same SHA.
 - **Supabase production:** project is `ACTIVE_HEALTHY`; integrated Git branch `main` remains `MIGRATIONS_FAILED` because migration provenance/history differs from Git. No production schema/history mutation was performed during A2 analysis.
-- **Active local work:** `codex/a2-restore-tariff-rule-index`, based on the production SHA above; source-only replay repair and documentation correction, not merged or deployed.
+- **Active review:** PR #72 on `codex/a2-restore-tariff-rule-index`, based on the production SHA above; initial repair commit `de1e518`, not merged or deployed.
 - **MMO-1:** PR #38 remains draft and isolated from Production.
 
 ## TLM-1 network identity privacy — fail-safe deployed, configuration gate still open
