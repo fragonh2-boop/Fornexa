@@ -97,6 +97,7 @@ create table if not exists public.tariff_rules (
     references public.tariff_zones(tenant_id, id),
   constraint tariff_rules_dates_ck check (valid_to is null or valid_to >= valid_from)
 );
+create unique index if not exists tariff_rules_tenant_id_id_key on public.tariff_rules(tenant_id, id);
 create index if not exists tariff_rules_lookup_idx on public.tariff_rules(tenant_id, tariff_header_id, is_active, valid_from, valid_to, priority);
 
 create table if not exists public.fuel_indices (
