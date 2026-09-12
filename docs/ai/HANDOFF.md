@@ -4,13 +4,13 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-12 09:53 CEST.
+- **Updated:** 2026-09-12 13:45 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
-- **Production main:** `2dbe44facc303cfe4703d72a0cf665c36c98d552`, squash merge of PR #72 (A2 source-only tariff-index restoration and evidence correction).
-- **CI:** GitHub Actions run #306 (`34681714853`) completed `success` on that exact production SHA.
-- **Vercel production:** deployment `dpl_6zZhrZ7M3nPv4XdvzgMXuhp6Nnd4` is `READY`, targets production, carries the same SHA and serves `fornexasc.com`.
+- **Production main:** `18c19365972fcc4ac187f10848d6f33dbe528cb5`, squash merge of PR #73 (A2 documentation closeout after the source-only repair).
+- **CI:** GitHub Actions run `34691712464` completed `success` on that exact production SHA.
+- **Vercel production:** deployment `dpl_Ckc6Kokt5gZfGiq9RfryKEZp8Tsc` is `READY`, targets production, carries the same SHA, serves `fornexasc.com` and had no warning/error/fatal runtime entries in the checked window.
 - **Supabase production:** project is `ACTIVE_HEALTHY`; integrated Git branch `main` remains `MIGRATIONS_FAILED` because migration provenance/history differs from Git. No production schema/history mutation was performed during A2 analysis.
-- **A2 source repair:** PR #72 is merged and deployed at the production SHA above. Claude reviewed exact HEAD `11563bb33e974b8a38fdf5f104a5e5c4ecb26b5a` with MUST none; DeepSeek did not respond and is not counted as approval.
+- **A2 source repair:** PR #72 is merged and deployed; PR #73 reconciled the documentation and is the production SHA above. Claude reviewed PR #73 exact HEAD `528b96576da8affb5c8b83d56cb7879ef52c2aa9` with MUST none; DeepSeek did not respond and is not counted as approval.
 - **MMO-1:** PR #38 remains draft and isolated from Production.
 
 ## TLM-1 network identity privacy — fail-safe deployed, configuration gate still open
@@ -65,12 +65,12 @@ Live read-only reconciliation on 2026-09-11 confirmed:
 For the 30 standard rows stored as one SQL string:
 
 - **16/30 match current Git by byte/content** (exact or trailing-LF-only);
-- **13/30 have different blob/content representation**: 6 are independently confirmed semantic equivalents, 1 (`tariff_engine_foundation`) contained real DDL drift and 6 require renewed direct comparison;
+- **13/30 have different blob/content representation**: 12 are now directly confirmed executable-token/semantic equivalents and 1 (`tariff_engine_foundation`) contained real DDL drift repaired source-only;
 - **1/30 is remote-only** (`cmr_canonical_model_rls_and_hardening`).
 
 Claude's independent Git-vs-stored-statements recheck found that production's executed `tariff_engine_foundation` includes `tariff_rules_tenant_id_id_key`, while the Git migration omitted it. Production is healthy because the unique index already exists there. PR #72 restored the exact idempotent statement in current `main` before `pricing_run_components_rule_fk` and added a source-order regression test. The rollout executed no SQL and mutated no migration history; it repairs reproducibility of the versioned source only.
 
-The six content-different single-string pairs still requiring direct comparison are `review_access_token_registry`, `harden_review_token_rpc`, `mobile_trip_access`, `shared_party_addresses`, `shared_party_address_indexes` and `deca_native_atomic_issuance`. The first three historical rows are stored as arrays of 8/20/83 statements; manual checks confirm `customs_core` and `mobile_cmr` are semantically equivalent, while `fornexa_operational_core` remains open. Do not infer equivalence from names, sizes, formatting or earlier review prose.
+A literal-safe read-only comparison on 2026-09-12 closed the six reopened pairs at 7/7, 7/7, 6/6, 11/11, 1/1 and 7/7 statements respectively, and closed `fornexa_operational_core` at 83/83. The tested method ignores only comments, external whitespace and unquoted case while preserving literals, quoted identifiers and dollar bodies byte-for-byte; the removed tariff index is a negative control and fails comparison. All **32/32 name-matched Git/standard-history pairs** are now classified as equivalent. This closes content classification, not migration provenance/history.
 
 Special cases remain:
 
@@ -83,8 +83,8 @@ Full map and safe plan: `docs/verification/supabase-migration-provenance-2026091
 
 **Do not** rename historical migration files on `main`, rerun applied SQL, use blanket `migration repair`, edit standard migration history or create a Supabase development/Preview branch yet. The next gates are:
 
-1. directly compare the six reopened single-string pairs and `fornexa_operational_core` statement by statement;
-2. prepare a non-production reconciliation branch preserving the recovered remote-only hardening source and explicitly classifying both Git-only migrations;
+1. prepare a non-production reconciliation branch preserving the recovered remote-only hardening source and explicitly classifying both Git-only migrations;
+2. obtain cost and explicit approval for a Supabase Preview/development branch;
 3. replay from an empty DB/Preview;
 4. verify schema/RLS/functions/cardinalities/DeCA/telemetry invariants;
 5. only then propose explicit per-version history alignment and re-test Git integration.
@@ -138,7 +138,7 @@ Keep separate:
 
 ### Executable from current tooling
 
-- A2: recheck the six reopened single-string pairs and finish `fornexa_operational_core`; then prepare replay-safe reconciliation without touching production history. The source-only tariff-index repair is already merged, and `local_storage_import` live-effect verification is closed and evidenced.
+- A2: prepare replay-safe reconciliation without touching production history. Literal-safe classification is complete at 32/32 name-matched pairs, the source-only tariff-index repair is merged, and `local_storage_import` live-effect verification is closed and evidenced.
 - Multi-tenant debt: audit every producer of `local_storage_imports` / `local_storage_sync_runs`; both tables still default missing `tenant_id` to the historical pilot UUID. Treat removal of that default as a dedicated post-A2 schema change with tests, not as provenance repair.
 - eCMR design/implementation work that does not depend on the blocked authenticated DeCA E2E: signer identity/authentication model, evidence, integrity/sealing, jurisdiction and lifecycle boundaries.
 - ADR 2025 source verification/import preparation.

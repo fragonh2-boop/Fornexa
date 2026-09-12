@@ -96,7 +96,7 @@ Review date: 2026-09-11.
 
 Method: each current Git migration was read side-by-side with the SQL string retained for the same logical migration in `supabase_migrations.schema_migrations.statements`. The comparison ignored only SQL comments, whitespace, line breaks and presentation formatting. Identifiers, literals, expressions, statement order, DDL/DML operations, grants, policies, function bodies and transaction semantics were **not** normalized away. A pair was classified equivalent only when no executable statement addition, deletion or behavior change was found.
 
-The earlier result **13/13 semantically equivalent is retracted**. Claude's independent direct recheck against the stored statements found one executable DDL omission in Git, while also confirming six pairs as cosmetic. Six pairs remain pending direct comparison.
+The earlier result **13/13 semantically equivalent is retracted**. Claude's independent direct recheck against the stored statements found one executable DDL omission in Git, while also confirming six pairs as cosmetic. The six reopened pairs were subsequently rechecked with the literal-safe method documented below rather than inheriting the earlier conclusion.
 
 Directly confirmed semantic equivalents:
 
@@ -111,24 +111,33 @@ Confirmed real drift, repaired source-only in the active branch:
 
 - `tariff_engine_foundation` — remote executed SQL contains `create unique index if not exists tariff_rules_tenant_id_id_key on public.tariff_rules(tenant_id, id);`; current production also has the index. The Git migration omitted it even though `pricing_run_components_rule_fk` later references `(tenant_id, id)`. The exact idempotent statement is restored before the referencing FK. No SQL or migration-history mutation was performed.
 
-Pending renewed direct comparison:
+### Literal-safe closure of the seven reopened comparisons
 
-- `review_access_token_registry`
-- `harden_review_token_rpc`
-- `mobile_trip_access`
-- `shared_party_addresses`
-- `shared_party_address_indexes`
-- `deca_native_atomic_issuance`
+Recheck date: 2026-09-12. Git baseline: production `main` at `18c19365972fcc4ac187f10848d6f33dbe528cb5`. Remote baseline: a read-only selection of the corresponding rows from production `supabase_migrations.schema_migrations.statements`.
 
-The earlier manual review remains useful context but is not sufficient evidence for these six pairs. They must be compared directly against `supabase_migrations.schema_migrations.statements` before classification.
+The tested comparator in `scripts/sql-provenance.ts` splits statements only on semicolons outside quoted values and comments, then compares lexical tokens in order. It ignores comments, external whitespace and case for unquoted words. It deliberately preserves single-quoted values, quoted identifiers and complete dollar-quoted bodies byte-for-byte. Statement count, statement order, operators, punctuation, identifiers, numbers and literal contents must therefore remain equal. Malformed quoted input fails closed.
+
+This is stricter than the discarded whitespace-strip method: `--` inside a literal is data rather than a comment, whitespace inside a literal is significant, and two adjacent unquoted tokens cannot collapse into the same character stream. The tariff migration is retained as a negative control: removing `tariff_rules_tenant_id_id_key` makes the comparison fail.
+
+| Migration | Git statements | Stored statements after safe split | Result |
+| --- | ---: | ---: | --- |
+| `review_access_token_registry` | 7 | 7 | 7/7 equal |
+| `harden_review_token_rpc` | 7 | 7 | 7/7 equal |
+| `mobile_trip_access` | 6 | 6 | 6/6 equal |
+| `shared_party_addresses` | 11 | 11 | 11/11 equal |
+| `shared_party_address_indexes` | 1 | 1 | 1/1 equal |
+| `deca_native_atomic_issuance` | 7 | 7 | 7/7 equal |
+| `fornexa_operational_core` | 83 | 83 | 83/83 equal |
+
+The six reopened single-string pairs are therefore executable-token equivalent to the SQL retained in standard history. `fornexa_operational_core` is also equivalent across all 83 stored statements. Tests cover comments, nested block comments, strings containing comment markers, quoted identifiers, dollar bodies, statement arrays, semicolons inside quoted values, malformed input and the tariff negative control.
 
 For the three multi-statement rows with exact version prefixes:
 
 - `20260807_customs_core`: manual statement-by-statement inspection confirms the current Git SQL and the 8 stored statements are semantically the same; the blob mismatch was delimiter/format representation only.
 - `20260808_mobile_cmr`: manual statement-by-statement inspection confirms the current Git SQL and the 20 stored statements are semantically the same; the blob mismatch was delimiter/format representation only.
-- `20260812_fornexa_operational_core`: 83 stored statements; canonical/semantic comparison remains pending and is deliberately **not** inferred from name, size or version. Attempts to reconstruct a Git blob with guessed delimiters were rejected because the same reconstruction method did not reproduce the known Git blobs for `customs_core` or `mobile_cmr` either.
+- `20260812_fornexa_operational_core`: the literal-safe comparison above confirms all 83 Git statements against all 83 stored statements. No delimiter reconstruction or guessed blob fingerprint was used.
 
-Therefore the current safe conclusion is: **23/29 name-matched single-string rows are aligned after this source-only repair** (16 byte/content matches, 6 independently confirmed semantic equivalents and the repaired `tariff_engine_foundation` pair). Six single-string pairs remain unclassified. `customs_core` and `mobile_cmr` are semantically equivalent; `fornexa_operational_core` also remains unclassified. The integration problem remains real because version/history provenance still differs and because of Git-only, remote-only and obsolete-path cases.
+Therefore the current safe conclusion is: **all 29 name-matched single-string rows are aligned after the source-only repair** (16 byte/content matches, 12 executable-token/semantic equivalents and the repaired `tariff_engine_foundation` pair). Together with the three historical multi-statement rows, all **32/32 name-matched Git/standard-history pairs** are now classified as equivalent. The integration problem remains real because version/history provenance still differs and because of Git-only, remote-only and obsolete-path cases.
 
 ## Dual-ledger provenance
 
@@ -209,7 +218,7 @@ The restore file currently says the erroneous migration was applied outside Supa
 No production history mutation should happen until these gates are complete:
 
 1. **Land the source-only tariff repair.** Independently review the restored unique index and its ordering before the composite FK. Do not run it against production; the index already exists there.
-2. **Finish the seven remaining semantic classifications.** Compare the six reopened single-string pairs directly against their stored SQL and compare the 83 statements of `fornexa_operational_core` canonically. Do not classify from prior prose, guessed delimiters, byte size or version alone.
+2. **Preserve the completed literal-safe classification evidence.** The six reopened single-string pairs and all 83 statements of `fornexa_operational_core` are now classified directly against stored SQL. Keep the comparator and its negative controls green while preparing reconciliation.
 3. **Preserve remote-only hardening source.** Stage the recovered `20260817212235_cmr_canonical_model_rls_and_hardening` SQL in a non-production reconciliation branch so a fresh database can replay the security hardening.
 4. **Classify the two Git-only migrations for replay/history treatment.** `local_storage_import` has its live effects proven but remains absent from standard history; do not align history until replay. `cmr_number_sequence_resync` remains pending/not-applied until explicitly executed or retired.
 5. **Fresh replay required.** Run the reconciled set from an empty database/Preview and verify schema, RLS, functions, Pedido↔Expediente 1:1, DeCA/FISCAL invariants, telemetry RPCs and representative tests.
@@ -221,4 +230,4 @@ A Supabase development/Preview branch may incur cost and must not be created wit
 
 ## Current decision
 
-A2 remains **OPEN / diagnosed**. Production is healthy. The earlier 13/13 semantic-equivalence claim is retracted: one real DDL omission was found and repaired in Git only, six pairs are independently confirmed equivalents and six require renewed direct comparison. `local_storage_import` live effects remain verified. The next executable steps are independent review of the source repair, the seven open comparisons and preparation of a replay-safe reconciliation branch. The actual Preview/replay remains cost-gated. No production migration or migration-history state was modified during this investigation.
+A2 remains **OPEN / diagnosed**. Production is healthy. The earlier 13/13 semantic-equivalence claim remains retracted because it hid one real DDL omission; that omission is repaired in Git, and a stricter literal-safe recheck now classifies all 32/32 name-matched pairs without normalizing literal contents. `local_storage_import` live effects remain verified. The next executable step is preparation and independent review of a replay-safe reconciliation branch. The actual Preview/replay remains cost-gated. No production migration or migration-history state was modified during this investigation.
