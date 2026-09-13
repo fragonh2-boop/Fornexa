@@ -25,7 +25,7 @@ export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
     title: "A2 — reproducibilidad de migraciones",
-    summary: "La fuente versionada ya recuperó el requisito de unicidad que existe en producción. Una comparación conservadora, que preserva literales y cuerpos de funciones, ha clasificado los 32 pares compartidos entre Git y el historial estándar. A2 sigue abierto: faltan preparar la reconciliación no productiva y ejecutar un replay controlado antes de plantear cualquier alineación del historial.",
+    summary: "La fuente versionada ya recuperó el requisito de unicidad que existe en producción. Un contraste homogéneo y auditable, que preserva literales y cuerpos de funciones, ha clasificado los 32 pares compartidos entre Git y el historial estándar. A2 sigue abierto: faltan preparar la reconciliación no productiva y ejecutar un replay controlado antes de plantear cualquier alineación del historial.",
     priority: "Ahora",
     state: "En seguimiento",
   },
@@ -108,7 +108,7 @@ export const memorandumReleases: MemorandumRelease[] = [
     surface: ["Plataforma"],
     title: "A2 con fuente tarifaria reproducible",
     purpose: "Recuperar en el repositorio el requisito de unicidad que ya fue ejecutado en producción y que necesita la clave foránea compuesta del motor tarifario.",
-    outcome: "PR #72 quedó integrada y desplegada con CI y Vercel producción verdes sobre la misma revisión. La migración versionada vuelve a crear el índice único antes de la clave foránea y una prueba protege esa presencia y orden. Sin ejecutar SQL ni alterar el historial, una comparación literal-safe posterior clasificó los 32 pares compartidos Git/historial estándar. A2 permanece abierto para la reconciliación no productiva y el replay controlado antes de proponer cualquier alineación de provenance.",
+    outcome: "PR #72 quedó integrada y desplegada con CI y Vercel producción verdes sobre la misma revisión. La migración versionada vuelve a crear el índice único antes de la clave foránea y una prueba protege esa presencia y orden. Sin ejecutar SQL ni alterar el historial, un artefacto machine-readable reproduce el contraste literal-safe de los 32 pares compartidos Git/historial estándar. A2 permanece abierto para la reconciliación no productiva y el replay controlado antes de proponer cualquier alineación de provenance.",
     status: "Producción",
   },
   {

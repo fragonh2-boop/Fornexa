@@ -4,7 +4,7 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-12 13:45 CEST.
+- **Updated:** 2026-09-13 19:32 CEST.
 - **Repository:** `fragonh2-boop/Fornexa`.
 - **Production main:** `18c19365972fcc4ac187f10848d6f33dbe528cb5`, squash merge of PR #73 (A2 documentation closeout after the source-only repair).
 - **CI:** GitHub Actions run `34691712464` completed `success` on that exact production SHA.
@@ -70,7 +70,7 @@ For the 30 standard rows stored as one SQL string:
 
 Claude's independent Git-vs-stored-statements recheck found that production's executed `tariff_engine_foundation` includes `tariff_rules_tenant_id_id_key`, while the Git migration omitted it. Production is healthy because the unique index already exists there. PR #72 restored the exact idempotent statement in current `main` before `pricing_run_components_rule_fk` and added a source-order regression test. The rollout executed no SQL and mutated no migration history; it repairs reproducibility of the versioned source only.
 
-A literal-safe read-only comparison on 2026-09-12 closed the six reopened pairs at 7/7, 7/7, 6/6, 11/11, 1/1 and 7/7 statements respectively, and closed `fornexa_operational_core` at 83/83. The tested method ignores only comments, external whitespace and unquoted case while preserving literals, quoted identifiers and dollar bodies byte-for-byte; the removed tariff index is a negative control and fails comparison. All **32/32 name-matched Git/standard-history pairs** are now classified as equivalent. This closes content classification, not migration provenance/history.
+A literal-safe read-only comparison on 2026-09-12/13 now covers all **32/32 paired Git/standard-history migrations** with the same method. Pairing is explicit (31 exact names + one manual alias), the three historical arrays match element by element, and independent-review anchors include 72/72, 8/8, 20/20, 35/35, 57/57, 4/4 and 83/83. The tested method ignores only comments, external whitespace and unquoted case while preserving literals, quoted identifiers and dollar bodies byte-for-byte; synthetic negative controls and the removed tariff index fail comparison. Machine-readable evidence in `docs/verification/supabase-migration-content-audit-20260912.json` now separates physical cardinality, comparator statements, characters, UTF-8 bytes and wrapped/unwrapped base64 lengths; it hard-gates 2,419 wrapping LF and the three final-LF elements (mobile CMR ordinal 20; operational core ordinals 53 and 70), records exact server-side digest formulae and labels whether each control is reproducible from the permanent artifact. The final capture was streamed without a temporary payload file and stores no remote SQL/base64 payload. This closes content classification, not migration provenance/history.
 
 Special cases remain:
 
@@ -138,7 +138,7 @@ Keep separate:
 
 ### Executable from current tooling
 
-- A2: prepare replay-safe reconciliation without touching production history. Literal-safe classification is complete at 32/32 name-matched pairs, the source-only tariff-index repair is merged, and `local_storage_import` live-effect verification is closed and evidenced.
+- A2: prepare replay-safe reconciliation without touching production history. Homogeneous literal-safe classification is complete and machine-auditable for all 32/32 paired migrations, the source-only tariff-index repair is merged, and `local_storage_import` live-effect verification is closed and evidenced.
 - Multi-tenant debt: audit every producer of `local_storage_imports` / `local_storage_sync_runs`; both tables still default missing `tenant_id` to the historical pilot UUID. Treat removal of that default as a dedicated post-A2 schema change with tests, not as provenance repair.
 - eCMR design/implementation work that does not depend on the blocked authenticated DeCA E2E: signer identity/authentication model, evidence, integrity/sealing, jurisdiction and lifecycle boundaries.
 - ADR 2025 source verification/import preparation.

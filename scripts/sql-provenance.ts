@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 export type SqlTokenKind =
   | "word"
   | "number"
@@ -33,6 +35,38 @@ export type SqlComparison = {
 const WORD_START = /[A-Za-z_\u0080-\uFFFF]/;
 const WORD_PART = /[A-Za-z0-9_$\u0080-\uFFFF]/;
 const OPERATOR = /[+\-*\/<>=~!@#%^&|`?]/;
+
+function isDigit(character: string | undefined): boolean {
+  return character !== undefined && /[0-9]/.test(character);
+}
+
+function consumeDigitsAndUnderscores(sql: string, offset: number): number {
+  let cursor = offset;
+  while (cursor < sql.length && /[0-9_]/.test(sql[cursor])) cursor += 1;
+  return cursor;
+}
+
+function consumeNumber(sql: string, offset: number): number {
+  let cursor = consumeDigitsAndUnderscores(sql, offset);
+
+  if (sql[cursor] === "." && sql[cursor + 1] !== ".") {
+    cursor = consumeDigitsAndUnderscores(sql, cursor + 1);
+  }
+
+  if (/[eE]/.test(sql[cursor] ?? "")) {
+    const exponentOffset = cursor;
+    let exponentDigits = cursor + 1;
+
+    if (/[+-]/.test(sql[exponentDigits] ?? "")) exponentDigits += 1;
+    if (isDigit(sql[exponentDigits])) {
+      cursor = consumeDigitsAndUnderscores(sql, exponentDigits);
+    } else {
+      cursor = exponentOffset;
+    }
+  }
+
+  return cursor;
+}
 
 function dollarTagAt(sql: string, offset: number): string | null {
   return sql.slice(offset).match(/^\$[A-Za-z_][A-Za-z0-9_]*\$|^\$\$/)?.[0] ?? null;
@@ -188,8 +222,7 @@ export function tokenizeSql(sql: string): SqlToken[] {
     }
     if (/[0-9]/.test(character)) {
       const start = cursor;
-      cursor += 1;
-      while (cursor < sql.length && /[0-9A-Za-z_.]/.test(sql[cursor])) cursor += 1;
+      cursor = consumeNumber(sql, cursor);
       tokens.push({ kind: "number", value: sql.slice(start, cursor).toLowerCase() });
       continue;
     }
@@ -250,6 +283,27 @@ export function splitSqlStatements(sql: string): string[] {
 
   statements.push(sql.slice(start));
   return statements.filter((statement) => tokenizeSql(statement).length > 0);
+}
+
+export function serializeSqlTokens(tokens: readonly SqlToken[]): string {
+  return JSON.stringify(tokens.map((token) => [token.kind, token.value]));
+}
+
+export function sha256(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+export function digestSqlStatements(statements: readonly string[]): {
+  statementDigests: string[];
+  aggregateDigest: string;
+} {
+  const statementDigests = statements.map((statement) =>
+    sha256(serializeSqlTokens(tokenizeSql(statement))),
+  );
+  return {
+    statementDigests,
+    aggregateDigest: sha256(JSON.stringify(statementDigests)),
+  };
 }
 
 function tokenListsEqual(left: SqlToken[], right: SqlToken[]): boolean {

@@ -3,9 +3,12 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   compareSqlSources,
+  digestSqlStatements,
+  serializeSqlTokens,
   splitSqlStatements,
   tokenizeSql,
 } from "../scripts/sql-provenance.ts";
+import { sqlProvenanceControls } from "./fixtures/sql-provenance-controls.ts";
 
 test("comparison ignores only comments, external whitespace and unquoted case", () => {
   const gitSql = `
@@ -80,4 +83,62 @@ test("the comparator detects the restored tariff index as executable drift", () 
 test("malformed quoted input fails closed", () => {
   assert.throws(() => tokenizeSql("select 'unterminated"), SyntaxError);
   assert.throws(() => splitSqlStatements("select /* unterminated"), SyntaxError);
+});
+
+test("signed exponents are numeric only when followed by exponent digits", () => {
+  assert.deepEqual(
+    tokenizeSql("1e-5 1E+10 1.5e-3").map(({ kind, value }) => [kind, value]),
+    [
+      ["number", "1e-5"],
+      ["number", "1e+10"],
+      ["number", "1.5e-3"],
+    ],
+  );
+
+  assert.deepEqual(
+    tokenizeSql("5-1 5 - -1 select 1--x\n1e 1e- x1e5 a.b1e5 $1").map(
+      ({ kind, value }) => [kind, value],
+    ),
+    [
+      ["number", "5"],
+      ["operator", "-"],
+      ["number", "1"],
+      ["number", "5"],
+      ["operator", "-"],
+      ["operator", "-"],
+      ["number", "1"],
+      ["word", "select"],
+      ["number", "1"],
+      ["number", "1"],
+      ["word", "e"],
+      ["number", "1"],
+      ["word", "e"],
+      ["operator", "-"],
+      ["word", "x1e5"],
+      ["word", "a"],
+      ["punctuation", "."],
+      ["word", "b1e5"],
+      ["parameter", "$1"],
+    ],
+  );
+});
+
+test("typed token serialization prevents cross-kind digest collisions", () => {
+  const literal = serializeSqlTokens(tokenizeSql("select '1';"));
+  const number = serializeSqlTokens(tokenizeSql("select 1;"));
+  assert.notEqual(literal, number);
+  assert.notEqual(
+    digestSqlStatements(["select '1';"]).statementDigests[0],
+    digestSqlStatements(["select 1;"]).statementDigests[0],
+  );
+});
+
+test("versioned synthetic controls fail closed on executable changes", () => {
+  for (const control of sqlProvenanceControls) {
+    assert.equal(
+      compareSqlSources(control.gitSql, control.remoteSql).equivalent,
+      control.equivalent,
+      control.name,
+    );
+  }
 });
