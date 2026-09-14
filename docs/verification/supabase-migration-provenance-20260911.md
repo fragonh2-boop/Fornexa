@@ -130,7 +130,11 @@ The machine-readable evidence is `docs/verification/supabase-migration-content-a
 - each Git and remote statement has a SHA-256 over an ordered JSON serialization of typed tokens, plus a per-migration aggregate. A further SHA-256 binds the capture to the unwrapped ordered base64 sequence, but is explicitly marked non-reproducible from the permanent artifact because the payloads are not retained;
 - the permanent JSON contains counts and digests only, never the remote SQL or base64 payload.
 
-Generation can consume the validated JSON array directly from standard input, so the production payload need not be written to disk:
+The 32/32 result is evidence of the recorded capture, not a live production assertion. Offline tests regenerate Git-side digests and compare them with recorded remote digests; they cannot independently reconstruct or recompute remote SQL from the permanent artifact. In particular, `remote_array_text_md5_postgres` is copied server-side metadata, not a client-recomputed digest. A new remote verification requires a fresh authorized read-only capture.
+
+`git_migration_baseline_commit` identifies the last commit changing migrations at capture (`2dbe44facc303cfe4703d72a0cf665c36c98d552`), not current application HEAD. Subsequent migration changes require review/regeneration of the artifact and its fixture; fixture failure alone does not establish production drift.
+
+Generation can consume the validated JSON array directly from standard input, so the production payload need not be written to disk. Stdin requires one complete JSON array on one physical line, with payload LF JSON-escaped. Reading stops at the first physical LF; later bytes are not validated. For pretty-printed multiline JSON use `--remote-input <file>` (with the appropriate payload-handling safeguards), not stdin:
 
 ```bash
 node --experimental-strip-types scripts/generate-supabase-migration-audit.ts \
@@ -145,7 +149,7 @@ Local validation on 2026-09-13 passed `npm run typecheck`, the complete 123-test
 
 Production has 30 rows whose remote `statements` array contains one element and three historical multi-element rows: `customs_core` (8), `mobile_cmr` (20) and `fornexa_operational_core` (83). The latter three also pass element-by-element comparison. For the single-element rows, the higher statement counts below are the comparator's safe split of the retained SQL blob, not Postgres array cardinality.
 
-The three multi-element rows also reproduce the pre-registered transport anchors. Characters and UTF-8 bytes differ where the SQL contains non-ASCII text; wrapped base64 includes the LF inserted by Postgres `encode(..., 'base64')`, while the unwrapped form removes that exact byte only. The generator never calls `trim()`, `trimEnd()`, `rstrip()` or any equivalent operation: it first preserves the wrapped payload byte-for-byte, counts LF, and only then removes literal `0x0a` for canonical base64 decoding.
+The three multi-element rows also reproduce the pre-registered transport anchors. Characters and UTF-8 bytes differ where the SQL contains non-ASCII text; wrapped base64 includes the LF inserted by Postgres `encode(..., 'base64')`, while the unwrapped form removes that exact byte only. The generator never applies `trim()`, `trimEnd()`, `rstrip()` or an equivalent to SQL/base64 payloads: it first preserves the wrapped payload byte-for-byte, counts LF, and only then removes literal `0x0a` for canonical base64 decoding. Its separate `.trim()` applies only to the Git SHA command output.
 
 | Migration | Chars | UTF-8 bytes | Base64 wrapped | Base64 unwrapped | LF | Final-LF ordinals | Elementwise |
 | --- | ---: | ---: | ---: | ---: | ---: | --- | --- |
