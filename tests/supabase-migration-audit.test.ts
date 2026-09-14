@@ -148,6 +148,9 @@ const multiElementAnchors = new Map([
 ]);
 
 test("the versioned audit closes exactly 31 name pairs plus one explicit alias", () => {
+  // Last migration-changing commit at capture, not current application HEAD.
+  // Migration changes require reviewing/regenerating this historical artifact;
+  // a fixture failure alone is not evidence of live production drift.
   assert.equal(
     audit.git_migration_baseline_commit,
     "2dbe44facc303cfe4703d72a0cf665c36c98d552",

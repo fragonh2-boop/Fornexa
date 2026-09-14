@@ -509,6 +509,9 @@ function readArgument(name: string): string {
 }
 
 function readJsonLineFromStdin(): string {
+  // Stdin contract: one complete JSON array on one physical line. Payload LF
+  // must be JSON-escaped; bytes after the first physical LF are not consumed.
+  // Use --remote-input <file> for a pretty-printed, multiline JSON document.
   const chunks: Buffer[] = [];
   const buffer = Buffer.alloc(64 * 1024);
 
@@ -547,7 +550,7 @@ function runCli(): void {
     "git",
     ["log", "-1", "--format=%H", "--", "supabase/migrations"],
     { encoding: "utf8" },
-  ).trim();
+  ).trim(); // Trim the Git SHA command output only, never SQL/base64 payloads.
   const audit = buildMigrationAudit({
     capturedAt,
     gitMigrationBaselineCommit,

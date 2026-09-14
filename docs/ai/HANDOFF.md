@@ -4,13 +4,16 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-13 19:32 CEST.
+- **Updated:** 2026-09-14 21:46 CEST. Main/deployment rechecked; runtime/browser evidence is from 00:02 CEST. Supabase findings below retain their original capture dates.
 - **Repository:** `fragonh2-boop/Fornexa`.
-- **Production main:** `18c19365972fcc4ac187f10848d6f33dbe528cb5`, squash merge of PR #73 (A2 documentation closeout after the source-only repair).
-- **CI:** GitHub Actions run `34691712464` completed `success` on that exact production SHA.
-- **Vercel production:** deployment `dpl_Ckc6Kokt5gZfGiq9RfryKEZp8Tsc` is `READY`, targets production, carries the same SHA, serves `fornexasc.com` and had no warning/error/fatal runtime entries in the checked window.
+- **Production main:** `660f13fc931d96ec75d47ef59b1bb58be6c554cc`, squash merge of PR #74 (literal-safe A2 comparison and audit tooling).
+- **CI:** GitHub Actions run `34785352766` completed `success` on that exact production SHA.
+- **Vercel production:** deployment `dpl_9UvQg7bM1SnDUT8ZwjyKoQG5Ef5d` is `READY`, targets production, carries the same SHA and aliases `fornexasc.com`. No warning/error/fatal runtime entries were returned for 21:46–22:01 UTC on September 13; this is a bounded observation, not an assurance of zero errors.
+- **Browser smoke:** the public home and `/dashboard` rendered in the connected Edge session; dashboard screenshot inspected. An existing signed-in session was available, but OWNER/ADMIN authorization and DeCA issuance were not verified. No business records or credentials were changed.
+- **PR #74 review:** DeepSeek reviewed final HEAD `27294f973d433d0b95c0fd867f1e33bbad473a91`: MUST none, MERGE yes. Claude's earlier review is historical corroboration, not approval of this amended final HEAD. Four nonblocking DeepSeek clarifications are being captured on `codex/a2-audit-closeout`; that follow-up is not part of the production SHA above.
+- **Follow-up validation:** 123/123 tests, typecheck, lint (0 errors / 7 pre-existing warnings), build and diff-check passed locally on September 14. The first sandboxed build could not fetch Google Fonts; the network-authorized retry passed. No generator behavior, historical artifact or migration SQL changed.
 - **Supabase production:** project is `ACTIVE_HEALTHY`; integrated Git branch `main` remains `MIGRATIONS_FAILED` because migration provenance/history differs from Git. No production schema/history mutation was performed during A2 analysis.
-- **A2 source repair:** PR #72 is merged and deployed; PR #73 reconciled the documentation and is the production SHA above. Claude reviewed PR #73 exact HEAD `528b96576da8affb5c8b83d56cb7879ef52c2aa9` with MUST none; DeepSeek did not respond and is not counted as approval.
+- **A2 source repair:** PR #72 is merged and deployed; PR #73 reconciled that rollout's documentation. Claude reviewed PR #73 exact HEAD `528b96576da8affb5c8b83d56cb7879ef52c2aa9` with MUST none; DeepSeek did not respond to #73 and is not counted as its approval.
 - **MMO-1:** PR #38 remains draft and isolated from Production.
 
 ## TLM-1 network identity privacy — fail-safe deployed, configuration gate still open
@@ -71,6 +74,8 @@ For the 30 standard rows stored as one SQL string:
 Claude's independent Git-vs-stored-statements recheck found that production's executed `tariff_engine_foundation` includes `tariff_rules_tenant_id_id_key`, while the Git migration omitted it. Production is healthy because the unique index already exists there. PR #72 restored the exact idempotent statement in current `main` before `pricing_run_components_rule_fk` and added a source-order regression test. The rollout executed no SQL and mutated no migration history; it repairs reproducibility of the versioned source only.
 
 A literal-safe read-only comparison on 2026-09-12/13 now covers all **32/32 paired Git/standard-history migrations** with the same method. Pairing is explicit (31 exact names + one manual alias), the three historical arrays match element by element, and independent-review anchors include 72/72, 8/8, 20/20, 35/35, 57/57, 4/4 and 83/83. The tested method ignores only comments, external whitespace and unquoted case while preserving literals, quoted identifiers and dollar bodies byte-for-byte; synthetic negative controls and the removed tariff index fail comparison. Machine-readable evidence in `docs/verification/supabase-migration-content-audit-20260912.json` now separates physical cardinality, comparator statements, characters, UTF-8 bytes and wrapped/unwrapped base64 lengths; it hard-gates 2,419 wrapping LF and the three final-LF elements (mobile CMR ordinal 20; operational core ordinals 53 and 70), records exact server-side digest formulae and labels whether each control is reproducible from the permanent artifact. The final capture was streamed without a temporary payload file and stores no remote SQL/base64 payload. This closes content classification, not migration provenance/history.
+
+**Evidence boundary:** 32/32 describes the recorded capture, not a fresh check of production. Offline tests regenerate Git-side digests and compare recorded remote digests; remote SQL is not retained, so the remote side cannot be independently reconstructed/recomputed from the artifact. `remote_array_text_md5_postgres` is copied server evidence, not client-recomputed. Renewing remote verification requires an authorized read-only capture. The baseline is the last migration-changing commit at capture, not current application HEAD; fixture failures require review/regeneration rather than an automatic claim of production drift.
 
 Special cases remain:
 
@@ -158,8 +163,10 @@ Reviewer repository: `fragonh2-boop/fornexa-ai-reviewer`. Reviewer remains indep
 Use explicit target semantics:
 
 - repository review: `MODE: MAIN`, `TARGET: main`, exact `HEAD`;
-- PR review: `MODE: PR`, standalone PR number and exact `HEAD`;
+- PR review: `MODE: PR`, a standalone line such as `PR #74`, and a separate exact `HEAD: <sha>` line; omit numeric `TARGET` (the parser reserves TARGET for `main`);
 - canonical trigger: `DEEPSEEK — ACCIÓN REQUERIDA`.
+
+Send actionable requests as channel-root messages and verify their formatting after sending. DeepSeek may answer in separate root messages: search by reviewer author as well as reading the request thread. Do not interpret a quiet request thread as no response.
 
 ## Governance
 
