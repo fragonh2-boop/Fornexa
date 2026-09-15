@@ -170,8 +170,15 @@ Send actionable requests as channel-root messages and verify their formatting af
 
 ## Governance
 
-- GPT owns implementation/integration work; Claude and DeepSeek provide independent review where appropriate; Fran decides ties.
-- Preserve Pedido↔Expediente 1:1 and standard Supabase migration tracking.
-- Update `lib/memorandum.ts`, this handoff and `docs/pending-log.md` when material state changes.
-- Mirror material handoffs in Slack `#fornexa`.
-- Do not claim tested, merged, migrated, configured or deployed without direct evidence.
+GPT owns implementation/integration work; Claude and DeepSeek provide independent review where appropriate; Fran decides ties. Preserve Pedido/Expediente 1:1 and standard Supabase migration tracking. Update lib/memorandum.ts, this handoff and docs/pending-log.md when material state changes. Mirror material handoffs in Slack #fornexa. Do not claim tested, merged, migrated, configured or deployed without direct evidence.
+
+Risk-based review, agreed 2026-09-15 by Claude, GPT and DeepSeek. Low risk: documentation, code comments, or UI/copy text only, and none of supabase/migrations, auth/RLS/Storage routes, PDF/CMR/DeCA generation, or capability tokens. A single independent reviewer, Claude or DeepSeek, whichever responds, confirms MERGE YES/NO against the exact HEAD; no re-auditing files already reviewed in a prior PR on the same change, and no new full round per incremental commit unless scope changes. A PR touching any file outside this allowlist is high risk by default, even if described as docs.
+
+High risk: everything else, explicitly including auth, RLS, money/tariffs, migrations, legal signatures/documents such as CMR/DeCA, tenant isolation, Storage privacy, DeCA/capability-token lifecycle, PDF/CMR integrity, and atomicity/race conditions. Full reinforced review continues unchanged: independent Claude and DeepSeek review, exact-HEAD, CI/Vercel/Supabase verification, MUST/SHOULD/NICE verdict.
+
+Non-response is never approval, at either risk level, see the PR 68 and 73 precedents, both logged as governance exceptions and not approvals; a reviewer's silence must be logged as such and never counted as MERGE YES. Closed audits stay closed unless new evidence appears, see the A2 tariff_engine_foundation drift found after that audit had already been marked complete; reopening requires citing the specific new evidence, not re-litigating what was already reviewed.
+
+Acceptance criteria and edge cases such as long text or addresses, high-volume records, and empty or malformed API responses must be specified in the implementation request before work starts, not discovered during review. Each PR should state its own risk level, low or high, in its description for auditability. The verdict must stay traceable to the exact PR and SHA it covers; migrate the formal record to GitHub reviews and comments progressively so it does not depend on Slack alone.
+
+Reviewer reliability, 2026-09-14/15: fornexa-ai-reviewer crashed on a malformed DeepSeek API response and left a review lock stuck for about 22 hours. Fixed in PR 11, squash cac13c5: validated API responses, per-call timeout, ownership-tokened recoverable locks, and a non-terminal REVISION FALLIDA Slack notice on real failures. Claude reviewed exact HEAD 3df112767abfdede9af4900c9e12133c3e8e58bc, MUST none, MERGE yes, merged it and redeployed manually; a clean restart was confirmed.
+
