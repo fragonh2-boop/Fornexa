@@ -88,9 +88,12 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ### 2026-09-10 — CMR: marco físico de hojas de continuación
 - **Área:** CMR / Impresión-PDF / UX
-- **Estado:** MEJORA VISUAL OPCIONAL; CONTINUIDAD E INTEGRIDAD CERRADAS
+- **Estado:** IMPLEMENTACIÓN PREPARADA; NO INTEGRADA NI DESPLEGADA
 - **Base productiva:** PR #66 está en producción como `f7bfa5701a0b27d83cf63a77c2e036377a37b2c9`; identidad CMR y encabezados 6–12 se repiten en cada hoja con mercancía.
-- **Mejora pendiente:** valorar un marco físico explícito por cada hoja de continuación. Tratarlo como refinamiento cosmético independiente, sin reabrir no-clipping, integridad, repetición de `thead` ni contrato A4.
+- **Mecanismo elegido:** repetir el borde de `.paper` en cada fragmento de página (`box-decoration-break: clone`, con prefijo `-webkit-`). `.paper` **conserva** su borde actual y `@page` no lleva `border`. Es estrictamente aditivo: un motor sin soporte renderiza exactamente lo de hoy; uno con soporte repite el marco en cada hoja. Ningún navegador puede perder el marco que ya tenía. Descartado apoyar el marco en `@page{border}` porque exige retirar el borde de `.paper` y degrada a "sin marco" en cualquier motor que no lo pinte.
+- **Evidencia medida:** `docs/verification/cmr-continuation-frame-20260919.md`. Harness con comprobación de marco por píxeles: 4 lados cerrados en todas las páginas de los cuatro fixtures; control negativo sin el cambio falla con el borde superior ausente en las hojas de continuación. Chromium 141 verificado; **Firefox y Safari sin verificar** (no ejecutables en el entorno de verificación).
+- **Límite conocido:** en la última hoja el marco se cierra donde acaba el contenido, no al pie. El marco de hoja completa exigiría un overlay `position:fixed`, que no es aditivo; diferido.
+- **Gate:** riesgo alto por afectar a salida CMR/PDF; requiere revisión independiente exact-HEAD, CI/Preview y autorización explícita antes de merge. No afirmar aceptación operativa hasta validar un CMR real.
 
 ### 2026-09-05 — QR visible y listo antes de imprimir/exportar CMR
 - **Área:** CMR / QR / Impresión-PDF / UX
