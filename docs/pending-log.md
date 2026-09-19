@@ -4,13 +4,6 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
-### 2026-09-19 — Ratificar gobernanza de revisión y reconciliar el handoff
-- **Área:** Gobernanza / Trazabilidad
-- **Estado:** DECISIÓN DE FRAN PENDIENTE; CORRECCIÓN DOCUMENTAL PREPARADA
-- **Evidencia:** `main` está en `14d942931fee0eaa1c8ee8d2ef5d5f4aac19ad24`, commit directo y solo documental que registra el modelo de revisión por riesgo. GitHub muestra `validate` y los dos estados Vercel en `success`; Supabase Preview falla. Antes de esta actualización, el snapshot del handoff seguía declarando `660f13fc` como main.
-- **Decisión requerida:** Fran ratifica o corrige el modelo y decide su compatibilidad con la protección de ramas. La coincidencia técnica entre revisores no sustituye esa decisión.
-- **Criterio de cierre:** ratificación explícita o revisión del texto, y snapshot del handoff actualizado mediante PR con evidencia de CI/despliegue proporcional. No usar esta entrada para justificar retroactivamente commits directos.
-
 ### 2026-09-11 — TLM-1 telemetría privada de plataforma
 - **Área:** Plataforma / Observabilidad / Seguridad / Privacidad
 - **Estado:** FIX FAIL-SAFE DESPLEGADO; CONFIGURACIÓN Y VERIFICACIÓN FINAL PENDIENTES — OTRO DISPOSITIVO/ACCESO VERCEL
@@ -111,6 +104,11 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 - **Objetivo:** definir alta/configuración autónoma de nuevas organizaciones y límites operativos de OWNER/ADMIN sin relajar aislamiento multi-tenant.
 
 ## DONE
+
+### 2026-09-19 — Gobernanza de entrega proporcional al riesgo
+- **Estado:** RATIFICADA POR FRAN; FORMALIZACIÓN DOCUMENTAL PREPARADA
+- **Decisión:** tres carriles trazables: rápido para documentación/comentarios/copy no ejecutables; estándar para cambios funcionales acotados; reforzado para seguridad, datos, configuración productiva o acciones irreversibles. Cada PR declara carril, SHA, evidencia y riesgo pendiente; un silencio nunca cuenta como aprobación.
+- **Límite:** la decisión no valida retroactivamente commits directos ni evita la protección de ramas. Ampliar el alcance eleva el carril antes de fusionar; una auditoría cerrada solo se reabre con evidencia nueva identificable.
 
 ### 2026-09-14 — A2: clasificación literal-safe integrada (PR #74)
 - **Estado:** FUSIONADA Y DESPLEGADA; A2 GLOBAL SIGUE OPEN.
