@@ -4,6 +4,13 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-09-19 — GPT/Claude/Gemini capability parity
+- **Status:** prepared in reviewer PR #12, HEAD `9a8b1cac9dc57bc34968b192f9e7d46ae4719fbd`, branch `codex/provider-parity-20260919`; disabled and not deployed. Fornexa handoff branch: `codex/provider-parity-handoff-20260919`.
+- **Risk:** HIGH. Same host-enforced read/review/implementation capabilities, dedicated least-privilege writer, Slack author allowlist, bounded changes and recoverable draft PR publication; DeepSeek stays read-only.
+- **Evidence:** reviewer build + 37 local tests. Mocked provider contracts are not live-provider verification.
+- **Remaining:** independent exact-HEAD reviews, CI, live staging smoke, scoped credentials and durable checkpoints. Do not enable implementation with ephemeral storage or reuse a broad user PAT. No merge/deploy authorized by this task.
+- **Policy:** preserve existing exact-HEAD/risk governance and pending Fran ratification. No self-review or silence-as-approval.
+
 ### 2026-09-19 — Ratificar gobernanza de revisión y reconciliar el handoff
 - **Área:** Gobernanza / Trazabilidad
 - **Estado:** DECISIÓN DE FRAN PENDIENTE; CORRECCIÓN DOCUMENTAL PREPARADA
