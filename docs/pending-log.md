@@ -4,6 +4,13 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-09-19 — Ratificar gobernanza de revisión y reconciliar el handoff
+- **Área:** Gobernanza / Trazabilidad
+- **Estado:** DECISIÓN DE FRAN PENDIENTE; CORRECCIÓN DOCUMENTAL PREPARADA
+- **Evidencia:** `main` está en `14d942931fee0eaa1c8ee8d2ef5d5f4aac19ad24`, commit directo y solo documental que registra el modelo de revisión por riesgo. GitHub muestra `validate` y los dos estados Vercel en `success`; Supabase Preview falla. Antes de esta actualización, el snapshot del handoff seguía declarando `660f13fc` como main.
+- **Decisión requerida:** Fran ratifica o corrige el modelo y decide su compatibilidad con la protección de ramas. La coincidencia técnica entre revisores no sustituye esa decisión.
+- **Criterio de cierre:** ratificación explícita o revisión del texto, y snapshot del handoff actualizado mediante PR con evidencia de CI/despliegue proporcional. No usar esta entrada para justificar retroactivamente commits directos.
+
 ### 2026-09-11 — TLM-1 telemetría privada de plataforma
 - **Área:** Plataforma / Observabilidad / Seguridad / Privacidad
 - **Estado:** FIX FAIL-SAFE DESPLEGADO; CONFIGURACIÓN Y VERIFICACIÓN FINAL PENDIENTES — OTRO DISPOSITIVO/ACCESO VERCEL
