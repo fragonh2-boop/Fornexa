@@ -6,8 +6,9 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 
 - **Updated:** 2026-09-19 CEST. GitHub `main`, CI and commit-status evidence rechecked; deployment target/runtime and Supabase findings retain their original capture dates unless stated otherwise.
 - **Repository:** `fragonh2-boop/Fornexa`.
-- **Current main:** `14d942931fee0eaa1c8ee8d2ef5d5f4aac19ad24`, a direct docs-only commit that records the risk-based-review proposal and reviewer reliability note. PR #75 was already integrated as `578ce2454a27d35435d728a045b9ab29247f337a` before that commit.
-- **CI/status evidence:** `validate` is `success` and both Vercel commit status contexts are `success` on `14d9429`; Supabase Preview is `failure`. This run did not independently read a Vercel deployment target or runtime logs for `14d9429`, so do not describe that commit as production `READY` from this evidence alone.
+- **Current main:** `844a2ef45641fe2194dc4226baee3478ab36752c`, squash of PR #76 (`docs: reconcile current main handoff`). Its parent `14d942931fee0eaa1c8ee8d2ef5d5f4aac19ad24` recorded the original risk-based-review proposal and reviewer reliability note.
+- **CI/status evidence:** `validate` is `success` and the two Vercel commit status contexts are `success` on `844a2ef`; Supabase Preview is `failure`. This run did not independently read a Vercel production target or runtime logs for `844a2ef`, so do not describe that docs-only commit as production `READY` from this evidence alone.
+- **Open governance PR:** Fran explicitly ratified proportionate delivery lanes. PR #77 (`9543bd65aafb578961b58bb99a1c4554232d0cbb`) records the policy and is still open; its validate and Vercel checks are green, while Supabase Preview is skipped. The policy is not yet integrated into `main`.
 - **Last directly recorded production deployment:** `dpl_9UvQg7bM1SnDUT8ZwjyKoQG5Ef5d` was `READY`, targeted production, carried `660f13fc931d96ec75d47ef59b1bb58be6c554cc` and aliased `fornexasc.com`. No warning/error/fatal runtime entries were returned for 21:46–22:01 UTC on September 13; this is a bounded observation, not an assurance of zero errors.
 - **Browser smoke:** the public home and `/dashboard` rendered in the connected Edge session; dashboard screenshot inspected. An existing signed-in session was available, but OWNER/ADMIN authorization and DeCA issuance were not verified. No business records or credentials were changed.
 - **PR #74 review:** DeepSeek reviewed final HEAD `27294f973d433d0b95c0fd867f1e33bbad473a91`: MUST none, MERGE yes. Claude's earlier review is historical corroboration, not approval of this amended final HEAD. Four nonblocking DeepSeek clarifications are being captured on `codex/a2-audit-closeout`; that follow-up is not part of the production SHA above.
@@ -107,6 +108,17 @@ PR #66 closed continuation-page context and clipping-related integrity. Goods bo
 
 Evidence: `docs/verification/cmr-continuation-headers-20260910.md` and `scripts/verify-cmr-continuation-print.py`.
 
+### CMR physical continuation-page frame — prepared, not integrated or deployed
+
+The optional visual refinement is prepared in PR #78 on branch `codex/cmr-continuation-frame-20260919`. It moves the existing CMR border to the native A4 `@page` frame, which yields a complete physical frame on every printed page without adding an overlay or changing the document flow. The `.paper` keeps its 192 mm × 279 mm, auto-height and visible-overflow contract; semantic table headers and pagination behavior are untouched.
+
+- **Risk:** high under the current proposal because it affects CMR/PDF output, even though the implementation is CSS-only and intentionally does not alter data, QR readiness, signature logic, content or page-break rules.
+- **Local evidence:** 125/125 tests passed; typecheck passed; lint passed with 0 errors and the 7 pre-existing warnings; production build and final `git diff --check` passed.
+- **PR evidence:** PR #78 `validate`, both Vercel Preview status contexts and Vercel Preview Comments passed; Supabase Preview was skipped because no schema work is included.
+- **Visual evidence:** Headless Chrome 153 rendered a synthetic 42-row CMR fixture to two A4 pages. The continuation page retained all rows and the repeated table heading, with a full native page frame. The repository harness was updated to the same CSS contract but was not run here because its Python `playwright` dependency is unavailable in this worktree.
+- **State boundary:** no migration, Supabase or Vercel change occurred. PR #78 is not merged; its Preview checks passed, but no production deployment has been verified and no claim of operational CMR acceptance is made.
+- **Next safe action:** obtain independent exact-HEAD review of PR #78, then verify its CI/Preview before asking for explicit merge authorization.
+
 ## Canonical FISCAL domicile / DeCA foundation — deployed
 
 PR #64 added the canonical legal/fiscal domicile separate from operational pickup/delivery addresses. Production invariants remain:
@@ -149,7 +161,7 @@ Keep separate:
 - ADR 2025 source verification/import preparation.
 - Control Tower replacement of demo metrics with tenant-aware traceable sources.
 - Mobile stable-channel planning and CI/distribution hardening.
-- Optional CMR continuation-page physical-frame polish.
+- PR #78 provides the CMR continuation-page physical frame; it needs high-risk exact-HEAD review, PR checks and explicit merge authorization before deployment.
 
 ### Other backlog
 
@@ -172,7 +184,7 @@ Send actionable requests as channel-root messages and verify their formatting af
 
 GPT owns implementation/integration work; Claude and DeepSeek provide independent review where appropriate; Fran decides ties. Preserve Pedido/Expediente 1:1 and standard Supabase migration tracking. Update lib/memorandum.ts, this handoff and docs/pending-log.md when material state changes. Mirror material handoffs in Slack #fornexa. Do not claim tested, merged, migrated, configured or deployed without direct evidence.
 
-Risk-based review is recorded in `14d9429` as a technical proposal agreed by Claude, GPT and DeepSeek; **Fran's explicit ratification or correction remains pending.** Until then, it must not be used to retroactively justify direct commits or bypass branch-protection decisions. The proposal defines low risk as documentation, code comments, or UI/copy text only, and none of supabase/migrations, auth/RLS/Storage routes, PDF/CMR/DeCA generation, or capability tokens. A single independent reviewer, Claude or DeepSeek, whichever responds, confirms MERGE YES/NO against the exact HEAD; no re-auditing files already reviewed in a prior PR on the same change, and no new full round per incremental commit unless scope changes. A PR touching any file outside this allowlist is high risk by default, even if described as docs.
+Risk-based review is recorded in `14d9429` as a technical proposal agreed by Claude, GPT and DeepSeek; **Fran explicitly ratified a proportionate model on September 19.** PR #77 records the updated three-lane policy but remains open, so its text must not be treated as integrated `main` policy or as a bypass for branch protection. The proposal defines low risk as documentation, code comments, or UI/copy text only, and none of supabase/migrations, auth/RLS/Storage routes, PDF/CMR/DeCA generation, or capability tokens. A single independent reviewer, Claude or DeepSeek, whichever responds, confirms MERGE YES/NO against the exact HEAD; no re-auditing files already reviewed in a prior PR on the same change, and no new full round per incremental commit unless scope changes. A PR touching any file outside this allowlist is high risk by default, even if described as docs.
 
 High risk: everything else, explicitly including auth, RLS, money/tariffs, migrations, legal signatures/documents such as CMR/DeCA, tenant isolation, Storage privacy, DeCA/capability-token lifecycle, PDF/CMR integrity, and atomicity/race conditions. Full reinforced review continues unchanged: independent Claude and DeepSeek review, exact-HEAD, CI/Vercel/Supabase verification, MUST/SHOULD/NICE verdict.
 

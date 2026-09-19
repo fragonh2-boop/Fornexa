@@ -6,10 +6,10 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ### 2026-09-19 — Ratificar gobernanza de revisión y reconciliar el handoff
 - **Área:** Gobernanza / Trazabilidad
-- **Estado:** DECISIÓN DE FRAN PENDIENTE; CORRECCIÓN DOCUMENTAL PREPARADA
-- **Evidencia:** `main` está en `14d942931fee0eaa1c8ee8d2ef5d5f4aac19ad24`, commit directo y solo documental que registra el modelo de revisión por riesgo. GitHub muestra `validate` y los dos estados Vercel en `success`; Supabase Preview falla. Antes de esta actualización, el snapshot del handoff seguía declarando `660f13fc` como main.
-- **Decisión requerida:** Fran ratifica o corrige el modelo y decide su compatibilidad con la protección de ramas. La coincidencia técnica entre revisores no sustituye esa decisión.
-- **Criterio de cierre:** ratificación explícita o revisión del texto, y snapshot del handoff actualizado mediante PR con evidencia de CI/despliegue proporcional. No usar esta entrada para justificar retroactivamente commits directos.
+- **Estado:** RATIFICADO POR FRAN; PR #77 ABIERTA Y NO INTEGRADA
+- **Evidencia:** `main` está en `844a2ef45641fe2194dc4226baee3478ab36752c`, squash de PR #76 que reconcilió el snapshot. Fran ratificó explícitamente el enfoque proporcional; PR #77 registra el texto de las tres vías y permanece abierta en `9543bd65aafb578961b58bb99a1c4554232d0cbb`. `validate` y los dos estados Vercel están en `success`; Supabase Preview fue omitida.
+- **Límite:** hasta integrar PR #77, el modelo ratificado no sustituye el texto vigente de `main` ni permite eludir protección de ramas, revisión exact-HEAD o autorización explícita de merge.
+- **Siguiente paso:** revisar e integrar PR #77 solo con autorización explícita; entonces mover esta decisión a `DONE`.
 
 ### 2026-09-11 — TLM-1 telemetría privada de plataforma
 - **Área:** Plataforma / Observabilidad / Seguridad / Privacidad
@@ -88,9 +88,11 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ### 2026-09-10 — CMR: marco físico de hojas de continuación
 - **Área:** CMR / Impresión-PDF / UX
-- **Estado:** MEJORA VISUAL OPCIONAL; CONTINUIDAD E INTEGRIDAD CERRADAS
+- **Estado:** IMPLEMENTACIÓN PREPARADA; NO INTEGRADA NI DESPLEGADA
 - **Base productiva:** PR #66 está en producción como `f7bfa5701a0b27d83cf63a77c2e036377a37b2c9`; identidad CMR y encabezados 6–12 se repiten en cada hoja con mercancía.
-- **Mejora pendiente:** valorar un marco físico explícito por cada hoja de continuación. Tratarlo como refinamiento cosmético independiente, sin reabrir no-clipping, integridad, repetición de `thead` ni contrato A4.
+- **Implementación acotada:** PR #78 en la rama `codex/cmr-continuation-frame-20260919` traslada el borde al `@page` A4 nativo para que cada hoja tenga marco completo. No cambia datos, QR, firmas, tabla semántica, reglas de salto, tamaño útil, `overflow` ni cabeceras repetidas.
+- **Evidencia local y PR:** 125/125 tests, typecheck y build pasan; lint tiene 0 errores y 7 avisos preexistentes. `validate`, ambos Previews Vercel y Vercel Preview Comments de PR #78 pasaron; Supabase Preview se omitió sin trabajo de esquema. Headless Chrome 153 renderizó un fixture sintético CMR de 42 líneas en 2 páginas, conservando cabecera de tabla, todas las líneas y marco completo en la continuación. El harness Python actualizado no corrió aquí por falta de su módulo `playwright`.
+- **Gate:** tratar como PR de riesgo alto por afectar salida CMR/PDF; requiere revisión independiente exact-HEAD, CI/Preview y autorización explícita antes de merge. No afirmar aceptación operativa ni despliegue hasta validar un CMR real.
 
 ### 2026-09-05 — QR visible y listo antes de imprimir/exportar CMR
 - **Área:** CMR / QR / Impresión-PDF / UX

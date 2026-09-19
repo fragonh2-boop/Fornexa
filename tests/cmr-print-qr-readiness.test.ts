@@ -32,7 +32,7 @@ test("CMR QR failures can retry a fresh resource without weakening the print gat
 
 test("loaded QR remains part of the dedicated A4 print surface", () => {
   assert.match(styles, /@media print\{[\s\S]*?\.documentNumber img\{[^}]*width:10mm;height:10mm/);
-  assert.match(styles, /@page\{size:A4 portrait;margin:9mm\}/);
+  assert.match(styles, /@page\{size:A4 portrait;margin:9mm;border:1px solid #000\}/);
   assert.match(styles, /@media print\{[\s\S]*?\.paper\{[^}]*width:192mm[^}]*min-height:279mm[^}]*display:flex;flex-direction:column/);
   assert.ok(page.includes('className={styles.qrStatus}'));
   assert.doesNotMatch(styles, /@media print\{[\s\S]*?\.qrStatus\{[^}]*display:none/);
@@ -44,6 +44,11 @@ test("CMR print geometry fills one A4 page when content fits and never clips ove
   assert.match(styles, /@media print\{[\s\S]*?\.adrBox\{[^}]*max-height:none;overflow:visible/);
   assert.match(styles, /@media print\{[\s\S]*?\.goodsRow\{[^}]*break-inside:avoid;page-break-inside:avoid/);
   assert.match(styles, /@media print\{[\s\S]*?\.signatures\{[^}]*break-inside:avoid;page-break-inside:avoid/);
+});
+
+test("CMR keeps a physical frame on each printed page without changing paper flow", () => {
+  assert.match(styles, /@media print\{@page\{size:A4 portrait;margin:9mm;border:1px solid #000/);
+  assert.match(styles, /@media print\{[\s\S]*?\.paper\{[^}]*overflow:visible;border:0/);
 });
 
 test("CMR goods use a repeatable table header with document identity on continuation pages", () => {

@@ -18,8 +18,8 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "14 sep 2026";
-export const memorandumCommitCoverage = 572;
+export const memorandumUpdatedAt = "19 sep 2026";
+export const memorandumCommitCoverage = 576;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -39,7 +39,7 @@ export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
     title: "CMR — marco físico por hoja de continuación",
-    summary: "PR #66 ya está en producción: las mercancías 6-12 usan tabla semántica con thead repetible y cada hoja que contiene mercancía repite la identidad CMR y los encabezados de columnas. La integridad multipágina y la continuidad de cabeceras quedan cerradas; como mejora visual futura y no bloqueante puede hacerse explícito el marco físico de cada hoja de continuación sin reabrir la geometría ni la paginación ya validadas.",
+    summary: "PR #66 ya está en producción: las mercancías 6-12 usan tabla semántica con thead repetible y cada hoja que contiene mercancía repite la identidad CMR y los encabezados de columnas. El refinamiento visual del marco físico por página está preparado para revisión: usa el borde nativo A4 sin modificar la geometría ni la paginación validadas. Aún no está integrado ni desplegado; sigue pendiente la revisión y la comprobación operativa con un CMR real.",
     priority: "Siguiente",
     state: "En seguimiento",
   },
