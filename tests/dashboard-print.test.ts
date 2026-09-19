@@ -19,3 +19,9 @@ test("CMR keeps its dedicated A4 print contract without silently clipping overfl
   assert.match(cmrCss, /\.paper\s*\{[\s\S]*?box-sizing:\s*border-box;[\s\S]*?width:\s*192mm;[\s\S]*?min-height:\s*279mm;[\s\S]*?height:\s*auto;[\s\S]*?overflow:\s*visible;/);
   assert.doesNotMatch(cmrCss, /@media\s+print\s*\{[\s\S]*?\.paper\s*\{[^}]*max-height:\s*279mm/);
 });
+
+test("CMR print frame is additive and does not depend on @page border support", () => {
+  assert.match(cmrCss, /@media\s+print\s*\{[\s\S]*?\.paper\s*\{[^}]*border:\s*1px solid #000;/);
+  assert.match(cmrCss, /-webkit-box-decoration-break:\s*clone;\s*box-decoration-break:\s*clone;/);
+  assert.doesNotMatch(cmrCss, /@page\s*\{[^}]*border/);
+});

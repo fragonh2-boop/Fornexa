@@ -46,6 +46,16 @@ test("CMR print geometry fills one A4 page when content fits and never clips ove
   assert.match(styles, /@media print\{[\s\S]*?\.signatures\{[^}]*break-inside:avoid;page-break-inside:avoid/);
 });
 
+test("CMR keeps its physical frame on every printed page without betting on @page support", () => {
+  // El marco vive en .paper y se repite por fragmento de pagina. Es aditivo: un motor que no
+  // soporte box-decoration-break ignora la propiedad y conserva el marco actual, nunca lo pierde.
+  assert.match(styles, /@media\s*print\{[\s\S]*?\.paper\{[^}]*border:\s*1px solid #000;/);
+  assert.match(styles, /@media\s*print\{[\s\S]*?\.paper\{[^}]*-webkit-box-decoration-break:\s*clone;/);
+  assert.match(styles, /@media\s*print\{[\s\S]*?\.paper\{[^}]*[^-]box-decoration-break:\s*clone;/);
+  // El marco NO debe depender de `border` en @page: no lo pintan todos los motores.
+  assert.doesNotMatch(styles, /@page\{[^}]*border/);
+});
+
 test("CMR goods use a repeatable table header with document identity on continuation pages", () => {
   assert.ok(page.includes('<table className={styles.goods}><thead>'));
   assert.ok(page.includes('<tr className={styles.goodsIdentity}><th scope="colgroup" colSpan={7}>CMR {cmr} · Mercancías</th></tr>'));
