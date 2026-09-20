@@ -15,8 +15,9 @@ This is the only active priority queue. The detailed historical entries below ar
 ### P0 — Remove production credentials from Vercel Preview
 - **Verified exposure, 2026-09-20:** Vercel project `fornexa` still scopes production-capable Supabase/Postgres database URL/password, secret/service-role/JWT and related integration variables to **All Environments**. `RESEND_API_KEY` also targets Preview. No values were revealed or copied. Project `fornexa-app` had no project environment variables at inspection time.
 - **Containment applied:** `fornexa` now uses Ignored Build Step **Only build production** with `if [ "$VERCEL_ENV" == "production" ]; then exit 1; else exit 0; fi`. New branch builds should therefore run only in the unprivileged `fornexa-app` project.
+- **Containment verified:** PR #80 commit `b0be398cdbdb4e664ca2e0985e9833978762b574` passed GitHub `validate`; `Vercel – fornexa` was `Canceled by Ignored Build Step` and `Vercel – fornexa-app` completed successfully. Supabase Preview was skipped.
 - **Still open:** existing READY Preview deployments may retain the old credentials, the variables themselves remain targeted to All Environments and no credential rotation has occurred. Replace them with Production-only values or an isolated Preview resource, enable separate Production secret values, retire old privileged Preview deployments, rotate affected credentials as required and run an end-to-end branch check.
-- **Gate:** do not enable automated implementation until a fresh commit proves `fornexa` skipped and `fornexa-app` alone built successfully. Deleting existing deployments is irreversible and requires explicit approval at action time.
+- **Gate:** do not enable automated implementation until the old privileged Preview deployments and credential scopes/rotation are resolved. Deleting existing deployments is irreversible and requires explicit approval at action time.
 
 ### P1 — Incorporate Gemini through reviewer PR #12
 - **Current:** `fragonh2-boop/fornexa-ai-reviewer` PR #12, HEAD `11bdb9f49f4ac1d53b43dd36cefdbb18a7719120`; build, 41 tests and CI #20 pass. Implementation remains disabled and not deployed.
