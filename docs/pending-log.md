@@ -7,15 +7,16 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 This is the only active priority queue. The detailed historical entries below are evidence and scope notes, not separate priorities.
 
 ### P0 — Remove fabricated defaults from CMR issuance
-- **Why now:** `app/dashboard/epod-cmr/nuevo/page.tsx` loads a complete demo CMR, including vehicle data and an ADR declaration, so the UI can issue a legal transport document without user input. ADR fields can remain read-only and uncorrectable when local inheritance finds no matching record.
-- **First safe change:** clear the demo initial state, make `missing` block issuance, and add regression coverage proving a fresh form cannot emit. Keep this separate from the canonical ADR wiring.
+- **Current:** draft PR #81, exact HEAD `5387a8d61f6d3466c99f1edc7d55ac3ba00e21fe`, clears the demo initial state, makes incomplete issuance fail closed and adds regression coverage for the existing API rule that a CMR without an expedition returns 422. Local validation reports 128 tests plus typecheck passing; GitHub `validate` and both Vercel contexts are green, with Supabase Preview skipped.
+- **Review gate:** Claude's earlier findings cover superseded HEAD `54e9903`, not the current patch. Obtain reinforced independent exact-HEAD review before any merge. No merge or production promotion has occurred.
 - **Follow-up:** derive ADR data, including `hazmat_entries.label_codes`, from the canonical order/expedition snapshot instead of localStorage. Verify the applicable ADR 2025 source before treating the result as normative.
 - **Risk:** HIGH — CMR/ADR document integrity. Independent exact-HEAD review and full validation required.
 
 ### P0 — Remove production credentials from Vercel Preview
-- **Why now:** Slack verification found production Supabase service-role/JWT/Postgres credentials targeted to Preview. A branch can execute server code in Preview before merge, so PR review and branch protection do not contain this exposure.
-- **Action:** remove production privileged credentials from Preview; use isolated Preview data/credentials or fail closed. Mark remaining secrets Sensitive and verify the effective targets without exposing values.
-- **Gate:** do not enable automated implementation or treat draft PRs as safe until this is verified.
+- **Verified exposure, 2026-09-20:** Vercel project `fornexa` still scopes production-capable Supabase/Postgres database URL/password, secret/service-role/JWT and related integration variables to **All Environments**. `RESEND_API_KEY` also targets Preview. No values were revealed or copied. Project `fornexa-app` had no project environment variables at inspection time.
+- **Containment applied:** `fornexa` now uses Ignored Build Step **Only build production** with `if [ "$VERCEL_ENV" == "production" ]; then exit 1; else exit 0; fi`. New branch builds should therefore run only in the unprivileged `fornexa-app` project.
+- **Still open:** existing READY Preview deployments may retain the old credentials, the variables themselves remain targeted to All Environments and no credential rotation has occurred. Replace them with Production-only values or an isolated Preview resource, enable separate Production secret values, retire old privileged Preview deployments, rotate affected credentials as required and run an end-to-end branch check.
+- **Gate:** do not enable automated implementation until a fresh commit proves `fornexa` skipped and `fornexa-app` alone built successfully. Deleting existing deployments is irreversible and requires explicit approval at action time.
 
 ### P1 — Incorporate Gemini through reviewer PR #12
 - **Current:** `fragonh2-boop/fornexa-ai-reviewer` PR #12, HEAD `11bdb9f49f4ac1d53b43dd36cefdbb18a7719120`; build, 41 tests and CI #20 pass. Implementation remains disabled and not deployed.
