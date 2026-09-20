@@ -2,13 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { cmrDraftReadiness, createEmptyCmrDraft, type CmrDraft } from "@/lib/cmr-draft-readiness";
 import styles from "./nuevo-cmr.module.css";
 
-type FormState = {
-  source:string;expediciones:string[];viaje:string;customerIds:string[];expedidor:string;destinatario:string;carga:string;entrega:string;
-  transportista:string;matricula:string;remolque:string;mercancia:string;bultos:string;embalaje:string;peso:string;volumen:string;instrucciones:string;
-  adr:string;adrRegime:string;unNumber:string;adrClass:string;packingGroup:string;tunnelCode:string;adrDescription:string;
-};
+type FormState = CmrDraft;
 type StopOrderDraft={id:string;customerId?:string;description?:string;packages?:string;weight?:string};
 type StopDetailDraft={sequence:1|2;contactName:string;contactPhone:string;reference:string;fullAddress:string;windowStart:string;windowEnd:string;orders:StopOrderDraft[]};
 type StoredPartida={id:string;customerId?:string;codigoCliente?:string;cliente?:string;remitente?:string;destinatario?:string;origen?:string;destino?:string;bultos?:string;peso?:string;volumen?:string;mercancia?:string;descripcion?:string;contacto?:string;telefono?:string;contactoRecogida?:string;telefonoRecogida?:string;contactoEntrega?:string;telefonoEntrega?:string;referenciaCarga?:string;referenciaDescarga?:string;direccionRecogida?:string;direccionEntrega?:string;ventanaCargaInicio?:string;ventanaCargaFin?:string;ventanaEntregaInicio?:string;ventanaEntregaFin?:string;adr?:string;adrRegime?:string;unNumber?:string;adrClass?:string;packingGroup?:string;tunnelCode?:string;adrDescription?:string};
@@ -16,7 +13,7 @@ type StoredExpedicion={id:string;customerIds?:string[];partidas?:string[];viajeI
 type IssuedCmr={id:string;cmrNumber:string;cmrKey:string;status:string;issuedAt:string;detailUrl:string;qrUrl:string;qrPayload:string;expeditionIds?:string[]};
 type AuditEvent={id:string;event_type:string;occurred_at:string;payload?:Record<string,unknown>};
 
-const initial:FormState={source:"expedicion",expediciones:["EX-260071"],viaje:"VJ-260041",customerIds:["CLI-000146"],expedidor:"Mediterránea Retail · Valencia",destinatario:"Rhône Distribution · Lyon",carga:"REC-001 · Valencia",entrega:"ENT-014 · Lyon",transportista:"Velocity Transinternacional, S.L.",matricula:"1234 LBC",remolque:"R-9876 BCD",mercancia:"Componentes de automoción",bultos:"10",embalaje:"Palet EUR",peso:"5840",volumen:"18,40",instrucciones:"No apilable · Avisar antes de entregar",adr:"S",adrRegime:"1.1.3.6",unNumber:"UN 1263",adrClass:"3",packingGroup:"II",tunnelCode:"D/E",adrDescription:"PINTURA, 3, II"};
+const initial:FormState=createEmptyCmrDraft();
 const initialStopDetails:StopDetailDraft[]=[
  {sequence:1,contactName:"",contactPhone:"",reference:"",fullAddress:initial.carga,windowStart:"",windowEnd:"",orders:[]},
  {sequence:2,contactName:"",contactPhone:"",reference:"",fullAddress:initial.entrega,windowStart:"",windowEnd:"",orders:[]},
@@ -40,8 +37,7 @@ export default function NuevoCmrPage(){
  const [expeditionInput,setExpeditionInput]=useState(initial.expediciones.join(", "));
  const [stopDetails,setStopDetails]=useState<StopDetailDraft[]>(initialStopDetails),[sourceLines,setSourceLines]=useState<StoredPartida[]>([]);
  const [issued,setIssued]=useState<IssuedCmr|null>(null),[showQr,setShowQr]=useState(false),[audit,setAudit]=useState<AuditEvent[]|null>(null);
- const missing=useMemo(()=>[form.source==="expedicion"&&!form.expediciones.length&&"Expedición",!form.customerIds.length&&"Customer ID",!form.expedidor&&"Expedidor",!form.destinatario&&"Destinatario",!form.carga&&"Lugar de carga",!form.entrega&&"Lugar de entrega",!form.transportista&&"Transportista",!form.mercancia&&"Mercancía",!form.peso&&"Peso bruto",form.adr==="S"&&!form.adrRegime&&"Régimen ADR"].filter(Boolean) as string[],[form]);
- const completeness=Math.round(((10-missing.length)/10)*100),locked=Boolean(issued);
+ const {missing,completeness}=useMemo(()=>cmrDraftReadiness(form),[form]),locked=Boolean(issued);
  function set<K extends keyof FormState>(key:K,value:FormState[K]){if(locked)return;setForm(current=>({...current,[key]:value}));setNotice("")}
  function inheritFromExpeditions(expeditionIds:string[]){if(locked)return;try{
   const storedExpeditions=JSON.parse(localStorage.getItem("fornexa-expediciones")||"[]") as StoredExpedicion[];

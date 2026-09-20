@@ -107,6 +107,20 @@ PR #66 closed continuation-page context and clipping-related integrity. Goods bo
 
 Evidence: `docs/verification/cmr-continuation-headers-20260910.md` and `scripts/verify-cmr-continuation-print.py`.
 
+## CMR creation defaults — high-risk correction pending review
+
+The new-CMR screen was found to initialize a real issue flow with complete demonstration values: expedition/customer references, legal parties, vehicle details and an ADR UN 1263 load. Because those values satisfied the client readiness gate, an operator could issue a fabricated legal document without first choosing operational source data.
+
+The dedicated branch `codex/cmr-empty-safe-defaults-20260920` addresses only that unsafe default and validation drift:
+
+- new drafts start with no expedition, customer, parties, locations, carrier, vehicle, goods or ADR declaration;
+- the new screen starts at 0% completeness and keeps issue disabled until all required values exist;
+- UI and `POST /api/cmr` use one shared readiness function, including source-specific expedition/trip and conditional ADR-regime requirements;
+- whitespace-only values do not satisfy legal fields;
+- regression tests cover empty, complete, trip, ADR and fail-closed issue-button cases.
+
+This is **high risk** because it controls issuance of a legal CMR. It must remain unmerged and undeployed until local checks, PR CI and independent Claude and DeepSeek reviews all cover the same exact final HEAD with explicit MUST/SHOULD/NICE and MERGE verdicts. Non-response is not approval. Canonical ADR label propagation from `hazmat_entries.label_codes` is a separate follow-up and must not be represented as fixed by this change.
+
 ## Canonical FISCAL domicile / DeCA foundation — deployed
 
 PR #64 added the canonical legal/fiscal domicile separate from operational pickup/delivery addresses. Production invariants remain:
