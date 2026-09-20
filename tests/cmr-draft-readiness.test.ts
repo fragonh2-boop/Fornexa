@@ -52,6 +52,11 @@ test("trip and ADR selections add their own required data", () => {
   assert.equal(cmrDraftReadiness({ ...adrDraft, adrRegime: "1.1.3.6" }).completeness, 100);
 });
 
+test("trip readiness preserves the API invariant that a trip CMR needs an expedition", () => {
+  assert.ok(route.includes('if (!expeditionRecords.length)'));
+  assert.ok(route.includes('Un CMR asociado a Viaje necesita al menos una Expedición operativa.'));
+});
+
 test("the page and API share readiness and the issue button remains fail-closed", () => {
   assert.ok(page.includes("createEmptyCmrDraft()"));
   assert.ok(page.includes("cmrDraftReadiness(form)"));
