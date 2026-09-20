@@ -2,7 +2,55 @@
 
 Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Supabase, Vercel y Slack antes de actuar. El historial detallado anterior permanece en Git; este archivo prioriza el estado operativo vigente.
 
-## OPEN
+## OPEN — operational queue
+
+This is the only active priority queue. The detailed historical entries below are evidence and scope notes, not separate priorities.
+
+### P0 — Remove fabricated defaults from CMR issuance
+- **Why now:** `app/dashboard/epod-cmr/nuevo/page.tsx` loads a complete demo CMR, including vehicle data and an ADR declaration, so the UI can issue a legal transport document without user input. ADR fields can remain read-only and uncorrectable when local inheritance finds no matching record.
+- **First safe change:** clear the demo initial state, make `missing` block issuance, and add regression coverage proving a fresh form cannot emit. Keep this separate from the canonical ADR wiring.
+- **Follow-up:** derive ADR data, including `hazmat_entries.label_codes`, from the canonical order/expedition snapshot instead of localStorage. Verify the applicable ADR 2025 source before treating the result as normative.
+- **Risk:** HIGH — CMR/ADR document integrity. Independent exact-HEAD review and full validation required.
+
+### P0 — Remove production credentials from Vercel Preview
+- **Why now:** Slack verification found production Supabase service-role/JWT/Postgres credentials targeted to Preview. A branch can execute server code in Preview before merge, so PR review and branch protection do not contain this exposure.
+- **Action:** remove production privileged credentials from Preview; use isolated Preview data/credentials or fail closed. Mark remaining secrets Sensitive and verify the effective targets without exposing values.
+- **Gate:** do not enable automated implementation or treat draft PRs as safe until this is verified.
+
+### P1 — Incorporate Gemini through reviewer PR #12
+- **Current:** `fragonh2-boop/fornexa-ai-reviewer` PR #12, HEAD `11bdb9f49f4ac1d53b43dd36cefdbb18a7719120`; build, 41 tests and CI #20 pass. Implementation remains disabled and not deployed.
+- **Before merge/activation:** rotate the Gemini GitHub credential reported exposed; give each agent a distinct Slack app/bot identity; ensure agents cannot publish with Fran's user token; verify `main` protection has no relevant bypass; add durable checkpoints; run a controlled live provider/Slack/GitHub smoke; obtain independent exact-HEAD review of the reviewer repository.
+- **Extra review constraint:** the deployed DeepSeek service points at `Fornexa`, so it cannot review reviewer PR #12 without a separate read-only reviewer configuration.
+
+### P1 — Decisions ready for Fran
+- **PR #79:** two independent exact-HEAD reviews report MUST none / MERGE yes for `dcac2a52a2edec5629d5dd0128309df2642f82a5`. CI does not execute the pixel harness; its evidence remains manual and Chromium-only. Decision: merge or close.
+- **Governance:** explicitly ratify or correct the risk-based review model. PR #77 was closed because it claimed ratification without traceable evidence and conflicted with #80.
+- **PR #80:** keep as the consolidated documentation/checkpoint PR; it must be refreshed against the final decisions before merge.
+
+### P2 — Platform integrity work
+- **A2 provenance:** prepare non-production reconciliation and obtain cost plus explicit approval before any paid Supabase Preview replay. Never rewrite production migration history by inference.
+- **Tenant defaults:** after A2, remove pilot-tenant defaults only after auditing every producer and adding explicit-tenant tests.
+- **TLM-1:** configure the dedicated telemetry hash secret and OWNER allowlist, then verify authorized/unauthorized access and new hashes.
+
+### P2 — Controlled acceptance from an authorized device/session
+- DeCA OWNER/ADMIN end-to-end with an isolated synthetic fixture.
+- Native CMR/PDF acceptance with a real QR.
+- These require legitimate sessions; do not fabricate users, cookies, JWTs or credentials.
+
+### LATER — product roadmap
+- eCMR signer identity, consent evidence, integrity/sealing, jurisdiction and lifecycle.
+- ADR 2025 official-source import and versioned rules.
+- Control Tower replacement of demo KPIs with tenant-aware sources.
+- Stable Mobile release channel and tenant autonomy.
+
+### Cleanup completed 2026-09-20
+- Closed obsolete/superseded PRs #13, #38, #54 and #55 with explanatory comments.
+- Closed contradictory PR #77; PR #80 remains the single documentation consolidation branch.
+- Confirmed the CMR sender-stamp/casilla 22 issue was already fixed by PR #59 and is not active work.
+
+## REFERENCE — detailed backlog and evidence
+
+The entries below preserve technical evidence and acceptance criteria. Use the operational queue above to choose work; do not count these headings as additional active tasks.
 
 ### 2026-09-19 — GPT/Claude/Gemini capability parity
 - **Status:** prepared in reviewer PR #12, HEAD `11bdb9f49f4ac1d53b43dd36cefdbb18a7719120`, branch `codex/provider-parity-20260919`; disabled and not deployed. Fornexa handoff branch: `codex/provider-parity-handoff-20260919`.
