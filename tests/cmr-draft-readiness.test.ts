@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { cmrDraftReadiness, createEmptyCmrDraft } from "../lib/cmr-draft-readiness.ts";
+import { cmrDraftReadiness, createEmptyCmrDraft, customerIdsFromCmrSources, parseCustomerIds } from "../lib/cmr-draft-readiness.ts";
 
 const page = readFileSync("app/dashboard/epod-cmr/nuevo/page.tsx", "utf8");
 const route = readFileSync("app/api/cmr/route.ts", "utf8");
@@ -41,6 +41,22 @@ test("readiness accepts complete expedition input and rejects whitespace-only le
   assert.deepEqual(cmrDraftReadiness({ ...complete, expedidor: "   " }).missing, ["Expedidor"]);
 });
 
+test("manual customer IDs are trimmed, deduplicated and kept emission-ready", () => {
+  assert.deepEqual(parseCustomerIds(" CL-001, CL-002; CL-001\nCL-003 "), ["CL-001", "CL-002", "CL-003"]);
+  assert.deepEqual(cmrDraftReadiness({ ...completeDraft(), customerIds: parseCustomerIds("CL-001, CL-002") }).missing, []);
+});
+
+test("customer inheritance accepts every local producer used by FORNEXA", () => {
+  assert.deepEqual(customerIdsFromCmrSources([
+    { customerIds: ["CL-EXP", " CL-SHARED "] },
+    { customerId: "CL-CURRENT" },
+    { codigoCliente: "CL-LEGACY" },
+    { clienteId: "CL-EDITOR" },
+    { cliente: "CL-IMPORT" },
+    { clienteId: "CL-SHARED" },
+  ]), ["CL-EXP", "CL-SHARED", "CL-CURRENT", "CL-LEGACY", "CL-EDITOR", "CL-IMPORT"]);
+});
+
 test("trip and ADR selections add their own required data", () => {
   const tripDraft = { ...completeDraft(), source: "viaje", expediciones: [], viaje: "" };
   assert.deepEqual(cmrDraftReadiness(tripDraft).missing, ["Expedición", "Viaje"]);
@@ -62,4 +78,6 @@ test("the page and API share readiness and the issue button remains fail-closed"
   assert.ok(page.includes("cmrDraftReadiness(form)"));
   assert.ok(page.includes("disabled={missing.length>0||issuing}"));
   assert.ok(route.includes("cmrDraftReadiness(input)"));
+  assert.ok(page.includes('set("customerIds",parseCustomerIds(e.target.value))'));
+  assert.ok(page.includes("customerIdsFromCmrSources([...selected,...lines])"));
 });

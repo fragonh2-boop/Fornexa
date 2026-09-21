@@ -32,12 +32,35 @@ type ReadinessCheck = {
   complete: boolean;
 };
 
+export type CmrCustomerIdSource = {
+  customerIds?: unknown;
+  customerId?: unknown;
+  codigoCliente?: unknown;
+  clienteId?: unknown;
+  cliente?: unknown;
+};
+
 function hasText(value: unknown) {
   return typeof value === "string" && value.trim().length > 0;
 }
 
 function hasValues(value: unknown) {
   return Array.isArray(value) && value.some(hasText);
+}
+
+export function parseCustomerIds(value: string) {
+  return [...new Set(value.split(/[;,\n]+/).map(item => item.trim()).filter(Boolean))];
+}
+
+export function customerIdsFromCmrSources(sources: CmrCustomerIdSource[]) {
+  const values = sources.flatMap(source => [
+    ...(Array.isArray(source.customerIds) ? source.customerIds : []),
+    source.customerId,
+    source.codigoCliente,
+    source.clienteId,
+    source.cliente,
+  ]);
+  return [...new Set(values.filter(hasText).map(value => String(value).trim()))];
 }
 
 export function createEmptyCmrDraft(): CmrDraft {

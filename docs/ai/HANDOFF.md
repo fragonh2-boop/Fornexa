@@ -4,7 +4,7 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-20 CEST. GitHub `main`, CI and commit-status evidence rechecked; deployment target/runtime and Supabase findings retain their original capture dates unless stated otherwise.
+- **Updated:** 2026-09-21 CEST. GitHub `main`, CI and commit-status evidence rechecked; deployment target/runtime and Supabase findings retain their original capture dates unless stated otherwise.
 - **Repository:** `fragonh2-boop/Fornexa`.
 - **Current main:** `844a2ef45641fe2194dc4226baee3478ab36752c`, the documentation reconciliation recorded before PR #81. The CMR safe-default correction remains isolated in draft PR #81 and must not be described as merged or productive.
 - **CI/status evidence:** `validate` is `success` and both Vercel commit status contexts are `success` on `14d9429`; Supabase Preview is `failure`. This run did not independently read a Vercel deployment target or runtime logs for `14d9429`, so do not describe that commit as production `READY` from this evidence alone.
@@ -111,12 +111,14 @@ Evidence: `docs/verification/cmr-continuation-headers-20260910.md` and `scripts/
 
 The new-CMR screen was found to initialize a real issue flow with complete demonstration values: expedition/customer references, legal parties, vehicle details and an ADR UN 1263 load. Because those values satisfied the client readiness gate, an operator could issue a fabricated legal document without first choosing operational source data.
 
-The dedicated branch `codex/cmr-empty-safe-defaults-20260920` addresses only that unsafe default and validation drift:
+The dedicated branch `codex/cmr-empty-safe-defaults-20260920` addresses the unsafe default and the input paths needed to replace it with real operational data:
 
 - new drafts start with no expedition, customer, parties, locations, carrier, vehicle, goods or ADR declaration;
 - the new screen starts at 0% completeness and keeps issue disabled until all required values exist;
 - UI and `POST /api/cmr` use one shared readiness function, including expedition, conditional trip and conditional ADR-regime requirements;
 - whitespace-only values do not satisfy legal fields;
+- Customer ID can be entered manually and is inherited from the current and legacy local record shapes (`customerIds`, `customerId`, `codigoCliente`, `clienteId` and `cliente`) through one shared normalizer;
+- ADR declaration and its six detail fields can be completed in the form; changing ADR to No or undeclared clears stale ADR detail;
 - regression tests cover empty, complete, trip, ADR and fail-closed issue-button cases.
 
 This is **high risk** because it controls issuance of a legal CMR. It must remain unmerged and undeployed until local checks, PR CI and independent Claude and DeepSeek reviews all cover the same exact final HEAD with explicit MUST/SHOULD/NICE and MERGE verdicts. Non-response is not approval. Canonical ADR label propagation from `hazmat_entries.label_codes` is a separate follow-up and must not be represented as fixed by this change.
