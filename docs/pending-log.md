@@ -8,8 +8,9 @@ This is the only active priority queue. The detailed historical entries below ar
 
 ### P0 — Remove fabricated defaults from CMR issuance
 - **Current:** draft PR #81, exact HEAD `5387a8d61f6d3466c99f1edc7d55ac3ba00e21fe`, clears the demo initial state, makes incomplete issuance fail closed and adds regression coverage for the existing API rule that a CMR without an expedition returns 422. Local validation reports 128 tests plus typecheck passing; GitHub `validate` and both Vercel contexts are green, with Supabase Preview skipped.
-- **Review gate:** Claude's earlier findings cover superseded HEAD `54e9903`, not the current patch. Obtain reinforced independent exact-HEAD review before any merge. No merge or production promotion has occurred.
-- **Follow-up:** derive ADR data, including `hazmat_entries.label_codes`, from the canonical order/expedition snapshot instead of localStorage. Verify the applicable ADR 2025 source before treating the result as normative.
+- **Blocking exact-HEAD finding, 2026-09-21:** `customerIds` and all seven ADR controls are read-only. `customerIds` is mandatory in UI/API, but current writers persist `clienteId` or `cliente` while inheritance reads `customerId`, `codigoCliente` or `customerIds`. After removing demo defaults, a clean-browser canonical CMR has no complete input path and cannot be issued. Before merge, make these eight controls editable and accept the existing aliases without restoring fabricated data.
+- **Review gate:** obtain reinforced independent exact-HEAD review of the amended PR before any merge. No merge or production promotion has occurred.
+- **Follow-up:** add ADR label capture through both write paths, then derive ADR data including `hazmat_entries.label_codes` from the canonical order/expedition snapshot after loading and activating a verified ADR edition. Verify the official ADR 2025 source before treating the result as normative.
 - **Risk:** HIGH — CMR/ADR document integrity. Independent exact-HEAD review and full validation required.
 
 ### P0 — Rotate credentials formerly available to Vercel Preview
@@ -21,10 +22,9 @@ This is the only active priority queue. The detailed historical entries below ar
 - **Still open:** provider-side rotation has not occurred. Rotate the affected Supabase/Postgres, Resend and OpenAI credentials, update Production atomically where necessary and prove application health without exposing values.
 - **Gate:** do not enable automated implementation until provider-side rotation is complete and the implementation lane has its own least-privilege credentials. New pushes can create canceled-by-rule metadata records in `fornexa`; they contain no runnable Preview artifact and should not be mistaken for a completed build.
 
-### P1 — Incorporate Gemini through reviewer PR #12
-- **Current:** `fragonh2-boop/fornexa-ai-reviewer` PR #12, HEAD `11bdb9f49f4ac1d53b43dd36cefdbb18a7719120`; build, 41 tests and CI #20 pass. Implementation remains disabled and not deployed.
-- **Before merge/activation:** rotate the Gemini GitHub credential reported exposed; give each agent a distinct Slack app/bot identity; ensure agents cannot publish with Fran's user token; verify `main` protection has no relevant bypass; add durable checkpoints; run a controlled live provider/Slack/GitHub smoke; obtain independent exact-HEAD review of the reviewer repository.
-- **Extra review constraint:** the deployed DeepSeek service points at `Fornexa`, so it cannot review reviewer PR #12 without a separate read-only reviewer configuration.
+### P1 — Make the merged Gemini reviewer operational safely
+- **Current:** reviewer PR #12 merged exact HEAD `11bdb9f49f4ac1d53b43dd36cefdbb18a7719120` as reviewer main `8eeccc621fd311b62e835204fda960b7f0aa21f7`; its CI passed. Activation evidence remains incomplete.
+- **Before activation:** satisfy the gates in the reviewer repository and verify them with a controlled smoke. Do not enable implementation until that evidence exists.
 
 ### P1 — Decisions ready for Fran
 - **PR #79:** two independent exact-HEAD reviews report MUST none / MERGE yes for `dcac2a52a2edec5629d5dd0128309df2642f82a5`. CI does not execute the pixel harness; its evidence remains manual and Chromium-only. Decision: merge or close.
