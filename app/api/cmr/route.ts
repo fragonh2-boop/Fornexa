@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedContext } from "@/lib/auth-context";
 import { createCmrKey } from "@/lib/cmr-access";
+import { cmrDraftReadiness } from "@/lib/cmr-draft-readiness";
 import { createSupabaseAdmin, numericValue } from "@/lib/supabase-admin";
 
 export const runtime = "nodejs";
@@ -44,8 +45,6 @@ type TransportStopInsert = {
   operational_reference: string | null;
 };
 
-const required: Array<[keyof CmrInput, string]> = [["expedidor", "Expedidor"], ["destinatario", "Destinatario"], ["carga", "Lugar de carga"], ["entrega", "Lugar de entrega"], ["transportista", "Transportista"], ["mercancia", "Mercancía"], ["peso", "Peso bruto"]];
-
 export async function POST(request: NextRequest) {
   const auth = await getAuthenticatedContext();
   if (!auth) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
@@ -55,9 +54,7 @@ export async function POST(request: NextRequest) {
   try { input = await request.json(); }
   catch { return NextResponse.json({ error: "El cuerpo debe ser JSON válido." }, { status: 400 }); }
 
-  const missing = required.filter(([key]) => !String(input[key] ?? "").trim()).map(([, label]) => label);
-  if (!input.customerIds?.length) missing.push("Customer ID");
-  if (input.adr === "S" && !input.adrRegime?.trim()) missing.push("Régimen ADR");
+  const { missing } = cmrDraftReadiness(input);
   if (missing.length) return NextResponse.json({ error: "El CMR está incompleto.", missing }, { status: 422 });
 
   const supabase = createSupabaseAdmin();

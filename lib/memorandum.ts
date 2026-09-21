@@ -18,10 +18,17 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "14 sep 2026";
-export const memorandumCommitCoverage = 572;
+export const memorandumUpdatedAt = "21 sep 2026";
+export const memorandumCommitCoverage = 578;
 
 export const memorandumPending: MemorandumPending[] = [
+  {
+    area: "Funcional",
+    title: "CMR — alta segura desde un formulario vacío",
+    summary: "La corrección está preparada en una rama de preproducción: una nueva alta deja de cargar datos ficticios, permite introducir Customer ID y ADR reales, y hereda el cliente desde los formatos locales vigentes y heredados. La interfaz y la API comparten las mismas reglas de completitud. Antes de integrar, por tratarse de documentación legal, requiere CI y revisión independiente reforzada sobre el HEAD exacto; no se ha fusionado ni desplegado.",
+    priority: "Ahora",
+    state: "En seguimiento",
+  },
   {
     area: "Técnico",
     title: "A2 — reproducibilidad de migraciones",
