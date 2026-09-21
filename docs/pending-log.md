@@ -2,7 +2,66 @@
 
 Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Supabase, Vercel y Slack antes de actuar. El historial detallado anterior permanece en Git; este archivo prioriza el estado operativo vigente.
 
-## OPEN
+## OPEN — operational queue
+
+This is the only active priority queue. The detailed historical entries below are evidence and scope notes, not separate priorities.
+
+### P0 — Remove fabricated defaults from CMR issuance
+- **Current:** draft PR #81, exact HEAD `6a0cf5a4a43b224380b32ead8cb870296f66eb32`, clears the demo initial state, makes incomplete issuance fail closed and adds regression coverage for the existing API rule that a CMR without an expedition returns 422.
+- **Input-path blocker addressed, 2026-09-21:** Customer ID and ADR controls are editable; current and legacy aliases (`customerIds`, `customerId`, `codigoCliente`, `clienteId`, `cliente`) share one normalizer; changing ADR to No or undeclared clears stale detail. Local validation passed 130 tests, typecheck, lint without errors, build, diff-check and the Memorandum gate. GitHub `validate` and the unprivileged Preview are green on the exact HEAD. The Preview requires authenticated access, so no credential-free form interaction is claimed.
+- **Review gate:** obtain fresh reinforced Claude and DeepSeek verdicts on the amended exact HEAD before any merge. No merge or production promotion has occurred.
+- **Follow-up:** add ADR label capture through both write paths, then derive ADR data including `hazmat_entries.label_codes` from the canonical order/expedition snapshot after loading and activating a verified ADR edition. Verify the official ADR 2025 source before treating the result as normative.
+- **Risk:** HIGH — CMR/ADR document integrity. Independent exact-HEAD review and full validation required.
+
+### P0 — Rotate credentials formerly available to Vercel Preview
+- **Verified exposure, 2026-09-20:** Vercel project `fornexa` scoped production-capable Supabase/Postgres database URL/password, secret/service-role/JWT and related integration variables to **All Environments**. `RESEND_API_KEY` also targeted Preview. No values were revealed or copied. Project `fornexa-app` had no project environment variables at inspection time.
+- **Containment applied:** `fornexa` now uses Ignored Build Step **Only build production** with `if [ "$VERCEL_ENV" == "production" ]; then exit 1; else exit 0; fi`. New branch builds should therefore run only in the unprivileged `fornexa-app` project.
+- **Containment verified:** PR #80 commit `b0be398cdbdb4e664ca2e0985e9833978762b574` passed GitHub `validate`; `Vercel – fornexa` was `Canceled by Ignored Build Step` and `Vercel – fornexa-app` completed successfully. Supabase Preview was skipped.
+- **Preview cleanup completed, 2026-09-21:** after explicit approval, all Preview records were removed from the privileged project. The initial UI inventory showed 226; final API reconciliation found 227 `target=null` records including cancellation records created during verification. Post-delete pagination returned 82 deployments, all production, and zero Preview. Production `dpl_3HW4AvnwySPnSaJVutop3xRJXyZB` remained `READY` at `844a2ef45641fe2194dc4226baee3478ab36752c`; `fornexa-app` was not selected or modified.
+- **Environment scope completed, 2026-09-21:** the 20 retained variables now target Production only: `NEXT_PUBLIC_APP_URL`, 16 Supabase/Postgres variables and three mail variables. The branch-scoped `OPENAI_API_KEY` and `FORNEXA_OPENAI_MODEL` from the closed multi-model Preview were removed. No value was read or copied; an automatically created temporary `.env.local` was deleted immediately without inspection. A fresh deployment enumeration still returned zero Preview and current production `READY` at `844a2ef`.
+- **Still open:** provider-side rotation has not occurred. Rotate the affected Supabase/Postgres, Resend and OpenAI credentials, update Production atomically where necessary and prove application health without exposing values.
+- **Gate:** do not enable automated implementation until provider-side rotation is complete and the implementation lane has its own least-privilege credentials. New pushes can create canceled-by-rule metadata records in `fornexa`; they contain no runnable Preview artifact and should not be mistaken for a completed build.
+
+### P1 — Make the merged Gemini reviewer operational safely
+- **Current:** reviewer PR #12 merged exact HEAD `11bdb9f49f4ac1d53b43dd36cefdbb18a7719120` as reviewer main `8eeccc621fd311b62e835204fda960b7f0aa21f7`; its CI passed. Activation evidence remains incomplete.
+- **Before activation:** satisfy the gates in the reviewer repository and verify them with a controlled smoke. Do not enable implementation until that evidence exists.
+
+### P1 — Decisions ready for Fran
+- **PR #79:** two independent exact-HEAD reviews report MUST none / MERGE yes for `dcac2a52a2edec5629d5dd0128309df2642f82a5`. CI does not execute the pixel harness; its evidence remains manual and Chromium-only. Decision: merge or close.
+- **Governance:** explicitly ratify or correct the risk-based review model. PR #77 was closed because it claimed ratification without traceable evidence and conflicted with #80.
+- **PR #80:** keep as the consolidated documentation/checkpoint PR; it must be refreshed against the final decisions before merge.
+
+### P2 — Platform integrity work
+- **A2 provenance:** prepare non-production reconciliation and obtain cost plus explicit approval before any paid Supabase Preview replay. Never rewrite production migration history by inference.
+- **Tenant defaults:** after A2, remove pilot-tenant defaults only after auditing every producer and adding explicit-tenant tests.
+- **TLM-1:** configure the dedicated telemetry hash secret and OWNER allowlist, then verify authorized/unauthorized access and new hashes.
+
+### P2 — Controlled acceptance from an authorized device/session
+- DeCA OWNER/ADMIN end-to-end with an isolated synthetic fixture.
+- Native CMR/PDF acceptance with a real QR.
+- These require legitimate sessions; do not fabricate users, cookies, JWTs or credentials.
+
+### LATER — product roadmap
+- eCMR signer identity, consent evidence, integrity/sealing, jurisdiction and lifecycle.
+- ADR 2025 official-source import and versioned rules.
+- Control Tower replacement of demo KPIs with tenant-aware sources.
+- Stable Mobile release channel and tenant autonomy.
+
+### Cleanup completed 2026-09-20
+- Closed obsolete/superseded PRs #13, #38, #54 and #55 with explanatory comments.
+- Closed contradictory PR #77; PR #80 remains the single documentation consolidation branch.
+- Confirmed the CMR sender-stamp/casilla 22 issue was already fixed by PR #59 and is not active work.
+
+## REFERENCE — detailed backlog and evidence
+
+The entries below preserve technical evidence and acceptance criteria. Use the operational queue above to choose work; do not count these headings as additional active tasks.
+
+### 2026-09-19 — GPT/Claude/Gemini capability parity
+- **Status:** prepared in reviewer PR #12, HEAD `11bdb9f49f4ac1d53b43dd36cefdbb18a7719120`, branch `codex/provider-parity-20260919`; disabled and not deployed. Fornexa handoff branch: `codex/provider-parity-handoff-20260919`.
+- **Risk:** HIGH. Same host-enforced read/review/implementation capabilities, dedicated least-privilege writer, Slack author allowlist, bounded changes and recoverable draft PR publication; DeepSeek stays read-only.
+- **Evidence:** reviewer build + 41 local tests + remote CI #20 success. Mocked provider contracts are not live-provider verification.
+- **Remaining:** shared-identity authorization blocker from Claude review; verified credential rotation/rulesets; independent review of the updated exact HEAD, live staging smoke and durable checkpoints. Do not enable implementation with ephemeral storage or reuse a broad user PAT. No merge/deploy authorized by this task.
+- **Policy:** preserve existing exact-HEAD/risk governance and pending Fran ratification. No self-review or silence-as-approval.
 
 ### 2026-09-19 — Ratificar gobernanza de revisión y reconciliar el handoff
 - **Área:** Gobernanza / Trazabilidad

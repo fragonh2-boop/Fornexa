@@ -4,11 +4,11 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-19 CEST. GitHub `main`, CI and commit-status evidence rechecked; deployment target/runtime and Supabase findings retain their original capture dates unless stated otherwise.
+- **Updated:** 2026-09-21 CEST. GitHub `main`, PR #81 and the Vercel Preview credential boundary were rechecked; deployment runtime and Supabase findings retain their original capture dates unless stated otherwise.
 - **Repository:** `fragonh2-boop/Fornexa`.
-- **Current main:** `14d942931fee0eaa1c8ee8d2ef5d5f4aac19ad24`, a direct docs-only commit that records the risk-based-review proposal and reviewer reliability note. PR #75 was already integrated as `578ce2454a27d35435d728a045b9ab29247f337a` before that commit.
-- **CI/status evidence:** `validate` is `success` and both Vercel commit status contexts are `success` on `14d9429`; Supabase Preview is `failure`. This run did not independently read a Vercel deployment target or runtime logs for `14d9429`, so do not describe that commit as production `READY` from this evidence alone.
-- **Last directly recorded production deployment:** `dpl_9UvQg7bM1SnDUT8ZwjyKoQG5Ef5d` was `READY`, targeted production, carried `660f13fc931d96ec75d47ef59b1bb58be6c554cc` and aliased `fornexasc.com`. No warning/error/fatal runtime entries were returned for 21:46–22:01 UTC on September 13; this is a bounded observation, not an assurance of zero errors.
+- **Current main:** `844a2ef45641fe2194dc4226baee3478ab36752c`, a docs-only reconciliation of the current handoff and pending governance ratification.
+- **CI/status evidence:** `validate` and both Vercel commit status contexts are `success` on `844a2ef`; Supabase Preview is `skipped`.
+- **Current directly verified production deployment:** Vercel deployment `dpl_3HW4AvnwySPnSaJVutop3xRJXyZB` is `READY`, targeted production and carries exact SHA `844a2ef45641fe2194dc4226baee3478ab36752c`. This verification inspected deployment state, not runtime logs.
 - **Browser smoke:** the public home and `/dashboard` rendered in the connected Edge session; dashboard screenshot inspected. An existing signed-in session was available, but OWNER/ADMIN authorization and DeCA issuance were not verified. No business records or credentials were changed.
 - **PR #74 review:** DeepSeek reviewed final HEAD `27294f973d433d0b95c0fd867f1e33bbad473a91`: MUST none, MERGE yes. Claude's earlier review is historical corroboration, not approval of this amended final HEAD. Four nonblocking DeepSeek clarifications are being captured on `codex/a2-audit-closeout`; that follow-up is not part of the production SHA above.
 - **Follow-up validation:** 123/123 tests, typecheck, lint (0 errors / 7 pre-existing warnings), build and diff-check passed locally on September 14. The first sandboxed build could not fetch Google Fonts; the network-authorized retry passed. No generator behavior, historical artifact or migration SQL changed.
@@ -181,3 +181,45 @@ Non-response is never approval, at either risk level, see the PR 68 and 73 prece
 Acceptance criteria and edge cases such as long text or addresses, high-volume records, and empty or malformed API responses must be specified in the implementation request before work starts, not discovered during review. Each PR should state its own risk level, low or high, in its description for auditability. The verdict must stay traceable to the exact PR and SHA it covers; migrate the formal record to GitHub reviews and comments progressively so it does not depend on Slack alone.
 
 Reviewer reliability, 2026-09-14/15: fornexa-ai-reviewer crashed on a malformed DeepSeek API response and left a review lock stuck for about 22 hours. Fixed in PR 11, squash cac13c5: validated API responses, per-call timeout, ownership-tokened recoverable locks, and a non-terminal REVISION FALLIDA Slack notice on real failures. Claude reviewed exact HEAD 3df112767abfdede9af4900c9e12133c3e8e58bc, MUST none, MERGE yes, merged it and redeployed manually; a clean restart was confirmed.
+
+
+## Provider parity checkpoint — 2026-09-19
+
+Reviewer PR https://github.com/fragonh2-boop/fornexa-ai-reviewer/pull/12 merged exact HEAD `11bdb9f49f4ac1d53b43dd36cefdbb18a7719120` as reviewer main `8eeccc621fd311b62e835204fda960b7f0aa21f7` on 2026-09-21. Its CI passed. The merge provides the shared GPT/Claude/Gemini code path; activation remains unverified and is a separate operational gate.
+
+Risk remains HIGH. Preserve the Governance section above: exact full HEAD, MUST/SHOULD/NICE, independent reinforced review, no self-review and no silence-as-approval. Gemini parity does not ratify or change the risk policy. See the reviewer repository for its operational protocol; do not copy sensitive configuration into this public repository.
+
+This Fornexa branch only records the cross-repository handoff and changes no application behavior.
+
+
+### Claude continuity reconciliation — 2026-09-19 follow-up
+
+Claude later published an exact-HEAD assessment of `11bdb9f49f4ac1d53b43dd36cefdbb18a7719120`. Activation remains pending; the risk policy and pending ratification are unchanged.
+
+### Pending-work cleanup — 2026-09-20
+
+Slack was reviewed through 12:39 CEST and open GitHub PRs were reconciled. `main` remained `844a2ef45641fe2194dc4226baee3478ab36752c`; no production/Supabase mutation was performed. The active queue is now the short prioritized section at the top of `docs/pending-log.md`; older entries remain as reference evidence.
+
+The highest-priority product defect is CMR issuance with preloaded demo parties, vehicle data and ADR values. A fresh form can appear complete and persist fabricated legal-document data, while ADR inheritance still depends on localStorage and omits canonical `label_codes`. Split remediation into: (1) remove demo defaults and block incomplete issuance; (2) wire ADR from the canonical order/expedition snapshot after verifying the applicable official ADR source. Treat both as high-risk CMR/ADR integrity work.
+
+The highest-priority platform blocker is production-privileged credentials targeted to Vercel Preview. Draft branches can execute server code before merge, so merge review cannot contain that exposure. Remove production Supabase/Postgres privileged credentials from Preview or isolate Preview completely before enabling automated implementation. Do not record secret values in Git or Slack.
+
+Immediate containment was applied and rechecked in Vercel on 2026-09-20: project `fornexa` now uses the Ignored Build Step behavior **Only build production**, with command `if [ "$VERCEL_ENV" == "production" ]; then exit 1; else exit 0; fi`. Project `fornexa-app`, the intended unprivileged Preview builder, had no project environment variables at inspection time. This stops new Preview builds in the privileged project; it does not revoke credentials already embedded in existing Preview deployments.
+
+End-to-end evidence on PR #80 commit `b0be398cdbdb4e664ca2e0985e9833978762b574`: GitHub `validate` passed; `Vercel – fornexa` reported `Canceled by Ignored Build Step`; `Vercel – fornexa-app` completed successfully; Supabase Preview was skipped. This closes the new-build containment check only.
+
+The audit exposed no secret values, but initially confirmed that the `fornexa` project targeted production-capable Supabase/Postgres credentials to **All Environments**, including database URL/password material, Supabase secret/service-role/JWT material and public connection settings. `RESEND_API_KEY` also targeted Preview.
+
+Preview cleanup was completed on 2026-09-21 after Fran's explicit approval. The initial UI inventory showed 226 retained Preview deployments; the final API reconciliation found 227 `target=null` records after including cancellation records created during containment verification. All were removed from the privileged `fornexa` project. A six-page post-delete API enumeration returned 82 deployments, all `target=production`, and zero Preview records. Current production `dpl_3HW4AvnwySPnSaJVutop3xRJXyZB` remained `READY` at exact SHA `844a2ef45641fe2194dc4226baee3478ab36752c`; no deployment from `fornexa-app` was selected or deleted.
+
+Environment scoping was completed on 2026-09-21. `NEXT_PUBLIC_APP_URL`, all 16 Supabase/Postgres variables and all three mail variables now target **Production only**. The branch-scoped `OPENAI_API_KEY` and `FORNEXA_OPENAI_MODEL` left by the closed multi-model Preview were removed. A fresh inventory returned 20 variables, all Production-only; no value was read or copied. The CLI link step created a temporary local `.env.local` automatically, and that file was deleted immediately without inspection.
+
+The P0 remains open only for provider-side credential rotation and proof after rotation. Existing runnable Preview artifacts are removed, new privileged Preview builds are blocked and no Preview/Development scope remains in `fornexa`; canceled metadata records generated by future branch pushes may still appear and contain no built artifact. Current production remained `READY` at `844a2ef45641fe2194dc4226baee3478ab36752c` after the scope change.
+
+CMR remediation is prepared in draft PR #81 at exact HEAD `6a0cf5a4a43b224380b32ead8cb870296f66eb32`. It removes the fabricated initial CMR values, preserves the API invariant that issuance without an expedition fails with 422, and restores complete real-data input paths: Customer ID and ADR are editable, current and legacy customer aliases share one normalizer, and stale ADR detail is cleared when ADR is changed to No or undeclared. Local validation passed 130 tests, typecheck, lint with no errors, build, diff-check and the Memorandum gate. GitHub `validate`, the unprivileged Vercel Preview and Preview Comments are green on that exact HEAD; Supabase Preview is skipped and the privileged project reports its ignored-build rule. The deployed screen redirects to authenticated access, so no credential-free visual interaction was claimed.
+
+The earlier Claude finding about read-only Customer ID/ADR controls and incompatible `clienteId` / `cliente` aliases is addressed in this HEAD. Because that changes the reviewed scope, fresh reinforced Claude and DeepSeek verdicts must cover this exact full SHA before merge. ADR label capture and canonical `hazmat_entries.label_codes` propagation remain separate because the current ADR edition is not active. No merge or production promotion was performed.
+
+Gemini code is incorporated in reviewer main, but activation evidence remains incomplete. No deploy was performed from this task.
+
+Repository cleanup: obsolete/superseded PRs #13, #38, #54 and #55 were closed with reasons. PR #77 was closed because it asserted unverified ratification and conflicted with #80. PR #79 remains open and ready for Fran's merge-or-close decision after two favorable exact-HEAD reviews; its pixel harness is manual evidence and is not executed by CI. PR #80 remains the single documentation consolidation branch. No PR was merged or deployed during cleanup.
