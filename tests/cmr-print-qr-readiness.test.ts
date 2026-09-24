@@ -30,8 +30,11 @@ test("CMR QR failures can retry a fresh resource without weakening the print gat
   assert.ok(page.includes('onClick={exportPdf} disabled={qrState!=="ready"}'));
 });
 
-test("loaded QR remains part of the dedicated A4 print surface", () => {
-  assert.match(styles, /@media print\{[\s\S]*?\.documentNumber img\{[^}]*width:10mm;height:10mm/);
+test("loaded QR remains part of the dedicated A4 print surface at a scannable size", () => {
+  // 22mm de caja dejan ~20mm de modulos impresos: legibles con un movil a distancia
+  // normal. La geometria anterior (10mm) quedaba por debajo del minimo practico y
+  // ademas pegada al marco del documento.
+  assert.match(styles, /@media print\{[\s\S]*?\.documentNumber img\{[^}]*width:22mm;height:22mm/);
   assert.match(styles, /@page\{size:A4 portrait;margin:9mm\}/);
   assert.match(styles, /@media print\{[\s\S]*?\.paper\{[^}]*width:192mm[^}]*min-height:279mm[^}]*display:flex;flex-direction:column/);
   assert.ok(page.includes('className={styles.qrStatus}'));
@@ -56,6 +59,15 @@ test("CMR keeps its physical frame on every printed page without betting on @pag
   assert.doesNotMatch(styles, /@page\{[^}]*border/);
 });
 
+test("CMR print keeps the printed document legible instead of shrinking it to fit", () => {
+  // El impreso real medido el 2026-09-24 (CMR-26000003) salia con el cuerpo de casilla a
+  // 4,35 pt y las cabeceras de mercancia a 3,60 pt. 10px/8px/9px a 96dpi son 7,5/6/6,75 pt.
+  assert.match(styles, /@media print\{[\s\S]*?\.gridTwo p,\.gridTwoBottom p,\.gridTwo strong\{font-size:10px/);
+  assert.match(styles, /@media print\{[\s\S]*?\.gridTwo h2,\.gridTwoBottom h2,\.signatures h2\{font-size:8px/);
+  assert.match(styles, /@media print\{[\s\S]*?\.goodsRow td\{[^}]*font-size:9px/);
+  assert.match(styles, /@media print\{[\s\S]*?\.signatureState\{[^}]*font-size:8px/);
+});
+
 test("CMR goods use a repeatable table header with document identity on continuation pages", () => {
   assert.ok(page.includes('<table className={styles.goods}><thead>'));
   assert.ok(page.includes('<tr className={styles.goodsIdentity}><th scope="colgroup" colSpan={7}>CMR {cmr} · Mercancías</th></tr>'));
@@ -69,7 +81,7 @@ test("CMR goods use a repeatable table header with document identity on continua
 test("CMR print geometry keeps the balanced layout and anchors signatures near the bottom", () => {
   assert.match(styles, /@media print\{[\s\S]*?\.gridTwo\{[^}]*flex:5 1 0;grid-auto-rows:minmax\(18mm,1fr\)/);
   assert.match(styles, /@media print\{[\s\S]*?\.gridTwoBottom\{[^}]*flex:2 1 0;grid-auto-rows:minmax\(18mm,1fr\)/);
-  assert.match(styles, /@media print\{[\s\S]*?\.signatures\{[^}]*flex:0 0 32mm/);
+  assert.match(styles, /@media print\{[\s\S]*?\.signatures\{[^}]*flex:0 0 36mm/);
   assert.match(styles, /@media print\{[\s\S]*?\.signatureState\{[^}]*margin-top:auto/);
 });
 
