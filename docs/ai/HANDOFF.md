@@ -107,6 +107,32 @@ PR #66 closed continuation-page context and clipping-related integrity. Goods bo
 
 Evidence: `docs/verification/cmr-continuation-headers-20260910.md` and `scripts/verify-cmr-continuation-print.py`.
 
+### CMR physical continuation-page frame — prepared, not integrated or deployed
+
+The frame is repeated per page fragment by keeping the existing `.paper` border and adding
+`-webkit-box-decoration-break: clone; box-decoration-break: clone` inside `@media print`.
+`@page` carries no `border`. The choice is driven by failure behaviour, not appearance: this
+form is strictly additive, so an engine without support renders exactly what it renders today,
+while `@page { border }` would require removing the `.paper` border and degrades to no frame at
+all on any engine that ignores the descriptor. The product requirement is normal operation on
+the four main browsers, so the mechanism with a guaranteed floor was chosen.
+
+- **Risk:** high, because it affects CMR/PDF output, even though the change is CSS-only and does
+  not touch data, QR readiness, signatures, the semantic table, repeated headings, page breaks,
+  geometry or overflow.
+- **Measured evidence:** `docs/verification/cmr-continuation-frame-20260919.md`. The harness now
+  verifies the frame by pixel inspection on every page; all four fixtures pass with four closed
+  sides, and the negative control without the change fails with the top edge missing on
+  continuation pages. Page counts are identical with and without the change.
+- **Verification boundary:** Chromium 141 verified. **Firefox and Safari are unverified** — they
+  cannot be executed in the verification environment. The additive design is what makes that
+  acceptable, not an assumption about their support.
+- **Known limitation:** on the last page the frame closes at the end of the content rather than
+  at the foot of the sheet. A full-sheet frame there would need a `position: fixed` overlay,
+  which is not additive; deferred.
+- **Next safe action:** independent exact-HEAD review, then CI/Preview, then explicit merge
+  authorisation.
+
 ## Canonical FISCAL domicile / DeCA foundation — deployed
 
 PR #64 added the canonical legal/fiscal domicile separate from operational pickup/delivery addresses. Production invariants remain:
