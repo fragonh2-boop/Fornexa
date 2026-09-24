@@ -11,9 +11,13 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 
 ## Current verified snapshot
 
-- **Updated:** 2026-09-19 CEST. GitHub `main`, CI and commit-status evidence rechecked; deployment target/runtime and Supabase findings retain their original capture dates unless stated otherwise.
+- **Updated:** 2026-09-24 CEST. GitHub `main`, CI and commit-status evidence rechecked; deployment target/runtime and Supabase findings retain their original capture dates unless stated otherwise.
 - **Repository:** `fragonh2-boop/Fornexa`.
-- **Current main:** `14d942931fee0eaa1c8ee8d2ef5d5f4aac19ad24`, a direct docs-only commit that records the risk-based-review proposal and reviewer reliability note. PR #75 was already integrated as `578ce2454a27d35435d728a045b9ab29247f337a` before that commit.
+- **Current main:** `52e727817c80c0643b3b2e25ad259a5a77ee1214`, the squash merge of PR #84 (CMR print typography and QR size). Snapshot taken 2026-09-24 12:20 UTC; a later docs-only commit may sit on top of it.
+
+### CMR printed document legibility — deployed and confirmed
+
+PR #84 raised the printed CMR from 4.35 pt body text and a 7.5 mm QR module area to 7.5 pt body text and a 22 mm QR box, inside `@media print` only. Measured evidence in `docs/verification/cmr-print-typography-20260924.md`. Deployment `dpl_711uusj2gQhd4K5JZzKhCXaZYjBp` is READY on the merge SHA with `fornexasc.com` reassigned, and Fran confirmed on a real printout that the QR scans and the layout is acceptable. Firefox and Safari remain unverified: they cannot be executed in the verification environment.
 - **CI/status evidence:** `validate` is `success` and both Vercel commit status contexts are `success` on `14d9429`; Supabase Preview is `failure`. This run did not independently read a Vercel deployment target or runtime logs for `14d9429`, so do not describe that commit as production `READY` from this evidence alone.
 - **Last directly recorded production deployment:** `dpl_9UvQg7bM1SnDUT8ZwjyKoQG5Ef5d` was `READY`, targeted production, carried `660f13fc931d96ec75d47ef59b1bb58be6c554cc` and aliased `fornexasc.com`. No warning/error/fatal runtime entries were returned for 21:46–22:01 UTC on September 13; this is a bounded observation, not an assurance of zero errors.
 - **Browser smoke:** the public home and `/dashboard` rendered in the connected Edge session; dashboard screenshot inspected. An existing signed-in session was available, but OWNER/ADMIN authorization and DeCA issuance were not verified. No business records or credentials were changed.
