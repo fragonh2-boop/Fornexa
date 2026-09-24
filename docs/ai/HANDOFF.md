@@ -2,6 +2,13 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-09-23 production redeploy
+
+- **Evidence:** Vercel deployment `dpl_9DhZEjq4VYjTaViW9qLeZfjkWRSK` was created through the project dashboard as a fresh Production build of existing `main` commit `844a2ef45641fe2194dc4226baee3478ab36752c`. The existing build cache and project Ignore Build Step were not used. Vercel reported `READY` and assigned `fornexasc.com` without alias error; the public home page loaded in a browser.
+- **Scope:** no application source, database migration, environment variable or Git `main` change was made for this redeploy. The new build uses the latest project settings; it does not include the separate Gemini reviewer PR #20, which remains unmerged and disabled by default.
+- **Checks:** Vercel deployment state, exact source SHA, production target, domain alias and public home render were checked. No authenticated flow, runtime log sweep, local tests, lint or type check was performed for this unchanged source redeploy.
+- **Follow-up:** independently review and activate the Gemini deployment path only after Slack identity separation and dedicated credentials. The earlier verified snapshot below is historical where it conflicts with this newer deployment evidence.
+
 ## Current verified snapshot
 
 - **Updated:** 2026-09-19 CEST. GitHub `main`, CI and commit-status evidence rechecked; deployment target/runtime and Supabase findings retain their original capture dates unless stated otherwise.
