@@ -18,8 +18,8 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "19 sep 2026";
-export const memorandumCommitCoverage = 576;
+export const memorandumUpdatedAt = "24 sep 2026";
+export const memorandumCommitCoverage = 579;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -38,8 +38,8 @@ export const memorandumPending: MemorandumPending[] = [
   },
   {
     area: "Técnico",
-    title: "CMR — marco físico por hoja de continuación",
-    summary: "PR #66 ya está en producción: las mercancías 6-12 usan tabla semántica con thead repetible y cada hoja que contiene mercancía repite la identidad CMR y los encabezados de columnas. El marco físico por hoja queda preparado para revisión mediante repetición del borde en cada fragmento de página, sin retirar el marco actual y sin depender de que el navegador pinte el borde de la caja de página, de modo que ningún motor pierde el marco que ya tenía. No está integrado ni desplegado; la comprobación operativa con un CMR real sigue pendiente.",
+    title: "CMR — impresión legible del documento",
+    summary: "El marco físico por hoja de continuación ya está integrado: el borde se repite en cada fragmento de página sin retirar el marco actual y sin depender de que el navegador pinte el borde de la caja de página. La tipografía de impresión sube de 4,35 pt de cuerpo y 3,60 pt de cabeceras de mercancía a 7,5 pt y 5,62 pt, y el QR pasa de 10 mm pegados al marco a 22 mm con separación real, medido sobre un CMR exportado real. Pendiente: confirmación en impresora física y verificación en Firefox y Safari, no ejecutables en el entorno de verificación.",
     priority: "Siguiente",
     state: "En seguimiento",
   },
@@ -102,6 +102,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.09.24",
+    date: "24 sep 2026",
+    surface: ["Web"],
+    title: "CMR impreso legible y QR escaneable",
+    purpose: "Corregir el tamaño de letra y del código QR del CMR impreso y exportado, medido sobre un documento real y no sobre una impresión subjetiva.",
+    outcome: "El export real medido salía con el cuerpo de casilla a 4,35 pt, las cabeceras de mercancía a 3,60 pt y un QR de 7,5 mm de módulos dentro de una caja de 10 mm pegada al marco. La corrección lleva el cuerpo a 7,5 pt, los rótulos a 6 pt, las celdas de mercancía a 6,75 pt y el QR a 22 mm con separación real del marco, aprovechando el espacio en blanco que ya tenían las casillas. Solo cambia el bloque @media print; datos, API, QR payload y la maquinaria de continuación multipágina no se tocan. Una réplica estática renderizada con Chromium 141 reprodujo exactamente los tamaños del documento real antes del cambio y confirmó los nuevos después, manteniendo una sola hoja A4. Falta confirmación en impresora física y en Firefox y Safari.",
+    status: "Preproducción",
+  },
   {
     version: "2026.09.12",
     date: "12 sep 2026",
