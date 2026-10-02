@@ -2,6 +2,15 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-03 — Master Data Foundation & WMS: production schema verified
+
+- **Integrated source:** PR #86 is merged on `main` at `79dfc42b9cdc9d356e5b977d25121a113de67cea`; its `validate` check succeeded. The Supabase Preview check failed by connection timeout, not by a reported SQL error. A paid Supabase branch was requested but is unavailable on the current plan.
+- **Applied to production:** `20261002233000_master_data_foundation` was executed atomically after live prerequisite checks and explicit authorization. The internal FORNEXA ledger contains its canonical version.
+- **Live schema evidence:** all eleven new tables exist, each has RLS enabled and the `tenant_isolation` policy for `authenticated`: `companies`, `party_roles`, `carrier_profiles`, `uom_definitions`, `uom_conversions`, `product_packagings`, `warehouse_zones`, `warehouse_bins`, `inventory_quants`, `inventory_movements` and `external_identifiers`. All expected `parties`, `products` and `order_lines` columns are present; the movement-duration trigger is registered. Seed counts are one company, ten UOM definitions and six conversions.
+- **Security correction:** the production check exposed the new trigger function as a direct `SECURITY DEFINER` RPC. A narrow follow-up revokes `EXECUTE` from `PUBLIC`, `anon` and `authenticated`; direct invocation is now false for both client-facing roles while the trigger remains registered. `service_role` retains its server-only database privilege, and the repository has no direct RPC use of this trigger function. `supabase/migrations/20261002234000_harden_movement_duration_execute.sql` records the same correction for replayable source.
+- **Migration-history boundary:** the standard Supabase ledger recorded service-assigned entries `master_data_foundation` and `harden_movement_duration_execute`; the older provenance divergence and `MIGRATIONS_FAILED` integration state remain unresolved. No historical entry was renamed, repaired or inferred.
+- **Remaining verification boundary:** no authenticated product workflow was exercised in this run. Gemini and DeepSeek were asked for independent review but had not responded when the authorized production application proceeded; silence is not counted as approval.
+
 ## 2026-10-02 Master Data Foundation & WMS Structure (Sprint P0/P1)
 
 - **Branch:** `codex/master-data-foundation`.
@@ -11,7 +20,7 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
   3. **Multi-Company / Multi-Society (`companies`, `party_roles`, `external_identifiers`)**: separation of legal entities under tenants with individual tax IDs, functional currencies, and fiscal addresses; normalized `party_roles` per company with validity periods; and universal cross-reference `external_identifiers` mapping internal IDs to SAP, Business Central, Oracle OTM, and external WMS systems.
   4. **WMS Physical & Logical Structure (`warehouse_zones`, `warehouse_bins`, `inventory_quants`, `inventory_movements`)**: physical bin locations (aisle, rack, shelf, position, bin type, weight/volume limits), inventory on hand per bin/batch/expiry (`inventory_quants`), and complete hourly and duration traceability for internal movements (`requested_at`, `started_at`, `completed_at`, `duration_seconds`, `operator_id`).
 - **Migration:** `supabase/migrations/20261002233000_master_data_foundation.sql`.
-- **Security & RLS:** All 12 new tables have Row-Level Security enabled with `tenant_isolation` policy using `public.fornexa_has_tenant_access(tenant_id)` and automated `updated_at` triggers.
+- **Security & RLS:** All 11 new tables have Row-Level Security enabled with `tenant_isolation` policy using `public.fornexa_has_tenant_access(tenant_id)` and automated `updated_at` triggers.
 
 ## 2026-09-23 production redeploy
 
