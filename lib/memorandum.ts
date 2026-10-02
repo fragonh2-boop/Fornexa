@@ -18,8 +18,8 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "02 oct 2026";
-export const memorandumCommitCoverage = 581;
+export const memorandumUpdatedAt = "03 oct 2026";
+export const memorandumCommitCoverage = 582;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -108,8 +108,8 @@ export const memorandumReleases: MemorandumRelease[] = [
     surface: ["Plataforma"],
     title: "Fundación de Datos Maestros y Estructura WMS",
     purpose: "Establecer la estructura maestra de catálogo (PRD, PACK, UOM), homologación y seguros de transportistas (CAR), multiactividad/entidades legales (ORG, ROL) y gestión de ubicaciones físicas y movimientos lógicos con trazabilidad horaria (WMS).",
-    outcome: "Migración 20261002233000_master_data_foundation con aislamiento tenant RLS, catálogo de artículos con jerarquía de embalaje y UOM, perfil y pólizas de transportistas, entidades societarias y roles de partes, ubicaciones físicas de almacén (zonas/ubicaciones/capacidad) y registro auditable de movimientos internos con marcas de tiempo (solicitado, iniciado, finalizado) y operador.",
-    status: "Preproducción",
+    outcome: "Migración 20261002233000_master_data_foundation aplicada y verificada en producción: once nuevas tablas con aislamiento tenant RLS, catálogo de artículos con jerarquía de embalaje y UOM, perfil y pólizas de transportistas, entidades societarias y roles de partes, ubicaciones físicas de almacén y registro auditable de movimientos internos con marcas de tiempo y operador. La función interna que calcula la duración conserva su trigger, pero queda bloqueada como RPC directa para usuarios anónimos y autenticados.",
+    status: "Producción",
   },
   {
     version: "2026.09.24",

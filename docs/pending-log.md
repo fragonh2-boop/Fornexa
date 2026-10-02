@@ -6,13 +6,16 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ### 2026-10-02 — Fundación de Datos Maestros y Estructura WMS
 - **Área:** Datos Maestros / WMS / Catálogo / Transportistas / Sociedades
-- **Estado:** MIGRACIÓN IMPLEMENTADA; RAMA CREADA PARA CI Y DESPLIEGUE
+- **Estado:** ESQUEMA APLICADO Y VERIFICADO EN PRODUCCIÓN; CIERRE DE FUENTE EN CURSO
 - **Alcance:**
   1. Catálogo de Artículos: `products`, `product_packagings`, `uom_definitions`, `uom_conversions` con retrocompatibilidad en `order_lines.product_id`.
   2. Homologación de Transportistas: `carrier_profiles` (póliza, caducidad, límite) y enriquecimiento de `parties` (GLN, EORI, grupo matriz, tax_id_type).
   3. Sociedades y Roles: `companies` multi-CIF bajo tenant, `party_roles` normalizados por sociedad y vigencia, y correspondencias universales `external_identifiers`.
   4. WMS Físico y Movimientos Lógicos: ubicaciones físicas `warehouse_bins` (pasillo, estantería, altura, tipo de hueco), stock inventariado `inventory_quants` y trazabilidad horaria completa en `inventory_movements` (`requested_at`, `started_at`, `completed_at`, `duration_seconds`, operario).
-- **Seguridad:** Aislamiento estricto multi-tenant con RLS en las 12 tablas nuevas mediante `fornexa_has_tenant_access()`.
+- **Evidencia de producción:** las once tablas nuevas existen con RLS y política `tenant_isolation`; están presentes todas las columnas previstas, el trigger de duración de movimientos y las semillas declaradas. El ledger interno contiene la versión canónica de la migración.
+- **Seguridad:** la verificación posterior detectó que la función interna del trigger podía exponerse como RPC `SECURITY DEFINER`. La corrección aplicada revoca su ejecución directa para `anon` y `authenticated` sin desactivar el trigger; la migración fuente de hardening se incluye en la PR #87 de este cierre. `service_role` conserva su privilegio de servidor y no hay llamadas RPC directas en la fuente actual.
+- **Límite funcional:** se verificaron esquema, RLS, ledger, privilegios de función y trigger; no se ejecutó un flujo autenticado de producto sobre las nuevas tablas.
+- **Límite:** el check Supabase Preview falló por timeout de conexión y el plan actual no permite una rama Supabase. La divergencia histórica de provenance sigue abierta y no se ha ocultado mediante `migration repair`.
 
 ### 2026-09-19 — Ratificar gobernanza de revisión y reconciliar el handoff
 - **Área:** Gobernanza / Trazabilidad
