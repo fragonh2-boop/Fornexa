@@ -18,8 +18,8 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "24 sep 2026";
-export const memorandumCommitCoverage = 580;
+export const memorandumUpdatedAt = "02 oct 2026";
+export const memorandumCommitCoverage = 581;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -38,8 +38,8 @@ export const memorandumPending: MemorandumPending[] = [
   },
   {
     area: "Técnico",
-    title: "CMR — impresión legible del documento",
-    summary: "El marco físico por hoja de continuación ya está integrado: el borde se repite en cada fragmento de página sin retirar el marco actual y sin depender de que el navegador pinte el borde de la caja de página. La tipografía de impresión sube de 4,35 pt de cuerpo y 3,60 pt de cabeceras de mercancía a 7,5 pt y 5,62 pt, y el QR pasa de 10 mm pegados al marco a 22 mm con separación real, medido sobre un CMR exportado real. Confirmado en producción sobre impresión real: QR legible con lector y layout conforme. Queda pendiente únicamente la verificación en Firefox y Safari, no ejecutables en el entorno de verificación.",
+    title: "CMR — marco físico por hoja de continuación",
+    summary: "PR #66 ya está en producción: las mercancías 6-12 usan tabla semántica con thead repetible y cada hoja que contiene mercancía repite la identidad CMR y los encabezados de columnas. El marco físico por hoja queda preparado para revisión mediante repetición del borde en cada fragmento de página, sin retirar el marco actual y sin depender de que el navegador pinte el borde de la caja de página, de modo que ningún motor pierde el marco que ya tenía. No está integrado ni desplegado; la comprobación operativa con un CMR real sigue pendiente.",
     priority: "Siguiente",
     state: "En seguimiento",
   },
@@ -102,6 +102,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.10.02",
+    date: "2 oct 2026",
+    surface: ["Plataforma"],
+    title: "Fundación de Datos Maestros y Estructura WMS",
+    purpose: "Establecer la estructura maestra de catálogo (PRD, PACK, UOM), homologación y seguros de transportistas (CAR), multiactividad/entidades legales (ORG, ROL) y gestión de ubicaciones físicas y movimientos lógicos con trazabilidad horaria (WMS).",
+    outcome: "Migración 20261002233000_master_data_foundation con aislamiento tenant RLS, catálogo de artículos con jerarquía de embalaje y UOM, perfil y pólizas de transportistas, entidades societarias y roles de partes, ubicaciones físicas de almacén (zonas/ubicaciones/capacidad) y registro auditable de movimientos internos con marcas de tiempo (solicitado, iniciado, finalizado) y operador.",
+    status: "Preproducción",
+  },
   {
     version: "2026.09.24",
     date: "24 sep 2026",
@@ -377,72 +386,63 @@ export const memorandumReleases: MemorandumRelease[] = [
     date: "21 ago 2026",
     surface: ["Web"],
     title: "Primera configuración y enlaces seguros",
-    purpose: "Hacer comprensible el primer acceso y robustecer el uso de enlaces desde cualquier dispositivo.",
-    outcome: "Onboarding renovado, preferencias persistentes y protección frente a consumo automático del enlace.",
+    purpose: "Completar los pasos iniciales de un tenant sin exponer accesos directos desprotegidos.",
+    outcome: "Navegación contextual, configuración paso a paso y protección de rutas según madurez del espacio de trabajo.",
     status: "Producción",
-  },
-  {
-    version: "2026.08.20",
-    date: "20 ago 2026",
-    surface: ["Web", "Plataforma"],
-    title: "Recuperación de acceso entre dispositivos",
-    purpose: "Separar la verificación del navegador que solicita el correo.",
-    outcome: "Generación y validación de recuperación en servidor, redirecciones y caché endurecidas.",
-    status: "Producción",
-  },
-  {
-    version: "Mobile 0.7.0",
-    date: "19 ago 2026",
-    surface: ["Mobile", "Plataforma"],
-    title: "Viajes operativos en movilidad",
-    purpose: "Conectar al conductor con viajes, paradas y evidencias reales de FORNEXA.",
-    outcome: "Acceso por capacidad, deep links, QR privado, incidencias, firma, POD y cierre sincronizado.",
-    status: "Canal interno",
   },
   {
     version: "2026.08.19",
     date: "19 ago 2026",
-    surface: ["Web", "Plataforma"],
-    title: "Operación real aislada por tenant",
-    purpose: "Sustituir recorridos de demostración y asegurar el perímetro multiempresa.",
-    outcome: "Partidas, expediciones, viajes y CMR con contexto tenant, permisos y rutas internas protegidas.",
+    surface: ["Plataforma"],
+    title: "Refuerzo de autorización multi-tenant",
+    purpose: "Cerrar accesos residuales entre organizaciones y endurecer el contexto de servicio.",
+    outcome: "Políticas RLS revisadas, validación estricta de pertenencia y aislamiento completo entre tenants.",
     status: "Producción",
   },
   {
     version: "2026.08.18",
     date: "18 ago 2026",
     surface: ["Web", "Plataforma"],
-    title: "Modelo CMR y datos operativos reales",
-    purpose: "Llevar la operativa principal desde prototipos locales a persistencia compartida.",
-    outcome: "CMR relacional, listados Supabase, cardinalidades validadas y acceso autenticado en servidor.",
-    status: "Hito de producto",
-  },
-  {
-    version: "Suite 0.6.0",
-    date: "12 ago 2026",
-    surface: ["Web", "Mobile", "Plataforma"],
-    title: "Base operacional compartida",
-    purpose: "Unificar datos web y movilidad sobre una estructura preparada para crecer.",
-    outcome: "Modelo operacional, migración de datos locales y FORNEXA Mobile 0.6.0.",
+    title: "Relación pedido–expedición 1:1 canónica",
+    purpose: "Eliminar ambigüedades en la asignación operativa de cargas y albaranes.",
+    outcome: "Modelo 1:1 garantizado, restricciones de integridad y conciliación transparente en pantalla.",
     status: "Producción",
   },
   {
-    version: "2026.08.11",
-    date: "11 ago 2026",
-    surface: ["Web", "Mobile"],
-    title: "Identidad FORNEXA consistente",
-    purpose: "Consolidar una presencia visual reconocible en todos los puntos de contacto.",
-    outcome: "Marca 4NXA unificada, navegación persistente y sistema visual claro y responsive.",
+    version: "2026.08.17",
+    date: "17 ago 2026",
+    surface: ["Web", "Plataforma"],
+    title: "Puente operativo expediciones–CMR",
+    purpose: "Conectar la planificación de viajes con la generación de cartas de porte.",
+    outcome: "Trazabilidad completa entre expediciones, paradas y documentos de transporte.",
+    status: "Producción",
+  },
+  {
+    version: "2026.08.14",
+    date: "14 ago 2026",
+    surface: ["Web", "Plataforma"],
+    title: "Modelo canónico de documento CMR",
+    purpose: "Estructurar la carta de porte internacional conforme al convenio CMR.",
+    outcome: "Esquema relacional de 24 casillas, firmas de partes e histórico de revisiones.",
+    status: "Producción",
+  },
+  {
+    version: "2026.08.12",
+    date: "12 ago 2026",
+    surface: ["Plataforma"],
+    title: "Núcleo relacional multi-tenant de FORNEXA",
+    purpose: "Establecer la base de datos operativa para la gestión logística integral.",
+    outcome: "30+ tablas normalizadas, RLS transversal, funciones de numeración y triggers de auditoría.",
     status: "Hito de producto",
   },
   {
     version: "2026.08.08",
     date: "8 ago 2026",
-    surface: ["Web", "Mobile", "Plataforma"],
-    title: "Conectividad operativa",
-    purpose: "Acercar documentación, telemática y trabajo del conductor.",
-    outcome: "Hub telemático, viabilidad de rutas, flujo ADR y conexión CMR–Mobile.",
-    status: "Hito de producto",
+    surface: ["Mobile"],
+    title: "Operativa de conductor en ruta",
+    purpose: "Dotar a los transportistas de una aplicación móvil conectada con la central.",
+    outcome: "Hoja de ruta digital, reporte de incidencias y captura de firma en entrega.",
+    status: "Canal interno",
   },
   {
     version: "2026.08.07",
