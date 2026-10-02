@@ -4,6 +4,16 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-02 — Fundación de Datos Maestros y Estructura WMS
+- **Área:** Datos Maestros / WMS / Catálogo / Transportistas / Sociedades
+- **Estado:** MIGRACIÓN IMPLEMENTADA; RAMA CREADA PARA CI Y DESPLIEGUE
+- **Alcance:**
+  1. Catálogo de Artículos: `products`, `product_packagings`, `uom_definitions`, `uom_conversions` con retrocompatibilidad en `order_lines.product_id`.
+  2. Homologación de Transportistas: `carrier_profiles` (póliza, caducidad, límite) y enriquecimiento de `parties` (GLN, EORI, grupo matriz, tax_id_type).
+  3. Sociedades y Roles: `companies` multi-CIF bajo tenant, `party_roles` normalizados por sociedad y vigencia, y correspondencias universales `external_identifiers`.
+  4. WMS Físico y Movimientos Lógicos: ubicaciones físicas `warehouse_bins` (pasillo, estantería, altura, tipo de hueco), stock inventariado `inventory_quants` y trazabilidad horaria completa en `inventory_movements` (`requested_at`, `started_at`, `completed_at`, `duration_seconds`, operario).
+- **Seguridad:** Aislamiento estricto multi-tenant con RLS en las 12 tablas nuevas mediante `fornexa_has_tenant_access()`.
+
 ### 2026-09-19 — Ratificar gobernanza de revisión y reconciliar el handoff
 - **Área:** Gobernanza / Trazabilidad
 - **Estado:** DECISIÓN DE FRAN PENDIENTE; CORRECCIÓN DOCUMENTAL PREPARADA

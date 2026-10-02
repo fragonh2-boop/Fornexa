@@ -18,8 +18,8 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "24 sep 2026";
-export const memorandumCommitCoverage = 580;
+export const memorandumUpdatedAt = "02 oct 2026";
+export const memorandumCommitCoverage = 581;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -102,6 +102,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.10.02",
+    date: "2 oct 2026",
+    surface: ["Plataforma"],
+    title: "Fundación de Datos Maestros y Estructura WMS",
+    purpose: "Establecer la estructura maestra de catálogo (PRD, PACK, UOM), homologación y seguros de transportistas (CAR), multiactividad/entidades legales (ORG, ROL) y gestión de ubicaciones físicas y movimientos lógicos con trazabilidad horaria (WMS).",
+    outcome: "Migración 20261002233000_master_data_foundation con aislamiento tenant RLS, catálogo de artículos con jerarquía de embalaje y UOM, perfil y pólizas de transportistas, entidades societarias y roles de partes, ubicaciones físicas de almacén (zonas/ubicaciones/capacidad) y registro auditable de movimientos internos con marcas de tiempo (solicitado, iniciado, finalizado) y operador.",
+    status: "Preproducción",
+  },
   {
     version: "2026.09.24",
     date: "24 sep 2026",
@@ -377,8 +386,8 @@ export const memorandumReleases: MemorandumRelease[] = [
     date: "21 ago 2026",
     surface: ["Web"],
     title: "Primera configuración y enlaces seguros",
-    purpose: "Hacer comprensible el primer acceso y robustecer el uso de enlaces desde cualquier dispositivo.",
-    outcome: "Onboarding renovado, preferencias persistentes y protección frente a consumo automático del enlace.",
+    purpose: "Completar los pasos iniciales de un tenant sin exponer accesos directos desprotegidos.",
+    outcome: "Navegación contextual, configuración paso a paso y protección de rutas según madurez del espacio de trabajo.",
     status: "Producción",
   },
   {

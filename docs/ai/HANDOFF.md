@@ -2,6 +2,17 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-02 Master Data Foundation & WMS Structure (Sprint P0/P1)
+
+- **Branch:** `codex/master-data-foundation`.
+- **Scope:** Implementation of benchmark-aligned Master Data and WMS physical/logical movement infrastructure:
+  1. **Product Catalog (`products`, `product_packagings`, `uom_definitions`, `uom_conversions`)**: packaging hierarchy (units -> boxes -> pallets), unit conversions, dimensions, weights, ADR/hazardous and temperature control flags, and backward-compatible linkage to `order_lines.product_id`.
+  2. **Carrier Compliance & Onboarding (`carrier_profiles`, enriched `parties`)**: carrier qualification status, insurance policy number, insurance carrier, coverage amount, insurance expiry date (for dispatch-prevention checks), transport license (tarjeta de transporte), and GLN/EORI/parent company attributes on `parties`.
+  3. **Multi-Company / Multi-Society (`companies`, `party_roles`, `external_identifiers`)**: separation of legal entities under tenants with individual tax IDs, functional currencies, and fiscal addresses; normalized `party_roles` per company with validity periods; and universal cross-reference `external_identifiers` mapping internal IDs to SAP, Business Central, Oracle OTM, and external WMS systems.
+  4. **WMS Physical & Logical Structure (`warehouse_zones`, `warehouse_bins`, `inventory_quants`, `inventory_movements`)**: physical bin locations (aisle, rack, shelf, position, bin type, weight/volume limits), inventory on hand per bin/batch/expiry (`inventory_quants`), and complete hourly and duration traceability for internal movements (`requested_at`, `started_at`, `completed_at`, `duration_seconds`, `operator_id`).
+- **Migration:** `supabase/migrations/20261002233000_master_data_foundation.sql`.
+- **Security & RLS:** All 12 new tables have Row-Level Security enabled with `tenant_isolation` policy using `public.fornexa_has_tenant_access(tenant_id)` and automated `updated_at` triggers.
+
 ## 2026-09-23 production redeploy
 
 - **Evidence:** Vercel deployment `dpl_9DhZEjq4VYjTaViW9qLeZfjkWRSK` was created through the project dashboard as a fresh Production build of existing `main` commit `844a2ef45641fe2194dc4226baee3478ab36752c`. The existing build cache and project Ignore Build Step were not used. Vercel reported `READY` and assigned `fornexasc.com` without alias error; the public home page loaded in a browser.
