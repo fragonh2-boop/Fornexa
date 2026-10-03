@@ -4,6 +4,14 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-03 — Catálogo de artículos: P0 web preparado para integración
+- **Área:** Datos Maestros / Producto / Partidas
+- **Estado:** FUENTE PREPARADA EN RAMA; NO INTEGRADA, NO DESPLEGADA, SIN NUEVA MUTACIÓN DE SUPABASE
+- **Alcance P0:** nueva ficha web de Artículos con SKU, nombre, descripción, GTIN, cliente propietario, unidad base, pesos, dimensiones, volumen y estado; navegación desde el dashboard; selector de artículos activos por cliente en Nueva partida. La API de catálogo exige sesión y rol OWNER/ADMIN/OPERATOR para mutar, limita todas las consultas al tenant, valida UOM activa/GTIN/magnitudes y deja auditoría. Por compatibilidad con Partidas, las altas y cambios mantienen `customer_id` y `owner_party_id` con el mismo cliente activo.
+- **Límites explícitos:** no se editan aquí empaquetados, conversión de UOM, temperatura, lote/serie, HS/categorías, homologación de transportistas, sociedades ni movimientos/stock WMS. ADR no se recalifica desde la ficha: conserva el flujo regulatorio existente. No hay migración ni cambio de permisos/RLS.
+- **Evidencia local:** typecheck correcto; 128/128 tests correctos; lint sin errores (7 warnings preexistentes); build de producción correcto; `git diff --check` correcto. La nueva página y Partidas devuelven redirect a login sin sesión. La ruta API no pudo llegar a Supabase en el worktree porque faltan las variables de Auth; no se infiere de ello ningún resultado productivo.
+- **Pendiente para cierre:** PR, CI y Preview exact-HEAD; revisión independiente exact-HEAD; comprobación visual y de lectura autenticada en Preview. Un POST/PUT se probará únicamente en Preview con fixture autorizado y limpiable, no sobre datos productivos por defecto.
+
 ### 2026-10-02 — Fundación de Datos Maestros y Estructura WMS
 - **Área:** Datos Maestros / WMS / Catálogo / Transportistas / Sociedades
 - **Estado:** ESQUEMA APLICADO, FUENTE INTEGRADA Y DESPLEGADA; E2E AUTENTICADO PENDIENTE
