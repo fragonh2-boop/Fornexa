@@ -2,6 +2,13 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-04 — PR #89: Preview creado, entorno de aplicación aún no verificable
+
+- **Estado de fuente y revisión:** la PR #89 sigue abierta en `d99c9b63f8b7d515188e86a1d7977ab06a4dcd3e`, sin integrar ni desplegar a producción. El check `validate` de CI es success para ese SHA. Gemini emitió `MERGE YES` sin MUST para el mismo SHA; la segunda revisión independiente solicitada a DeepSeek continúa pendiente.
+- **Preview real:** se retiró el Ignore Build Step remoto que cancelaba los previews y se relanzó solo un Preview del SHA exacto. Vercel lo informa `READY`, con target de Preview, sin promoverlo ni reasignar dominios productivos. La ruta `/dashboard/articulos` se sirve y, sin sesión FORNEXA, redirige al login como corresponde.
+- **Bloqueo de runtime:** el fetch autenticado de infraestructura a `/api/products` en ese Preview devuelve HTTP 500 antes de autenticar. La configuración de Vercel muestra que las variables necesarias de Supabase/Auth existen solo para producción; no hay configuración asociada a la rama de la PR. Supabase no tiene una rama de desarrollo utilizable para este trabajo. No se copiaron secretos ni acceso a producción al Preview, no se creó fixture y no se realizó mutación alguna.
+- **Siguiente acción segura:** obtener el coste y la confirmación explícita para una rama/entorno Supabase aislado, asociar configuración server-side exclusiva de Preview y probar UI autenticada, lectura y un POST/PUT con fixture sintético limpiable. No usar la base ni los secretos de producción como sustituto. Tras el resultado, revalidar CI y las revisiones exact-HEAD antes de solicitar autorización de merge/deploy.
+
 ## 2026-10-03 — P0 web de Artículos: fuente preparada, pendiente de integración
 
 - **Base y estado:** rama aislada `codex/product-master-p0`, creada desde `origin/main` `573bee8ee05a066bab908baedb1e79b43d455edb`. El commit funcional es `bb5e12517e486240f0fdd2f0f4921c3002839d15` y la PR #89 está abierta. La fuente no está integrada ni desplegada; no se creó migración ni se mutó Supabase durante este corte.
