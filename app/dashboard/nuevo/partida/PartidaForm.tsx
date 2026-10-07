@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { defaultAdrDeclaration, evaluateAdrWarnings, shouldBlockForPolicy, type AdrDeclaration, type AdrFrequency, type AdrPolicy, type HazardStatus } from "@/lib/adr";
+import { EMPTY_AD_HOC_ADDRESS, NEW_ADDRESS_OPTION, normalizeAdHocAddress, type AdHocAddressDraft } from "@/lib/ad-hoc-address";
 import styles from "./partida-form.module.css";
 
 export type CustomerOption = { code: string; name: string; adrControl: boolean; adrFrequency: AdrFrequency; adrPolicy: AdrPolicy; preferredClasses: string[] };
@@ -15,6 +16,11 @@ export type ServiceOption = { code: string; name: string };
 type ProductOption = { id: string; sku: string; name: string; description: string; uomBase: string };
 
 type SaveMode = "new" | "keep" | "exit";
+
+// A typed address behaves like a master address for the rest of the form (pricing zone, summary).
+function draftAsOption(draft: AdHocAddressDraft, customerCode: string): AddressOption {
+  return { id: "", code: "", name: draft.name, address: draft.addressLine1, postalCode: draft.postalCode.trim().toUpperCase(), city: draft.city, countryCode: draft.countryCode.trim().toUpperCase(), partyCode: customerCode, assignments: [] };
+}
 type PackagingOption = { id: string; packing_instruction_code?: string | null; packaging_type?: { id: string; code: string; name_es: string; family: string } | null };
 type HazmatEntry = {
   id: string; entry_key: string; un_number: string; proper_shipping_name_es: string; class_code: string;
@@ -59,6 +65,8 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
   const [requestedDate, setRequestedDate] = useState("");
   const [pickupAddressId, setPickupAddressId] = useState("");
   const [deliveryAddressId, setDeliveryAddressId] = useState("");
+  const [pickupDraft, setPickupDraft] = useState<AdHocAddressDraft>(EMPTY_AD_HOC_ADDRESS);
+  const [deliveryDraft, setDeliveryDraft] = useState<AdHocAddressDraft>(EMPTY_AD_HOC_ADDRESS);
   const [packages, setPackages] = useState("");
   const [weight, setWeight] = useState("");
   const [volume, setVolume] = useState("");
@@ -77,8 +85,10 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
   const [productCatalogState, setProductCatalogState] = useState<"idle" | "loading" | "ready" | "error">("idle");
 
   const customer = useMemo(() => customers.find(item => item.code === customerCode), [customers, customerCode]);
-  const pickup = useMemo(() => addresses.find(item => item.id === pickupAddressId), [addresses, pickupAddressId]);
-  const delivery = useMemo(() => addresses.find(item => item.id === deliveryAddressId), [addresses, deliveryAddressId]);
+  const pickupIsNew = pickupAddressId === NEW_ADDRESS_OPTION;
+  const deliveryIsNew = deliveryAddressId === NEW_ADDRESS_OPTION;
+  const pickup = useMemo(() => pickupIsNew ? draftAsOption(pickupDraft, customerCode) : addresses.find(item => item.id === pickupAddressId), [addresses, pickupAddressId, pickupIsNew, pickupDraft, customerCode]);
+  const delivery = useMemo(() => deliveryIsNew ? draftAsOption(deliveryDraft, customerCode) : addresses.find(item => item.id === deliveryAddressId), [addresses, deliveryAddressId, deliveryIsNew, deliveryDraft, customerCode]);
   const pickupOptions = useMemo(() => addresses.filter(item => item.assignments.some(assignment => assignment.customerCode === customerCode && assignment.useForPickup)), [addresses, customerCode]);
   const deliveryOptions = useMemo(() => addresses.filter(item => item.assignments.some(assignment => assignment.customerCode === customerCode && assignment.useForDelivery)), [addresses, customerCode]);
   const adrWarnings = useMemo(() => evaluateAdrWarnings(adrDeclaration, customer?.adrFrequency ?? "NEVER", lines.map(line => ({
@@ -89,7 +99,7 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
   }))), [adrDeclaration, customer, lines]);
 
   useEffect(() => {
-    setPickupAddressId("");
+    setPickupAddressId(""); setPickupDraft(EMPTY_AD_HOC_ADDRESS); setDeliveryDraft(EMPTY_AD_HOC_ADDRESS);
     setDeliveryAddressId("");
     setAdrDeclaration(customer ? defaultAdrDeclaration(customer.adrFrequency) : "UNANSWERED");
   }, [customer]);
@@ -150,7 +160,7 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
   }
 
   function resetForm() {
-    setCustomerCode(""); setReference(""); setServiceCode(""); setRequestedDate(""); setPickupAddressId(""); setDeliveryAddressId("");
+    setCustomerCode(""); setReference(""); setServiceCode(""); setRequestedDate(""); setPickupAddressId(""); setDeliveryAddressId(""); setPickupDraft(EMPTY_AD_HOC_ADDRESS); setDeliveryDraft(EMPTY_AD_HOC_ADDRESS);
     setPackages(""); setWeight(""); setVolume(""); setLinearMeters(""); setGoodsDescription("");
     setAdrDeclaration("UNANSWERED"); setLines([newLine()]); setLastFingerprint("");
     window.setTimeout(() => formRef.current?.querySelector<HTMLInputElement>('input[name="customerCode"]')?.focus(), 0);
@@ -159,7 +169,8 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
   function payload() {
     return {
       customerCode, customerReference: reference, serviceCode, requestedDate,
-      pickupAddressId, deliveryAddressId, pickupCode: pickup?.code ?? "", deliveryCode: delivery?.code ?? "",
+      pickupAddressId: pickupIsNew ? "" : pickupAddressId, deliveryAddressId: deliveryIsNew ? "" : deliveryAddressId, pickupCode: pickup?.code ?? "", deliveryCode: delivery?.code ?? "",
+      pickupNewAddress: pickupIsNew ? pickupDraft : null, deliveryNewAddress: deliveryIsNew ? deliveryDraft : null,
       pickupAddress: pickup?.address ?? "", pickupCountry: pickup?.countryCode ?? "", pickupPostalCode: pickup?.postalCode ?? "", pickupZone: pickup?.postalCode.slice(0, 2) ?? "", shipper: pickup?.partyCode ?? "",
       deliveryAddress: delivery?.address ?? "", deliveryCountry: delivery?.countryCode ?? "", deliveryPostalCode: delivery?.postalCode ?? "", deliveryZone: delivery?.postalCode.slice(0, 2) ?? "", consignee: delivery?.partyCode ?? "",
       packages, grossWeight: normalizeDecimal(weight), volume: normalizeDecimal(volume), linearMeters: normalizeDecimal(linearMeters), goodsDescription, adrDeclaration,
@@ -175,6 +186,9 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
     if (!customer) return setMessage("Selecciona un Customer ID válido.");
     if (!serviceCode) return setMessage("Selecciona un servicio.");
     if (!pickup || !delivery) return setMessage("Selecciona puntos de recogida y entrega válidos.");
+    const draftErrors = [pickupIsNew ? normalizeAdHocAddress(pickupDraft, "pickup") : null, deliveryIsNew ? normalizeAdHocAddress(deliveryDraft, "delivery") : null]
+      .flatMap(result => result && !result.ok ? result.errors : []);
+    if (draftErrors.length) return setMessage(draftErrors.join(" "));
     if (!packages || Number(packages) < 1 || !normalizeDecimal(weight)) return setMessage("Bultos y peso son obligatorios y deben ser válidos.");
     if (shouldBlockForPolicy(customer.adrPolicy, adrWarnings)) return setMessage(`La política ADR de este cliente bloquea la confirmación: ${adrWarnings[0]?.message}`);
     if (customer.adrPolicy === "ACKNOWLEDGEMENT" && adrWarnings.length && !window.confirm(`Hay ${adrWarnings.length} advertencia(s) ADR. ¿Quieres guardar y dejar constancia?`)) return;
@@ -211,10 +225,11 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
     </div></section>
 
     <section className={styles.card}><div className={styles.cardHeader}><div><p>RUTA</p><h2>Recogida y entrega</h2></div></div><div className={styles.grid}>
-      <label>Punto de recogida<select value={pickupAddressId} required disabled={!customer} className={!pickupAddressId ? styles.placeholderControl : ""} onChange={event => setPickupAddressId(event.target.value)}><option value="" disabled>Seleccionar</option>{pickupOptions.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name} · {item.city}</option>)}</select></label>
-      <label>Punto de entrega<select value={deliveryAddressId} required disabled={!customer} className={!deliveryAddressId ? styles.placeholderControl : ""} onChange={event => setDeliveryAddressId(event.target.value)}><option value="" disabled>Seleccionar</option>{deliveryOptions.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name} · {item.city}</option>)}</select></label>
-      <label>Dirección recogida<input value={pickup ? `${pickup.address} · ${pickup.postalCode} ${pickup.city} · ${pickup.countryCode}` : ""} readOnly /></label><label>Dirección entrega<input value={delivery ? `${delivery.address} · ${delivery.postalCode} ${delivery.city} · ${delivery.countryCode}` : ""} readOnly /></label>
-      {customer && (!pickupOptions.length || !deliveryOptions.length) && <Link className={styles.routeHelp} href={`/dashboard/registros/clientes/${encodeURIComponent(customer.code)}#direcciones`}>Faltan direcciones operativas para este cliente · Ir al maestro de direcciones</Link>}
+      <label>Punto de recogida<select value={pickupAddressId} required disabled={!customer} className={!pickupAddressId ? styles.placeholderControl : ""} onChange={event => setPickupAddressId(event.target.value)}><option value="" disabled>Seleccionar</option>{pickupOptions.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name} · {item.city}</option>)}<option value={NEW_ADDRESS_OPTION}>+ Nueva dirección de recogida</option></select></label>
+      <label>Punto de entrega<select value={deliveryAddressId} required disabled={!customer} className={!deliveryAddressId ? styles.placeholderControl : ""} onChange={event => setDeliveryAddressId(event.target.value)}><option value="" disabled>Seleccionar</option>{deliveryOptions.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name} · {item.city}</option>)}<option value={NEW_ADDRESS_OPTION}>+ Nueva dirección de entrega</option></select></label>
+      {pickupIsNew ? <AdHocAddressFields use="pickup" draft={pickupDraft} customerName={customer?.name ?? ""} onChange={patch => setPickupDraft(current => ({ ...current, ...patch }))} /> : <label>Dirección recogida<input value={pickup ? `${pickup.address} · ${pickup.postalCode} ${pickup.city} · ${pickup.countryCode}` : ""} readOnly /></label>}
+      {deliveryIsNew ? <AdHocAddressFields use="delivery" draft={deliveryDraft} customerName={customer?.name ?? ""} onChange={patch => setDeliveryDraft(current => ({ ...current, ...patch }))} /> : <label>Dirección entrega<input value={delivery ? `${delivery.address} · ${delivery.postalCode} ${delivery.city} · ${delivery.countryCode}` : ""} readOnly /></label>}
+      {customer && (!pickupOptions.length || !deliveryOptions.length) && <Link className={styles.routeHelp} href={`/dashboard/registros/clientes/${encodeURIComponent(customer.code)}#direcciones`}>Este cliente aún no tiene direcciones operativas en el maestro. Puedes escribir una nueva con «+ Nueva dirección» o ir al maestro de direcciones</Link>}
     </div></section>
 
     <section className={styles.card}><div className={styles.cardHeader}><div><p>MERCANCÍA</p><h2>Magnitudes generales</h2></div></div><div className={styles.grid}>
@@ -247,4 +262,19 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
     {message && <p className={styles.message}>{message}</p>}
     <div className={styles.saveBar}><Link href="/dashboard/partidas">Volver</Link><div className={styles.saveActions}><button type="submit" name="saveMode" value="new" className={styles.secondary} disabled={saving || readOnly}>Guardar y nueva</button><button ref={keepRef} type="submit" name="saveMode" value="keep" disabled={saving || readOnly}>Guardar y mantener <kbd>F4</kbd></button><button ref={exitRef} type="submit" name="saveMode" value="exit" disabled={saving || readOnly}>Guardar y salir <kbd>F2</kbd></button></div></div>
   </form>;
+}
+
+function AdHocAddressFields({ use, draft, customerName, onChange }: { use: "pickup" | "delivery"; draft: AdHocAddressDraft; customerName: string; onChange: (patch: Partial<AdHocAddressDraft>) => void }) {
+  const label = use === "pickup" ? "recogida" : "entrega";
+  return <fieldset className={styles.adHocAddress} aria-label={`Nueva dirección de ${label}`}>
+    <legend>Nueva dirección de {label}</legend>
+    <label>Nombre del punto (opcional)<input value={draft.name} onChange={event => onChange({ name: event.target.value })} placeholder={use === "pickup" ? "Almacén, fábrica…" : "Tienda, destinatario…"} /></label>
+    <label>Calle y número<input value={draft.addressLine1} onChange={event => onChange({ addressLine1: event.target.value })} required placeholder="Calle, número, nave…" /></label>
+    <div className={styles.adHocRow}>
+      <label>Código postal<input value={draft.postalCode} onChange={event => onChange({ postalCode: event.target.value.toUpperCase() })} required inputMode="text" maxLength={12} /></label>
+      <label>Población<input value={draft.city} onChange={event => onChange({ city: event.target.value })} required /></label>
+      <label>País<input value={draft.countryCode} onChange={event => onChange({ countryCode: event.target.value.replace(/[^a-zA-Z]/g, "").toUpperCase().slice(0, 2) })} required maxLength={2} placeholder="ES" /></label>
+    </div>
+    <label className={styles.remember}><input type="checkbox" checked={draft.saveToMaster} onChange={event => onChange({ saveToMaster: event.target.checked })} />Guardar en el maestro de direcciones{customerName ? ` de ${customerName}` : " del cliente"} como punto de {label}</label>
+  </fieldset>;
 }

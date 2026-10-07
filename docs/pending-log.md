@@ -4,6 +4,11 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-07 — Direcciones nuevas en Nueva partida
+- **Área:** Web / Partidas / Maestro de direcciones
+- **Estado:** PR ABIERTA; PENDIENTE CI, REVISIÓN, DESPLIEGUE Y PRUEBA DE FRAN
+- **Criterio de cierre:** en producción se graba una partida con recogida y entrega escritas a mano; con la casilla marcada, la dirección aparece después en el maestro del cliente; sin marcarla, no aparece.
+
 ### 2026-10-07 — Catálogo maestro P0 en producción
 - **Área:** Web / Datos maestros
 - **Estado:** PR #93 INTEGRADA (`e0b9404`) Y DESPLEGADA; MIGRACIÓN APLICADA Y VERIFICADA; PENDIENTE PRUEBA AUTENTICADA

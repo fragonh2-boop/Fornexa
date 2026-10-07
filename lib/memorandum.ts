@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "07 oct 2026";
-export const memorandumCommitCoverage = 587;
+export const memorandumCommitCoverage = 588;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -102,6 +102,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.10.07-3",
+    date: "7 oct 2026",
+    surface: ["Web"],
+    title: "Direcciones nuevas al grabar una partida",
+    purpose: "Permitir grabar una partida aunque el punto de recogida o de entrega no exista todavía en el maestro de direcciones del cliente.",
+    outcome: "En Nueva partida, recogida y entrega ofrecen «Nueva dirección». La dirección se guarda con la partida y, solo si el usuario marca la casilla, se añade al maestro de direcciones del cliente para futuras partidas. Si la partida no llega a guardarse, las direcciones creadas se descartan.",
+    status: "Preproducción",
+  },
   {
     version: "2026.10.07-2",
     date: "7 oct 2026",

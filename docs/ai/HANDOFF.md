@@ -2,6 +2,13 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-07 — Direcciones nuevas en Nueva partida
+
+- **Petición de Fran:** en la ruta de una partida no debe ser imprescindible que recogida y entrega existan en el maestro; se pueden escribir direcciones nuevas y, con una casilla, guardarlas como puntos del maestro de ese cliente.
+- **Diseño:** la dirección escrita se crea siempre en `party_addresses` (propiedad del cliente, tipo PICKUP/DELIVERY), porque partidas, expediciones y CMR referencian direcciones por id. Solo con la casilla marcada se crea la asignación en `party_address_assignments` (uso de recogida o de entrega), que es lo que la hace aparecer en los selectores. Sin la casilla queda como dirección puntual, invisible en el maestro.
+- **Integridad:** validación compartida en `lib/ad-hoc-address.ts` (cliente y servidor); la API rechaza mezclar un punto del maestro y una dirección nueva para el mismo uso; las direcciones se crean justo antes de la partida y se borran si falla la dirección, la partida o sus líneas.
+- **Sin cambios de base de datos.** Verificación local: 140/143 (los 3 fallos se reproducen en `main`); typecheck, lint y build en el CI.
+
 ## 2026-10-07 — Catálogo maestro P0 (sustituye a PR #89)
 
 - **Origen:** PR #89 (GPT/Codex, `91e8009`) estaba abierta desde el 4 de octubre sobre `573bee8`, con dos MUST de vigilancia. Fran asignó a Claude llevarla a producción. El código de aplicación se toma íntegro de #89; la documentación se rehace sobre `main` actual para evitar conflictos. La PR #91 (demo de preview, GPT) sigue apilada sobre #89 y deberá rebasarse.
