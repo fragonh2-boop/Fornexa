@@ -1,4 +1,5 @@
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
+import { getAuthenticatedOrReviewContext } from "@/lib/auth-context";
 import CustomsListView from "./CustomsListView";
 
 const DIRECTION_LABELS: Record<string, string> = {
@@ -25,10 +26,14 @@ function formatDate(value: string | null | undefined) {
 }
 
 async function getCases() {
+  const auth = await getAuthenticatedOrReviewContext();
+  if (!auth) return [];
+
   const supabase = createSupabaseAdmin();
   const { data, error } = await supabase
     .from("customs_cases")
     .select("id, reference, country_code, direction, system, status, mrn, declarant_eori, representative_eori, payload, created_at, updated_at")
+    .eq("tenant_id", auth.tenantId)
     .order("created_at", { ascending: false });
 
   if (error) {

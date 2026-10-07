@@ -18,8 +18,8 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "07 oct 2026";
-export const memorandumCommitCoverage = 590;
+export const memorandumUpdatedAt = "08 oct 2026";
+export const memorandumCommitCoverage = 591;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -103,12 +103,12 @@ export const memorandumPending: MemorandumPending[] = [
 
 export const memorandumReleases: MemorandumRelease[] = [
   {
-    version: "2026.10.07-4",
-    date: "7 oct 2026",
+    version: "2026.10.08-1",
+    date: "8 oct 2026",
     surface: ["Web"],
     title: "Interfaz coherente y demostración fiel",
     purpose: "Validar pantallas sin sustituir la estructura de la aplicación ni utilizar datos u operaciones reales.",
-    outcome: "La demostración reutiliza el menú completo, Control Tower, módulos y formularios de la aplicación, con datos ficticios y acciones simuladas sin persistencia. Se unifican títulos, botones y paneles y se corrigen contrastes ilegibles. El acceso sin login queda limitado al entorno de preproducción habilitado explícitamente; producción conserva su autenticación y sus fuentes operativas. El alta de un CMR real empieza vacía, sin referencias ilustrativas precargadas.",
+    outcome: "La demostración reutiliza el menú completo, Control Tower, módulos y formularios de la aplicación, con datos ficticios y acciones simuladas sin persistencia. Se unifican títulos, botones y paneles y se corrigen contrastes ilegibles. El acceso sin login queda limitado al entorno de preproducción habilitado explícitamente; producción conserva su autenticación y sus fuentes operativas. El alta de un CMR real empieza vacía y permite seleccionar clientes activos de la empresa, sin referencias ilustrativas precargadas. Los listados compartidos respetan el contexto de empresa autenticado. Pendiente de validación final y despliegue productivo.",
     status: "Preproducción",
   },
   {

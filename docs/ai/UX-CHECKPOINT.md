@@ -1,9 +1,9 @@
 # UX y paridad de Preview — checkpoint de implementación
 
-Fecha: 2026-10-07. Responsable: FornexaGPT. Estado: **en implementación, no integrado ni desplegado**.
+Fecha: 2026-10-08 (CEST). Responsable: FornexaGPT. Estado: **PR draft actualizada, no integrada ni desplegada en producción**.
 
 - Base verificada: `origin/main` `85d34e05d33efe2639cdca46f56c69d310a7403a`.
-- Worktree aislado: rama `codex/ux-production-parity`. La PR #91 conserva la demo anterior rechazada; no es una aprobación de esta implementación.
+- Worktree aislado: rama local `codex/ux-production-parity`, remota `codex/preview-demo-screens`, PR #91 contra main. Candidato anterior `764b167c0d06ad09ef59f71a83ce6d6128d3c417` sustituye la demo reducida rechazada y tiene CI/Preview verdes. Correcciones posteriores invalidan esos gates para el siguiente HEAD.
 - Riesgo: **HIGH**, por compartir presentaciones productivas y añadir acceso público exclusivamente a Preview. Se requieren Claude y DeepSeek independientes sobre el HEAD final, CI y prueba visual real.
 - Autoridad: Fran autorizó implementación, coordinación, merge y deploy. No autoriza saltar autenticación, tocar datos de negocio para probar ni omitir gates.
 
@@ -20,12 +20,15 @@ Fecha: 2026-10-07. Responsable: FornexaGPT. Estado: **en implementación, no int
 
 - Evaluaciones de Gemini contrastadas con código. Evaluación original de paridad: NO CUMPLE, solo fuente; no aprobación visual.
 - El CSS oscuro de Servicios no tiene importadores en main; la ruta redirige a Clientes. Hallazgo descartado como superficie activa.
-- Suite completa: **184/184 PASS**. `pnpm typecheck` PASS. Build completo PASS con red autorizada; tras el margen final de Artículos y el memorándum se repite para el candidato final. Lint global sigue sin resultado terminal: no se da por aprobado.
+- Candidato anterior: suite **184/184 PASS**, `pnpm typecheck` PASS, build final PASS con red autorizada, lint global PASS con 0 errores y 7 advertencias. Nuevas correcciones: 11/11 tests de selección de cliente CMR y contexto de empresa PASS; suite anterior a la última comprobación de relación CMR 194/194 PASS. Types/lint/build del nuevo candidato en curso, no aprobados sin terminal.
 - HTTP local: 15 rutas de menú y 7 destinos secundarios responden 200 en demo. Build servido con `VERCEL_ENV=production` y flag demo=1 responde 404 en `/demo`, Artículos y Nueva partida; POST `/demo` en Preview responde 405 con Allow GET/HEAD. Esto es evidencia local, no despliegue.
 - Prueba visual local: Control Tower, Artículos y Aduanas conservan el shell completo; textos largos y campos renderizados. Una navegación del navegador integrado agotó la espera y se recuperó en otra pestaña, no se contó como PASS. Quedan prueba visual desplegada, móvil y flujos interactivos.
-- Uso Codex verificado al 95% de la ventana de cinco horas. Persistir candidato y delegar la validación externa antes de agotar la cuota; ninguna delegación sustituye los gates.
+- Vercel: Preview del SHA anterior READY; 30/30 GET (15 módulos y 15 destinos secundarios) responden 200 con no-store/noindex, shell completo y sin enlaces a dashboard. Esto no verifica hidratación, geometría ni clicks. Acceso visual protegido: la creación de enlace privado temporal fue rechazada por falta de autorización específica; permiso de una hora solicitado a Fran, sin cambios de protección.
+- Claude, DeepSeek y Gemini recibieron las solicitudes Slack y devolvieron FALLIDA en sus hilos con el mismo SLACK_REQUEST_TS. Ninguna aprobación. Reproducción local del bridge disponible: prompt 547.386 bytes frente a límite 500.000, proveedor no invocado; SHA runtime no comprobado. MODE manual/source con PR vuelve al diff completo, no permite filtrar fuentes. Evitar reintentos iguales; alternativa manual independiente en Claude Desktop/DeepSeek web con fuentes completas, base/HEAD y cobertura total. Claude Desktop tiene acceso de lectura al workspace; DeepSeek en el navegador integrado requiere sesión legítima.
+- Corrección CMR: producción sigue empezando vacía; selector de clientes activos del tenant, sin endpoint nuevo, bloquea emisión si falla el maestro. Simulación conserva opciones estáticas y no consulta backend. Los tres listados compartidos resuelven contexto de empresa y filtran relaciones pertinentes; sin SQL. Las relaciones UUID-only heredadas de otros loaders quedan como riesgo de integridad no introducido por esta delta: no se comprobó ningún cruce real de datos.
+- Cuota: ventana renovada, 2% usado al último control; antes de persistir el candidato anterior estaba al 95%. No consumida ninguna recarga ni modificada automatización. Mantener ciclos cortos y checkpoint exacto.
 - Dependencias del lockfile instaladas sin scripts. Instalación offline inicial falló por un tarball ausente; instalación autorizada posterior terminó correctamente.
 
 ## Siguiente ciclo
 
-Terminar los adaptadores simulados, comprobar todas las rutas de menú/formularios, ejecutar controles centralizados, actualizar memorándum/handoff y PR #91 sin duplicar ni importar delta vieja sin revisión. Fijar HEAD para Claude/DeepSeek. No fusionar mientras falte un gate. Tras merge, construir producción con su entorno propio y verificar el SHA desplegado y el dominio.
+Conservar el candidato corregido en PR #91 sin duplicar; fijar el SHA nuevo, terminar controles/CI y obtener revisión independiente completa de Claude y DeepSeek (los dictámenes parciales deben declarar inventario y no son aprobación global). Resolver MUST y verificar cobertura de todos los archivos/delta final. Obtener acceso Preview autorizado o sesión legítima, validar escritorio/móvil y flujos simulados sin datos reales. No fusionar mientras falte un gate. Tras merge, construir producción con su entorno propio, verificar READY del commit integrado, alias y runtime, y confirmar demo inaccesible en producción. Eliminar la automatización únicamente después del cierre completo.

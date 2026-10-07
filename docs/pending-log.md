@@ -4,12 +4,13 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
-### 2026-10-07 — Cierre UX y paridad de demo
+### 2026-10-08 — Cierre UX y paridad de demo
 - **Área:** Web / UX / Preview
-- **Estado:** IMPLEMENTACIÓN NO INTEGRADA; PR #91 ANTERIOR DRAFT; SIN NUEVO DEPLOY PRODUCTIVO
+- **Estado:** PR #91 ACTUALIZADA SOBRE MAIN, DRAFT; CANDIDATO ANTERIOR CI/PREVIEW VERDES; CORRECCIÓN POSTERIOR NO VALIDADA GLOBALMENTE; SIN MERGE/DEPLOY PRODUCTIVO
 - **Alcance:** mismo shell, 15 módulos, navegación, pantallas y formularios que producción; datos ficticios y acciones simuladas solo en Preview habilitado. Contraste, títulos, botones, paneles y responsive según Control Tower.
 - **Criterio de cierre:** tipos/lint/tests/build, revisiones Claude y DeepSeek exact-HEAD, CI, prueba visual de escritorio/móvil y navegación sin rutas rotas; merge seguido de producción READY del SHA integrado y alias/runtime verificados. `/demo` debe ser inaccesible en producción incluso con flag activado.
 - **Checkpoint:** `docs/ai/UX-CHECKPOINT.md`. No se cierra con fuente, build o Preview únicamente. Sin cambios SQL ni pruebas con escrituras reales de negocio.
+- **Gates abiertos:** validación del selector CMR/contratos de empresa del nuevo HEAD, revisión manual independiente Claude/DeepSeek (bridge automático fallido), acceso legítimo y prueba visual desplegada de escritorio/móvil. Propietario: FornexaGPT; autorización puntual de acceso Preview solicitada a Fran.
 
 ### 2026-10-07 — Direcciones nuevas en Nueva partida
 - **Área:** Web / Partidas / Maestro de direcciones

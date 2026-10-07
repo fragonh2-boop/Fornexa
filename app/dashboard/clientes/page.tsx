@@ -1,4 +1,5 @@
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
+import { getAuthenticatedOrReviewContext } from "@/lib/auth-context";
 import CustomersListView from "./CustomersListView";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -8,6 +9,9 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 async function getCustomers() {
+  const auth = await getAuthenticatedOrReviewContext();
+  if (!auth) return [];
+
   const supabase = createSupabaseAdmin();
   const { data, error } = await supabase
     .from("parties")
@@ -26,6 +30,10 @@ async function getCustomers() {
       offers ( id, status )
     `)
     .eq("is_customer", true)
+    .eq("tenant_id", auth.tenantId)
+    .eq("party_addresses.tenant_id", auth.tenantId)
+    .eq("orders.tenant_id", auth.tenantId)
+    .eq("offers.tenant_id", auth.tenantId)
     .order("code", { ascending: true });
 
   if (error) {

@@ -1,5 +1,6 @@
 import { type GridRow } from "../../components/DataGrid";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
+import { getAuthenticatedOrReviewContext } from "@/lib/auth-context";
 import CmrListView from "./CmrListView";
 
 function formatDate(value: string | null | undefined) {
@@ -9,6 +10,9 @@ function formatDate(value: string | null | undefined) {
 }
 
 async function getDocuments() {
+  const auth = await getAuthenticatedOrReviewContext();
+  if (!auth) return [];
+
   const supabase = createSupabaseAdmin();
   const { data, error } = await supabase
     .from("cmr_documents")
@@ -27,6 +31,8 @@ async function getDocuments() {
       ),
       cmr_signatures ( role )
     `)
+    .eq("tenant_id", auth.tenantId)
+    .eq("cmr_expeditions.expedition.tenant_id", auth.tenantId)
     .order("issued_at", { ascending: false });
 
   if (error) {
