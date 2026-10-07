@@ -26,7 +26,8 @@ test("real CMR customer options require authentication, active customers and a t
   assert.match(page, /\.eq\("is_customer", true\)/);
   assert.match(page, /\.eq\("status", "ACTIVE"\)/);
   assert.match(page, /<NewCmrWorkspace customers=\{customers\}/);
-  assert.match(page, /catch[\s\S]*<NewCmrWorkspace customers=\{\[\]\} customerLoadError/);
+  assert.match(page, /let customers: CmrCustomerOption\[\] = \[\];/);
+  assert.match(page, /catch\s*\{[\s\S]*customerLoadError = true;\s*\}\s*return <NewCmrWorkspace customers=\{customers\} customerLoadError=\{customerLoadError\}/);
   assert.doesNotMatch(page, /simulation|DEMO-|EX-260071|CLI-000146/);
 });
 

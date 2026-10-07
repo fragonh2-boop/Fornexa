@@ -4,17 +4,17 @@ import test from "node:test";
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
-for (const module of ["clientes", "aduanas", "epod-cmr"]) {
-  test(`shared ${module} loader resolves authenticated tenant before service-role reads`, () => {
-    const source = read(`app/dashboard/${module}/page.tsx`);
+for (const surface of ["clientes", "aduanas", "epod-cmr"]) {
+  test(`shared ${surface} loader resolves authenticated tenant before service-role reads`, () => {
+    const source = read(`app/dashboard/${surface}/page.tsx`);
     const guard = source.indexOf("if (!auth) return [];");
     assert.match(source, /const auth = await getAuthenticatedOrReviewContext\(\);/);
     assert.ok(guard >= 0 && guard < source.indexOf("const supabase = createSupabaseAdmin()"));
     assert.match(source, /\.eq\("tenant_id", auth\.tenantId\)/);
   });
 
-  test(`demo ${module} never imports the authenticated production loader`, () => {
-    const source = read(`app/demo/${module}/page.tsx`);
+  test(`demo ${surface} never imports the authenticated production loader`, () => {
+    const source = read(`app/demo/${surface}/page.tsx`);
     assert.doesNotMatch(source, /getAuthenticatedOrReviewContext|createSupabaseAdmin|\/api\/|from ["'][^"']*dashboard\/[^"']*\/page["']/);
   });
 }

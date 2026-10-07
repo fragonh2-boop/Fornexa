@@ -9,6 +9,8 @@ export const dynamic = "force-dynamic";
 export default async function NewCmrPage() {
   const auth = await getAuthenticatedOrReviewContext();
   if (!auth) redirect("/login");
+  let customers: CmrCustomerOption[] = [];
+  let customerLoadError = false;
 
   try {
     const supabase = createSupabaseAdmin();
@@ -19,10 +21,10 @@ export default async function NewCmrPage() {
       .eq("status", "ACTIVE")
       .order("code");
     if (error) throw error;
-    const customers: CmrCustomerOption[] = (data ?? []).map(item => ({ code: item.code, name: item.trade_name || item.legal_name || item.code }));
-    return <NewCmrWorkspace customers={customers} />;
+    customers = (data ?? []).map(item => ({ code: item.code, name: item.trade_name || item.legal_name || item.code }));
   } catch {
     console.error("Nuevo CMR: lectura del maestro de clientes no disponible.");
-    return <NewCmrWorkspace customers={[]} customerLoadError />;
+    customerLoadError = true;
   }
+  return <NewCmrWorkspace customers={customers} customerLoadError={customerLoadError} />;
 }

@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "08 oct 2026";
-export const memorandumCommitCoverage = 591;
+export const memorandumCommitCoverage = 592;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -107,7 +107,7 @@ export const memorandumReleases: MemorandumRelease[] = [
     date: "8 oct 2026",
     surface: ["Web"],
     title: "Interfaz coherente y demostración fiel",
-    purpose: "Validar pantallas sin sustituir la estructura de la aplicación ni utilizar datos u operaciones reales.",
+    purpose: "Validar pantallas sin sustituir la estructura de la aplicación ni utilizar datos u operaciones reales, con controles de compilación y revisión antes de la publicación.",
     outcome: "La demostración reutiliza el menú completo, Control Tower, módulos y formularios de la aplicación, con datos ficticios y acciones simuladas sin persistencia. Se unifican títulos, botones y paneles y se corrigen contrastes ilegibles. El acceso sin login queda limitado al entorno de preproducción habilitado explícitamente; producción conserva su autenticación y sus fuentes operativas. El alta de un CMR real empieza vacía y permite seleccionar clientes activos de la empresa, sin referencias ilustrativas precargadas. Los listados compartidos respetan el contexto de empresa autenticado. Pendiente de validación final y despliegue productivo.",
     status: "Preproducción",
   },
