@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "07 oct 2026";
-export const memorandumCommitCoverage = 585;
+export const memorandumCommitCoverage = 586;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -102,6 +102,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.10.07-2",
+    date: "7 oct 2026",
+    surface: ["Web", "Plataforma"],
+    title: "Catálogo maestro de artículos",
+    purpose: "Llevar a la interfaz el maestro de artículos creado en la fundación de datos maestros y usarlo al grabar partidas.",
+    outcome: "Nueva pantalla de Artículos con SKU, GTIN, cliente propietario, unidad base, pesos, dimensiones, volumen y estado, con altas y cambios limitados por rol y empresa y registrados en auditoría. Nueva partida ofrece los artículos activos del cliente. Todas las referencias a artículos quedan ligadas a la misma empresa también en base de datos.",
+    status: "Preproducción",
+  },
   {
     version: "2026.10.07",
     date: "7 oct 2026",

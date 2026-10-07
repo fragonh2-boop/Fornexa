@@ -12,6 +12,7 @@ export type AddressOption = {
   assignments: Array<{ customerCode: string; useForPickup: boolean; useForDelivery: boolean }>;
 };
 export type ServiceOption = { code: string; name: string };
+type ProductOption = { id: string; sku: string; name: string; description: string; uomBase: string };
 
 type SaveMode = "new" | "keep" | "exit";
 type PackagingOption = { id: string; packing_instruction_code?: string | null; packaging_type?: { id: string; code: string; name_es: string; family: string } | null };
@@ -72,6 +73,8 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [lastFingerprint, setLastFingerprint] = useState("");
+  const [productOptions, setProductOptions] = useState<ProductOption[]>([]);
+  const [productCatalogState, setProductCatalogState] = useState<"idle" | "loading" | "ready" | "error">("idle");
 
   const customer = useMemo(() => customers.find(item => item.code === customerCode), [customers, customerCode]);
   const pickup = useMemo(() => addresses.find(item => item.id === pickupAddressId), [addresses, pickupAddressId]);
@@ -90,6 +93,20 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
     setDeliveryAddressId("");
     setAdrDeclaration(customer ? defaultAdrDeclaration(customer.adrFrequency) : "UNANSWERED");
   }, [customer]);
+  useEffect(() => {
+    const code = customer?.code;
+    if (!code) { setProductOptions([]); setProductCatalogState("idle"); return; }
+    const controller = new AbortController();
+    setProductCatalogState("loading");
+    void fetch(`/api/products?customerCode=${encodeURIComponent(code)}&activeOnly=true&limit=250`, { cache: "no-store", signal: controller.signal })
+      .then(async response => {
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(result.error || "No se pudo cargar el catálogo de artículos.");
+        if (!controller.signal.aborted) { setProductOptions(result.items ?? []); setProductCatalogState("ready"); }
+      })
+      .catch(() => { if (!controller.signal.aborted) { setProductOptions([]); setProductCatalogState("error"); } });
+    return () => controller.abort();
+  }, [customer?.code]);
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.repeat || readOnly) return;
@@ -201,6 +218,7 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
     </div></section>
 
     <section className={styles.card}><div className={styles.cardHeader}><div><p>MERCANCÍA</p><h2>Magnitudes generales</h2></div></div><div className={styles.grid}>
+      <label className={styles.wide}>Artículo maestro (opcional)<input list="partida-product-catalog" disabled={!customer} value={lines[0]?.sku ?? ""} onChange={event => lines[0] && updateLine(lines[0].key, { sku: event.target.value.toUpperCase(), articleMessage: "" })} onBlur={() => lines[0] && lookupArticle(lines[0])} placeholder={customer ? "SKU del catálogo del cliente" : "Selecciona primero el cliente"} />{productCatalogState === "loading" && <span className={styles.fieldHelpPlaceholder}>Cargando artículos activos…</span>}{productCatalogState === "error" && <span className={styles.fieldHelpPlaceholder}>No se pudo cargar el selector; puedes escribir un SKU para comprobarlo.</span>}<datalist id="partida-product-catalog">{productOptions.map(item => <option key={item.id} value={item.sku}>{item.name}{item.description ? ` · ${item.description}` : ""}</option>)}</datalist></label>
       <label>Bultos totales<input type="number" min="1" step="1" value={packages} onChange={event => setPackages(event.target.value.replace(/\D/g, ""))} required /></label><label>Peso total (kg)<input inputMode="decimal" value={weight} onChange={event => setWeight(event.target.value.replace(/[^0-9.,]/g, ""))} required placeholder="0,00" /></label>
       <label>Volumen (m³)<input inputMode="decimal" value={volume} onChange={event => setVolume(event.target.value.replace(/[^0-9.,]/g, ""))} placeholder="0,00" /></label><label>Metros lineales<input inputMode="decimal" value={linearMeters} onChange={event => setLinearMeters(event.target.value.replace(/[^0-9.,]/g, ""))} placeholder="0,00" /></label>
       <label className={styles.wide}>Descripción general<input value={goodsDescription} onChange={event => setGoodsDescription(event.target.value)} placeholder="Resumen operativo de la mercancía" /></label>
@@ -212,7 +230,7 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
       {customer?.adrFrequency === "SOMETIMES" && adrDeclaration === "UNANSWERED" && <p className={styles.warning}>Este cliente requiere decidir expresamente si el pedido contiene ADR.</p>}
       {adrDeclaration === "YES" && <div className={styles.lines}>{lines.map((line, index) => <article className={styles.lineCard} key={line.key}>
         <div className={styles.lineHeader}><strong>Línea {index + 1}</strong>{lines.length > 1 && <button type="button" onClick={() => setLines(current => current.filter(item => item.key !== line.key))}>Eliminar</button>}</div>
-        <div className={styles.grid}><label>SKU del cliente<input value={line.sku} onChange={event => updateLine(line.key, { sku: event.target.value.toUpperCase(), articleMessage: "" })} onBlur={() => lookupArticle(line)} placeholder="Referencia del artículo" /></label><label>Artículo / mercancía<input value={line.description} onChange={event => updateLine(line.key, { description: event.target.value })} placeholder="Descripción concreta" /></label></div>
+        <div className={styles.grid}><label>SKU del cliente<input list="partida-product-catalog" value={line.sku} onChange={event => updateLine(line.key, { sku: event.target.value.toUpperCase(), articleMessage: "" })} onBlur={() => lookupArticle(line)} placeholder="Referencia del artículo" /></label><label>Artículo / mercancía<input value={line.description} onChange={event => updateLine(line.key, { description: event.target.value })} placeholder="Descripción concreta" /></label></div>
         {line.articleMessage && <p className={styles.hint}>{line.articleMessage}</p>}
         <div className={styles.lineChoice}><button type="button" className={line.hazardStatus === "NON_HAZARDOUS" ? styles.selected : ""} onClick={() => updateLine(line.key, { hazardStatus: "NON_HAZARDOUS", hazmatEntry: null })}>No peligrosa</button><button type="button" className={line.hazardStatus === "HAZMAT" ? styles.selected : ""} onClick={() => { updateLine(line.key, { hazardStatus: "HAZMAT" }); setSearchLine(line.key); }}>Peligrosa</button></div>
         {line.hazardStatus === "HAZMAT" && <>{line.hazmatEntry ? <div className={styles.adrSummary}><div><small>{line.hazmatEntry.edition?.code ?? "ADR"}</small><strong>UN {line.hazmatEntry.un_number} · {line.hazmatEntry.proper_shipping_name_es}</strong><span>Clase {line.hazmatEntry.class_code}{line.hazmatEntry.packing_group ? ` · GE ${line.hazmatEntry.packing_group}` : ""}{line.hazmatEntry.tunnel_restriction_code ? ` · Túnel ${line.hazmatEntry.tunnel_restriction_code}` : ""}</span></div><button type="button" onClick={() => setSearchLine(line.key)}>Cambiar</button></div> : <button type="button" className={styles.searchButton} onClick={() => setSearchLine(line.key)}>Buscar en maestro ADR verificado</button>}
