@@ -12,13 +12,13 @@ const shipments = [["EX-260071","Valencia → Lyon","3 partidas","En tránsito",
 const parts = [["PT-260184","Mediterránea Retail","Valencia → Lyon","Preparada"],["PT-260183","Nova Distribution","Barcelona → Marseille","Pendiente"],["PT-260182","Atlas Components","Madrid → Toulouse","Asignada"]];
 const trips = [["VJ-260041","2 expediciones","La Jonquera","En ruta"],["VJ-260040","1 expedición","Barcelona","Carga prevista"],["VJ-260039","1 expedición","Toulouse","Finalizado"]];
 
-type Overview = { metrics: string[][]; shipments: string[][]; parts: string[][]; trips: string[][] };
+type Overview = { metrics: string[][]; shipments: string[][]; parts: string[][]; trips: string[][]; readError?: boolean };
 
 const DEMO: Overview = { metrics, shipments, parts, trips };
-const EMPTY: Overview = {
-  metrics: [["0","Expediciones activas",""],["0","Partidas abiertas",""],["0","Viajes en curso",""],["0","CMR emitidos",""]],
-  shipments: [], parts: [], trips: [],
-};
+const METRIC_LABELS = ["Expediciones activas","Partidas abiertas","Viajes en curso","CMR emitidos"];
+const EMPTY: Overview = { metrics: METRIC_LABELS.map(label => ["0", label, ""]), shipments: [], parts: [], trips: [] };
+// A read failure must never look like a real zero: show "—" and an explicit notice.
+const UNAVAILABLE: Overview = { metrics: METRIC_LABELS.map(label => ["—", label, ""]), shipments: [], parts: [], trips: [], readError: true };
 
 const ORDER_STATUS: Record<string,string> = { DRAFT:"Borrador", READY:"Preparada", PARTIALLY_PLANNED:"Parcialmente planificada", PLANNED:"Planificada", IN_TRANSIT:"En tránsito", COMPLETED:"Completada", CANCELLED:"Cancelada" };
 const EXPEDITION_STATUS: Record<string,string> = { DRAFT:"Borrador", PLANNED:"Planificada", ASSIGNED:"Asignada", IN_TRANSIT:"En tránsito", DELIVERED:"Entregada", CLOSED:"Cerrada", CANCELLED:"Cancelada" };
@@ -32,7 +32,7 @@ function expeditionTone(status: string) {
 
 function plural(n: number, one: string, many: string) { return `${n} ${n === 1 ? one : many}`; }
 
-async function getRealOverview(): Promise<Overview> {
+async function readRealOverview(): Promise<Overview> {
   const auth = await getAuthenticatedOrReviewContext();
   if (!auth) return EMPTY;
   const supabase = createSupabaseAdmin();
@@ -49,8 +49,10 @@ async function getRealOverview(): Promise<Overview> {
     supabase.from("trips").select("code,status,planned_start,trip_expeditions(sequence)").eq("tenant_id", tenant).order("created_at", { ascending: false }).limit(3),
   ]);
 
-  for (const result of [activeExpeditions, openOrders, runningTrips, cmrs, lastOrders, lastExpeditions, lastTrips]) {
-    if (result.error) console.error("Control Tower: error al leer Supabase", result.error);
+  const failed = [activeExpeditions, openOrders, runningTrips, cmrs, lastOrders, lastExpeditions, lastTrips].filter(result => result.error);
+  if (failed.length > 0) {
+    console.error("Control Tower: error al leer Supabase", { failedQueries: failed.length, codes: failed.map(result => result.error?.code ?? "unknown") });
+    return UNAVAILABLE;
   }
 
   /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -87,15 +89,24 @@ async function getRealOverview(): Promise<Overview> {
   };
 }
 
+async function getRealOverview(): Promise<Overview> {
+  try {
+    return await readRealOverview();
+  } catch (error) {
+    console.error("Control Tower: lectura de datos no disponible", error instanceof Error ? error.name : "unknown");
+    return UNAVAILABLE;
+  }
+}
+
 export default async function DashboardPage(){
 const demo = isDemoDataAllowed();
 const data = demo ? DEMO : await getRealOverview();
 return <main className={styles.shell}>
 <aside className={styles.sidebar}><Link href="/dashboard" className={styles.brand}>FORNEXA</Link><nav className={styles.nav}><Link className={styles.active} href="/dashboard">Control Tower</Link><Link href="/dashboard/decision-center">Decision Center</Link><Link href="/dashboard/partidas">Partidas</Link><Link href="/dashboard/expediciones">Expediciones</Link><Link href="/dashboard/viajes">Viajes</Link><Link href="/dashboard/aduanas">Aduanas</Link><Link href="/dashboard/ofertas-tarifas">Ofertas y tarifas</Link><Link href="/dashboard/clientes">Clientes</Link><Link href="/dashboard/colaboradores">Colaboradores</Link><Link href="/dashboard/almacenes">Almacenes</Link><Link href="/dashboard/tracking">Tracking</Link><Link href="/dashboard/epod-cmr">ePOD & CMR</Link><Link href="/dashboard/integraciones">Integraciones</Link><Link href="/dashboard/informes">Informes</Link></nav><div className={styles.sidebarFooter}><span>FORNEXA Suite</span><small>{demo?"Entorno de demostración":"Datos reales"}</small></div></aside>
 <section className={styles.content}><header className={styles.header}><div><p className={styles.eyebrow}>CONTROL TOWER</p><h1>{demo?"Buenos días, Fran":"Resumen operativo"}</h1><p>Resumen operativo de tu cadena de suministro.</p></div><div className={styles.actions}><Link href="/dashboard/decision-center"><button type="button" className={styles.secondary}>Decisiones IA</button></Link><Link href="/dashboard/importar"><button type="button" className={styles.secondary}>Importar Excel</button></Link><Link href="/dashboard/nuevo/partida"><button type="button">+ Nueva partida</button></Link><div className={styles.avatar}>FG</div></div></header>
-<section className={styles.metrics}>{data.metrics.map(([v,l,n])=><article key={l}><div className={styles.metricTop}><span>{l}</span><strong>{n}</strong></div><b>{v}</b></article>)}</section>
+{data.readError&&<p role="alert" className={styles.itemState}>No se han podido leer los datos operativos. Las cifras no están disponibles en este momento.</p>}<section className={styles.metrics}>{data.metrics.map(([v,l,n])=><article key={l}><div className={styles.metricTop}><span>{l}</span><strong>{n}</strong></div><b>{v}</b></article>)}</section>
 <section className={styles.operationsGrid}>
 <article className={styles.panel}><div className={styles.panelTitle}><div><p className={styles.eyebrow}>MIS PEDIDOS</p><h2>Últimas partidas</h2></div><Link href="/dashboard/partidas" className={styles.textButton}>Ver todas</Link></div><div className={styles.table}><div className={`${styles.rowFour} ${styles.head}`}><span>ID</span><span>Cliente</span><span>Ruta</span><span>Estado</span></div>{data.parts.length===0&&<p className={styles.itemState}>Sin partidas registradas.</p>}{data.parts.map(([id,c,r,s])=><Link href={demo?`/dashboard/registros/partidas/${id}`:"/dashboard/partidas"} className={styles.rowFour} key={id}><strong>{id}</strong><span>{c}</span><span>{r}</span><span className={styles.itemState}>{s}</span></Link>)}</div></article>
 <article className={styles.panel}><div className={styles.panelTitle}><div><p className={styles.eyebrow}>OPERATIVA</p><h2>Últimas expediciones</h2></div><Link href="/dashboard/expediciones" className={styles.textButton}>Ver todas</Link></div><div className={styles.table}><div className={`${styles.row} ${styles.head}`}><span>ID</span><span>Ruta</span><span>Partidas</span><span>Estado</span><span>Previsión</span></div>{data.shipments.length===0&&<p className={styles.itemState}>Sin expediciones registradas.</p>}{data.shipments.map(([id,r,c,s,e,sc])=><Link href={demo?`/dashboard/registros/expediciones/${id}`:"/dashboard/expediciones"} className={styles.row} key={id}><strong>{id}</strong><span>{r}</span><span>{c}</span><span className={`${styles.status} ${styles[sc]}`}>{s}</span><span>{e}</span></Link>)}</div></article>
-<article className={styles.panel}><div className={styles.panelTitle}><div><p className={styles.eyebrow}>TRANSPORTE</p><h2>Últimos viajes</h2></div><Link href="/dashboard/viajes" className={styles.textButton}>Ver todos</Link></div><div className={styles.table}><div className={`${styles.rowTrips} ${styles.head}`}><span>ID</span><span>Expediciones</span><span>{demo?"Situación":"Salida prevista"}</span><span>Estado</span></div>{data.trips.length===0&&<p className={styles.itemState}>Sin viajes registrados.</p>}{data.trips.map(([id,e,l,s])=><Link href={`/dashboard/viajes/${id}`} className={styles.rowTrips} key={id}><strong>{id}</strong><span>{e}</span><span>{l}</span><span className={styles.itemState}>{s}</span></Link>)}</div></article>
+<article className={styles.panel}><div className={styles.panelTitle}><div><p className={styles.eyebrow}>TRANSPORTE</p><h2>Últimos viajes</h2></div><Link href="/dashboard/viajes" className={styles.textButton}>Ver todos</Link></div><div className={styles.table}><div className={`${styles.rowTrips} ${styles.head}`}><span>ID</span><span>Expediciones</span><span>{demo?"Situación":"Salida prevista"}</span><span>Estado</span></div>{data.trips.length===0&&<p className={styles.itemState}>Sin viajes registrados.</p>}{data.trips.map(([id,e,l,s])=><Link href={demo?"/dashboard/viajes":`/dashboard/viajes/${id}`} className={styles.rowTrips} key={id}><strong>{id}</strong><span>{e}</span><span>{l}</span><span className={styles.itemState}>{s}</span></Link>)}</div></article>
 </section></section></main>}

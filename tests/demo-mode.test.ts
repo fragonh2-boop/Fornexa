@@ -49,3 +49,25 @@ test("demo fixtures are not imported by client bundles directly", () => {
     assert.doesNotMatch(source, /isDemoDataAllowed|process\.env/, `${file} must receive the decision as a prop`);
   }
 });
+
+test("every Control Tower query is scoped to the session tenant", () => {
+  const source = readFileSync(new URL("../app/dashboard/page.tsx", import.meta.url), "utf8");
+  const queries = source.match(/supabase\.from\(/g) ?? [];
+  const tenantFilters = source.match(/\.eq\("tenant_id", tenant\)/g) ?? [];
+  assert.ok(queries.length >= 2, "expected Control Tower to query Supabase");
+  assert.equal(tenantFilters.length, queries.length, "each supabase.from(...) needs its own tenant filter");
+  assert.match(source, /if \(!auth\) return EMPTY;/);
+});
+
+test("a failed Control Tower read is shown as unavailable, not as zero", () => {
+  const source = readFileSync(new URL("../app/dashboard/page.tsx", import.meta.url), "utf8");
+  assert.match(source, /return UNAVAILABLE;/);
+  assert.match(source, /catch \(error\)/);
+});
+
+test("no personal address is prefilled in production forms", () => {
+  for (const file of ["app/dashboard/integraciones/EmailWorkspace.tsx", "app/dashboard/registros/[module]/[id]/OfferEmailEditor.tsx"]) {
+    const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+    assert.doesNotMatch(source, /useState\("[^"]+@[^"]+"\)/, `${file} must not prefill an email address`);
+  }
+});
