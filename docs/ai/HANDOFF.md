@@ -2,6 +2,16 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-07 — Catálogo maestro P0 (sustituye a PR #89)
+
+- **Origen:** PR #89 (GPT/Codex, `91e8009`) estaba abierta desde el 4 de octubre sobre `573bee8`, con dos MUST de vigilancia. Fran asignó a Claude llevarla a producción. El código de aplicación se toma íntegro de #89; la documentación se rehace sobre `main` actual para evitar conflictos. La PR #91 (demo de preview, GPT) sigue apilada sobre #89 y deberá rebasarse.
+- **MUST 1 — referencias a productos sin empresa:** `order_lines`, `product_packagings`, `product_hazmat_assignments`, `inventory_quants` e `inventory_movements` apuntaban solo a `products(id)`. Migración `20261007160000_products_tenant_scoped_references.sql`: índice único `products(tenant_id, id)` y claves foráneas compuestas `(tenant_id, product_id)`, conservando ON DELETE. Las seis tablas tenían 0 filas en producción al comprobarlo.
+- **MUST 2 — política de escritura en `products`:** se resuelve como decisión explícita, no como añadido: los clientes solo tienen SELECT (`tenant_read`) y todas las escrituras pasan por `/api/products` y `/api/orders` con rol y empresa comprobados en servidor. Una política ALL ampliaría el acceso; queda documentado en un `COMMENT ON TABLE`.
+- **Corrección heredada:** el patrón HTML del GTIN estaba doblemente escapado y rechazaba GTIN numéricos válidos en el navegador (detectado en PR #91).
+- **Verificación local:** suite 133/136; los 3 fallos se reproducen en `main` (dependencias no instalables en el entorno). Nuevos tests: patrón GTIN real con flag `v` y claves compuestas en la migración. Typecheck, lint y build: autoridad en el CI.
+- **Revisión de `6676f6d`:** Gemini MERGE YES (0 MUST). DeepSeek MERGE NO: (1) «sexta tabla» = malentendido (6 tablas = `products` + 5 referenciantes; `pg_constraint` muestra exactamente 5 FK hacia `products`), ahora explícito en la migración; (2) comprobación previa de huérfanos añadida antes de cualquier ADD CONSTRAINT, ejecutada en solo lectura contra producción sin hallazgos; (3) PUT ya no puede cambiar el cliente propietario (409). Además: concurrencia optimista por `revision_number` y registro del fallo de auditoría.
+- **Pendiente:** revisión del nuevo HEAD, aplicar la migración en producción, merge, despliegue y prueba autenticada (alta de un artículo y su selección en Nueva partida).
+
 ## 2026-10-07 — Producción sin datos ficticios (preview conserva la demo)
 
 - **Petición de Fran:** producción no debe mostrar datos ficticios; preview debe conservar datos de demostración para demos.

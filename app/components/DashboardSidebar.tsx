@@ -16,6 +16,7 @@ const navigation = [
   ["Aduanas", "/dashboard/aduanas"],
   ["Ofertas y tarifas", "/dashboard/ofertas-tarifas"],
   ["Clientes", "/dashboard/clientes"],
+  ["Artículos", "/dashboard/articulos"],
   ["Colaboradores", "/dashboard/colaboradores"],
   ["Almacenes", "/dashboard/almacenes"],
   ["Tracking", "/dashboard/tracking"],

@@ -333,8 +333,8 @@ export async function POST(request: Request) {
         if (existingProduct) productId = existingProduct.id;
         else if (line.rememberForProduct) {
           const { data: product, error: productError } = await supabase.from("products").insert({
-            tenant_id: tenantId, customer_id: customer.id, sku: line.sku,
-            name: line.description || line.sku, hazard_status: line.hazardStatus,
+            tenant_id: tenantId, customer_id: customer.id, owner_party_id: customer.id, sku: line.sku,
+            name: line.description || line.sku, description: line.description || line.sku, hazard_status: line.hazardStatus,
             metadata: { source: "order_creation", createdBy: userId },
           }).select("id").single();
           if (productError) throw productError;
