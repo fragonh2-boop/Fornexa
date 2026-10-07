@@ -8,6 +8,7 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 - **Diseño:** la dirección escrita se crea siempre en `party_addresses` (propiedad del cliente, tipo PICKUP/DELIVERY), porque partidas, expediciones y CMR referencian direcciones por id. Solo con la casilla marcada se crea la asignación en `party_address_assignments` (uso de recogida o de entrega), que es lo que la hace aparecer en los selectores. Sin la casilla queda como dirección puntual, invisible en el maestro.
 - **Integridad:** validación compartida en `lib/ad-hoc-address.ts` (cliente y servidor); la API rechaza mezclar un punto del maestro y una dirección nueva para el mismo uso; las direcciones se crean justo antes de la partida y se borran si falla la dirección, la partida o sus líneas.
 - **Sin cambios de base de datos.** Verificación local: 140/143 (los 3 fallos se reproducen en `main`); typecheck, lint y build en el CI.
+- **Cierre:** sobre `7109d50`, Gemini MERGE YES y DeepSeek MERGE YES, ambos con 0 MUST. La condición de DeepSeek era que la ficha del cliente listara las direcciones por asignación; se ha confirmado (`GET /api/customers/addresses` parte de `party_address_assignments`, Nueva partida filtra por asignación y la FK de asignación es ON DELETE CASCADE). PR #95 integrada como `2067515`; Vercel producción `READY` con alias `fornexasc.com`. Pendiente: prueba de Fran en producción.
 
 ## 2026-10-07 — Catálogo maestro P0 (sustituye a PR #89)
 
@@ -18,7 +19,7 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 - **Verificación local:** suite 133/136; los 3 fallos se reproducen en `main` (dependencias no instalables en el entorno). Nuevos tests: patrón GTIN real con flag `v` y claves compuestas en la migración. Typecheck, lint y build: autoridad en el CI.
 - **Revisión de `6676f6d`:** Gemini MERGE YES (0 MUST). DeepSeek MERGE NO: (1) «sexta tabla» = malentendido (6 tablas = `products` + 5 referenciantes; `pg_constraint` muestra exactamente 5 FK hacia `products`), ahora explícito en la migración; (2) comprobación previa de huérfanos añadida antes de cualquier ADD CONSTRAINT, ejecutada en solo lectura contra producción sin hallazgos; (3) PUT ya no puede cambiar el cliente propietario (409). Además: concurrencia optimista por `revision_number` y registro del fallo de auditoría.
 - **Cierre:** sobre `f2ce890`, Gemini MERGE YES (0 MUST) y DeepSeek 0 MUST, con YES condicionado a aplicación transaccional y a revalidación en el momento de aplicar; ambas se cumplen (`apply_migration` transaccional con la comprobación previa dentro). Migración aplicada en producción con el contenido exacto del archivo (sha256 `4103e1db…722a`); `pg_constraint` muestra las 5 FK compuestas con su ON DELETE; versión registrada en `fornexa_schema_migrations`. PR #93 integrada por squash como `e0b9404`; Vercel producción `READY` con ese SHA. PR #89 cerrada como sustituida.
-- **Pendiente:** prueba autenticada en producción (alta de un artículo y selección en Nueva partida). La PR #91 debe rebasarse sobre `main`.
+- **Validación funcional:** Fran dio por buena la pantalla de Artículos en producción (7 oct, 19:27 CEST). La PR #91 debe rebasarse sobre `main`.
 
 ## 2026-10-07 — Producción sin datos ficticios (preview conserva la demo)
 
