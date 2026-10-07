@@ -6,7 +6,7 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ### 2026-10-07 — Catálogo maestro P0 en producción
 - **Área:** Web / Datos maestros
-- **Estado:** PR ABIERTA (sustituye a #89); PENDIENTE CI, REVISIÓN, MIGRACIÓN Y DESPLIEGUE
+- **Estado:** PR #93 INTEGRADA (`e0b9404`) Y DESPLEGADA; MIGRACIÓN APLICADA Y VERIFICADA; PENDIENTE PRUEBA AUTENTICADA
 - **Criterio de cierre:** en `fornexasc.com` un usuario OWNER/ADMIN/OPERATOR crea un artículo, lo ve en Artículos y lo selecciona en Nueva partida; las claves compuestas existen en producción.
 - **Fuera de alcance:** embalajes, conversiones de unidades, transportistas, sociedades, almacenes, stock y movimientos.
 
