@@ -66,7 +66,7 @@ test("customer master exposes fiscal domicile separately from operational center
   assert.match(editor, /nunca se sustituye automáticamente por una dirección operativa/);
   assert.doesNotMatch(editor, /subdivisionKey/);
   assert.match(record, /FiscalAddressEditor/);
-  assert.match(record, /id!=="nuevo"&&<FiscalAddressEditor id=\{id\}\/>/);
+  assert.match(record, /id!=="nuevo"&&<FiscalAddressEditor\b[^>]*\bid=\{id\}[^>]*\/>/);
 });
 
 test("DeCA requires an explicitly selected active FISCAL address", () => {

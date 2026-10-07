@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import styles from "./record.module.css";
+import { DEMO_EDITOR_FISCAL_ADDRESS } from "@/lib/preview-demo-customer-editors";
 
 type FiscalAddress = {
   id?: string;
@@ -24,15 +25,16 @@ const emptyAddress: FiscalAddress = {
   countryCode: "ES",
 };
 
-export default function FiscalAddressEditor({ id }: { id: string }) {
-  const [address, setAddress] = useState<FiscalAddress>(emptyAddress);
-  const [loading, setLoading] = useState(true);
+export default function FiscalAddressEditor({ id, simulation = false }: { id: string; simulation?: boolean }) {
+  const [address, setAddress] = useState<FiscalAddress>(() => simulation ? { ...DEMO_EDITOR_FISCAL_ADDRESS } : emptyAddress);
+  const [loading, setLoading] = useState(!simulation);
   const [saving, setSaving] = useState(false);
-  const [canEdit, setCanEdit] = useState(false);
+  const [canEdit, setCanEdit] = useState(simulation);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (simulation) return;
     let active = true;
     fetch(`/api/customers/fiscal-address?customerCode=${encodeURIComponent(id)}`, { cache: "no-store" })
       .then(async response => {
@@ -56,7 +58,7 @@ export default function FiscalAddressEditor({ id }: { id: string }) {
       .catch(loadError => active && setError(loadError instanceof Error ? loadError.message : "No se pudo cargar el domicilio fiscal."))
       .finally(() => active && setLoading(false));
     return () => { active = false; };
-  }, [id]);
+  }, [id, simulation]);
 
   function update<K extends keyof FiscalAddress>(key: K, value: FiscalAddress[K]) {
     setAddress(current => ({ ...current, [key]: value }));
@@ -71,6 +73,7 @@ export default function FiscalAddressEditor({ id }: { id: string }) {
       return;
     }
 
+    if (simulation) { setMessage("DEMO · Guardado de domicilio fiscal simulado. No se ha guardado ni validado para documentos regulatorios."); return; }
     setSaving(true);
     try {
       const response = await fetch("/api/customers/fiscal-address", {

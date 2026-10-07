@@ -16,7 +16,7 @@ function mobileAccessLink(token: string) {
   return `fornexa-mobile://trip/${token}`;
 }
 
-export default function MobileAccessPanel({ tripCode, readOnly }: { tripCode: string; readOnly: boolean }) {
+export default function MobileAccessPanel({ tripCode, readOnly, simulation = false }: { tripCode: string; readOnly: boolean; simulation?: boolean }) {
   const [accesses, setAccesses] = useState<AccessRow[]>([]);
   const [issuedToken, setIssuedToken] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
@@ -25,16 +25,17 @@ export default function MobileAccessPanel({ tripCode, readOnly }: { tripCode: st
   const [loading, setLoading] = useState(false);
 
   async function refresh() {
+    if (simulation) return;
     const response = await fetch(`/api/trips/${encodeURIComponent(tripCode)}/mobile-access`, { cache: "no-store" });
     const body = await response.json().catch(() => ({}));
     if (response.ok) setAccesses(Array.isArray(body.accesses) ? body.accesses : []);
   }
 
-  useEffect(() => { void refresh(); }, [tripCode]);
+  useEffect(() => { if (!simulation) void refresh(); }, [tripCode, simulation]);
 
   useEffect(() => {
     let cancelled = false;
-    if (!issuedToken) {
+    if (simulation || !issuedToken) {
       setQrDataUrl("");
       return;
     }
@@ -48,9 +49,10 @@ export default function MobileAccessPanel({ tripCode, readOnly }: { tripCode: st
       if (!cancelled) setQrDataUrl("");
     });
     return () => { cancelled = true; };
-  }, [issuedToken]);
+  }, [issuedToken, simulation]);
 
   async function issue() {
+    if (simulation) return setMessage("Demostración: no se emite ningún acceso Mobile ni token operativo.");
     setLoading(true); setMessage(""); setIssuedToken("");
     try {
       const response = await fetch(`/api/trips/${encodeURIComponent(tripCode)}/mobile-access`, { method: "POST" });
@@ -66,6 +68,7 @@ export default function MobileAccessPanel({ tripCode, readOnly }: { tripCode: st
   }
 
   async function revoke() {
+    if (simulation) return setMessage("Demostración: no se revoca ningún acceso operativo.");
     setLoading(true); setMessage(""); setIssuedToken("");
     try {
       const response = await fetch(`/api/trips/${encodeURIComponent(tripCode)}/mobile-access`, { method: "DELETE" });
@@ -79,6 +82,7 @@ export default function MobileAccessPanel({ tripCode, readOnly }: { tripCode: st
   }
 
   async function copyAccess() {
+    if (simulation) return setMessage("Demostración: no hay tokens ni accesos operativos que copiar.");
     if (!issuedToken) return;
     try {
       await navigator.clipboard.writeText(mobileAccessLink(issuedToken));
@@ -111,7 +115,7 @@ export default function MobileAccessPanel({ tripCode, readOnly }: { tripCode: st
         </p>
       )}
 
-      {issuedToken && (
+      {!simulation && issuedToken && (
         <div style={{ padding: 14, border: "1px solid #9ebbd0", borderRadius: 10, background: "#f4f9fc", display: "grid", gap: 10 }}>
           <strong>Acceso recién emitido</strong>
           <code style={{ overflowWrap: "anywhere", userSelect: "all" }}>{mobileAccessLink(issuedToken)}</code>

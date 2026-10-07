@@ -1,5 +1,4 @@
-import AppShell from "../../../components/AppShell";
-import TripForm from "./TripForm";
+import NewTripView from "./NewTripView";
 import { getAuthenticatedOrReviewContext } from "@/lib/auth-context";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
 
@@ -26,5 +25,5 @@ export default async function NewTripPage() {
   const vehicles = (vehiclesResult.data ?? []).map((item: any) => ({ registration: item.registration, vehicleType: item.vehicle_type ?? "" }));
   const drivers = (driversResult.data ?? []).map((item: any) => ({ code: item.code, name: item.name, adrQualified: Boolean(item.adr_qualified) }));
 
-  return <AppShell><div style={{maxWidth:1100,margin:"0 auto"}}><header style={{marginBottom:24}}><p style={{margin:0,color:"#0067ad",fontSize:11,fontWeight:800,letterSpacing:".12em"}}>TRANSPORTE</p><h1 style={{margin:"7px 0 8px",fontSize:42,lineHeight:1.05}}>Nuevo viaje</h1><p style={{margin:0,color:"#66768a"}}>Agrupa expedientes reales en un movimiento físico y asigna vehículo, conductor y secuencia.</p></header><TripForm expeditions={expeditions} vehicles={vehicles} drivers={drivers} readOnly={Boolean(auth.isReview)} /></div></AppShell>;
+  return <NewTripView expeditions={expeditions} vehicles={vehicles} drivers={drivers} readOnly={Boolean(auth.isReview)} />;
 }

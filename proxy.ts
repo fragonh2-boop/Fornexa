@@ -4,6 +4,7 @@ import { isValidReviewToken, REVIEW_COOKIE } from "@/lib/auth-context";
 import { safeInternalPath } from "@/lib/auth-flow";
 import { shouldClearDeadSession, supabaseAuthCookieNames } from "@/lib/auth-session";
 import { callTelemetryRpc, requestTelemetryPayload } from "@/lib/platform-telemetry";
+import { previewDemoRequestStatus } from "@/lib/preview-demo";
 
 type CookieToSet = {
   name: string;
@@ -60,6 +61,15 @@ function loginRedirect(request: NextRequest, origin: string) {
 
 export async function proxy(request: NextRequest, event: NextFetchEvent) {
   const { pathname, searchParams, origin } = request.nextUrl;
+
+  const demoStatus = previewDemoRequestStatus(pathname, request.method);
+  if (demoStatus !== null) {
+    const response = demoStatus === 200 ? NextResponse.next() : new NextResponse(demoStatus === 404 ? "Not found" : "Method not allowed", { status: demoStatus });
+    if (demoStatus === 405) response.headers.set("Allow", "GET, HEAD");
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
+    response.headers.set("Referrer-Policy", "no-referrer");
+    return noStore(response);
+  }
 
   // TLM-1: best-effort request telemetry. waitUntil keeps persistence off the
   // critical response path; any storage/config failure is intentionally ignored.

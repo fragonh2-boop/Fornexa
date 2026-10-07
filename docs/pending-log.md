@@ -4,6 +4,13 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-07 — Cierre UX y paridad de demo
+- **Área:** Web / UX / Preview
+- **Estado:** IMPLEMENTACIÓN NO INTEGRADA; PR #91 ANTERIOR DRAFT; SIN NUEVO DEPLOY PRODUCTIVO
+- **Alcance:** mismo shell, 15 módulos, navegación, pantallas y formularios que producción; datos ficticios y acciones simuladas solo en Preview habilitado. Contraste, títulos, botones, paneles y responsive según Control Tower.
+- **Criterio de cierre:** tipos/lint/tests/build, revisiones Claude y DeepSeek exact-HEAD, CI, prueba visual de escritorio/móvil y navegación sin rutas rotas; merge seguido de producción READY del SHA integrado y alias/runtime verificados. `/demo` debe ser inaccesible en producción incluso con flag activado.
+- **Checkpoint:** `docs/ai/UX-CHECKPOINT.md`. No se cierra con fuente, build o Preview únicamente. Sin cambios SQL ni pruebas con escrituras reales de negocio.
+
 ### 2026-10-07 — Direcciones nuevas en Nueva partida
 - **Área:** Web / Partidas / Maestro de direcciones
 - **Estado:** PR #95 INTEGRADA (`2067515`) Y DESPLEGADA; PENDIENTE PRUEBA DE FRAN

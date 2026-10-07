@@ -1,8 +1,7 @@
-import Link from "next/link";
+import ControlTowerView, { type ControlTowerOverview } from "../components/ControlTowerView";
 import { getAuthenticatedOrReviewContext } from "@/lib/auth-context";
 import { isDemoDataAllowed } from "@/lib/demo-mode";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
-import styles from "./dashboard.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +11,7 @@ const shipments = [["EX-260071","Valencia → Lyon","3 partidas","En tránsito",
 const parts = [["PT-260184","Mediterránea Retail","Valencia → Lyon","Preparada"],["PT-260183","Nova Distribution","Barcelona → Marseille","Pendiente"],["PT-260182","Atlas Components","Madrid → Toulouse","Asignada"]];
 const trips = [["VJ-260041","2 expediciones","La Jonquera","En ruta"],["VJ-260040","1 expedición","Barcelona","Carga prevista"],["VJ-260039","1 expedición","Toulouse","Finalizado"]];
 
-type Overview = { metrics: string[][]; shipments: string[][]; parts: string[][]; trips: string[][]; readError?: boolean };
+type Overview = ControlTowerOverview;
 
 const DEMO: Overview = { metrics, shipments, parts, trips };
 const METRIC_LABELS = ["Expediciones activas","Partidas abiertas","Viajes en curso","CMR emitidos"];
@@ -101,12 +100,4 @@ async function getRealOverview(): Promise<Overview> {
 export default async function DashboardPage(){
 const demo = isDemoDataAllowed();
 const data = demo ? DEMO : await getRealOverview();
-return <main className={styles.shell}>
-<aside className={styles.sidebar}><Link href="/dashboard" className={styles.brand}>FORNEXA</Link><nav className={styles.nav}><Link className={styles.active} href="/dashboard">Control Tower</Link><Link href="/dashboard/decision-center">Decision Center</Link><Link href="/dashboard/partidas">Partidas</Link><Link href="/dashboard/expediciones">Expediciones</Link><Link href="/dashboard/viajes">Viajes</Link><Link href="/dashboard/aduanas">Aduanas</Link><Link href="/dashboard/ofertas-tarifas">Ofertas y tarifas</Link><Link href="/dashboard/clientes">Clientes</Link><Link href="/dashboard/colaboradores">Colaboradores</Link><Link href="/dashboard/almacenes">Almacenes</Link><Link href="/dashboard/tracking">Tracking</Link><Link href="/dashboard/epod-cmr">ePOD & CMR</Link><Link href="/dashboard/integraciones">Integraciones</Link><Link href="/dashboard/informes">Informes</Link></nav><div className={styles.sidebarFooter}><span>FORNEXA Suite</span><small>{demo?"Entorno de demostración":"Datos reales"}</small></div></aside>
-<section className={styles.content}><header className={styles.header}><div><p className={styles.eyebrow}>CONTROL TOWER</p><h1>{demo?"Buenos días, Fran":"Resumen operativo"}</h1><p>Resumen operativo de tu cadena de suministro.</p></div><div className={styles.actions}><Link href="/dashboard/decision-center"><button type="button" className={styles.secondary}>Decisiones IA</button></Link><Link href="/dashboard/importar"><button type="button" className={styles.secondary}>Importar Excel</button></Link><Link href="/dashboard/nuevo/partida"><button type="button">+ Nueva partida</button></Link><div className={styles.avatar}>FG</div></div></header>
-{data.readError&&<p role="alert" className={styles.itemState}>No se han podido leer los datos operativos. Las cifras no están disponibles en este momento.</p>}<section className={styles.metrics}>{data.metrics.map(([v,l,n])=><article key={l}><div className={styles.metricTop}><span>{l}</span><strong>{n}</strong></div><b>{v}</b></article>)}</section>
-<section className={styles.operationsGrid}>
-<article className={styles.panel}><div className={styles.panelTitle}><div><p className={styles.eyebrow}>MIS PEDIDOS</p><h2>Últimas partidas</h2></div><Link href="/dashboard/partidas" className={styles.textButton}>Ver todas</Link></div><div className={styles.table}><div className={`${styles.rowFour} ${styles.head}`}><span>ID</span><span>Cliente</span><span>Ruta</span><span>Estado</span></div>{data.parts.length===0&&<p className={styles.itemState}>Sin partidas registradas.</p>}{data.parts.map(([id,c,r,s])=><Link href={demo?`/dashboard/registros/partidas/${id}`:"/dashboard/partidas"} className={styles.rowFour} key={id}><strong>{id}</strong><span>{c}</span><span>{r}</span><span className={styles.itemState}>{s}</span></Link>)}</div></article>
-<article className={styles.panel}><div className={styles.panelTitle}><div><p className={styles.eyebrow}>OPERATIVA</p><h2>Últimas expediciones</h2></div><Link href="/dashboard/expediciones" className={styles.textButton}>Ver todas</Link></div><div className={styles.table}><div className={`${styles.row} ${styles.head}`}><span>ID</span><span>Ruta</span><span>Partidas</span><span>Estado</span><span>Previsión</span></div>{data.shipments.length===0&&<p className={styles.itemState}>Sin expediciones registradas.</p>}{data.shipments.map(([id,r,c,s,e,sc])=><Link href={demo?`/dashboard/registros/expediciones/${id}`:"/dashboard/expediciones"} className={styles.row} key={id}><strong>{id}</strong><span>{r}</span><span>{c}</span><span className={`${styles.status} ${styles[sc]}`}>{s}</span><span>{e}</span></Link>)}</div></article>
-<article className={styles.panel}><div className={styles.panelTitle}><div><p className={styles.eyebrow}>TRANSPORTE</p><h2>Últimos viajes</h2></div><Link href="/dashboard/viajes" className={styles.textButton}>Ver todos</Link></div><div className={styles.table}><div className={`${styles.rowTrips} ${styles.head}`}><span>ID</span><span>Expediciones</span><span>{demo?"Situación":"Salida prevista"}</span><span>Estado</span></div>{data.trips.length===0&&<p className={styles.itemState}>Sin viajes registrados.</p>}{data.trips.map(([id,e,l,s])=><Link href={demo?"/dashboard/viajes":`/dashboard/viajes/${id}`} className={styles.rowTrips} key={id}><strong>{id}</strong><span>{e}</span><span>{l}</span><span className={styles.itemState}>{s}</span></Link>)}</div></article>
-</section></section></main>}
+return <ControlTowerView data={data} illustrative={demo} />}

@@ -2,6 +2,15 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-07 — UX y demo con estructura productiva
+
+- **Estado:** implementación en worktree aislado desde `origin/main` `85d34e05d33efe2639cdca46f56c69d310a7403a`; todavía no integrada ni desplegada. La PR #91 anterior sigue draft y se sustituirá sobre main actual, sin arrastrar el alcance viejo del catálogo.
+- **Origen verificado:** Gemini evaluó la demo reducida como NO CUMPLE, solo sobre fuente; se contrastaron menú incompleto, portada alternativa y retorno de partidas. Su auditoría posterior motivó correcciones de contraste y dimensiones. Servicios no usa el CSS oscuro señalado: su ruta redirige a Clientes.
+- **Cambio:** vistas compartidas para shell/15 módulos, Control Tower, listados y pantallas especializadas; formularios comunes con simulación explícita, datos estáticos ficticios y guardas antes de API/storage. `/demo` falla cerrado fuera de Preview servidor con opt-in, solo acepta GET/HEAD y evita cache/indexación/telemetría. Sin sesión falsa, SQL, claves/QR oficiales ni escrituras de prueba productivas. CMR nuevo real empieza vacío; geometría y reglas de impresión no cambian.
+- **Riesgo HIGH:** Claude y DeepSeek exact-HEAD independientes, CI y verificación visual son obligatorios. Tests de fuente y revisiones locales no sustituyen esos gates. Checkpoint y criterios en `docs/ai/UX-CHECKPOINT.md`.
+- **Evidencia parcial:** suite local 184/184, types y build PASS; aislamiento demo 11/11 y contraste/navegación verdes. El primer build falló al descargar Manrope bajo restricción de red; reintento autorizado PASS. Build final posterior al margen de Artículos/memorándum en curso; lint sin resultado terminal. HTTP local confirma 22 destinos demo 200, producción con flag=1 devuelve 404 y POST demo 405. Quedan prueba visual desplegada/móvil, flujos, dictámenes exact-HEAD y CI. No inferir cierre desde esta evidencia local.
+- **Producción vigente:** Vercel confirma READY de `85d34e05d33efe2639cdca46f56c69d310a7403a`, anterior a esta implementación. Ningún resultado Preview de esta rama equivale a despliegue productivo.
+
 ## 2026-10-07 — Direcciones nuevas en Nueva partida
 
 - **Petición de Fran:** en la ruta de una partida no debe ser imprescindible que recogida y entrega existan en el maestro; se pueden escribir direcciones nuevas y, con una casilla, guardarlas como puntos del maestro de ese cliente.

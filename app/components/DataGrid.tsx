@@ -15,6 +15,7 @@ type Props = {
   searchPlaceholder?: string;
   emptyMessage?: string;
   openLinksInNewTab?: boolean;
+  persistPreferences?: boolean;
 };
 
 type SortState = { key: string; direction: "asc" | "desc" } | null;
@@ -32,7 +33,7 @@ function compare(a: GridRow[string], b: GridRow[string]) {
   return aText.localeCompare(bText, "es", { numeric: true, sensitivity: "base" });
 }
 
-export default function DataGrid({ storageKey, columns, rows, rowHrefs, searchPlaceholder = "Buscar...", emptyMessage = "No hay resultados.", openLinksInNewTab = false }: Props) {
+export default function DataGrid({ storageKey, columns, rows, rowHrefs, searchPlaceholder = "Buscar...", emptyMessage = "No hay resultados.", openLinksInNewTab = false, persistPreferences = true }: Props) {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortState>(null);
   const [filters, setFilters] = useState<Record<string, string>>({});
@@ -43,6 +44,7 @@ export default function DataGrid({ storageKey, columns, rows, rowHrefs, searchPl
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    if (!persistPreferences) return;
     try {
       const saved = localStorage.getItem(`fornexa-grid-${storageKey}`);
       if (!saved) return;
@@ -50,11 +52,12 @@ export default function DataGrid({ storageKey, columns, rows, rowHrefs, searchPl
       const allowed = (parsed.visible ?? []).filter(key => columns.some(column => column.key === key));
       if (allowed.length) setVisible(allowed);
     } catch {}
-  }, [storageKey, columns]);
+  }, [storageKey, columns, persistPreferences]);
 
   useEffect(() => {
+    if (!persistPreferences) return;
     try { localStorage.setItem(`fornexa-grid-${storageKey}`, JSON.stringify({ visible })); } catch {}
-  }, [storageKey, visible]);
+  }, [storageKey, visible, persistPreferences]);
 
   useEffect(() => {
     function closeOnOutsideClick(event: MouseEvent) {

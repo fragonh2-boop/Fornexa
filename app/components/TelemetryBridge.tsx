@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
+import { isPreviewDemoPath } from "@/lib/preview-demo";
 
 const COOKIE_NAME = "fornexa_tlm_session";
 
@@ -33,6 +34,7 @@ export default function TelemetryBridge() {
   const previous = useRef<{ path: string; startedAt: number } | null>(null);
 
   useEffect(() => {
+    if (isPreviewDemoPath(pathname)) { previous.current = null; return; }
     const sid = sessionId();
     const now = performance.now();
     const prior = previous.current;
@@ -60,8 +62,10 @@ export default function TelemetryBridge() {
   }, [pathname]);
 
   useEffect(() => {
+    if (isPreviewDemoPath(window.location.pathname)) return;
     const sid = sessionId();
     const onPageHide = () => {
+      if (isPreviewDemoPath(window.location.pathname)) return;
       const current = previous.current;
       if (!current) return;
       send({

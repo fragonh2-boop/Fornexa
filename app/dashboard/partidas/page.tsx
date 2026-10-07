@@ -1,9 +1,6 @@
-import Link from "next/link";
-import AppShell from "../../components/AppShell";
-import DataGrid from "../../components/DataGrid";
+import PartidasListView from "./PartidasListView";
 import { getAuthenticatedOrReviewContext } from "@/lib/auth-context";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
-import styles from "../expediciones/expediciones.module.css";
 
 const STATUS_LABELS: Record<string, string> = {
   DRAFT: "Borrador",
@@ -89,65 +86,5 @@ async function getOrders() {
 
 export default async function PartidasPage() {
   const items = await getOrders();
-  const abiertas = items.filter(item => !["Completada", "Cancelada"].includes(item.status)).length;
-  const pendientes = items.filter(item => !item.expedition && !["Completada", "Cancelada"].includes(item.status)).length;
-  const adr = items.filter(item => item.adr.startsWith("ADR")).length;
-
-  const rows = items.map(item => ({
-    id: item.id,
-    cliente: `${item.customerCode} · ${item.customer}`,
-    referencia: item.reference,
-    ruta: item.route,
-    mercancia: item.goods,
-    servicio: item.service,
-    adr: item.adr,
-    expedicion: item.expedition ?? "Sin asignar",
-    estado: item.status,
-  }));
-
-  return (
-    <AppShell>
-      <div className={styles.page}>
-        <header className={styles.header}>
-          <div>
-            <p className={styles.eyebrow}>PEDIDOS DE CLIENTE</p>
-            <h1>Partidas</h1>
-            <p>Pedidos persistentes del tenant. Una partida debe incorporarse a un expediente antes de viajar.</p>
-          </div>
-          <div className={styles.actions}>
-            <Link href="/dashboard/importar?entidad=partidas" className={styles.secondary}>Importar Excel</Link>
-            <Link href="/dashboard/nuevo/partida" className={styles.primary}>+ Nueva partida</Link>
-            <div className={styles.avatar}>FG</div>
-          </div>
-        </header>
-
-        <section className={styles.metrics}>
-          <article><span>Abiertas</span><strong>{abiertas}</strong></article>
-          <article><span>Pendientes de expediente</span><strong>{pendientes}</strong></article>
-          <article><span>ADR</span><strong>{adr}</strong></article>
-          <article><span>Última partida</span><strong className={styles.lastId}>{items[0]?.id ?? "—"}</strong></article>
-        </section>
-
-        <section className={styles.panel}>
-          <DataGrid
-            storageKey="partidas-canonical"
-            columns={[
-              { key: "id", label: "Partida" },
-              { key: "cliente", label: "Cliente" },
-              { key: "referencia", label: "Referencia" },
-              { key: "ruta", label: "Origen / destino" },
-              { key: "mercancia", label: "Mercancía" },
-              { key: "servicio", label: "Servicio" },
-              { key: "adr", label: "ADR" },
-              { key: "expedicion", label: "Expediente" },
-              { key: "estado", label: "Estado" },
-            ]}
-            rows={rows}
-            searchPlaceholder="Buscar por partida, cliente, referencia, ruta, servicio, ADR o expediente"
-            emptyMessage="No hay partidas persistidas todavía."
-          />
-        </section>
-      </div>
-    </AppShell>
-  );
+  return <PartidasListView items={items} />;
 }

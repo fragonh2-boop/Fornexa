@@ -24,7 +24,7 @@ const supplements = [
   ["Residuos","180,00 €","Servicio mínimo"],
 ];
 
-export default function VelocityClient(){
+export default function VelocityClient({ basePath = "/dashboard", simulation = false }: { basePath?: "/dashboard" | "/demo"; simulation?: boolean } = {}){
   const [vehicle,setVehicle]=useState("Tráiler");
   const [scope,setScope]=useState("international");
   const [distance,setDistance]=useState(450);
@@ -48,14 +48,14 @@ export default function VelocityClient(){
   },[selected,scope,distance,adr,night,weekend,roundTrip,documents]);
 
   return <main className={styles.shell}>
-    <aside className={styles.sidebar}><Link href="/dashboard" className={styles.brand}>FORNEXA</Link><nav>{nav.map(([label,href])=><Link key={href} className={label==="Colaboradores"?styles.active:""} href={href}>{label}</Link>)}</nav><div className={styles.footer}><span>FORNEXA Suite</span><small>Entorno de demostración</small></div></aside>
+    <aside className={styles.sidebar}><Link href={basePath} className={styles.brand}>FORNEXA</Link><nav>{nav.map(([label,href])=><Link key={href} className={label==="Colaboradores"?styles.active:""} href={href.replace("/dashboard",basePath)}>{label}</Link>)}</nav><div className={styles.footer}><span>FORNEXA Suite</span><small>Entorno de demostración</small></div></aside>
     <section className={styles.content}>
-      <header className={styles.header}><div><p>COLABORADOR · TARIFA 2026</p><h1>Velocity Transinternacional</h1><span>Configuración integral de colaborador, flota, cobertura, tarifas, suplementos, certificaciones y condiciones.</span></div><div className={styles.actions}><Link href="/dashboard/colaboradores" className={styles.secondary}>Volver</Link><button>Editar colaborador</button><div className={styles.avatar}>FG</div></div></header>
+      <header className={styles.header}><div><p>COLABORADOR · TARIFA 2026</p><h1>{simulation?"Colaborador ficticio de muestra":"Velocity Transinternacional"}</h1><span>Configuración integral de colaborador, flota, cobertura, tarifas, suplementos, certificaciones y condiciones.</span></div><div className={styles.actions}><Link href={`${basePath}/colaboradores`} className={styles.secondary}>Volver</Link><button>Editar colaborador</button><div className={styles.avatar}>FG</div></div></header>
 
       <section className={styles.summary}>
-        <article><span>Razón social</span><strong>Velocity Transinternacional, S.L.</strong><small>B98992001</small></article>
+        <article><span>Razón social</span><strong>{simulation?"Colaborador ficticio de muestra":"Velocity Transinternacional, S.L."}</strong><small>{simulation?"DEMO":"B98992001"}</small></article>
         <article><span>Base tarifaria</span><strong>Riba-roja de Túria</strong><small>24 h · 365 días</small></article>
-        <article><span>Referencia</span><strong>OT-12409661-1</strong><small>Vigencia 2026</small></article>
+        <article><span>Referencia</span><strong>{simulation?"DEMO-TAR-001":"OT-12409661-1"}</strong><small>Vigencia 2026</small></article>
         <article><span>Certificaciones</span><strong>RGSEAA + RDO-LER</strong><small>Alimentación y residuos</small></article>
       </section>
 
