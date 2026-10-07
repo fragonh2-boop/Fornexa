@@ -6,7 +6,7 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ### 2026-10-07 — Producción sin datos ficticios
 - **Área:** Web / Producto
-- **Estado:** PR ABIERTA; PENDIENTE CI, REVISIÓN Y DESPLIEGUE
+- **Estado:** PR #90 INTEGRADA Y DESPLEGADA (`bc707c8`); PRODUCCIÓN VERIFICADA POR FRAN; PENDIENTE COMPROBAR LA DEMO EN PREVIEW Y DECIDIR EL `EMAIL_REPLY_TO` DE EMPRESA
 - **Criterio de cierre:** en `fornexasc.com` ninguna pantalla muestra datos inventados (Control Tower con datos reales del tenant; resto con estados vacíos); en una URL de preview se ve la demostración completa.
 - **Siguiente:** migrar a Supabase las pantallas que hoy guardan solo en el navegador (Importar Excel, fichas genéricas de colaboradores, almacenes y ofertas).
 
