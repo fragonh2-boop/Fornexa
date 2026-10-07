@@ -4,6 +4,12 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-07 — Producción sin datos ficticios
+- **Área:** Web / Producto
+- **Estado:** PR ABIERTA; PENDIENTE CI, REVISIÓN Y DESPLIEGUE
+- **Criterio de cierre:** en `fornexasc.com` ninguna pantalla muestra datos inventados (Control Tower con datos reales del tenant; resto con estados vacíos); en una URL de preview se ve la demostración completa.
+- **Siguiente:** migrar a Supabase las pantallas que hoy guardan solo en el navegador (Importar Excel, fichas genéricas de colaboradores, almacenes y ofertas).
+
 ### 2026-10-02 — Fundación de Datos Maestros y Estructura WMS
 - **Área:** Datos Maestros / WMS / Catálogo / Transportistas / Sociedades
 - **Estado:** ESQUEMA APLICADO, FUENTE INTEGRADA Y DESPLEGADA; E2E AUTENTICADO PENDIENTE

@@ -2,6 +2,15 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-07 — Producción sin datos ficticios (preview conserva la demo)
+
+- **Petición de Fran:** producción no debe mostrar datos ficticios; preview debe conservar datos de demostración para demos.
+- **Auditoría previa (solo lectura, producción `573bee8`):** Control Tower, Decision Center, Colaboradores (y su ficha Velocity) e Integraciones renderizaban datos escritos en el código. Partidas, Expediciones, Viajes, Clientes, ePOD/CMR y Aduanas ya leían Supabase. En Supabase hay 149 clientes (147 importados del sistema anterior) y solo registros operativos de prueba de agosto.
+- **Cambio:** `lib/demo-mode.ts` decide con `VERCEL_ENV` (o `NODE_ENV=development` fuera de Vercel); cualquier otro valor se trata como producción. Las pantallas afectadas se evalúan por petición (`force-dynamic`). En producción: Control Tower lee recuentos y últimos registros del tenant; Decision Center, Integraciones y el módulo genérico muestran estados vacíos; `/dashboard/colaboradores/velocity` devuelve 404. Los datos de Integraciones se movieron a `demo-fixtures.ts`, cargado solo en preview.
+- **Verificación local:** `tests/demo-mode.test.ts` 6/6. La suite completa da 126/129; los 3 fallos se reproducen igual en `main` sin el cambio (dependencias no instalables en el entorno). Typecheck, lint y build no se pudieron ejecutar localmente (registro npm bloqueado): la autoridad es el CI de la PR.
+- **Pendiente:** CI exact-HEAD, revisión independiente, merge, despliegue a producción y comprobación visual en preview y producción. Sin cambios de base de datos.
+- **Riesgo residual:** las pantallas que guardan solo en el navegador (Importar Excel, fichas genéricas de colaboradores/almacenes/ofertas) siguen sin persistir en Supabase; no muestran datos ficticios, pero no son datos reales compartidos.
+
 ## 2026-10-03 — Master Data Foundation & WMS: production schema verified
 
 - **Integrated source:** PR #86 is merged on `main` at `79dfc42b9cdc9d356e5b977d25121a113de67cea`. PR #87 versioned the trigger-function hardening and was squash-merged as `081a728457c9f157384f77455ca39997e65e5dcf`; its `validate` check is `success` (GitHub Actions run `37076161324`). Supabase Preview failed by connection timeout, not by a reported SQL error. A paid Supabase branch was requested but is unavailable on the current plan.
