@@ -46,3 +46,19 @@ test("every reference to products is tenant-scoped at database level", () => {
     assert.match(sql, new RegExp(`alter table public\\.${table} add constraint ${table}_product_tenant_fk\\s+foreign key \\(tenant_id, product_id\\) references public\\.products\\(tenant_id, id\\)`));
   }
 });
+
+test("the migration refuses to run over rows that would break tenant scoping", () => {
+  const sql = read("../supabase/migrations/20261007160000_products_tenant_scoped_references.sql");
+  const precheck = sql.indexOf("$precheck$");
+  assert.ok(precheck > 0, "precheck block required");
+  assert.ok(precheck < sql.indexOf("add constraint"), "precheck must run before any new constraint");
+  assert.match(sql, /p\.tenant_id = t\.tenant_id/);
+});
+
+test("article edits cannot move ownership and detect concurrent saves", () => {
+  const route = read("../app/api/products/route.ts");
+  assert.match(route, /before\.customer_id !== customer\.id/);
+  assert.match(route, /\.eq\("revision_number", Number\(before\?\.revision_number \?\? 1\)\)/);
+  assert.match(route, /PGRST116/);
+  assert.match(route, /auditError/);
+});

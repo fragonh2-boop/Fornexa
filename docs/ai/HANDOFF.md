@@ -9,7 +9,8 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 - **MUST 2 — política de escritura en `products`:** se resuelve como decisión explícita, no como añadido: los clientes solo tienen SELECT (`tenant_read`) y todas las escrituras pasan por `/api/products` y `/api/orders` con rol y empresa comprobados en servidor. Una política ALL ampliaría el acceso; queda documentado en un `COMMENT ON TABLE`.
 - **Corrección heredada:** el patrón HTML del GTIN estaba doblemente escapado y rechazaba GTIN numéricos válidos en el navegador (detectado en PR #91).
 - **Verificación local:** suite 133/136; los 3 fallos se reproducen en `main` (dependencias no instalables en el entorno). Nuevos tests: patrón GTIN real con flag `v` y claves compuestas en la migración. Typecheck, lint y build: autoridad en el CI.
-- **Pendiente:** CI, revisiones exact-HEAD, aplicar la migración en producción, merge, despliegue y prueba autenticada (alta de un artículo y su selección en Nueva partida).
+- **Revisión de `6676f6d`:** Gemini MERGE YES (0 MUST). DeepSeek MERGE NO: (1) «sexta tabla» = malentendido (6 tablas = `products` + 5 referenciantes; `pg_constraint` muestra exactamente 5 FK hacia `products`), ahora explícito en la migración; (2) comprobación previa de huérfanos añadida antes de cualquier ADD CONSTRAINT, ejecutada en solo lectura contra producción sin hallazgos; (3) PUT ya no puede cambiar el cliente propietario (409). Además: concurrencia optimista por `revision_number` y registro del fallo de auditoría.
+- **Pendiente:** revisión del nuevo HEAD, aplicar la migración en producción, merge, despliegue y prueba autenticada (alta de un artículo y su selección en Nueva partida).
 
 ## 2026-10-07 — Producción sin datos ficticios (preview conserva la demo)
 

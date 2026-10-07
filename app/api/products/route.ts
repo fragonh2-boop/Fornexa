@@ -170,10 +170,15 @@ async function writeProduct(request: Request, method: "POST" | "PUT") {
   const id = text(body.id);
   if (method === "PUT" && !id) return NextResponse.json({ error: "Identificador de artículo obligatorio." }, { status: 400 });
   const { data: before, error: beforeError } = method === "PUT"
-    ? await supabase.from("products").select("id,metadata,revision_number").eq("tenant_id", auth.tenantId).eq("id", id).maybeSingle()
+    ? await supabase.from("products").select("id,customer_id,metadata,revision_number").eq("tenant_id", auth.tenantId).eq("id", id).maybeSingle()
     : { data: null, error: null };
   if (beforeError) throw beforeError;
   if (method === "PUT" && !before) return NextResponse.json({ error: "Artículo no encontrado." }, { status: 404 });
+  // The owning customer is part of the article identity (SKU is unique per customer):
+  // moving an article to another customer would silently re-assign historical order lines.
+  if (method === "PUT" && before && before.customer_id !== customer.id) {
+    return NextResponse.json({ error: "No se puede cambiar el cliente propietario de un artículo existente. Crea un artículo nuevo para el otro cliente." }, { status: 409 });
+  }
 
   const values = {
     customer_id: customer.id,
@@ -197,13 +202,16 @@ async function writeProduct(request: Request, method: "POST" | "PUT") {
 
   const result = method === "POST"
     ? await supabase.from("products").insert({ ...values, tenant_id: auth.tenantId }).select("id,sku,name,status").single()
-    : await supabase.from("products").update(values).eq("tenant_id", auth.tenantId).eq("id", id).select("id,sku,name,status").single();
+    : await supabase.from("products").update(values).eq("tenant_id", auth.tenantId).eq("id", id)
+      .eq("revision_number", Number(before?.revision_number ?? 1)).select("id,sku,name,status").single();
   if (result.error) {
+    // No row matched the revision read above: someone else saved the article meanwhile.
+    if (method === "PUT" && result.error.code === "PGRST116") return NextResponse.json({ error: "El artículo ha cambiado mientras lo editabas. Recarga y vuelve a guardar." }, { status: 409 });
     if (result.error.code === "23505") return NextResponse.json({ error: "Ya existe un artículo con ese SKU para el cliente propietario." }, { status: 409 });
     throw result.error;
   }
 
-  await supabase.from("audit_events").insert({
+  const { error: auditError } = await supabase.from("audit_events").insert({
     tenant_id: auth.tenantId,
     entity_type: "PRODUCT",
     entity_id: result.data.id,
@@ -214,6 +222,7 @@ async function writeProduct(request: Request, method: "POST" | "PUT") {
     before_data: before,
     after_data: values,
   });
+  if (auditError) console.error("Products audit event not recorded", { productId: result.data.id, code: auditError.code });
 
   return NextResponse.json({ item: result.data }, { status: method === "POST" ? 201 : 200, headers: { "Cache-Control": "no-store" } });
 }
