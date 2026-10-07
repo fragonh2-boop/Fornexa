@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuthenticatedContext, getAuthenticatedOrReviewContext } from "@/lib/auth-context";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
+import { normalizeAdHocAddress, type AdHocAddress, type AddressUse } from "@/lib/ad-hoc-address";
 import { evaluateAdrWarnings, shouldBlockForPolicy, type AdrDeclaration, type AdrFrequency, type AdrLineInput, type AdrPolicy, type HazardStatus } from "@/lib/adr";
 
 export const runtime = "nodejs";
@@ -113,6 +114,17 @@ export async function POST(request: Request) {
   const deliveryAddressId = text(body.deliveryAddressId);
   const pickupCode = text(body.pickupCode).toUpperCase();
   const deliveryCode = text(body.deliveryCode).toUpperCase();
+  const adHocInputs: Record<AddressUse, unknown> = { pickup: body.pickupNewAddress ?? null, delivery: body.deliveryNewAddress ?? null };
+  const adHoc: Partial<Record<AddressUse, AdHocAddress>> = {};
+  for (const use of ["pickup", "delivery"] as const) {
+    if (!adHocInputs[use]) continue;
+    if ((use === "pickup" ? pickupAddressId || pickupCode : deliveryAddressId || deliveryCode)) {
+      return NextResponse.json({ error: "Indica un punto del maestro o una dirección nueva, no ambos." }, { status: 400 });
+    }
+    const parsed = normalizeAdHocAddress(adHocInputs[use], use);
+    if (!parsed.ok) return NextResponse.json({ error: parsed.errors.join(" "), errors: parsed.errors }, { status: 400 });
+    adHoc[use] = parsed.value;
+  }
   const requestedServiceCode = text(body.serviceCode).toUpperCase() || LEGACY_SERVICE_CODES[text(body.service)] || "";
   const packages = integerOrNull(body.packages);
   const grossWeight = numberOrNull(body.grossWeight);
@@ -290,6 +302,10 @@ export async function POST(request: Request) {
     status: "READY",
     metadata: {
       source: "web_partida_form",
+      adHocAddresses: {
+        pickup: adHoc.pickup ? { savedToMaster: adHoc.pickup.saveToMaster } : null,
+        delivery: adHoc.delivery ? { savedToMaster: adHoc.delivery.saveToMaster } : null,
+      },
       actorUserId: userId,
       customerWarnings,
       customerWarningsAcknowledged: customerWarnings.length > 0,
@@ -312,6 +328,55 @@ export async function POST(request: Request) {
     },
   };
 
+  // Typed addresses are created last, right before the order, and removed again if the order is not kept.
+  const createdAddressIds: string[] = [];
+  async function discardCreatedAddresses() {
+    if (createdAddressIds.length) await supabase.from("party_addresses").delete().eq("tenant_id", tenantId).in("id", createdAddressIds);
+  }
+  async function createAdHocAddress(address: AdHocAddress, use: AddressUse) {
+    const { data, error } = await supabase.from("party_addresses").insert({
+      tenant_id: tenantId,
+      party_id: customerId,
+      address_type: use === "pickup" ? "PICKUP" : "DELIVERY",
+      name: address.name,
+      address_line1: address.addressLine1,
+      postal_code: address.postalCode,
+      city: address.city,
+      country_code: address.countryCode,
+      is_active: true,
+    }).select("id,code").single();
+    if (error) throw error;
+    createdAddressIds.push(data.id);
+    if (address.saveToMaster) {
+      const { error: assignmentError } = await supabase.from("party_address_assignments").insert({
+        tenant_id: tenantId,
+        address_id: data.id,
+        party_id: customerId,
+        use_for_pickup: use === "pickup",
+        use_for_delivery: use === "delivery",
+        created_by: userId,
+      });
+      if (assignmentError) throw assignmentError;
+    }
+    return data;
+  }
+  try {
+    if (adHoc.pickup) {
+      const created = await createAdHocAddress(adHoc.pickup, "pickup");
+      insert.pickup_address_id = created.id;
+      insert.metadata.pickup.code = created.code;
+    }
+    if (adHoc.delivery) {
+      const created = await createAdHocAddress(adHoc.delivery, "delivery");
+      insert.delivery_address_id = created.id;
+      insert.metadata.delivery.code = created.code;
+    }
+  } catch (error) {
+    console.error("Orders API ad-hoc address error", error);
+    await discardCreatedAddresses();
+    return NextResponse.json({ error: "No se pudo guardar la nueva dirección; no se ha creado la partida." }, { status: 500 });
+  }
+
   const { data: order, error: insertError } = await supabase
     .from("orders")
     .insert(insert)
@@ -320,6 +385,7 @@ export async function POST(request: Request) {
 
   if (insertError) {
     console.error("Orders API POST error", insertError);
+    await discardCreatedAddresses();
     return NextResponse.json({ error: "No se pudo guardar la partida." }, { status: 500 });
   }
 
@@ -415,6 +481,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Orders API line persistence error", error);
     await supabase.from("orders").delete().eq("id", order.id).eq("tenant_id", tenantId);
+    await discardCreatedAddresses();
     return NextResponse.json({ error: "No se pudo guardar la clasificación por líneas; no se ha conservado un pedido parcial." }, { status: 500 });
   }
 

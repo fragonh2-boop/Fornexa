@@ -21,3 +21,10 @@
 
 .field{display:grid;grid-template-rows:auto 46px auto;align-content:start;align-self:start;gap:6px;min-width:0;color:#4b5a6c;font-size:12px;font-weight:800}
 .grid .field>label{display:block;align-self:auto;color:#4b5a6c}
+.adHocAddress{display:grid;gap:10px;align-self:start;min-width:0;margin:0;padding:14px;border:1px solid #d7e2ec;border-radius:12px;background:#f8fafc}
+.adHocAddress legend{padding:0 6px;color:#4b5a6c;font-size:12px;font-weight:800}
+.adHocAddress label{display:grid;gap:6px;color:#4b5a6c;font-size:12px;font-weight:800}
+.adHocRow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr) 70px;gap:10px}
+.adHocAddress .remember{display:flex;margin-top:4px}
+.adHocAddress .remember input{height:18px;min-height:18px}
+@media (max-width:720px){.adHocRow{grid-template-columns:1fr}}
