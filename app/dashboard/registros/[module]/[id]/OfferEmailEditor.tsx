@@ -14,7 +14,7 @@ type HistoryEntry = { id: string; to: string; sentAt: string };
 
 export default function OfferEmailEditor({ id }: { id: string }) {
   const offer = examples[id] ?? { customer: "Nuevo cliente", route: "Origen → Destino", amount: "0,00 €", status: "Borrador" };
-  const [to, setTo] = useState("fragonh2@gmail.com");
+  const [to, setTo] = useState("");
   const [cc, setCc] = useState("");
   const [subject, setSubject] = useState(`${id} · Propuesta comercial FORNEXA`);
   const [message, setMessage] = useState(`Hola,\n\nTe enviamos nuestra propuesta para ${offer.route}. Quedamos a tu disposición para cualquier consulta.\n\nUn saludo,\nEquipo FORNEXA`);

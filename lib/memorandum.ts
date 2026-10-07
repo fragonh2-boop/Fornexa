@@ -18,8 +18,8 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "03 oct 2026";
-export const memorandumCommitCoverage = 582;
+export const memorandumUpdatedAt = "07 oct 2026";
+export const memorandumCommitCoverage = 585;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -102,6 +102,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.10.07",
+    date: "7 oct 2026",
+    surface: ["Web"],
+    title: "Producción sin datos ficticios",
+    purpose: "Garantizar que el entorno de producción solo muestra información real, manteniendo los datos de demostración en preview y desarrollo para presentaciones comerciales.",
+    outcome: "Un único interruptor de entorno decide si se permiten datos ilustrativos y falla de forma segura: un entorno desconocido se trata como producción. En producción, Control Tower muestra recuentos y últimos registros reales del tenant; Decision Center, Colaboradores e Integraciones muestran estados vacíos honestos; la ficha ilustrativa de colaborador no está disponible; un fallo de lectura se muestra como no disponible en lugar de como cero, y los formularios de correo ya no llevan direcciones precargadas. Preview y desarrollo conservan la demostración.",
+    status: "Preproducción",
+  },
   {
     version: "2026.10.02",
     date: "2 oct 2026",

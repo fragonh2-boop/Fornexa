@@ -1,6 +1,7 @@
 import Link from "next/link";
 import AppShell from "../../components/AppShell";
 import { routeFeasibilityDemo } from "../../../lib/telematics/providers";
+import { isDemoDataAllowed } from "@/lib/demo-mode";
 import styles from "./decision-center.module.css";
 import routeStyles from "./route-planning.module.css";
 
@@ -11,7 +12,16 @@ const recommendations = [
 ];
 const scenarios=[["Servicio prioritario","96,4%","12.840 €","31 viajes"],["Equilibrado","94,1%","11.920 €","29 viajes"],["Coste mínimo","90,8%","11.310 €","27 viajes"]];
 
+export const dynamic = "force-dynamic";
+
 export default function DecisionCenterPage(){
+  if(!isDemoDataAllowed()) return <AppShell><div className={styles.page}>
+      <header className={styles.header}>
+        <div><p className={styles.eyebrow}>DECISION INTELLIGENCE</p><h1>Centro de decisiones</h1><p>Información mínima para decidir rápido: viabilidad, riesgo, conducción disponible, ETA y bloqueos.</p></div>
+        <div className={styles.headerActions}><Link className={routeStyles.telematicsLink} href="/dashboard/integraciones/telematica">Configurar telemática</Link></div>
+      </header>
+      <article className={styles.panel}><p role="status">Todavía no hay análisis disponibles. Las recomendaciones y la viabilidad de rutas aparecerán cuando haya expediciones activas y una fuente telemática autorizada.</p></article>
+  </div></AppShell>;
   const viable=routeFeasibilityDemo.filter(x=>x.status==="VIABLE").length;
   const risk=routeFeasibilityDemo.filter(x=>x.status==="RIESGO").length;
   const blocked=routeFeasibilityDemo.filter(x=>x.status==="NO VIABLE").length;

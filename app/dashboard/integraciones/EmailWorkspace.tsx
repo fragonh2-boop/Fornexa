@@ -30,7 +30,7 @@ export default function EmailWorkspace() {
   const [to, setTo] = useState("");
   const [cc, setCc] = useState("");
   const [bcc, setBcc] = useState("");
-  const [replyTo, setReplyTo] = useState("fragonh2@gmail.com");
+  const [replyTo, setReplyTo] = useState("");
   const [subject, setSubject] = useState(templates.libre.subject);
   const [message, setMessage] = useState(templates.libre.message);
   const [relatedType, setRelatedType] = useState("Cliente");
@@ -92,12 +92,12 @@ export default function EmailWorkspace() {
   }
 
   return <section className={`${styles.panel} ${styles.emailWorkspace}`}>
-    <div className={styles.panelHeader}><div><p className={styles.eyebrow}>COMUNICACIONES</p><h2>Correo CRM</h2><p className={styles.workspaceIntro}>Envía mensajes y documentos a cualquier destinatario y conserva la trazabilidad con el registro relacionado.</p></div><span className={styles.channelStatus}>● Resend conectado</span></div>
+    <div className={styles.panelHeader}><div><p className={styles.eyebrow}>COMUNICACIONES</p><h2>Correo CRM</h2><p className={styles.workspaceIntro}>Envía mensajes y documentos a cualquier destinatario y conserva la trazabilidad con el registro relacionado.</p></div><span className={styles.channelStatus}>● Envío vía Resend</span></div>
     <div className={styles.emailLayout}>
       <form className={styles.emailComposer} onSubmit={send}>
         <div className={styles.emailGrid}>
           <label>Plantilla<select value={template} onChange={event => selectTemplate(event.target.value as keyof typeof templates)}>{Object.entries(templates).map(([key, value]) => <option key={key} value={key}>{value.label}</option>)}</select></label>
-          <label>Responder a<input type="email" value={replyTo} onChange={event => setReplyTo(event.target.value)} /></label>
+          <label>Responder a<input type="email" value={replyTo} onChange={event => setReplyTo(event.target.value)} placeholder="Por defecto: dirección configurada" /></label>
           <label className={styles.full}>Para <small>varios: coma o punto y coma</small><input required value={to} onChange={event => setTo(event.target.value)} placeholder="destinatario@empresa.com" /></label>
           <label>CC<input value={cc} onChange={event => setCc(event.target.value)} placeholder="Opcional" /></label>
           <label>CCO<input value={bcc} onChange={event => setBcc(event.target.value)} placeholder="Opcional" /></label>
