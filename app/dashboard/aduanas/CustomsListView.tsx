@@ -38,7 +38,7 @@ export default function CustomsListView({ cases, basePath = "/dashboard" }: {
           { label: "Expedientes abiertos", value: open, detail: `${imports} import · ${exports} export` },
           { label: "Pendientes de Aduana", value: pendingCustoms, detail: "Presentados, aceptados o en control" },
           { label: "Total expedientes", value: cases.length, detail: demo ? "Ejemplos ficticios" : "Persistidos en FORNEXA" },
-          { label: "Última actualización", value: selected?.updatedAt ?? "—", text: true, detail: demo ? "Dato ficticio" : "Dato real" },
+          { label: "Última actualización", value: selected?.updatedAt.split(", ")[0] || "—", text: true, detail: [selected?.updatedAt.split(", ")[1], demo ? "Dato ficticio" : "Dato real"].filter(Boolean).join(" · ") },
         ]} />
 
         <section className={styles.workspace}>

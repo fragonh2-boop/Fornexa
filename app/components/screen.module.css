@@ -35,7 +35,9 @@
 .panel{min-width:0;padding:var(--ui-panel-padding);border:1px solid rgba(18,32,52,.11);border-radius:var(--ui-panel-radius);background:var(--ui-surface)}
 @media(max-width:1150px){.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:1100px){.header{flex-wrap:wrap;align-items:flex-start}.actions{justify-content:flex-start}}
-@media(max-width:760px){.header{flex-direction:column;gap:18px}.title{font-size:32px}.actions{width:100%;flex-wrap:wrap}.metrics{grid-template-columns:1fr}.panel{padding:18px}}
+@media(max-width:760px){.metricText{font-size:22px}.header{flex-direction:column;gap:18px}.title{font-size:32px}.actions{width:100%;flex-wrap:wrap}.metrics{grid-template-columns:1fr}.panel{padding:18px}}
 .page{width:100%;min-width:0;max-width:100%;min-height:100vh;background:var(--ui-page-bg);color:var(--ui-text)}
 .pageContent{width:100%;min-width:0;max-width:100%;padding:34px 38px 50px;overflow-x:hidden}
 @media(max-width:760px){.pageContent{padding:25px 18px}}
+/* Phones: long identifiers may wrap rather than be cut off. */
+@media(max-width:520px){.metricText{white-space:normal;overflow-wrap:anywhere}}
