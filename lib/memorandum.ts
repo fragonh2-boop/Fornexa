@@ -108,7 +108,7 @@ export const memorandumReleases: MemorandumRelease[] = [
     surface: ["Web"],
     title: "Pantallas homogéneas y alta de artículos en ventana",
     purpose: "Que todas las pantallas de la aplicación compartan la misma cabecera, botones y tarjetas de indicadores que Control Tower, retirar Decision Center y simplificar el maestro de artículos.",
-    outcome: "Control Tower, Partidas, Expedientes, Viajes, Aduanas, Clientes, Artículos, Ofertas y tarifas, Colaboradores, Almacenes, Tracking, Informes, ePOD & CMR, Integraciones y Telemática usan un único componente de cabecera y de tarjetas: mismos colores, tamaños, avatar y botones, que ya no se parten en dos líneas, e identificadores largos que no se cortan. Decision Center desaparece del menú y sus enlaces antiguos llevan a Control Tower. Artículos muestra solo el grid; el alta y la edición se abren en una ventana superpuesta con el botón «+ Nuevo artículo» o la tecla +.",
+    outcome: "Control Tower, Partidas, Expedientes, Viajes, Aduanas, Clientes, Artículos, Ofertas y tarifas, Colaboradores, Almacenes, Tracking, Informes, ePOD & CMR, Integraciones y Telemática usan un único componente de cabecera y de tarjetas: mismos colores, tamaños, avatar y botones, que ya no se parten en dos líneas, e identificadores largos que no se cortan. Decision Center desaparece del menú y sus enlaces antiguos llevan a Control Tower. Artículos muestra solo el grid; el alta y la edición se abren en una ventana superpuesta con el botón «+ Nuevo artículo» o la tecla +, y permite «Crear y añadir otro» conservando cliente y unidad.",
     status: "Producción",
   },
   {

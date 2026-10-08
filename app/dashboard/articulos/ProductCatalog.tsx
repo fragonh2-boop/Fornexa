@@ -45,8 +45,10 @@ export default function ProductCatalog({ initialDemoCatalog }: { initialDemoCata
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [editorMessage, setEditorMessage] = useState("");
+  const [editorNotice, setEditorNotice] = useState("");
   const [editorOpen, setEditorOpen] = useState(false);
   const firstFieldRef = useRef<HTMLSelectElement>(null);
+  const dialogRef = useRef<HTMLFormElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
 
   const loadCatalog = useCallback(async () => {
@@ -83,6 +85,7 @@ export default function ProductCatalog({ initialDemoCatalog }: { initialDemoCata
     openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setDraft(next);
     setEditorMessage("");
+    setEditorNotice("");
     setEditorOpen(true);
   }
 
@@ -91,12 +94,14 @@ export default function ProductCatalog({ initialDemoCatalog }: { initialDemoCata
     openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setDraft({ ...EMPTY_DRAFT, ownerCustomerCode: activeCustomers[0]?.code ?? "", uomBase: catalog.uoms.some(item => item.code === "UN") ? "UN" : catalog.uoms[0]?.code ?? "" });
     setEditorMessage("");
+    setEditorNotice("");
     setEditorOpen(true);
   }, [catalog.canEdit, catalog.uoms, activeCustomers]);
 
   const closeEditor = useCallback(() => {
     setEditorOpen(false);
     setEditorMessage("");
+    setEditorNotice("");
     openerRef.current?.focus();
   }, []);
 
@@ -105,6 +110,14 @@ export default function ProductCatalog({ initialDemoCatalog }: { initialDemoCata
     function onKeyDown(event: KeyboardEvent) {
       if (editorOpen) {
         if (event.key === "Escape" && !saving) { event.preventDefault(); closeEditor(); }
+        if (event.key === "Tab" && dialogRef.current) {
+          // Keep keyboard focus inside the dialog while it is open.
+          const focusable = [...dialogRef.current.querySelectorAll<HTMLElement>("button, input, select, textarea, [href]")].filter(item => !item.hasAttribute("disabled"));
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          if (first && last && event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+          else if (first && last && !event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+        }
         return;
       }
       if (!isPlusShortcut(event) || event.repeat) return;
@@ -119,13 +132,30 @@ export default function ProductCatalog({ initialDemoCatalog }: { initialDemoCata
   }, [editorOpen, saving, catalog.canEdit, closeEditor, startNew]);
 
   useEffect(() => {
-    if (editorOpen) firstFieldRef.current?.focus();
+    if (!editorOpen) return;
+    firstFieldRef.current?.focus();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previousOverflow; };
   }, [editorOpen]);
+
+  function afterSave(text: string, keepOpen: boolean) {
+    if (keepOpen) {
+      setDraft(current => ({ ...EMPTY_DRAFT, ownerCustomerCode: current.ownerCustomerCode, uomBase: current.uomBase }));
+      setEditorMessage("");
+      setEditorNotice(`${text} Puedes dar de alta el siguiente.`);
+      firstFieldRef.current?.focus();
+      return;
+    }
+    setMessage(text);
+    closeEditor();
+  }
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!catalog.canEdit || saving) return;
-    if (initialDemoCatalog) { setEditorOpen(false); setMessage("Guardado simulado: no se han enviado ni persistido datos."); return; }
+    const keepOpen = !draft.id && (event.nativeEvent as SubmitEvent).submitter?.getAttribute("value") === "new";
+    if (initialDemoCatalog) { afterSave("Guardado simulado: no se han enviado ni persistido datos.", keepOpen); return; }
     setSaving(true);
     setEditorMessage("");
     try {
@@ -136,8 +166,7 @@ export default function ProductCatalog({ initialDemoCatalog }: { initialDemoCata
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error([result.error, ...(result.errors ?? [])].filter(Boolean).join(" ") || "No se pudo guardar el artículo.");
-      setMessage(draft.id ? `Artículo ${draft.sku} actualizado.` : `Artículo ${draft.sku} creado.`);
-      setEditorOpen(false);
+      afterSave(draft.id ? `Artículo ${draft.sku} actualizado.` : `Artículo ${draft.sku} creado.`, keepOpen);
       await loadCatalog();
     } catch (error) {
       setEditorMessage(error instanceof Error ? error.message : "No se pudo guardar el artículo.");
@@ -145,8 +174,6 @@ export default function ProductCatalog({ initialDemoCatalog }: { initialDemoCata
       setSaving(false);
     }
   }
-
-  const readOnlyDraft = !catalog.canEdit;
 
   return <div className={styles.page}>
     <ScreenHeader eyebrow="MAESTROS · PRODUCTOS" title="Artículos" description="Catálogo persistente por cliente. Las clasificaciones ADR siguen gestionándose desde el flujo regulatorio.">
@@ -174,28 +201,30 @@ export default function ProductCatalog({ initialDemoCatalog }: { initialDemoCata
     </section>
 
     {editorOpen && <div className={styles.overlay} onMouseDown={event => { if (event.target === event.currentTarget && !saving) closeEditor(); }}>
-      <form className={styles.editor} role="dialog" aria-modal="true" aria-labelledby="product-editor-title" onSubmit={save}>
+      <form ref={dialogRef} className={styles.editor} role="dialog" aria-modal="true" aria-labelledby="product-editor-title" onSubmit={save}>
         <div className={styles.editorHeader}><div><p>{draft.id ? "EDICIÓN" : "ALTA"}</p><h2 id="product-editor-title">{draft.id ? `Artículo ${draft.sku}` : "Nuevo artículo"}</h2></div><button type="button" className={styles.close} onClick={closeEditor} disabled={saving} aria-label="Cerrar">×</button></div>
         <div className={styles.fields}>
-          <label>Cliente propietario<select ref={firstFieldRef} required disabled={readOnlyDraft} value={draft.ownerCustomerCode} onChange={event => patchDraft("ownerCustomerCode", event.target.value)}><option value="">Seleccionar cliente</option>{activeCustomers.map(item => <option key={item.code} value={item.code}>{item.code} · {item.name}</option>)}</select></label>
-          <label>SKU<input required maxLength={100} disabled={readOnlyDraft} value={draft.sku} onChange={event => patchDraft("sku", event.target.value.toUpperCase())} /></label>
-          <label className={styles.wide}>Nombre comercial<input required minLength={2} maxLength={240} disabled={readOnlyDraft} value={draft.name} onChange={event => patchDraft("name", event.target.value)} /></label>
-          <label className={styles.wide}>Descripción<textarea maxLength={5000} disabled={readOnlyDraft} value={draft.description} onChange={event => patchDraft("description", event.target.value)} /></label>
-          <label>GTIN / EAN<input inputMode="numeric" pattern="(?:\d{8}|\d{12,14})" disabled={readOnlyDraft} value={draft.gtin} onChange={event => patchDraft("gtin", event.target.value.replace(/\D/g, "").slice(0, 14))} placeholder="8, 12, 13 o 14 dígitos" /></label>
-          <label>Unidad base<select required disabled={readOnlyDraft} value={draft.uomBase} onChange={event => patchDraft("uomBase", event.target.value)}>{catalog.uoms.map(item => <option key={item.code} value={item.code}>{item.code} · {item.name}</option>)}</select></label>
-          <label>Estado<select disabled={readOnlyDraft} value={draft.status} onChange={event => patchDraft("status", event.target.value as Draft["status"])}><option value="ACTIVE">Activo</option><option value="INACTIVE">Inactivo</option></select></label>
-          <label>Peso neto (kg)<input type="number" min="0" step="0.001" disabled={readOnlyDraft} value={draft.netWeightKg} onChange={event => patchDraft("netWeightKg", event.target.value)} /></label>
-          <label>Peso bruto (kg)<input type="number" min="0" step="0.001" disabled={readOnlyDraft} value={draft.grossWeightKg} onChange={event => patchDraft("grossWeightKg", event.target.value)} /></label>
-          <label>Largo (cm)<input type="number" min="0" step="0.01" disabled={readOnlyDraft} value={draft.lengthCm} onChange={event => patchDraft("lengthCm", event.target.value)} /></label>
-          <label>Ancho (cm)<input type="number" min="0" step="0.01" disabled={readOnlyDraft} value={draft.widthCm} onChange={event => patchDraft("widthCm", event.target.value)} /></label>
-          <label>Alto (cm)<input type="number" min="0" step="0.01" disabled={readOnlyDraft} value={draft.heightCm} onChange={event => patchDraft("heightCm", event.target.value)} /></label>
-          <label>Volumen (m³)<input type="number" min="0" step="0.0001" disabled={readOnlyDraft} value={draft.volumeM3} onChange={event => patchDraft("volumeM3", event.target.value)} /></label>
+          <label>Cliente propietario<select ref={firstFieldRef} required value={draft.ownerCustomerCode} onChange={event => patchDraft("ownerCustomerCode", event.target.value)}><option value="">Seleccionar cliente</option>{activeCustomers.map(item => <option key={item.code} value={item.code}>{item.code} · {item.name}</option>)}</select></label>
+          <label>SKU<input required maxLength={100} value={draft.sku} onChange={event => patchDraft("sku", event.target.value.toUpperCase())} /></label>
+          <label className={styles.wide}>Nombre comercial<input required minLength={2} maxLength={240} value={draft.name} onChange={event => patchDraft("name", event.target.value)} /></label>
+          <label className={styles.wide}>Descripción<textarea maxLength={5000} value={draft.description} onChange={event => patchDraft("description", event.target.value)} /></label>
+          <label>GTIN / EAN<input inputMode="numeric" pattern="(?:\d{8}|\d{12,14})" value={draft.gtin} onChange={event => patchDraft("gtin", event.target.value.replace(/\D/g, "").slice(0, 14))} placeholder="8, 12, 13 o 14 dígitos" /></label>
+          <label>Unidad base<select required value={draft.uomBase} onChange={event => patchDraft("uomBase", event.target.value)}>{catalog.uoms.map(item => <option key={item.code} value={item.code}>{item.code} · {item.name}</option>)}</select></label>
+          <label>Estado<select value={draft.status} onChange={event => patchDraft("status", event.target.value as Draft["status"])}><option value="ACTIVE">Activo</option><option value="INACTIVE">Inactivo</option></select></label>
+          <label>Peso neto (kg)<input type="number" min="0" step="0.001" value={draft.netWeightKg} onChange={event => patchDraft("netWeightKg", event.target.value)} /></label>
+          <label>Peso bruto (kg)<input type="number" min="0" step="0.001" value={draft.grossWeightKg} onChange={event => patchDraft("grossWeightKg", event.target.value)} /></label>
+          <label>Largo (cm)<input type="number" min="0" step="0.01" value={draft.lengthCm} onChange={event => patchDraft("lengthCm", event.target.value)} /></label>
+          <label>Ancho (cm)<input type="number" min="0" step="0.01" value={draft.widthCm} onChange={event => patchDraft("widthCm", event.target.value)} /></label>
+          <label>Alto (cm)<input type="number" min="0" step="0.01" value={draft.heightCm} onChange={event => patchDraft("heightCm", event.target.value)} /></label>
+          <label>Volumen (m³)<input type="number" min="0" step="0.0001" value={draft.volumeM3} onChange={event => patchDraft("volumeM3", event.target.value)} /></label>
         </div>
         {draft.id && <div className={styles.derived}><span>ADR: {currentHazardStatus}</span><span>Dimensiones: {draft.lengthCm || "—"} × {draft.widthCm || "—"} × {draft.heightCm || "—"} cm</span></div>}
+        {editorNotice && <p className={styles.editorNotice} role="status">{editorNotice}</p>}
         {editorMessage && <p className={styles.editorError} role="alert">{editorMessage}</p>}
         <div className={styles.editorActions}>
           <button type="button" className={screenButton.secondary} onClick={closeEditor} disabled={saving}>Cancelar</button>
-          <button type="submit" className={screenButton.primary} disabled={saving || !activeCustomers.length || !catalog.uoms.length}>{saving ? "Guardando…" : draft.id ? "Guardar cambios" : "Crear artículo"}</button>
+          {!draft.id && <button type="submit" name="saveMode" value="new" className={screenButton.secondary} disabled={saving || !activeCustomers.length || !catalog.uoms.length}>Crear y añadir otro</button>}
+          <button type="submit" name="saveMode" value="close" className={screenButton.primary} disabled={saving || !activeCustomers.length || !catalog.uoms.length}>{saving ? "Guardando…" : draft.id ? "Guardar cambios" : "Crear artículo"}</button>
         </div>
       </form>
     </div>}

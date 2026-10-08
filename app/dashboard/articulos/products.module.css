@@ -14,6 +14,7 @@
 .close{width:38px;height:38px;border:1px solid rgba(18,32,52,.12);border-radius:10px;background:#fff;color:var(--ui-muted);font-size:22px;line-height:1;cursor:pointer}
 .fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.fields label{font-size:13px;color:#344256;font-weight:800;display:grid;gap:6px}.fields input,.fields select,.fields textarea{box-sizing:border-box;width:100%;border:1px solid #cdd7e4;border-radius:9px;min-height:42px;padding:10px 11px;font:inherit;color:var(--ui-text);background:#fff}.fields textarea{min-height:82px;resize:vertical}.fields input:disabled,.fields select:disabled,.fields textarea:disabled{background:#f5f7fa;color:#647287}.wide{grid-column:1/-1}
 .derived{font-size:12px;color:var(--ui-muted);background:#f7f9fc;border-radius:9px;padding:10px;margin:16px 0;display:grid;gap:5px}
+.editorNotice{margin:16px 0 0;padding:11px 12px;border-radius:9px;background:var(--ui-success-soft);color:var(--ui-success);font-size:14px}
 .editorError{margin:16px 0 0;padding:11px 12px;border-radius:9px;background:var(--ui-error-soft);color:var(--ui-error);font-size:14px}
 .editorActions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid rgba(18,32,52,.1)}
 .srOnly{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
