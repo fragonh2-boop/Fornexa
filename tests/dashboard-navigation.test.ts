@@ -47,7 +47,7 @@ test("Control Tower uses one render view and never loads operational data from t
 test("production and demo use the same fourteen-module navigation hierarchy (Decision Center retired)", () => {
   assert.equal(dashboardNavigation.length, 14);
   assert.equal(new Set(dashboardNavigation.map(([, suffix]) => suffix)).size, 14);
-  assert.ok(!dashboardNavigation.some(([, suffix]) => suffix === "/decision-center"));
+  assert.ok(!dashboardNavigation.some(([, suffix]) => (suffix as string) === "/decision-center"));
   assert.deepEqual(dashboardNavigation.map(([label]) => label), ["Control Tower", "Partidas", "Expediciones", "Viajes", "Aduanas", "Ofertas y tarifas", "Clientes", "Artículos", "Colaboradores", "Almacenes", "Tracking", "ePOD & CMR", "Integraciones", "Informes"]);
   for (const [, suffix] of dashboardNavigation) {
     assert.equal(dashboardHref("/demo", suffix), dashboardHref("/dashboard", suffix).replace(/^\/dashboard/, "/demo"));
