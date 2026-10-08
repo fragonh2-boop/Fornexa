@@ -4,15 +4,20 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-08 — UX92: pantallas homogéneas, Decision Center retirado, Artículos con alta en ventana
+- **Área:** Web / UX
+- **Estado:** EN CURSO (Claude): implementación en PR; pendiente CI, revisiones exact-HEAD, prueba visual, merge y producción
+- **Criterio de cierre:** las 14 pantallas del menú con la misma cabecera, botones y tarjetas que Control Tower; Decision Center fuera del menú y sus rutas llevan a Control Tower; Artículos solo con grid y alta/edición en ventana superpuesta (botón y tecla +); producción READY del SHA integrado con alias `fornexasc.com`.
+
 ### 2026-10-08 — Paridad estricta de menú lateral y layout responsive (UX91-LEFT-SIDEBAR-PARITY-20261008)
 - **Área:** Web / UX / Responsive / Shell
-- **Estado:** EN EJECUCIÓN (GEMINI); IMPLEMENTACIÓN REALIZADA; CONTROLES LOCALES, CI Y REVISIONES EXACT-HEAD PENDIENTES
+- **Estado:** CERRADO EN PRODUCCIÓN — PR #91 integrada como `dbe0174` (8 oct) y desplegada
 - **Alcance:** El menú lateral de navegación debe permanecer a la izquierda en todos los viewports responsive (≤760px, 701px y móvil) con layout fiel al de producción; purga de sidebars interiores en 6 vistas secundarias (`CustomsListView`, `CmrListView`, `ModuleView`, `ImportWorkspace`, `VelocityClient`, `RecordEditor`) y limpieza de reglas hack CSS.
 - **Criterio de cierre:** Tests, types, lint, build, memorandum y diff-check en verde; revisiones independientes completas de Claude y DeepSeek exact-HEAD con 0 MUST y MERGE: YES; validación visual de paridad a igualdad de zoom/viewport; merge normal y despliegue Preview/producción.
 
 ### 2026-10-08 — Cierre UX y paridad de demo
 - **Área:** Web / UX / Preview
-- **Estado:** PR #91 DRAFT; CÓDIGO CORREGIDO CON 195 TESTS/TYPES/LINT/BUILD/CI VERDES Y PREVIEW READY; CHECKPOINT POSTERIOR REQUIERE CI/REVISIÓN DEL HEAD FINAL; SIN MERGE/DEPLOY PRODUCTIVO
+- **Estado:** CERRADO EN PRODUCCIÓN — PR #91 integrada como `dbe0174` (8 oct) y desplegada
 - **Alcance:** mismo shell, 15 módulos, navegación, pantallas y formularios que producción; datos ficticios y acciones simuladas solo en Preview habilitado. Contraste, títulos, botones, paneles y responsive según Control Tower.
 - **Criterio de cierre:** tipos/lint/tests/build, revisiones Claude y DeepSeek exact-HEAD, CI, prueba visual de escritorio/móvil y navegación sin rutas rotas; merge seguido de producción READY del SHA integrado y alias/runtime verificados. `/demo` debe ser inaccesible en producción incluso con flag activado.
 - **Checkpoint:** `docs/ai/UX-CHECKPOINT.md`. No se cierra con fuente, build o Preview únicamente. Sin cambios SQL ni pruebas con escrituras reales de negocio.

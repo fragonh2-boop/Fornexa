@@ -1,6 +1,6 @@
-import DecisionCenterView from "../../dashboard/decision-center/DecisionCenterView";
-import { previewDemoDecisions } from "@/lib/preview-demo-specialized";
+import { redirect } from "next/navigation";
 
-export default function DemoDecisionCenterPage() {
-  return <DecisionCenterView data={previewDemoDecisions} basePath="/demo" simulation />;
+// Decision Center was retired on 8 Oct 2026; old demo links land on the demo Control Tower.
+export default function RetiredDemoDecisionCenterPage() {
+  redirect("/demo");
 }

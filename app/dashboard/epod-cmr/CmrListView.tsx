@@ -1,5 +1,6 @@
 import Link from "next/link";
 import DataGrid, { type GridColumn, type GridRow } from "../../components/DataGrid";
+import { MetricGrid, ScreenHeader, screenButton } from "../../components/ScreenChrome";
 import styles from "./cmr.module.css";
 
 const columns: GridColumn[] = [
@@ -25,23 +26,15 @@ export default function CmrListView({ rows, basePath = "/dashboard" }: {
 
   return <main className={styles.shell}>
     <section className={styles.content}>
-      <header className={styles.header}>
-        <div>
-          <p className={styles.eyebrow}>DOCUMENTACIÓN DIGITAL</p>
-          <h1>ePOD & CMR</h1>
-          <p>Generación, firma, reservas, evidencias y cierre documental del transporte.</p>
-        </div>
-        <div className={styles.actions}>
-          <Link href={`${basePath}/epod-cmr/nuevo`} className={styles.primary}>+ Nuevo CMR</Link>
-          <div className={styles.avatar}>FG</div>
-        </div>
-      </header>
+      <ScreenHeader eyebrow="DOCUMENTACIÓN DIGITAL" title="ePOD & CMR" description="Generación, firma, reservas, evidencias y cierre documental del transporte.">
+        <Link href={`${basePath}/epod-cmr/nuevo`} className={screenButton.primary}>+ Nuevo CMR</Link>
+      </ScreenHeader>
 
-      <section className={styles.metrics}>
-        <article><span>Documentos activos</span><strong>{metrics.activos}</strong></article>
-        <article><span>Pendientes de firma</span><strong>{metrics.pendientes}</strong></article>
-        <article><span>Con reservas</span><strong>{metrics.reservas}</strong></article>
-      </section>
+      <MetricGrid items={[
+        { label: "Documentos activos", value: metrics.activos },
+        { label: "Pendientes de firma", value: metrics.pendientes },
+        { label: "Con reservas", value: metrics.reservas },
+      ]} />
 
       <section className={styles.panel}>
         <div className={styles.panelHeader}>

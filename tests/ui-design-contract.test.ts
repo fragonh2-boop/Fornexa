@@ -96,45 +96,72 @@ test("email feedback and integration codes consume readable status tokens", () =
   assert.equal(rule("app/dashboard/integraciones/telematica/telematica.module.css", ".fields code").get("color"), "var(--ui-accent)");
 });
 
-test("priority screen titles consume the shared desktop scale", () => {
+test("screens that keep their own header consume the shared desktop title scale", () => {
   for (const [file, selector] of [
-    ["app/dashboard/articulos/products.module.css", ".header h1"],
-    ["app/dashboard/clientes/customers.module.css", ".page header h1"],
-    ["app/dashboard/expediciones/expediciones.module.css", ".header h1"],
-    ["app/dashboard/epod-cmr/cmr.module.css", ".header h1"],
     ["app/dashboard/importar/import.module.css", ".header h1"],
-    ["app/dashboard/aduanas/customs.module.css", ".header h1"],
-    ["app/dashboard/integraciones/integraciones.module.css", ".header h1"],
-    ["app/dashboard/integraciones/telematica/telematica.module.css", ".header h1"],
     ["app/dashboard/registros/[module]/[id]/record.module.css", ".content header h1"],
-    ["app/dashboard/[module]/module.module.css", ".header h1"],
-    ["app/dashboard/decision-center/decision-center.module.css", ".header h1"],
   ]) assert.equal(rule(file, selector).get("font-size"), "var(--ui-title-size)", file);
 });
 
-test("desktop KPI column counts follow actual contents, not a blanket four-column rule", () => {
-  const cases = [
-    ["app/dashboard/expediciones/expediciones.module.css", "app/dashboard/expediciones/ExpedicionesListView.tsx", 4],
-    ["app/dashboard/epod-cmr/cmr.module.css", "app/dashboard/epod-cmr/CmrListView.tsx", 3],
-    ["app/dashboard/integraciones/telematica/telematica.module.css", "app/dashboard/integraciones/telematica/TelematicsHubView.tsx", 5],
-    ["app/dashboard/decision-center/decision-center.module.css", "app/dashboard/decision-center/DecisionCenterView.tsx", 4],
-  ] as const;
-  for (const [cssFile, componentFile, count] of cases) {
-    const component = source(componentFile);
-    const section = component.match(/<section className=\{styles\.metrics\}>([\s\S]*?)<\/section>/);
-    assert.ok(section, `${componentFile}: missing metrics section`);
-    assert.equal(section[1].match(/<article[\s>]/g)?.length, count, componentFile);
-    assert.match(rule(cssFile, ".metrics").get("grid-template-columns") ?? "", new RegExp(`^repeat\\(${count},`), cssFile);
-    assert.match(source(cssFile), /@media\(max-width:/, `${cssFile}: responsive rules required`);
+const sharedChrome = "app/components/screen.module.css";
+const moduleScreens = [
+  "app/components/ControlTowerView.tsx",
+  "app/dashboard/partidas/PartidasListView.tsx",
+  "app/dashboard/expediciones/ExpedicionesListView.tsx",
+  "app/dashboard/viajes/ViajesListView.tsx",
+  "app/dashboard/aduanas/CustomsListView.tsx",
+  "app/dashboard/[module]/ModuleView.tsx",
+  "app/dashboard/clientes/CustomersListView.tsx",
+  "app/dashboard/articulos/ProductCatalog.tsx",
+  "app/dashboard/epod-cmr/CmrListView.tsx",
+  "app/dashboard/integraciones/IntegracionesClient.tsx",
+  "app/dashboard/integraciones/telematica/TelematicsHubView.tsx",
+];
+
+test("every module screen renders the shared Control Tower header and KPI cards", () => {
+  for (const file of moduleScreens) {
+    const component = source(file);
+    assert.match(component, /<ScreenHeader\b/, `${file}: shared header`);
+    assert.match(component, /<MetricGrid\b/, `${file}: shared KPI cards`);
+    assert.doesNotMatch(component, /className=\{styles\.(avatar|metrics|primary|secondary|primaryLink|secondaryLink)\}/, `${file}: no local header chrome`);
+    assert.doesNotMatch(component, />FG</, `${file}: avatar comes from ScreenHeader`);
   }
+});
+
+test("shared chrome consumes the Control Tower tokens", () => {
+  assert.equal(rule(sharedChrome, ".title").get("font-size"), "var(--ui-title-size)");
+  assert.equal(rule(sharedChrome, ".eyebrow").get("font-size"), "var(--ui-eyebrow-size)");
+  const button = rule(sharedChrome, ".button");
+  assert.equal(button.get("padding"), "var(--ui-button-padding)");
+  assert.equal(button.get("border-radius"), "var(--ui-button-radius)");
+  assert.equal(button.get("white-space"), "nowrap", "action labels never break into two lines");
+  assert.equal(rule(sharedChrome, ".primary").get("background"), "var(--ui-accent)");
+  assert.equal(rule(sharedChrome, ".secondary").get("background"), "var(--ui-surface)");
+  const avatar = rule(sharedChrome, ".avatar");
+  assert.equal(avatar.get("width"), "var(--ui-avatar-size)");
+  assert.equal(avatar.get("height"), "var(--ui-avatar-size)");
+  assert.equal(avatar.get("background"), "#dce7f2");
+  const metric = rule(sharedChrome, ".metric");
+  assert.equal(metric.get("background"), "linear-gradient(180deg,#f5f7fb,#f8fafc)");
+  const value = rule(sharedChrome, ".metricValue");
+  assert.equal(value.get("font-size"), "var(--ui-metric-size)");
+  assert.equal(value.get("white-space"), "nowrap", "identifiers such as VJ-26000002 never split");
+  const panel = rule(sharedChrome, ".panel");
+  assert.equal(panel.get("padding"), "var(--ui-panel-padding)");
+  assert.equal(panel.get("border-radius"), "var(--ui-panel-radius)");
+  assert.match(rule(sharedChrome, ".metrics").get("grid-template-columns") ?? "", /^repeat\(var\(--metric-count,4\),/);
+  const css = source(sharedChrome);
+  assert.match(css, /\.button:focus-visible[^{]*\{outline:2px solid var\(--ui-focus\)/);
+  assert.match(css, /\.button:disabled\{[^}]*color:var\(--ui-muted\)/);
+  assert.match(css, /@media\(max-width:760px\)/);
+  assert.doesNotMatch(css, /!important/);
 });
 
 test("targeted controls retain explicit focus and readable disabled states", () => {
   for (const file of [
     "app/dashboard/importar/import.module.css", "app/dashboard/aduanas/customs.module.css",
     "app/dashboard/registros/[module]/[id]/record.module.css", "app/dashboard/articulos/products.module.css",
-    "app/dashboard/integraciones/integraciones.module.css",
-    "app/dashboard/[module]/module.module.css", "app/dashboard/decision-center/decision-center.module.css",
+    "app/dashboard/integraciones/integraciones.module.css", "app/dashboard/[module]/module.module.css",
   ]) {
     const css = source(file);
     assert.match(css, /:focus-visible\{outline:2px solid var\(--ui-focus\)/, file);
@@ -142,42 +169,12 @@ test("targeted controls retain explicit focus and readable disabled states", () 
   }
 });
 
-test("generic lists and Decision Center consume the same avatar, panel and metric dimensions", () => {
-  for (const [file, metricSelector, buttonSelector] of [
-    ["app/dashboard/[module]/module.module.css", ".stats strong", ".primaryLink"],
-    ["app/dashboard/decision-center/decision-center.module.css", ".metrics b", ".headerActions button"],
-  ]) {
-    const avatar = rule(file, ".avatar");
-    assert.equal(avatar.get("width"), "var(--ui-avatar-size)", file);
-    assert.equal(avatar.get("height"), "var(--ui-avatar-size)", file);
-    const panel = rule(file, ".panel");
-    assert.equal(panel.get("padding"), "var(--ui-panel-padding)", file);
-    assert.equal(panel.get("border-radius"), "var(--ui-panel-radius)", file);
-    assert.equal(rule(file, metricSelector).get("font-size"), "var(--ui-metric-size)", file);
-    const button = rule(file, buttonSelector);
-    assert.equal(button.get("padding"), "var(--ui-button-padding)", file);
-    assert.equal(button.get("border-radius"), "var(--ui-button-radius)", file);
-    assert.doesNotMatch(source(file), /!important/, `${file}: scoped contracts do not need forced overrides`);
-    assert.match(source(file), /@media\(max-width:760px\)/, `${file}: mobile layout required`);
-  }
-  assert.match(rule("app/dashboard/[module]/module.module.css", ".stats").get("grid-template-columns") ?? "", /^repeat\(3,/);
-});
-
-test("Decision Center priorities and route states use readable status pairs", () => {
-  for (const [file, selector, foreground, background] of [
-    ["app/dashboard/decision-center/decision-center.module.css", ".critica", "--ui-error", "--ui-error-soft"],
-    ["app/dashboard/decision-center/decision-center.module.css", ".alta", "--ui-warning", "--ui-warning-soft"],
-    ["app/dashboard/decision-center/route-planning.module.css", ".ok", "--ui-success", "--ui-success-soft"],
-    ["app/dashboard/decision-center/route-planning.module.css", ".warn", "--ui-warning", "--ui-warning-soft"],
-    ["app/dashboard/decision-center/route-planning.module.css", ".blocked", "--ui-error", "--ui-error-soft"],
-  ]) {
-    const props = rule(file, selector);
-    assert.equal(props.get("color"), `var(${foreground})`, selector);
-    assert.equal(props.get("background"), `var(${background})`, selector);
-  }
-  const file = "app/dashboard/decision-center/decision-center.module.css";
-  for (const [selector, foreground] of [[".metrics .okText", "--ui-success"], [".metrics .warnText", "--ui-warning"], [".metrics .blockText", "--ui-error"]]) {
-    assert.equal(rule(file, selector).get("color"), `var(${foreground})`, selector);
-  }
-  assert.equal(rule("app/dashboard/decision-center/route-planning.module.css", ".routeHead>span").get("color"), "var(--ui-muted)");
+test("Artículos shows only the grid; creation opens an overlay from the button or the + shortcut", () => {
+  const catalog = source("app/dashboard/articulos/ProductCatalog.tsx");
+  assert.match(catalog, /\{editorOpen && <div className=\{styles\.overlay\}/);
+  assert.match(catalog, /role="dialog" aria-modal="true"/);
+  assert.match(catalog, /isPlusShortcut\(event\)/);
+  assert.match(catalog, /event\.key === "Escape"/);
+  assert.match(catalog, /onClick=\{startNew\}/);
+  assert.equal(rule("app/dashboard/articulos/products.module.css", ".overlay").get("position"), "fixed");
 });

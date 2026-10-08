@@ -1,7 +1,7 @@
-"use client";
+import type { ReactNode } from "react";
+import styles from "./screen.module.css";
 
-export default function AppShell({children}:{children:React.ReactNode}){
-  return <main style={{minHeight:"100vh",width:"100%",minWidth:0,maxWidth:"100%",background:"#eef3f9",color:"#101216"}}>
-    <section style={{minWidth:0,width:"100%",maxWidth:"100%",padding:"34px 38px 50px",overflowX:"hidden"}}>{children}</section>
-  </main>;
+/** Page frame shared by module screens; spacing matches Control Tower. */
+export default function AppShell({ children }: { children: ReactNode }) {
+  return <main className={styles.page}><section className={styles.pageContent}>{children}</section></main>;
 }

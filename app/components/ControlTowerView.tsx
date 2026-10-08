@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { dashboardHref, type DashboardBasePath } from "./DashboardNavigation";
+import { MetricGrid, ScreenHeader, screenButton } from "./ScreenChrome";
 import styles from "../dashboard/dashboard.module.css";
 
 export type ControlTowerOverview = {
@@ -22,28 +23,12 @@ export default function ControlTowerView({ data, illustrative = false, basePath 
   return (
     <main className={`${styles.shell} ${styles.sharedShell}`}>
       <section className={styles.content}>
-        <header className={styles.header}>
-          <div>
-            <p className={styles.eyebrow}>CONTROL TOWER</p>
-            <h1>Resumen operativo</h1>
-            <p>Resumen operativo de tu cadena de suministro.</p>
-          </div>
-          <div className={styles.actions}>
-            <Link href={href("/decision-center")} prefetch={prefetch} className={`${styles.actionButton} ${styles.secondary}`}>Decisiones IA</Link>
-            <Link href={href("/importar")} prefetch={prefetch} className={`${styles.actionButton} ${styles.secondary}`}>Importar Excel</Link>
-            <Link href={href("/nuevo/partida")} prefetch={prefetch} className={styles.actionButton}>+ Nueva partida</Link>
-            <div className={styles.avatar}>FG</div>
-          </div>
-        </header>
+        <ScreenHeader eyebrow="CONTROL TOWER" title="Resumen operativo" description="Resumen operativo de tu cadena de suministro.">
+          <Link href={href("/importar")} prefetch={prefetch} className={screenButton.secondary}>Importar Excel</Link>
+          <Link href={href("/nuevo/partida")} prefetch={prefetch} className={screenButton.primary}>+ Nueva partida</Link>
+        </ScreenHeader>
         {data.readError && <p role="alert" className={styles.itemState}>No se han podido leer los datos operativos. Las cifras no están disponibles en este momento.</p>}
-        <section className={styles.metrics}>
-          {data.metrics.map(([value, label, note]) => (
-            <article key={label}>
-              <div className={styles.metricTop}><span>{label}</span><strong>{note}</strong></div>
-              <b>{value}</b>
-            </article>
-          ))}
-        </section>
+        <MetricGrid items={data.metrics.map(([value, label, note]) => ({ label, value, note }))} />
         <section className={styles.operationsGrid}>
           <article className={styles.panel}>
             <div className={styles.panelTitle}>

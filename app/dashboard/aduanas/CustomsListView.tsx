@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MetricGrid, ScreenHeader, screenButton } from "../../components/ScreenChrome";
 import styles from "./customs.module.css";
 
 export type CustomsListItem = {
@@ -28,17 +29,17 @@ export default function CustomsListView({ cases, basePath = "/dashboard" }: {
   return (
     <main className={styles.shell}>
       <section className={styles.content}>
-        <header className={styles.header}>
-          <div><p className={styles.eyebrow}>CUSTOMS CONTROL</p><h1>Cadena documental aduanera</h1><p>{demo ? "Expedientes aduaneros ficticios, MRN, sistema, estado y trazabilidad." : "Expedientes aduaneros reales, MRN, sistema, estado y trazabilidad."}</p></div>
-          <div className={styles.headerActions}><Link href={`${basePath}/importar?entidad=aduanas`} className={styles.secondary}>Importar documentos</Link><Link href={`${basePath}/registros/aduanas/nuevo`}>+ Nuevo expediente</Link><div className={styles.avatar}>FG</div></div>
-        </header>
+        <ScreenHeader eyebrow="CUSTOMS CONTROL" title="Cadena documental aduanera" description={demo ? "Expedientes aduaneros ficticios, MRN, sistema, estado y trazabilidad." : "Expedientes aduaneros reales, MRN, sistema, estado y trazabilidad."}>
+          <Link href={`${basePath}/importar?entidad=aduanas`} className={screenButton.secondary}>Importar documentos</Link>
+          <Link href={`${basePath}/registros/aduanas/nuevo`} className={screenButton.primary}>+ Nuevo expediente</Link>
+        </ScreenHeader>
 
-        <section className={styles.metrics}>
-          <article><span>Expedientes abiertos</span><strong>{open}</strong><small>{imports} import · {exports} export</small></article>
-          <article><span>Pendientes de Aduana</span><strong>{pendingCustoms}</strong><small>Presentados, aceptados o en control</small></article>
-          <article><span>Total expedientes</span><strong>{cases.length}</strong><small>{demo ? "Ejemplos ficticios" : "Persistidos en FORNEXA"}</small></article>
-          <article><span>Última actualización</span><strong>{selected?.updatedAt ?? "—"}</strong><small>{demo ? "Dato ficticio" : "Dato real"}</small></article>
-        </section>
+        <MetricGrid items={[
+          { label: "Expedientes abiertos", value: open, detail: `${imports} import · ${exports} export` },
+          { label: "Pendientes de Aduana", value: pendingCustoms, detail: "Presentados, aceptados o en control" },
+          { label: "Total expedientes", value: cases.length, detail: demo ? "Ejemplos ficticios" : "Persistidos en FORNEXA" },
+          { label: "Última actualización", value: selected?.updatedAt.split(", ")[0] || "—", text: true, detail: [selected?.updatedAt.split(", ")[1], demo ? "Dato ficticio" : "Dato real"].filter(Boolean).join(" · ") },
+        ]} />
 
         <section className={styles.workspace}>
           <article className={styles.inbox}>
