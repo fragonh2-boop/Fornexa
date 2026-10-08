@@ -6,7 +6,7 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ### 2026-10-08 — UX92: pantallas homogéneas, Decision Center retirado, Artículos con alta en ventana
 - **Área:** Web / UX
-- **Estado:** EN CURSO (Claude): implementación en PR; pendiente CI, revisiones exact-HEAD, prueba visual, merge y producción
+- **Estado:** INTEGRADO Y DESPLEGADO — PR #97 squash `5a39929` (8 oct). Revisiones exact-HEAD `cb9cd0e`: DeepSeek y Gemini MERGE YES, 0 MUST. Vercel producción READY del SHA integrado con alias `fornexasc.com`; `/demo` 404 en producción; sin errores de runtime. Pendiente: validación de Fran en producción
 - **Criterio de cierre:** las 14 pantallas del menú con la misma cabecera, botones y tarjetas que Control Tower; Decision Center fuera del menú y sus rutas llevan a Control Tower; Artículos solo con grid y alta/edición en ventana superpuesta (botón y tecla +); producción READY del SHA integrado con alias `fornexasc.com`.
 
 ### 2026-10-08 — Paridad estricta de menú lateral y layout responsive (UX91-LEFT-SIDEBAR-PARITY-20261008)
