@@ -4,6 +4,12 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-08 — Paridad estricta de menú lateral y layout responsive (UX91-LEFT-SIDEBAR-PARITY-20261008)
+- **Área:** Web / UX / Responsive / Shell
+- **Estado:** EN EJECUCIÓN (GEMINI); IMPLEMENTACIÓN REALIZADA; CONTROLES LOCALES, CI Y REVISIONES EXACT-HEAD PENDIENTES
+- **Alcance:** El menú lateral de navegación debe permanecer a la izquierda en todos los viewports responsive (≤760px, 701px y móvil) con layout fiel al de producción; purga de sidebars interiores en 6 vistas secundarias (`CustomsListView`, `CmrListView`, `ModuleView`, `ImportWorkspace`, `VelocityClient`, `RecordEditor`) y limpieza de reglas hack CSS.
+- **Criterio de cierre:** Tests, types, lint, build, memorandum y diff-check en verde; revisiones independientes completas de Claude y DeepSeek exact-HEAD con 0 MUST y MERGE: YES; validación visual de paridad a igualdad de zoom/viewport; merge normal y despliegue Preview/producción.
+
 ### 2026-10-08 — Cierre UX y paridad de demo
 - **Área:** Web / UX / Preview
 - **Estado:** PR #91 DRAFT; CÓDIGO CORREGIDO CON 195 TESTS/TYPES/LINT/BUILD/CI VERDES Y PREVIEW READY; CHECKPOINT POSTERIOR REQUIERE CI/REVISIÓN DEL HEAD FINAL; SIN MERGE/DEPLOY PRODUCTIVO

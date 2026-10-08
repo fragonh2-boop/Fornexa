@@ -1,10 +1,8 @@
 # UX y paridad de Preview — checkpoint de implementación
 
-Fecha: 2026-10-08 (CEST). Responsable: FornexaGPT. Estado: **PR draft actualizada, no integrada ni desplegada en producción**.
+Fecha: 2026-10-08 (CEST). Responsable: Gemini (ejecutor delegado). Coordinación: FornexaGPT. Estado: **Implementación de paridad de barra lateral izquierda y saneamiento de vistas completada; controles y revisiones exact-HEAD en curso**.
 
-Última verificación: `046813d3bab92cd232141ac69fb4226ce20af8fc`, 122 archivos sobre main. 195/195 tests, types, lint (0 errores / 7 advertencias), build y gate de memorándum PASS en worktree temporal limpio; CI validate success (run 37700048442), Preview READY exacta y alias de rama sin error. Este checkpoint posterior cambia el HEAD: comprobar CI/Preview final y usar el nuevo SHA en ambas revisiones. Código funcional sin cambios adicionales; se actualiza únicamente documentación y cobertura pública.
-
-Bloqueo de cierre: autorización específica de acceso privado Preview solicitada a Fran, sin cambios de protección; sesión DeepSeek legítima o ampliación explícita del bridge por bloques, también consultada. Claude Desktop no mostró recepción y su ventana no admite interacción en el control disponible. No inferir que alguna IA esté trabajando. FornexaGPT es responsable de reanudar con el candidato conservado cuando se resuelva el acceso; no tocar trabajo ajeno ni hacer merge con gates incompletos.
+Criterio vinculante de Fran (8 oct 2026): El menú lateral DEBE permanecer a la izquierda en responsive igual que en producción (incluyendo ≤760px, 701px y móvil); nunca convertirse en menú horizontal superior. Preview preserva fielmente el layout productivo (shell, orden, jerarquía, acciones y geometría). Se eliminan las barras laterales redundantes en las 6 vistas secundarias (`CustomsListView`, `CmrListView`, `ModuleView`, `ImportWorkspace`, `VelocityClient`, `RecordEditor`) y se limpian las reglas de hack CSS asociadas.
 
 - Base verificada: `origin/main` `85d34e05d33efe2639cdca46f56c69d310a7403a`.
 - Worktree aislado: rama local `codex/ux-production-parity`, remota `codex/preview-demo-screens`, PR #91 contra main. Candidato anterior `764b167c0d06ad09ef59f71a83ce6d6128d3c417` sustituye la demo reducida rechazada y tiene CI/Preview verdes. Correcciones posteriores invalidan esos gates para el siguiente HEAD.

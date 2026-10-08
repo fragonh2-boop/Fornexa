@@ -4,8 +4,6 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import styles from "./velocity.module.css";
 
-const nav = [["Control Tower","/dashboard"],["Partidas","/dashboard/partidas"],["Expediciones","/dashboard/expediciones"],["Viajes","/dashboard/viajes"],["Ofertas y tarifas","/dashboard/ofertas-tarifas"],["Clientes","/dashboard/clientes"],["Colaboradores","/dashboard/colaboradores"],["Almacenes","/dashboard/almacenes"],["Tracking","/dashboard/tracking"],["ePOD & CMR","/dashboard/epod-cmr"],["Informes","/dashboard/informes"]] as const;
-
 const vehicles = [
   {name:"Furgón",kg:900,m3:17,pallets:6,r70:70,r100:90,national:0.48,international:0.56,hour:30,mahon:1420,palma:1050,features:"Cierres de seguridad · Precintable · GPS"},
   {name:"Carrozado",kg:750,m3:20,pallets:8,r70:90,r100:110,national:0.56,international:0.65,hour:30,mahon:1840,palma:1240,features:"Caja cerrada o lona · Plataforma · Transpaleta · GPS"},
@@ -48,7 +46,6 @@ export default function VelocityClient({ basePath = "/dashboard", simulation = f
   },[selected,scope,distance,adr,night,weekend,roundTrip,documents]);
 
   return <main className={styles.shell}>
-    <aside className={styles.sidebar}><Link href={basePath} className={styles.brand}>FORNEXA</Link><nav>{nav.map(([label,href])=><Link key={href} className={label==="Colaboradores"?styles.active:""} href={href.replace("/dashboard",basePath)}>{label}</Link>)}</nav><div className={styles.footer}><span>FORNEXA Suite</span><small>Entorno de demostración</small></div></aside>
     <section className={styles.content}>
       <header className={styles.header}><div><p>COLABORADOR · TARIFA 2026</p><h1>{simulation?"Colaborador ficticio de muestra":"Velocity Transinternacional"}</h1><span>Configuración integral de colaborador, flota, cobertura, tarifas, suplementos, certificaciones y condiciones.</span></div><div className={styles.actions}><Link href={`${basePath}/colaboradores`} className={styles.secondary}>Volver</Link><button>Editar colaborador</button><div className={styles.avatar}>FG</div></div></header>
 

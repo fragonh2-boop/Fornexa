@@ -27,22 +27,6 @@ export default function CustomsListView({ cases, basePath = "/dashboard" }: {
 
   return (
     <main className={styles.shell}>
-      <aside className={styles.sidebar}>
-        <Link href={basePath} className={styles.brand}>FORNEXA</Link>
-        <nav className={styles.nav}>
-          <Link href={basePath}>Control Tower</Link>
-          <Link href={`${basePath}/decision-center`}>Decision Center</Link>
-          <Link href={`${basePath}/partidas`}>Partidas</Link>
-          <Link href={`${basePath}/expediciones`}>Expediciones</Link>
-          <Link href={`${basePath}/viajes`}>Viajes</Link>
-          <Link className={styles.active} href={`${basePath}/aduanas`}>Aduanas</Link>
-          <Link href={`${basePath}/epod-cmr`}>ePOD & CMR</Link>
-          <Link href={`${basePath}/integraciones`}>Integraciones</Link>
-          <Link href={`${basePath}/informes`}>Informes</Link>
-        </nav>
-        <div className={styles.sidebarFooter}><span>España · CAU</span><small>{demo ? "Datos ficticios de demostración" : "Datos reales de Supabase"}</small></div>
-      </aside>
-
       <section className={styles.content}>
         <header className={styles.header}>
           <div><p className={styles.eyebrow}>CUSTOMS CONTROL</p><h1>Cadena documental aduanera</h1><p>{demo ? "Expedientes aduaneros ficticios, MRN, sistema, estado y trazabilidad." : "Expedientes aduaneros reales, MRN, sistema, estado y trazabilidad."}</p></div>

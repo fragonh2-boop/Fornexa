@@ -2,6 +2,16 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-08 — Paridad estricta de menú lateral y layout responsive (UX91-LEFT-SIDEBAR-PARITY-20261008)
+
+- **Decisión vinculante de Fran (8 oct 2026):** El menú de navegación debe permanecer en el lateral IZQUIERDO en responsive (≤760px, 701px y móvil), exactamente igual que en producción; NUNCA transformarse en barra superior horizontal. Preview debe conservar estrictamente el layout productivo (shell, orden, jerarquía, acciones y geometría).
+- **Ejecutor delegado:** Gemini (Antigravity) en worktree aislado `/tmp/fornexa-gemini-ux91`, rama `gemini/ux91-sidebar-parity` sobre PR #91.
+- **Implementación técnica:**
+  1. `app/dashboard/layout.module.css`: eliminación de la conversión a menú superior en `@media (max-width: 760px)` y retención de rejilla de 2 columnas con `--dashboard-sidebar-width` adaptativo (`200px` a ≤760px y `175px` a ≤520px) con navegación vertical e indicador footer visible. Eliminación del selector hack `:global(main > aside:first-child:has(nav))`.
+  2. Eliminación de `<aside className={styles.sidebar}>` duplicados en las 6 vistas secundarias (`CustomsListView`, `CmrListView`, `ModuleView`, `ImportWorkspace`, `VelocityClient`, `RecordEditor`) y ajuste de `.shell { display: block; }` en sus respectivos archivos CSS modulares.
+  3. Incorporación de la regla vinculante en `AGENTS.md`, reconciliación en `docs/ai/UX-CHECKPOINT.md`, `docs/pending-log.md` y registro en `lib/memorandum.ts`.
+- **Estado de PR:** PR #91 en `fragonh2-boop/Fornexa`, rama remota `codex/preview-demo-screens`.
+
 ## 2026-10-08 — UX y demo con estructura productiva
 
 - **Último checkpoint verificado:** candidato `046813d3bab92cd232141ac69fb4226ce20af8fc`, PR #91 draft, 122 archivos contra main. Worktree temporal limpio: 195/195 tests, types, lint (0 errores / 7 advertencias), build y gate de memorándum PASS. CI `validate` success (run `37700048442`); Preview Vercel READY del mismo SHA, alias de rama sin error. Este checkpoint documental y actualización de cobertura generan otro HEAD: volver a comprobar su CI/Preview y exigir revisiones de ese SHA antes de merge. No hay integración ni nuevo despliegue de producción.

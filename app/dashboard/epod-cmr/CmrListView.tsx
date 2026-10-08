@@ -12,17 +12,6 @@ const columns: GridColumn[] = [
   { key: "reservas", label: "Reservas" },
   { key: "estado", label: "Estado" },
 ];
-
-const nav = [
-  ["Control Tower", ""],
-  ["Partidas", "/partidas"],
-  ["Expediciones", "/expediciones"],
-  ["Viajes", "/viajes"],
-  ["Clientes", "/clientes"],
-  ["Colaboradores", "/colaboradores"],
-  ["ePOD & CMR", "/epod-cmr"],
-] as const;
-
 export default function CmrListView({ rows, basePath = "/dashboard" }: {
   rows: GridRow[];
   basePath?: "/dashboard" | "/demo";
@@ -35,11 +24,6 @@ export default function CmrListView({ rows, basePath = "/dashboard" }: {
   };
 
   return <main className={styles.shell}>
-    <aside className={styles.sidebar}>
-      <Link href={basePath} className={styles.brand}>FORNEXA</Link>
-      <nav>{nav.map(([label, href]) => <Link key={href} href={`${basePath}${href}`} className={href === "/epod-cmr" ? styles.active : ""}>{label}</Link>)}</nav>
-    </aside>
-
     <section className={styles.content}>
       <header className={styles.header}>
         <div>

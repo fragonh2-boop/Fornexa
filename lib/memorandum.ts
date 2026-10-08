@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "08 oct 2026";
-export const memorandumCommitCoverage = 593;
+export const memorandumCommitCoverage = 594;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -102,6 +102,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.10.08-2",
+    date: "8 oct 2026",
+    surface: ["Web"],
+    title: "Paridad estricta de menú lateral y layout responsive",
+    purpose: "Garantizar que el menú lateral se mantenga siempre anclado a la izquierda en todos los viewports (desktop, tablet 701px y móvil), eliminando cualquier conversión a menú horizontal superior y purgando sidebars duplicados residuales.",
+    outcome: "El layout general del dashboard y de demo preserva la barra lateral izquierda en todos los anchos de pantalla mediante rejilla canónica y adaptación compacta sin alteración de jerarquía. Se eliminan las barras laterales duplicadas internas en Aduanas, ePOD/CMR, módulos maestros, Importar, Velocity y RecordEditor, y se limpian las reglas de anulación CSS correspondientes.",
+    status: "Preproducción",
+  },
   {
     version: "2026.10.08-1",
     date: "8 oct 2026",
