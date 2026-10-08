@@ -26,7 +26,7 @@ export default function CmrListView({ rows, basePath = "/dashboard" }: {
 
   return <main className={styles.shell}>
     <section className={styles.content}>
-      <ScreenHeader eyebrow="DOCUMENTACIÓN DIGITAL" title="ePOD & CMR" description="Generación, firma, reservas, evidencias y cierre documental del transporte.">
+      <ScreenHeader eyebrow="DOCUMENTACIÓN DIGITAL" title="Documentos" description="Generación, firma, reservas, evidencias y cierre documental del transporte.">
         <Link href={`${basePath}/epod-cmr/nuevo`} className={screenButton.primary}>+ Nuevo CMR</Link>
       </ScreenHeader>
 

@@ -6,7 +6,7 @@
 .header{display:flex;justify-content:space-between;align-items:center;gap:30px;min-width:0}
 .heading{min-width:0;max-width:820px}
 .eyebrow{margin:0;color:var(--ui-accent);text-transform:uppercase;letter-spacing:var(--ui-eyebrow-spacing);font-size:var(--ui-eyebrow-size);font-weight:800}
-.title{max-width:none;margin:8px 0 10px;color:var(--ui-text);font-size:var(--ui-title-size);line-height:1.05;letter-spacing:-.03em}
+.title{max-width:none;margin:8px 0 0;color:var(--ui-text);font-size:var(--ui-title-size);line-height:1.05;letter-spacing:-.03em}
 .description{margin:0;color:var(--ui-muted);font-size:15px;line-height:1.5}
 .back{display:inline-block;margin-bottom:12px;color:var(--ui-accent);font-size:13px;font-weight:800}
 .actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex:0 0 auto}

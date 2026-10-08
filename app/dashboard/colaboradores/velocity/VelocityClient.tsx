@@ -47,7 +47,7 @@ export default function VelocityClient({ basePath = "/dashboard", simulation = f
 
   return <main className={styles.shell}>
     <section className={styles.content}>
-      <header className={styles.header}><div><p>COLABORADOR · TARIFA 2026</p><h1>{simulation?"Colaborador ficticio de muestra":"Velocity Transinternacional"}</h1><span>Configuración integral de colaborador, flota, cobertura, tarifas, suplementos, certificaciones y condiciones.</span></div><div className={styles.actions}><Link href={`${basePath}/colaboradores`} className={styles.secondary}>Volver</Link><button>Editar colaborador</button><div className={styles.avatar}>FG</div></div></header>
+      <header className={styles.header}><div><p>COLABORADOR · TARIFA 2026</p><h1>{simulation?"Colaborador ficticio de muestra":"Velocity Transinternacional"}</h1></div><div className={styles.actions}><Link href={`${basePath}/colaboradores`} className={styles.secondary}>Volver</Link><button>Editar colaborador</button><div className={styles.avatar}>FG</div></div></header>
 
       <section className={styles.summary}>
         <article><span>Razón social</span><strong>{simulation?"Colaborador ficticio de muestra":"Velocity Transinternacional, S.L."}</strong><small>{simulation?"DEMO":"B98992001"}</small></article>
