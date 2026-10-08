@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import EmailWorkspace, { type EmailEvent } from "./EmailWorkspace";
 import type { DashboardBasePath } from "../../components/DashboardNavigation";
+import { MetricGrid, ScreenHeader, screenButton } from "../../components/ScreenChrome";
 import styles from "./integraciones.module.css";
 
 export type Connector = {
@@ -26,7 +26,7 @@ export type IntegrationsData = {
   eventsToday: string | null;
 };
 
-export default function IntegracionesClient({ data, basePath = "/dashboard", simulation = false, emailHistory }: { data: IntegrationsData; basePath?: DashboardBasePath; simulation?: boolean; emailHistory?: EmailEvent[] }) {
+export default function IntegracionesClient({ data, simulation = false, emailHistory }: { data: IntegrationsData; basePath?: DashboardBasePath; simulation?: boolean; emailHistory?: EmailEvent[] }) {
   const { queue, mappings, eventsToday } = data;
   const [search, setSearch] = useState("");
   const [family, setFamily] = useState("Todas");
@@ -46,26 +46,18 @@ export default function IntegracionesClient({ data, basePath = "/dashboard", sim
   const pending = connectors.filter(c => c.status === "Pendiente").length;
 
   return <main className={styles.page}>
-    <header className={styles.header}>
-      <div>
-        <Link href={basePath} prefetch={simulation ? false : undefined} className={styles.back}>← Control Tower</Link>
-        <p className={styles.eyebrow}>CONNECTIVITY HUB</p>
-        <h1>Integraciones y comunicaciones</h1>
-        <p className={styles.subtitle}>Un único punto para correo, EDI, APIs, web services, ficheros, SFTP, SMTP, webhooks y futuras conexiones eFTI.</p>
-      </div>
-      <div className={styles.headerActions}>
-        <button type="button" className={styles.secondary} onClick={simulate}>Probar conexión</button>
-        <button type="button" className={styles.primary} onClick={simulate}>+ Nuevo conector</button>
-      </div>
-    </header>
+    <ScreenHeader eyebrow="CONNECTIVITY HUB" title="Integraciones y comunicaciones" description="Un único punto para correo, EDI, APIs, web services, ficheros, SFTP, SMTP, webhooks y futuras conexiones eFTI.">
+      <button type="button" className={screenButton.secondary} onClick={simulate}>Probar conexión</button>
+      <button type="button" className={screenButton.primary} onClick={simulate}>+ Nuevo conector</button>
+    </ScreenHeader>
     {notice && <p role="status" className={styles.note}>{notice}</p>}
 
-    <section className={styles.metrics}>
-      <article><span>Conectores activos</span><strong>{active}</strong><small>Operativos</small></article>
-      <article><span>Pendientes</span><strong>{pending}</strong><small>Requieren configuración</small></article>
-      <article><span>Errores</span><strong>{errors}</strong><small>Requieren revisión</small></article>
-      <article><span>Eventos hoy</span><strong>{eventsToday ?? "—"}</strong><small>Entrada + salida</small></article>
-    </section>
+    <MetricGrid items={[
+      { label: "Conectores activos", value: active, detail: "Operativos" },
+      { label: "Pendientes", value: pending, detail: "Requieren configuración" },
+      { label: "Errores", value: errors, detail: "Requieren revisión", tone: errors ? "error" : undefined },
+      { label: "Eventos hoy", value: eventsToday ?? "—", detail: "Entrada + salida" },
+    ]} />
 
     <EmailWorkspace simulation={simulation} initialHistory={emailHistory} />
 

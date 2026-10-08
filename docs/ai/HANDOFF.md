@@ -2,6 +2,13 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-08 — UX92: pantallas homogéneas, Decision Center retirado y alta de artículos en ventana
+
+- **Petición de Fran (Slack 15:50–15:53, con capturas de producción):** eliminar Decision Center; homogeneizar colores de tarjetas, disposición y tamaños, que diferían en cada pantalla (botones secundarios sin estilo en Partidas/Aduanas, primarios partidos en dos líneas, avatar de distinto color, identificadores `VJ-…` cortados); Artículos debe mostrar solo el grid y abrir el alta en una ventana superpuesta con el botón o el atajo `+`.
+- **Coordinación:** Claude implementa y coordina merge/deploy con autorización expresa de Fran; Gemini prueba visual en Preview; DeepSeek revisa exact-HEAD.
+- **Cambio:** `app/components/ScreenChrome.tsx` + `screen.module.css` (cabecera, botones, avatar, tarjetas KPI, panel) con Control Tower como referencia, usado por Control Tower, Partidas, Expedientes, Viajes, Aduanas, Clientes, Artículos, módulos genéricos (Ofertas, Colaboradores, Almacenes, Tracking, Informes), ePOD & CMR, Integraciones y Telemática. `AppShell` usa el mismo espaciado. Decision Center: vista y estilos eliminados, menú de 14 módulos, rutas antiguas redirigen a Control Tower (`/dashboard`, `/demo`). Artículos: grid a ancho completo; alta/edición en `role="dialog"` modal con Escape, Cancelar y foco devuelto.
+- **Sin SQL, sin cambios de API, auth ni aislamiento de la demo.** Durante la verificación visual se creó y revocó a los pocos minutos un token de revisión de solo lectura que no llegó a usarse.
+
 ## 2026-10-08 — Paridad estricta de menú lateral y layout responsive (UX91-LEFT-SIDEBAR-PARITY-20261008)
 
 - **Decisión vinculante de Fran (8 oct 2026):** El menú de navegación debe permanecer en el lateral IZQUIERDO en responsive (≤760px, 701px y móvil), exactamente igual que en producción; NUNCA transformarse en barra superior horizontal. Preview debe conservar estrictamente el layout productivo (shell, orden, jerarquía, acciones y geometría).

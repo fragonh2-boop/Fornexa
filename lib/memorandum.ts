@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "08 oct 2026";
-export const memorandumCommitCoverage = 594;
+export const memorandumCommitCoverage = 595;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -103,13 +103,22 @@ export const memorandumPending: MemorandumPending[] = [
 
 export const memorandumReleases: MemorandumRelease[] = [
   {
+    version: "2026.10.08-3",
+    date: "8 oct 2026",
+    surface: ["Web"],
+    title: "Pantallas homogéneas y alta de artículos en ventana",
+    purpose: "Que todas las pantallas de la aplicación compartan la misma cabecera, botones y tarjetas de indicadores que Control Tower, retirar Decision Center y simplificar el maestro de artículos.",
+    outcome: "Control Tower, Partidas, Expedientes, Viajes, Aduanas, Clientes, Artículos, Ofertas y tarifas, Colaboradores, Almacenes, Tracking, Informes, ePOD & CMR, Integraciones y Telemática usan un único componente de cabecera y de tarjetas: mismos colores, tamaños, avatar y botones, que ya no se parten en dos líneas, e identificadores largos que no se cortan. Decision Center desaparece del menú y sus enlaces antiguos llevan a Control Tower. Artículos muestra solo el grid; el alta y la edición se abren en una ventana superpuesta con el botón «+ Nuevo artículo» o la tecla +.",
+    status: "Producción",
+  },
+  {
     version: "2026.10.08-2",
     date: "8 oct 2026",
     surface: ["Web"],
     title: "Paridad estricta de menú lateral y layout responsive",
     purpose: "Garantizar que el menú lateral se mantenga siempre anclado a la izquierda en todos los viewports (desktop, tablet 701px y móvil), eliminando cualquier conversión a menú horizontal superior y purgando sidebars duplicados residuales.",
     outcome: "El layout general del dashboard y de demo preserva la barra lateral izquierda en todos los anchos de pantalla mediante rejilla canónica y adaptación compacta sin alteración de jerarquía. Se eliminan las barras laterales duplicadas internas en Aduanas, ePOD/CMR, módulos maestros, Importar, Velocity y RecordEditor, y se limpian las reglas de anulación CSS correspondientes.",
-    status: "Preproducción",
+    status: "Producción",
   },
   {
     version: "2026.10.08-1",
@@ -118,7 +127,7 @@ export const memorandumReleases: MemorandumRelease[] = [
     title: "Interfaz coherente y demostración fiel",
     purpose: "Validar pantallas sin sustituir la estructura de la aplicación ni utilizar datos u operaciones reales, con controles de compilación y revisión antes de la publicación.",
     outcome: "La demostración reutiliza el menú completo, Control Tower, módulos y formularios de la aplicación, con datos ficticios y acciones simuladas sin persistencia. Se unifican títulos, botones y paneles y se corrigen contrastes ilegibles. El acceso sin login queda limitado al entorno de preproducción habilitado explícitamente; producción conserva su autenticación y sus fuentes operativas. El alta de un CMR real empieza vacía y permite seleccionar clientes activos de la empresa, sin referencias ilustrativas precargadas. Los listados compartidos respetan el contexto de empresa autenticado. Pendiente de validación final y despliegue productivo.",
-    status: "Preproducción",
+    status: "Producción",
   },
   {
     version: "2026.10.07-3",

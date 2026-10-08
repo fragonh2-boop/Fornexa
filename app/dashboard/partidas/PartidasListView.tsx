@@ -1,6 +1,7 @@
 import Link from "next/link";
 import AppShell from "../../components/AppShell";
 import DataGrid from "../../components/DataGrid";
+import { MetricGrid, ScreenHeader, screenButton, screenPanelClass } from "../../components/ScreenChrome";
 import styles from "../expediciones/expediciones.module.css";
 
 export type PartidaListItem = {
@@ -38,25 +39,17 @@ export default function PartidasListView({ items, basePath = "/dashboard" }: {
   }));
 
   return <AppShell><div className={styles.page}>
-    <header className={styles.header}>
-      <div>
-        <p className={styles.eyebrow}>PEDIDOS DE CLIENTE</p>
-        <h1>Partidas</h1>
-        <p>Pedidos persistentes del tenant. Una partida debe incorporarse a un expediente antes de viajar.</p>
-      </div>
-      <div className={styles.actions}>
-        <Link href={`${basePath}/importar?entidad=partidas`} className={styles.secondary}>Importar Excel</Link>
-        <Link href={`${basePath}/nuevo/partida`} className={styles.primary}>+ Nueva partida</Link>
-        <div className={styles.avatar}>FG</div>
-      </div>
-    </header>
-    <section className={styles.metrics}>
-      <article><span>Abiertas</span><strong>{abiertas}</strong></article>
-      <article><span>Pendientes de expediente</span><strong>{pendientes}</strong></article>
-      <article><span>ADR</span><strong>{adr}</strong></article>
-      <article><span>Última partida</span><strong className={styles.lastId}>{items[0]?.id ?? "—"}</strong></article>
-    </section>
-    <section className={styles.panel}>
+    <ScreenHeader eyebrow="PEDIDOS DE CLIENTE" title="Partidas" description="Pedidos persistentes del tenant. Una partida debe incorporarse a un expediente antes de viajar.">
+      <Link href={`${basePath}/importar?entidad=partidas`} className={screenButton.secondary}>Importar Excel</Link>
+      <Link href={`${basePath}/nuevo/partida`} className={screenButton.primary}>+ Nueva partida</Link>
+    </ScreenHeader>
+    <MetricGrid items={[
+      { label: "Abiertas", value: abiertas },
+      { label: "Pendientes de expediente", value: pendientes },
+      { label: "ADR", value: adr },
+      { label: "Última partida", value: items[0]?.id ?? "—", text: true },
+    ]} />
+    <section className={screenPanelClass}>
       <DataGrid
         storageKey={demo ? "demo-partidas-canonical" : "partidas-canonical"}
         persistPreferences={!demo}

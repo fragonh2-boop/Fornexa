@@ -1,6 +1,7 @@
 import Link from "next/link";
 import AppShell from "../../components/AppShell";
 import DataGrid from "../../components/DataGrid";
+import { MetricGrid, ScreenHeader, screenButton, screenPanelClass } from "../../components/ScreenChrome";
 import styles from "./customers.module.css";
 
 export type CustomerListItem = {
@@ -56,5 +57,13 @@ export default function CustomersListView({ customers, estado, basePath = "/dash
   }));
   const rowHrefs = filtered.map(customer => `${basePath}/registros/clientes/${customer.code}`);
 
-  return <AppShell><div className={styles.page}><header><div><p>CRM · MAESTRO</p><h1>Clientes</h1><span>{demo ? "Resumen comercial y operativo con datos ficticios de demostración." : "Resumen comercial y operativo desde el maestro real de Supabase."}</span></div><div className={styles.actions}><Link href={`${basePath}/importar?entidad=clientes`}>Importar Excel</Link><Link className={styles.primary} href={`${basePath}/registros/clientes/nuevo`}>+ Nuevo cliente</Link></div></header><section className={styles.stats}>{stats.map(([value,label,filter])=><Link key={label} href={filter?`${basePath}/clientes?estado=${encodeURIComponent(filter)}`:`${basePath}/clientes`}><span>{label}</span><strong>{value}</strong><small>Abrir grid ↗</small></Link>)}</section>{estado&&<div className={styles.filterNotice}>Vista filtrada: <strong>{estado}</strong><Link href={`${basePath}/clientes`}>Ver todos</Link></div>}<section className={styles.panel}><DataGrid storageKey={`${demo ? "demo-" : ""}clientes-${estado??"todos"}`} persistPreferences={!demo} columns={columns} rows={rows} rowHrefs={rowHrefs} searchPlaceholder="Buscar por código, cliente, NIF, ubicación…" /></section></div></AppShell>;
+  return <AppShell><div className={styles.page}>
+    <ScreenHeader eyebrow="CRM · MAESTRO" title="Clientes" description={demo ? "Resumen comercial y operativo con datos ficticios de demostración." : "Resumen comercial y operativo desde el maestro real de Supabase."}>
+      <Link href={`${basePath}/importar?entidad=clientes`} className={screenButton.secondary}>Importar Excel</Link>
+      <Link href={`${basePath}/registros/clientes/nuevo`} className={screenButton.primary}>+ Nuevo cliente</Link>
+    </ScreenHeader>
+    <MetricGrid items={stats.map(([value, label, filter]) => ({ label, value, note: "Ver grid ↗", href: filter ? `${basePath}/clientes?estado=${encodeURIComponent(filter)}` : `${basePath}/clientes` }))} />
+    {estado && <div className={styles.filterNotice}>Vista filtrada: <strong>{estado}</strong><Link href={`${basePath}/clientes`}>Ver todos</Link></div>}
+    <section className={screenPanelClass}><DataGrid storageKey={`${demo ? "demo-" : ""}clientes-${estado??"todos"}`} persistPreferences={!demo} columns={columns} rows={rows} rowHrefs={rowHrefs} searchPlaceholder="Buscar por código, cliente, NIF, ubicación…" /></section>
+  </div></AppShell>;
 }

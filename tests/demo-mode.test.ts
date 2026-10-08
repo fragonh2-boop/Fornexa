@@ -30,7 +30,6 @@ test("VERCEL_ENV takes precedence over the public mirror", () => {
 const gatedScreens = [
   "app/dashboard/page.tsx",
   "app/dashboard/[module]/page.tsx",
-  "app/dashboard/decision-center/page.tsx",
   "app/dashboard/colaboradores/velocity/page.tsx",
   "app/dashboard/integraciones/page.tsx",
 ];

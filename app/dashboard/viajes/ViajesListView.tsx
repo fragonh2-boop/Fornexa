@@ -1,6 +1,7 @@
 import Link from "next/link";
 import AppShell from "../../components/AppShell";
 import DataGrid from "../../components/DataGrid";
+import { MetricGrid, ScreenHeader, screenButton, screenPanelClass } from "../../components/ScreenChrome";
 import styles from "../expediciones/expediciones.module.css";
 
 export type ViajeListItem = {
@@ -40,17 +41,16 @@ export default function ViajesListView({ items, basePath = "/dashboard" }: {
   const expeditions = items.reduce((sum, trip) => sum + trip.expeditions.length, 0);
 
   return <AppShell><div className={styles.page}>
-    <header className={styles.header}>
-      <div><p className={styles.eyebrow}>TRANSPORTE</p><h1>Viajes</h1><p>Viajes físicos reales, con expediciones, vehículo, conductor y secuencia de paradas.</p></div>
-      <div className={styles.actions}><Link href={`${basePath}/nuevo/viaje`} className={styles.primary}>+ Nuevo viaje</Link><div className={styles.avatar}>FG</div></div>
-    </header>
-    <section className={styles.metrics}>
-      <article><span>Activos</span><strong>{activos}</strong></article>
-      <article><span>En curso</span><strong>{enCurso}</strong></article>
-      <article><span>Expediciones asignadas</span><strong>{expeditions}</strong></article>
-      <article><span>Último viaje</span><strong className={styles.lastId}>{items[0]?.id ?? "—"}</strong></article>
-    </section>
-    <section className={styles.panel}>
+    <ScreenHeader eyebrow="TRANSPORTE" title="Viajes" description="Viajes físicos reales, con expediciones, vehículo, conductor y secuencia de paradas.">
+      <Link href={`${basePath}/nuevo/viaje`} className={screenButton.primary}>+ Nuevo viaje</Link>
+    </ScreenHeader>
+    <MetricGrid items={[
+      { label: "Activos", value: activos },
+      { label: "En curso", value: enCurso },
+      { label: "Expediciones asignadas", value: expeditions },
+      { label: "Último viaje", value: items[0]?.id ?? "—", text: true },
+    ]} />
+    <section className={screenPanelClass}>
       <DataGrid
         storageKey={demo ? "demo-viajes-real" : "viajes-real"}
         persistPreferences={!demo}

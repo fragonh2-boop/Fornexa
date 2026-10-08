@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { DashboardBasePath } from "../../../components/DashboardNavigation";
 import type { TelematicsProvider } from "../../../../lib/telematics/providers";
+import { MetricGrid, ScreenHeader, screenBackClass } from "../../../components/ScreenChrome";
 import styles from "./telematica.module.css";
 
 export type TelematicsReadiness = { slug: string; configured: boolean; missingEnv: string[] };
@@ -12,23 +13,20 @@ export default function TelematicsHubView({ providers, readiness, basePath = "/d
   const configured = readiness.filter(r=>r.configured).length;
 
   return <main className={styles.page}>
-    <header className={styles.header}>
-      <div>
-        <Link href={`${basePath}/integraciones`} prefetch={simulation ? false : undefined} className={styles.back}>← Integraciones</Link>
-        <p className={styles.eyebrow}>TELEMATICS HUB</p>
-        <h1>Conectividad telemática</h1>
-        <p>Contratos técnicos normalizados para GPS, actividad, conducción/descanso y ficheros de tacógrafo. Los conectores usan solo documentación pública hasta que cada proveedor autorice credenciales y contrato tenant.</p>
-      </div>
-      <div className={styles.actions}><Link href={`${basePath}/decision-center`} prefetch={simulation ? false : undefined}>Ver planificación →</Link></div>
-    </header>
+    <ScreenHeader
+      eyebrow="TELEMATICS HUB"
+      title="Conectividad telemática"
+      description="Contratos técnicos normalizados para GPS, actividad, conducción/descanso y ficheros de tacógrafo. Los conectores usan solo documentación pública hasta que cada proveedor autorice credenciales y contrato tenant."
+      back={<Link href={`${basePath}/integraciones`} prefetch={simulation ? false : undefined} className={screenBackClass}>← Integraciones</Link>}
+    />
 
-    <section className={styles.metrics}>
-      <article><span>Proveedores preparados</span><strong>{providers.length}</strong><small>Registro unificado</small></article>
-      <article><span>Endpoints públicos</span><strong>{publicEndpoints}</strong><small>Codificados sin inventar rutas</small></article>
-      <article><span>Driving times live</span><strong>{live}</strong><small>Capacidad documentada</small></article>
-      <article><span>DDD / Tacho files</span><strong>{ddd}</strong><small>Capacidad documentada</small></article>
-      <article><span>Con credenciales</span><strong>{configured}</strong><small>{simulation ? "Sin conexión en demo" : "Detectado en servidor"}</small></article>
-    </section>
+    <MetricGrid items={[
+      { label: "Proveedores preparados", value: providers.length, detail: "Registro unificado" },
+      { label: "Endpoints públicos", value: publicEndpoints, detail: "Codificados sin inventar rutas" },
+      { label: "Driving times live", value: live, detail: "Capacidad documentada" },
+      { label: "DDD / Tacho files", value: ddd, detail: "Capacidad documentada" },
+      { label: "Con credenciales", value: configured, detail: simulation ? "Sin conexión en demo" : "Detectado en servidor" },
+    ]} />
 
     <section className={styles.panel}>
       <div className={styles.panelHead}><div><p className={styles.eyebrow}>PROVEEDORES</p><h2>Readiness técnica</h2></div><span>Secretos solo server-side</span></div>
@@ -54,7 +52,7 @@ export default function TelematicsHubView({ providers, readiness, basePath = "/d
       <article className={styles.panel}>
         <p className={styles.eyebrow}>MODELO OPERATIVO</p><h2>DriverStatus</h2>
         <div className={styles.fields}>{["provider","driverId","vehicleId","activity","remainingUntilBreakMin","remainingDailyDrivingMin","nextRequiredBreakMin","gpsLat / gpsLon","speedKmh","observedAt"].map(x=><code key={x}>{x}</code>)}</div>
-        <p className={styles.note}>Decision Center consume este modelo, nunca el payload específico del proveedor.</p>
+        <p className={styles.note}>La planificación consume este modelo normalizado, nunca el payload específico del proveedor.</p>
       </article>
     </section>
 
