@@ -18,8 +18,8 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "07 oct 2026";
-export const memorandumCommitCoverage = 588;
+export const memorandumUpdatedAt = "08 oct 2026";
+export const memorandumCommitCoverage = 594;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -102,6 +102,24 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.10.08-2",
+    date: "8 oct 2026",
+    surface: ["Web"],
+    title: "Paridad estricta de menú lateral y layout responsive",
+    purpose: "Garantizar que el menú lateral se mantenga siempre anclado a la izquierda en todos los viewports (desktop, tablet 701px y móvil), eliminando cualquier conversión a menú horizontal superior y purgando sidebars duplicados residuales.",
+    outcome: "El layout general del dashboard y de demo preserva la barra lateral izquierda en todos los anchos de pantalla mediante rejilla canónica y adaptación compacta sin alteración de jerarquía. Se eliminan las barras laterales duplicadas internas en Aduanas, ePOD/CMR, módulos maestros, Importar, Velocity y RecordEditor, y se limpian las reglas de anulación CSS correspondientes.",
+    status: "Preproducción",
+  },
+  {
+    version: "2026.10.08-1",
+    date: "8 oct 2026",
+    surface: ["Web"],
+    title: "Interfaz coherente y demostración fiel",
+    purpose: "Validar pantallas sin sustituir la estructura de la aplicación ni utilizar datos u operaciones reales, con controles de compilación y revisión antes de la publicación.",
+    outcome: "La demostración reutiliza el menú completo, Control Tower, módulos y formularios de la aplicación, con datos ficticios y acciones simuladas sin persistencia. Se unifican títulos, botones y paneles y se corrigen contrastes ilegibles. El acceso sin login queda limitado al entorno de preproducción habilitado explícitamente; producción conserva su autenticación y sus fuentes operativas. El alta de un CMR real empieza vacía y permite seleccionar clientes activos de la empresa, sin referencias ilustrativas precargadas. Los listados compartidos respetan el contexto de empresa autenticado. Pendiente de validación final y despliegue productivo.",
+    status: "Preproducción",
+  },
   {
     version: "2026.10.07-3",
     date: "7 oct 2026",

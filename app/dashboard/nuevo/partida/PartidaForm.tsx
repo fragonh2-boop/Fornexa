@@ -14,6 +14,7 @@ export type AddressOption = {
 };
 export type ServiceOption = { code: string; name: string };
 type ProductOption = { id: string; sku: string; name: string; description: string; uomBase: string };
+export type PartidaDemoData = { products: Array<ProductOption & { ownerCustomerCode: string; status: "ACTIVE" | "INACTIVE" }> };
 
 type SaveMode = "new" | "keep" | "exit";
 
@@ -52,9 +53,10 @@ function normalizeDecimal(raw: string) {
   return /^\d+(\.\d+)?$/.test(value) ? value : "";
 }
 
-export default function PartidaForm({ customers, addresses, services, readOnly = false }: {
-  customers: CustomerOption[]; addresses: AddressOption[]; services: ServiceOption[]; readOnly?: boolean;
+export default function PartidaForm({ customers, addresses, services, readOnly = false, demoData }: {
+  customers: CustomerOption[]; addresses: AddressOption[]; services: ServiceOption[]; readOnly?: boolean; demoData?: PartidaDemoData;
 }) {
+  const basePath = demoData ? "/demo" : "/dashboard";
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const keepRef = useRef<HTMLButtonElement>(null);
@@ -106,6 +108,11 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
   useEffect(() => {
     const code = customer?.code;
     if (!code) { setProductOptions([]); setProductCatalogState("idle"); return; }
+    if (demoData) {
+      setProductOptions(demoData.products.filter(item => item.ownerCustomerCode === code && item.status === "ACTIVE"));
+      setProductCatalogState("ready");
+      return;
+    }
     const controller = new AbortController();
     setProductCatalogState("loading");
     void fetch(`/api/products?customerCode=${encodeURIComponent(code)}&activeOnly=true&limit=250`, { cache: "no-store", signal: controller.signal })
@@ -116,7 +123,7 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
       })
       .catch(() => { if (!controller.signal.aborted) { setProductOptions([]); setProductCatalogState("error"); } });
     return () => controller.abort();
-  }, [customer?.code]);
+  }, [customer?.code, demoData]);
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.repeat || readOnly) return;
@@ -131,6 +138,11 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
 
   async function lookupArticle(line: GoodsLine) {
     if (!customer || !line.sku.trim()) return;
+    if (demoData) {
+      const item = demoData.products.find(item => item.ownerCustomerCode === customer.code && item.sku === line.sku.trim().toUpperCase() && item.status === "ACTIVE");
+      updateLine(line.key, { description: line.description || item?.name || "", hazardStatus: "UNKNOWN", hazmatEntry: null, articleMessage: item ? "Artículo ficticio: clasificación ADR no verificada." : "Artículo de muestra no encontrado." });
+      return;
+    }
     updateLine(line.key, { articleMessage: "Consultando maestro de artículos…" });
     try {
       const response = await fetch(`/api/products/lookup?customerCode=${encodeURIComponent(customer.code)}&sku=${encodeURIComponent(line.sku)}`, { cache: "no-store" });
@@ -142,6 +154,7 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
   }
 
   async function searchHazmat() {
+    if (demoData) { setHazmatResults([]); setMessage("Maestro ADR no consultado en demo. No se simulan clasificaciones oficiales."); return; }
     if (hazmatQuery.trim().length < 2) return setHazmatResults([]);
     setSearching(true);
     try {
@@ -192,6 +205,12 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
     if (!packages || Number(packages) < 1 || !normalizeDecimal(weight)) return setMessage("Bultos y peso son obligatorios y deben ser válidos.");
     if (shouldBlockForPolicy(customer.adrPolicy, adrWarnings)) return setMessage(`La política ADR de este cliente bloquea la confirmación: ${adrWarnings[0]?.message}`);
     if (customer.adrPolicy === "ACKNOWLEDGEMENT" && adrWarnings.length && !window.confirm(`Hay ${adrWarnings.length} advertencia(s) ADR. ¿Quieres guardar y dejar constancia?`)) return;
+    if (demoData) {
+      if (mode === "exit") { router.push(`${basePath}/partidas`); return; }
+      if (mode === "new") resetForm();
+      setMessage("Guardado simulado: no se ha creado ninguna partida ni dirección en el maestro.");
+      return;
+    }
     const body = payload() as ReturnType<typeof payload> & { acknowledgedCustomerWarnings?: boolean };
     const fingerprint = JSON.stringify(body);
     if (mode === "keep" && fingerprint === lastFingerprint && !window.confirm("No has modificado ningún dato. ¿Crear otra partida idéntica?")) return setMessage("Guardado cancelado.");
@@ -208,7 +227,7 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
       }
       if (!response.ok) throw new Error(result.error || "No se pudo guardar la partida.");
       const code = result.item?.id ?? "Partida";
-      if (mode === "exit") { router.push("/dashboard/partidas"); router.refresh(); return; }
+      if (mode === "exit") { router.push(`${basePath}/partidas`); router.refresh(); return; }
       if (mode === "new") { resetForm(); setMessage(`${code} creada. Formulario preparado para una nueva partida.`); }
       else { setLastFingerprint(fingerprint); setMessage(`${code} creada con ${result.item?.adrWarnings ?? 0} advertencia(s) ADR registradas.`); }
       router.refresh();
@@ -221,7 +240,7 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
       <label>Customer ID maestro<input autoFocus name="customerCode" value={customerCode} onChange={event => setCustomerCode(event.target.value.toUpperCase())} list="canonical-customers" required placeholder="CLI-000146" /></label><datalist id="canonical-customers">{customers.map(item => <option key={item.code} value={item.code}>{item.name}</option>)}</datalist>
       <label>Cliente<input value={customer?.name ?? ""} readOnly placeholder="Se completa desde el maestro" /></label><label>Referencia cliente<input value={reference} onChange={event => setReference(event.target.value)} /></label>
       <label>Servicio<select required value={serviceCode} className={!serviceCode ? styles.placeholderControl : ""} onChange={event => setServiceCode(event.target.value)}><option value="" disabled>Seleccionar</option>{services.map(item => <option key={item.code} value={item.code}>{item.name === item.code ? item.name : `${item.name} · ${item.code}`}</option>)}</select></label><label>Fecha prevista<input type="date" value={requestedDate} onChange={event => setRequestedDate(event.target.value)} /></label>
-      <div className={styles.field}><label htmlFor="partida-adr-profile">Perfil ADR</label><input id="partida-adr-profile" value={customer ? ({ NEVER: "Nunca", SOMETIMES: "A veces", ALWAYS: "Siempre" }[customer.adrFrequency]) : ""} readOnly placeholder="Selecciona primero el cliente" />{customer ? <Link className={styles.fieldHelp} href={`/dashboard/registros/clientes/${encodeURIComponent(customer.code)}#control-adr`}>{customer.preferredClasses.length ? `Clases habituales: ${customer.preferredClasses.join(", ")} · Configurar` : "Sin clases habituales configuradas · Configurar"}</Link> : <span className={styles.fieldHelpPlaceholder}>Selecciona un cliente para consultar su configuración</span>}</div>
+      <div className={styles.field}><label htmlFor="partida-adr-profile">Perfil ADR</label><input id="partida-adr-profile" value={customer ? ({ NEVER: "Nunca", SOMETIMES: "A veces", ALWAYS: "Siempre" }[customer.adrFrequency]) : ""} readOnly placeholder="Selecciona primero el cliente" />{customer ? <Link className={styles.fieldHelp} href={`${basePath}/registros/clientes/${encodeURIComponent(customer.code)}#control-adr`}>{customer.preferredClasses.length ? `Clases habituales: ${customer.preferredClasses.join(", ")} · Configurar` : "Sin clases habituales configuradas · Configurar"}</Link> : <span className={styles.fieldHelpPlaceholder}>Selecciona un cliente para consultar su configuración</span>}</div>
     </div></section>
 
     <section className={styles.card}><div className={styles.cardHeader}><div><p>RUTA</p><h2>Recogida y entrega</h2></div></div><div className={styles.grid}>
@@ -229,7 +248,7 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
       <label>Punto de entrega<select value={deliveryAddressId} required disabled={!customer} className={!deliveryAddressId ? styles.placeholderControl : ""} onChange={event => setDeliveryAddressId(event.target.value)}><option value="" disabled>Seleccionar</option>{deliveryOptions.map(item => <option key={item.id} value={item.id}>{item.code} · {item.name} · {item.city}</option>)}<option value={NEW_ADDRESS_OPTION}>+ Nueva dirección de entrega</option></select></label>
       {pickupIsNew ? <AdHocAddressFields use="pickup" draft={pickupDraft} customerName={customer?.name ?? ""} onChange={patch => setPickupDraft(current => ({ ...current, ...patch }))} /> : <label>Dirección recogida<input value={pickup ? `${pickup.address} · ${pickup.postalCode} ${pickup.city} · ${pickup.countryCode}` : ""} readOnly /></label>}
       {deliveryIsNew ? <AdHocAddressFields use="delivery" draft={deliveryDraft} customerName={customer?.name ?? ""} onChange={patch => setDeliveryDraft(current => ({ ...current, ...patch }))} /> : <label>Dirección entrega<input value={delivery ? `${delivery.address} · ${delivery.postalCode} ${delivery.city} · ${delivery.countryCode}` : ""} readOnly /></label>}
-      {customer && (!pickupOptions.length || !deliveryOptions.length) && <Link className={styles.routeHelp} href={`/dashboard/registros/clientes/${encodeURIComponent(customer.code)}#direcciones`}>Este cliente aún no tiene direcciones operativas en el maestro. Puedes escribir una nueva con «+ Nueva dirección» o ir al maestro de direcciones</Link>}
+      {customer && (!pickupOptions.length || !deliveryOptions.length) && <Link className={styles.routeHelp} href={`${basePath}/registros/clientes/${encodeURIComponent(customer.code)}#direcciones`}>Este cliente aún no tiene direcciones operativas en el maestro. Puedes escribir una nueva con «+ Nueva dirección» o ir al maestro de direcciones</Link>}
     </div></section>
 
     <section className={styles.card}><div className={styles.cardHeader}><div><p>MERCANCÍA</p><h2>Magnitudes generales</h2></div></div><div className={styles.grid}>
@@ -260,7 +279,7 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
     {searchLine && <div className={styles.modalBackdrop} role="presentation" onMouseDown={() => setSearchLine(null)}><section className={styles.modal} role="dialog" aria-modal="true" aria-label="Buscar clasificación ADR" onMouseDown={event => event.stopPropagation()}><div className={styles.modalHeader}><div><p>MAESTRO OFICIAL</p><h2>Clasificar mercancía</h2></div><button type="button" onClick={() => setSearchLine(null)}>Cerrar</button></div><div className={styles.searchRow}><input autoFocus value={hazmatQuery} onChange={event => setHazmatQuery(event.target.value)} onKeyDown={event => event.key === "Enter" && (event.preventDefault(), searchHazmat())} placeholder="Número ONU o designación oficial" /><button type="button" onClick={searchHazmat} disabled={searching}>{searching ? "Buscando…" : "Buscar"}</button></div>{hazmatResults.length ? <div className={styles.results}>{hazmatResults.map(entry => <button type="button" key={entry.id} onClick={() => chooseHazmat(entry)}><strong>UN {entry.un_number}</strong><span>{entry.proper_shipping_name_es}</span><small>Clase {entry.class_code}{entry.packing_group ? ` · GE ${entry.packing_group}` : ""} · {entry.edition?.code}</small></button>)}</div> : <p className={styles.empty}>Busca sobre ediciones ADR activadas por un administrador. Si no hay resultados, el pedido puede conservarse con advertencia para revisión.</p>}</section></div>}
 
     {message && <p className={styles.message}>{message}</p>}
-    <div className={styles.saveBar}><Link href="/dashboard/partidas">Volver</Link><div className={styles.saveActions}><button type="submit" name="saveMode" value="new" className={styles.secondary} disabled={saving || readOnly}>Guardar y nueva</button><button ref={keepRef} type="submit" name="saveMode" value="keep" disabled={saving || readOnly}>Guardar y mantener <kbd>F4</kbd></button><button ref={exitRef} type="submit" name="saveMode" value="exit" disabled={saving || readOnly}>Guardar y salir <kbd>F2</kbd></button></div></div>
+    <div className={styles.saveBar}><Link href={`${basePath}/partidas`}>Volver</Link><div className={styles.saveActions}><button type="submit" name="saveMode" value="new" className={styles.secondary} disabled={saving || readOnly}>Guardar y nueva</button><button ref={keepRef} type="submit" name="saveMode" value="keep" disabled={saving || readOnly}>Guardar y mantener <kbd>F4</kbd></button><button ref={exitRef} type="submit" name="saveMode" value="exit" disabled={saving || readOnly}>Guardar y salir <kbd>F2</kbd></button></div></div>
   </form>;
 }
 

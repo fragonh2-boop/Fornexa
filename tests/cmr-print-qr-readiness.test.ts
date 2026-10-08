@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const page = readFileSync("app/dashboard/epod-cmr/[cmr]/page.tsx", "utf8");
+const page = readFileSync("app/dashboard/epod-cmr/[cmr]/CmrDocumentWorkspace.tsx", "utf8");
 const styles = readFileSync("app/dashboard/epod-cmr/[cmr]/cmr-document.module.css", "utf8");
 
 test("CMR print waits for the exact QR resource to load", () => {
-  assert.ok(page.includes('const qrState=qrStatus?.src===qrSrc?qrStatus.state:"loading"'));
+  assert.ok(page.includes('const qrState=demoData?"error":qrStatus?.src===qrSrc?qrStatus.state:"loading"'));
   assert.ok(page.includes('qrState==="ready"&&searchParams.get("print")==="1"'));
   assert.ok(page.includes('if(!doc||!isLive||qrState!=="ready")return'));
   assert.ok(page.includes('onLoad={()=>setQrStatus({src:qrSrc,state:"ready"})}'));

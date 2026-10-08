@@ -1,9 +1,8 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getAuthenticatedOrReviewContext } from "@/lib/auth-context";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
-import ExpeditionForm, { type AvailableOrder } from "./ExpeditionForm";
-import styles from "./expedition-form.module.css";
+import type { AvailableOrder } from "./ExpeditionForm";
+import NewExpeditionView from "./NewExpeditionView";
 
 export const dynamic = "force-dynamic";
 
@@ -54,15 +53,5 @@ export default async function NewExpeditionPage() {
       adr: adrLabel(order.adr),
     }));
 
-  return <main className={styles.page}>
-    <header className={styles.header}>
-      <div>
-        <p>EXPEDIENTE LOGÍSTICO</p>
-        <h1>Nuevo expediente</h1>
-        <span>Cada Partida pertenece a un único Expediente. Los datos operativos se heredan del pedido para mantener una única fuente de verdad.</span>
-      </div>
-      <Link href="/dashboard/expediciones">Volver a expedientes</Link>
-    </header>
-    <ExpeditionForm orders={orders} readOnly={Boolean(auth.isReview)} />
-  </main>;
+  return <NewExpeditionView orders={orders} readOnly={Boolean(auth.isReview)} />;
 }

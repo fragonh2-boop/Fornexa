@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import styles from "./products.module.css";
 
 type ProductItem = {
@@ -12,7 +12,7 @@ type ProductItem = {
 };
 type CustomerOption = { code: string; name: string; status: string };
 type UomOption = { code: string; name: string; category: string };
-type Catalog = { items: ProductItem[]; customers: CustomerOption[]; uoms: UomOption[]; canEdit: boolean; truncated: boolean };
+export type Catalog = { items: ProductItem[]; customers: CustomerOption[]; uoms: UomOption[]; canEdit: boolean; truncated: boolean };
 type Draft = {
   id?: string; sku: string; name: string; description: string; gtin: string; ownerCustomerCode: string; uomBase: string;
   netWeightKg: string; grossWeightKg: string; lengthCm: string; widthCm: string; heightCm: string; volumeM3: string;
@@ -35,15 +35,16 @@ function toDraft(item: ProductItem): Draft {
   };
 }
 
-export default function ProductCatalog() {
-  const [catalog, setCatalog] = useState<Catalog>(EMPTY_CATALOG);
+export default function ProductCatalog({ initialDemoCatalog }: { initialDemoCatalog?: Catalog } = {}) {
+  const [catalog, setCatalog] = useState<Catalog>(initialDemoCatalog ?? EMPTY_CATALOG);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialDemoCatalog);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
-  async function loadCatalog() {
+  const loadCatalog = useCallback(async () => {
+    if (initialDemoCatalog) return;
     setLoading(true);
     try {
       const response = await fetch("/api/products", { cache: "no-store" });
@@ -55,9 +56,9 @@ export default function ProductCatalog() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [initialDemoCatalog]);
 
-  useEffect(() => { void loadCatalog(); }, []);
+  useEffect(() => { void loadCatalog(); }, [loadCatalog]);
 
   const visibleItems = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase("es-ES");
@@ -80,6 +81,7 @@ export default function ProductCatalog() {
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!catalog.canEdit || saving) return;
+    if (initialDemoCatalog) { setMessage("Guardado simulado: no se han enviado ni persistido datos."); return; }
     setSaving(true);
     setMessage("");
     try {

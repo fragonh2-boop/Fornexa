@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import EmailWorkspace from "./EmailWorkspace";
+import EmailWorkspace, { type EmailEvent } from "./EmailWorkspace";
+import type { DashboardBasePath } from "../../components/DashboardNavigation";
 import styles from "./integraciones.module.css";
 
 export type Connector = {
@@ -25,11 +26,13 @@ export type IntegrationsData = {
   eventsToday: string | null;
 };
 
-export default function IntegracionesClient({ data }: { data: IntegrationsData }) {
+export default function IntegracionesClient({ data, basePath = "/dashboard", simulation = false, emailHistory }: { data: IntegrationsData; basePath?: DashboardBasePath; simulation?: boolean; emailHistory?: EmailEvent[] }) {
   const { queue, mappings, eventsToday } = data;
   const [search, setSearch] = useState("");
   const [family, setFamily] = useState("Todas");
   const [connectors] = useState(data.connectors);
+  const [notice, setNotice] = useState("");
+  const simulate = simulation ? () => setNotice("Acción simulada. No se ha conectado con ningún proveedor ni guardado cambios.") : undefined;
 
   const visible = useMemo(() => connectors.filter((c) => {
     const q = search.toLowerCase().trim();
@@ -45,16 +48,17 @@ export default function IntegracionesClient({ data }: { data: IntegrationsData }
   return <main className={styles.page}>
     <header className={styles.header}>
       <div>
-        <Link href="/dashboard" className={styles.back}>← Control Tower</Link>
+        <Link href={basePath} prefetch={simulation ? false : undefined} className={styles.back}>← Control Tower</Link>
         <p className={styles.eyebrow}>CONNECTIVITY HUB</p>
         <h1>Integraciones y comunicaciones</h1>
         <p className={styles.subtitle}>Un único punto para correo, EDI, APIs, web services, ficheros, SFTP, SMTP, webhooks y futuras conexiones eFTI.</p>
       </div>
       <div className={styles.headerActions}>
-        <button type="button" className={styles.secondary}>Probar conexión</button>
-        <button type="button" className={styles.primary}>+ Nuevo conector</button>
+        <button type="button" className={styles.secondary} onClick={simulate}>Probar conexión</button>
+        <button type="button" className={styles.primary} onClick={simulate}>+ Nuevo conector</button>
       </div>
     </header>
+    {notice && <p role="status" className={styles.note}>{notice}</p>}
 
     <section className={styles.metrics}>
       <article><span>Conectores activos</span><strong>{active}</strong><small>Operativos</small></article>
@@ -63,7 +67,7 @@ export default function IntegracionesClient({ data }: { data: IntegrationsData }
       <article><span>Eventos hoy</span><strong>{eventsToday ?? "—"}</strong><small>Entrada + salida</small></article>
     </section>
 
-    <EmailWorkspace />
+    <EmailWorkspace simulation={simulation} initialHistory={emailHistory} />
 
     <section className={styles.split}>
       <article className={styles.panel}>
@@ -83,12 +87,12 @@ export default function IntegracionesClient({ data }: { data: IntegrationsData }
 
     <section className={styles.twoColumns}>
       <article className={styles.panel}>
-        <div className={styles.panelHeader}><div><p className={styles.eyebrow}>TRAZABILIDAD</p><h2>Cola y últimas ejecuciones</h2></div><button className={styles.textButton}>Ver logs</button></div>
+        <div className={styles.panelHeader}><div><p className={styles.eyebrow}>TRAZABILIDAD</p><h2>Cola y últimas ejecuciones</h2></div><button className={styles.textButton} onClick={simulate}>Ver logs</button></div>
         <div className={styles.queue}>{queue.length === 0 && <p>Sin ejecuciones registradas.</p>}{queue.map(([id,channel,object,status,time]) => <div className={styles.queueRow} key={id}><div><strong>{object}</strong><span>{id} · {channel}</span></div><span>{status}</span><time>{time}</time></div>)}</div>
       </article>
 
       <article className={styles.panel}>
-        <div className={styles.panelHeader}><div><p className={styles.eyebrow}>MODELO OPERATIVO</p><h2>Mapeo de campos</h2></div><button className={styles.textButton}>Editar mapeo</button></div>
+        <div className={styles.panelHeader}><div><p className={styles.eyebrow}>MODELO OPERATIVO</p><h2>Mapeo de campos</h2></div><button className={styles.textButton} onClick={simulate}>Editar mapeo</button></div>
         <div className={styles.mapping}>{mappings.length === 0 && <p>Sin mapeos definidos.</p>}{mappings.map(([external,fornexa,type,rule]) => <div className={styles.mappingRow} key={external}><code>{external}</code><span>→</span><strong>{fornexa}</strong><small>{type} · {rule}</small></div>)}</div>
       </article>
     </section>

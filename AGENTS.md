@@ -59,3 +59,9 @@ When asked for the latest FORNEXA status, last steps, recent changes, or pending
 2. Inspect recent Git history and current status.
 3. If connectors are available and freshness matters, verify `origin/main`, relevant pull requests, CI, Supabase migrations, and the production deployment.
 4. Clearly distinguish completed, merged, deployed, pending, and locally uncommitted work.
+
+## UI Parity and Responsive Shell Policy (2026-10-08)
+
+1. **Left sidebar across all viewports**: The application sidebar must ALWAYS remain anchored on the left in responsive viewports (including <=760px, 701px, and mobile). NEVER convert the sidebar into a horizontal top bar.
+2. **Preview layout parity**: Preview environments must strictly preserve the production layout: shell, order, hierarchy, headers, actions, panels, tables, metrics, and geometry. No unrequested redesigns, parallel cosmetic redesigns, or artificial viewport/zoom/min-width overrides.
+3. **Authorized differences only**: Only authorized new test features/screens and isolated simulated/demo operations with clean non-invasive indicators may differ.

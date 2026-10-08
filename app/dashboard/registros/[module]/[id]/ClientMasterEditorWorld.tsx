@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { inferSubdivisionFromPostalCode, subdivisionMatchesPostalCode, type GeographyCountry, type GeographySubdivision } from "@/lib/geography-master";
 import { fiscalRuleForCountry } from "@/lib/fiscal-id";
+import { demoCustomerAddresses, demoCustomerEditor, DEMO_EDITOR_COUNTRIES, DEMO_EDITOR_SUBDIVISIONS, DEMO_EDITOR_USERS } from "@/lib/preview-demo-customer-editors";
 import styles from "./client-master.module.css";
 
 type Address = {
@@ -123,45 +124,51 @@ function languageValue(value: string) {
   return "es";
 }
 
-export default function ClientMasterEditorWorld({ id }: { id: string }) {
+export default function ClientMasterEditorWorld({ id, simulation = false, basePath = "/dashboard" }: {
+  id: string;
+  simulation?: boolean;
+  basePath?: "/dashboard" | "/demo";
+}) {
   const router = useRouter();
   const isNew = id === "nuevo";
   const code = isNew ? "" : id.toUpperCase();
+  const routeBase = simulation ? "/demo" : basePath;
+  const demo = simulation ? demoCustomerEditor(id) : null;
 
-  const [countries, setCountries] = useState<GeographyCountry[]>(fallbackCountries);
+  const [countries, setCountries] = useState<GeographyCountry[]>(simulation ? DEMO_EDITOR_COUNTRIES : fallbackCountries);
   const [geographyError, setGeographyError] = useState("");
-  const [subdivisionsByCountry, setSubdivisionsByCountry] = useState<Record<string, GeographySubdivision[]>>({});
+  const [subdivisionsByCountry, setSubdivisionsByCountry] = useState<Record<string, GeographySubdivision[]>>(simulation ? DEMO_EDITOR_SUBDIVISIONS : {});
   const [subdivisionLoading, setSubdivisionLoading] = useState<Record<string, boolean>>({});
 
   const [partyCountry, setPartyCountry] = useState("ES");
-  const [taxId, setTaxId] = useState("");
-  const [legalName, setLegalName] = useState("");
-  const [tradeName, setTradeName] = useState("");
+  const [taxId, setTaxId] = useState(demo?.taxId ?? "");
+  const [legalName, setLegalName] = useState(demo?.legalName ?? "");
+  const [tradeName, setTradeName] = useState(demo?.tradeName ?? "");
   const [partyType, setPartyType] = useState("Cliente");
   const [language, setLanguage] = useState("es");
   const [currency, setCurrency] = useState("EUR");
   const [paymentMethod, setPaymentMethod] = useState("Transferencia");
   const [paymentTerms, setPaymentTerms] = useState("30 días");
   const [creditLimit, setCreditLimit] = useState("25.000,00 €");
-  const [billingEmail, setBillingEmail] = useState("");
-  const [salesEmail, setSalesEmail] = useState("");
+  const [billingEmail, setBillingEmail] = useState(demo?.billingEmail ?? "");
+  const [salesEmail, setSalesEmail] = useState(demo?.salesEmail ?? "");
   const [eori, setEori] = useState("");
   const [gln, setGln] = useState("");
   const [cnaeCode, setCnaeCode] = useState("");
   const [commercialRegister, setCommercialRegister] = useState("");
   const [accountManagerUserId, setAccountManagerUserId] = useState("");
-  const [tenantUsers, setTenantUsers] = useState<TenantUser[]>([]);
-  const [status, setStatus] = useState("Activo");
-  const [notes, setNotes] = useState("");
-  const [canEdit, setCanEdit] = useState(isNew);
-  const [customerLoading, setCustomerLoading] = useState(!isNew);
+  const [tenantUsers, setTenantUsers] = useState<TenantUser[]>(simulation ? DEMO_EDITOR_USERS : []);
+  const [status, setStatus] = useState(demo?.status ?? "Activo");
+  const [notes, setNotes] = useState(demo?.notes ?? "");
+  const [canEdit, setCanEdit] = useState(simulation || isNew);
+  const [customerLoading, setCustomerLoading] = useState(!simulation && !isNew);
   const [savingCustomer, setSavingCustomer] = useState(false);
   const [formErrors, setFormErrors] = useState<string[]>([]);
   const [notice, setNotice] = useState("");
 
-  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [addresses, setAddresses] = useState<Address[]>(() => simulation ? demoCustomerAddresses(id) : []);
   const [assignableCustomers, setAssignableCustomers] = useState<AssignableCustomer[]>([]);
-  const [addressesLoading, setAddressesLoading] = useState(!isNew);
+  const [addressesLoading, setAddressesLoading] = useState(!simulation && !isNew);
   const [addressSaving, setAddressSaving] = useState<string | null>(null);
   const [postalPlaces, setPostalPlaces] = useState<Record<string, string[]>>({});
   const [postalErrors, setPostalErrors] = useState<Record<string, string>>({});
@@ -170,6 +177,7 @@ export default function ClientMasterEditorWorld({ id }: { id: string }) {
   const taxValid = taxId ? fiscalRule.validate(taxId) : null;
 
   useEffect(() => {
+    if (simulation) return;
     let active = true;
     fetch("/api/geography", { cache: "no-store" })
       .then(async response => {
@@ -182,17 +190,19 @@ export default function ClientMasterEditorWorld({ id }: { id: string }) {
       })
       .catch(error => active && setGeographyError(error instanceof Error ? error.message : "No se pudo cargar el catálogo mundial."));
     return () => { active = false; };
-  }, []);
+  }, [simulation]);
 
   useEffect(() => {
+    if (simulation) return;
     fetch("/api/tenant/users", { cache: "no-store" })
       .then(async response => response.ok ? response.json() : { items: [] })
       .then(result => setTenantUsers(result.items ?? []))
       .catch(() => setTenantUsers([]));
-  }, []);
+  }, [simulation]);
 
   const loadSubdivisions = useCallback(async (countryCode: string) => {
     const country = countryCode.trim().toUpperCase();
+    if (simulation) return subdivisionsByCountry[country] ?? [];
     if (!country || subdivisionsByCountry[country] || subdivisionLoading[country]) return subdivisionsByCountry[country] ?? [];
     setSubdivisionLoading(current => ({ ...current, [country]: true }));
     try {
@@ -208,12 +218,12 @@ export default function ClientMasterEditorWorld({ id }: { id: string }) {
     } finally {
       setSubdivisionLoading(current => ({ ...current, [country]: false }));
     }
-  }, [subdivisionLoading, subdivisionsByCountry]);
+  }, [subdivisionLoading, subdivisionsByCountry, simulation]);
 
   useEffect(() => { void loadSubdivisions(partyCountry); }, [loadSubdivisions, partyCountry]);
 
   useEffect(() => {
-    if (isNew) return;
+    if (simulation || isNew) return;
     let active = true;
     fetch(`/api/customers?customerCode=${encodeURIComponent(code)}`, { cache: "no-store" })
       .then(async response => {
@@ -247,10 +257,10 @@ export default function ClientMasterEditorWorld({ id }: { id: string }) {
       .catch(error => active && setFormErrors([error instanceof Error ? error.message : "No se pudo cargar la empresa."]))
       .finally(() => active && setCustomerLoading(false));
     return () => { active = false; };
-  }, [code, isNew, loadSubdivisions]);
+  }, [code, isNew, loadSubdivisions, simulation]);
 
   useEffect(() => {
-    if (isNew) return;
+    if (simulation || isNew) return;
     let active = true;
     fetch(`/api/customers/addresses?customerCode=${encodeURIComponent(code)}`, { cache: "no-store" })
       .then(async response => {
@@ -297,7 +307,7 @@ export default function ClientMasterEditorWorld({ id }: { id: string }) {
       .catch(error => active && setNotice(error instanceof Error ? error.message : "No se pudieron cargar las direcciones."))
       .finally(() => active && setAddressesLoading(false));
     return () => { active = false; };
-  }, [code, isNew, loadSubdivisions]);
+  }, [code, isNew, loadSubdivisions, simulation]);
 
   useEffect(() => {
     setAddresses(current => current.map(address => {
@@ -331,6 +341,7 @@ export default function ClientMasterEditorWorld({ id }: { id: string }) {
       return;
     }
 
+    if (simulation) { setNotice("DEMO · Guardado de ficha simulado. Los cambios no se han guardado."); return; }
     setSavingCustomer(true);
     try {
       const response = await fetch("/api/customers", {
@@ -370,7 +381,7 @@ export default function ClientMasterEditorWorld({ id }: { id: string }) {
       setFormErrors([]);
       setNotice(`Empresa ${savedCode} guardada correctamente.`);
       if (isNew && savedCode) {
-        router.replace(`/dashboard/registros/clientes/${encodeURIComponent(savedCode)}`);
+        router.replace(`${routeBase}/registros/clientes/${encodeURIComponent(savedCode)}`);
         router.refresh();
       }
     } catch (error) {
@@ -466,6 +477,10 @@ export default function ClientMasterEditorWorld({ id }: { id: string }) {
 
   async function resolvePostal(index: number) {
     const address = addresses[index];
+    if (simulation) {
+      setNotice("DEMO · Consulta postal simulada, sin validación externa ni conexión con servicios reales.");
+      return;
+    }
     if (!address.country || !address.postalCode || !postalIsValid(address.country, address.postalCode)) return;
     const subdivisions = subdivisionsByCountry[address.country] ?? await loadSubdivisions(address.country);
     const inferred = inferSubdivisionFromPostalCode(subdivisions, address.postalCode);
@@ -507,6 +522,7 @@ export default function ClientMasterEditorWorld({ id }: { id: string }) {
       setFormErrors(errors.map(message => `Dirección ${address.code || index + 1}: ${message}`));
       return;
     }
+    if (simulation) { setFormErrors([]); setNotice("DEMO · Guardado de dirección simulado. No se ha guardado ninguna dirección."); return; }
     setAddressSaving(address.id);
     setFormErrors([]);
     setNotice("");
@@ -572,7 +588,7 @@ export default function ClientMasterEditorWorld({ id }: { id: string }) {
 
   return <main className={styles.page}>
     <header className={styles.header}>
-      <div><Link href="/dashboard/clientes">← Clientes</Link><p>FICHA DE EMPRESA</p><h1>{isNew ? "Nueva empresa" : (tradeName || legalName || code)}</h1><span>{isNew ? "Código pendiente de asignación" : code} · Cliente / proveedor</span></div>
+      <div><Link href={`${routeBase}/clientes`}>← Clientes</Link><p>FICHA DE EMPRESA</p><h1>{isNew ? "Nueva empresa" : (tradeName || legalName || code)}</h1><span>{isNew ? "Código pendiente de asignación" : code} · Cliente / proveedor</span></div>
       <div className={styles.headerActions}><span>{status}</span><button form="party-form" disabled={savingCustomer || !canEdit}>{savingCustomer ? "Guardando…" : "Guardar ficha"}</button></div>
     </header>
 
@@ -646,7 +662,7 @@ export default function ClientMasterEditorWorld({ id }: { id: string }) {
 
       {formErrors.length > 0 && <div className={styles.notice} role="alert"><strong>No se puede guardar todavía:</strong><ul>{formErrors.map(error => <li key={error}>{error}</li>)}</ul></div>}
       {notice && <div className={styles.notice} role="status">{notice}</div>}
-      <div className={styles.footerActions}><Link href="/dashboard/clientes">Cancelar</Link><button disabled={savingCustomer || !canEdit}>{savingCustomer ? "Guardando…" : "Guardar ficha"}</button></div>
+      <div className={styles.footerActions}><Link href={`${routeBase}/clientes`}>Cancelar</Link><button disabled={savingCustomer || !canEdit}>{savingCustomer ? "Guardando…" : "Guardar ficha"}</button></div>
     </form>
   </main>;
 }

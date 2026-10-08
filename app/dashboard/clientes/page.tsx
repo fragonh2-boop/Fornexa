@@ -1,8 +1,6 @@
-import Link from "next/link";
-import AppShell from "../../components/AppShell";
-import DataGrid from "../../components/DataGrid";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
-import styles from "./customers.module.css";
+import { getAuthenticatedOrReviewContext } from "@/lib/auth-context";
+import CustomersListView from "./CustomersListView";
 
 const STATUS_LABELS: Record<string, string> = {
   ACTIVE: "Activo",
@@ -11,6 +9,9 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 async function getCustomers() {
+  const auth = await getAuthenticatedOrReviewContext();
+  if (!auth) return [];
+
   const supabase = createSupabaseAdmin();
   const { data, error } = await supabase
     .from("parties")
@@ -29,6 +30,10 @@ async function getCustomers() {
       offers ( id, status )
     `)
     .eq("is_customer", true)
+    .eq("tenant_id", auth.tenantId)
+    .eq("party_addresses.tenant_id", auth.tenantId)
+    .eq("orders.tenant_id", auth.tenantId)
+    .eq("offers.tenant_id", auth.tenantId)
     .order("code", { ascending: true });
 
   if (error) {
@@ -60,38 +65,5 @@ async function getCustomers() {
 export default async function CustomersPage({ searchParams }: { searchParams: Promise<{ estado?: string }> }) {
   const { estado } = await searchParams;
   const customers = await getCustomers();
-  const filtered = estado ? customers.filter(customer => customer.status === estado) : customers;
-  const stats = [
-    [String(customers.length), "Clientes totales", ""],
-    [String(customers.filter(customer => customer.status === "Activo").length), "Activos", "Activo"],
-    [String(customers.filter(customer => customer.adrControl === "S").length), "Control ADR", ""],
-    [String(customers.reduce((total, customer) => total + customer.openOffers, 0)), "Ofertas abiertas", ""],
-  ] as const;
-  const columns = [
-    {key:"code",label:"Código"},
-    {key:"tradeName",label:"Cliente"},
-    {key:"taxId",label:"NIF/CIF"},
-    {key:"location",label:"Provincia / población"},
-    {key:"segment",label:"Segmento"},
-    {key:"adr",label:"ADR"},
-    {key:"addresses",label:"Direcciones"},
-    {key:"shipments",label:"Pedidos"},
-    {key:"manager",label:"Responsable"},
-    {key:"status",label:"Estado"},
-  ];
-  const rows = filtered.map(customer => ({
-    code: customer.code,
-    tradeName: customer.tradeName,
-    taxId: customer.taxId,
-    location: customer.location,
-    segment: customer.segment,
-    adr: customer.adrControl,
-    addresses: customer.addresses,
-    shipments: customer.shipments,
-    manager: customer.accountManager,
-    status: customer.status,
-  }));
-  const rowHrefs = filtered.map(customer => `/dashboard/registros/clientes/${customer.code}`);
-
-  return <AppShell><div className={styles.page}><header><div><p>CRM · MAESTRO</p><h1>Clientes</h1><span>Resumen comercial y operativo desde el maestro real de Supabase.</span></div><div className={styles.actions}><Link href="/dashboard/importar?entidad=clientes">Importar Excel</Link><Link className={styles.primary} href="/dashboard/registros/clientes/nuevo">+ Nuevo cliente</Link></div></header><section className={styles.stats}>{stats.map(([value,label,filter])=><Link key={label} href={filter?`/dashboard/clientes?estado=${encodeURIComponent(filter)}`:"/dashboard/clientes"}><span>{label}</span><strong>{value}</strong><small>Abrir grid ↗</small></Link>)}</section>{estado&&<div className={styles.filterNotice}>Vista filtrada: <strong>{estado}</strong><Link href="/dashboard/clientes">Ver todos</Link></div>}<section className={styles.panel}><DataGrid storageKey={`clientes-${estado??"todos"}`} columns={columns} rows={rows} rowHrefs={rowHrefs} searchPlaceholder="Buscar por código, cliente, NIF, ubicación…" /></section></div></AppShell>;
+  return <CustomersListView customers={customers} estado={estado} />;
 }

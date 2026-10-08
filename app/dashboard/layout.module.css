@@ -41,6 +41,9 @@
   display: grid;
   gap: 4px;
   margin-top: 28px;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 .nav a {
@@ -142,22 +145,15 @@
   overflow: clip;
 }
 
-.stage :global(main:has(> aside:first-child nav)) {
-  display: block !important;
-  width: 100% !important;
-  min-width: 0 !important;
-  max-width: none !important;
+.demoNotice {
+  margin: 0;
+  padding: 10px 38px;
+  border-bottom: 1px solid rgba(18, 32, 52, 0.1);
+  color: #526174;
+  background: #f7f9fc;
+  font-size: 12px;
+  line-height: 1.5;
 }
-
-.stage :global(main > aside:first-child:has(nav)) { display: none !important; }
-
-.stage :global(main:has(> aside:first-child nav) > section) {
-  width: 100% !important;
-  min-width: 0 !important;
-  max-width: none !important;
-  padding-top: 34px !important;
-}
-
 .stage > :global(main) {
   width: 100% !important;
   min-width: 0 !important;
@@ -183,30 +179,71 @@
 .stage > :global(main) > :global(header:first-child) > :global(div:first-child) > :global(a:first-child[href="/dashboard"]) { display: none !important; }
 
 @media (max-width: 760px) {
-  .frame { grid-template-columns: minmax(0, 1fr); }
+  .frame {
+    --dashboard-sidebar-width: 200px;
+  }
+  .demoNotice {
+    padding: 10px 16px;
+  }
   .sidebar {
-    position: sticky;
-    width: 100%;
-    height: auto;
-    max-height: none;
-    padding: 16px 18px;
-    overflow: hidden;
-    border-right: 0;
-    border-bottom: 1px solid rgba(18, 32, 52, 0.1);
+    padding: 20px 12px;
   }
-  .brand,.brandLogo { width: 145px; height: 54px; }
+  .brand,
+  .brandLogo {
+    width: 130px;
+    height: 48px;
+  }
   .nav {
-    display: flex;
-    gap: 6px;
-    margin-top: 14px;
-    padding-bottom: 2px;
-    overflow-x: auto;
-    scrollbar-width: thin;
+    gap: 3px;
+    margin-top: 18px;
   }
-  .nav a { flex: 0 0 auto; min-height: 38px; padding: 10px 12px; }
-  .footer { display: none; }
+  .nav a {
+    min-height: 32px;
+    padding: 7px 10px;
+    font-size: 13px;
+    line-height: 16px;
+  }
+  .footer {
+    padding-top: 12px;
+    font-size: 11px;
+  }
   .stage > :global(main) > :global(section) > :global(header:first-child) :global(h1),
-  .stage > :global(main) > :global(header:first-child) :global(h1) { font-size: 34px !important; }
+  .stage > :global(main) > :global(header:first-child) :global(h1) {
+    font-size: 32px !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .frame {
+    --dashboard-sidebar-width: 175px;
+  }
+  .sidebar {
+    padding: 16px 8px;
+  }
+  .brand,
+  .brandLogo {
+    width: 118px;
+    height: 44px;
+  }
+  .nav {
+    gap: 2px;
+    margin-top: 14px;
+  }
+  .nav a {
+    min-height: 28px;
+    padding: 6px 8px;
+    font-size: 12px;
+    line-height: 14px;
+    border-radius: 8px;
+  }
+  .footer {
+    padding-top: 10px;
+    font-size: 10px;
+  }
+  .stage > :global(main) > :global(section) > :global(header:first-child) :global(h1),
+  .stage > :global(main) > :global(header:first-child) :global(h1) {
+    font-size: 28px !important;
+  }
 }
 
 @media print {

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import styles from "./EntityServicesManager.module.css";
+import { DEMO_EDITOR_SERVICE_CATALOG } from "@/lib/preview-demo-customer-editors";
 
 type EntityType = "cliente" | "proveedor";
 type AssignmentStatus = "ACTIVE" | "PENDING" | "INACTIVE";
@@ -11,16 +12,17 @@ type CatalogItem = {
   assignment: null | { reference: string | null; price: number | null; currency: string; valid_from: string | null; valid_to: string | null; conditions: { notes?: string | null; status?: AssignmentStatus } | null; is_active: boolean };
 };
 
-export default function EntityServicesManager({ entityId, entityType }: { entityId: string; entityType: EntityType }) {
-  const [catalog, setCatalog] = useState<CatalogItem[]>([]);
+export default function EntityServicesManager({ entityId, entityType, simulation = false }: { entityId: string; entityType: EntityType; simulation?: boolean }) {
+  const [catalog, setCatalog] = useState<CatalogItem[]>(() => simulation ? DEMO_EDITOR_SERVICE_CATALOG : []);
   const [assignments, setAssignments] = useState<Record<string, Assignment>>({});
   const [search, setSearch] = useState("");
   const [mode, setMode] = useState("Todos");
-  const [notice, setNotice] = useState("Cargando servicios…");
+  const [notice, setNotice] = useState(simulation ? "DEMO · Asignaciones temporales sin persistencia." : "Cargando servicios…");
   const [saving, setSaving] = useState(false);
   const relationship = entityType === "cliente" ? "CONTRACTED" : "OFFERED";
 
   useEffect(() => {
+    if (simulation) return;
     if (entityId === "nuevo") { setNotice("Guarda primero la empresa para asignar servicios."); return; }
     let active = true;
     fetch(`/api/customers/services?partyCode=${encodeURIComponent(entityId)}&relationship=${relationship}`, { cache: "no-store" })
@@ -43,7 +45,7 @@ export default function EntityServicesManager({ entityId, entityType }: { entity
       })
       .catch(error => active && setNotice(error instanceof Error ? error.message : "No se pudieron cargar los servicios."));
     return () => { active = false; };
-  }, [entityId, relationship]);
+  }, [entityId, relationship, simulation]);
 
   const modes = useMemo(() => [...new Set(catalog.map(service => service.mode))], [catalog]);
   const visibleServices = useMemo(() => {
@@ -67,6 +69,7 @@ export default function EntityServicesManager({ entityId, entityType }: { entity
     setNotice("");
   }
   async function save() {
+    if (simulation) { setNotice("DEMO · Guardado de servicios simulado. No se han guardado asignaciones ni precios."); return; }
     setSaving(true); setNotice("");
     try {
       const response = await fetch("/api/customers/services", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
@@ -95,6 +98,6 @@ export default function EntityServicesManager({ entityId, entityType }: { entity
     })}</div></div>}
     <div className={styles.catalogHeader}><div className={styles.sectionTitle}><div><span>Catálogo</span><strong>Asignar servicios existentes</strong></div></div><div className={styles.filters}><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar código, nombre o modalidad…" /><select value={mode} onChange={event => setMode(event.target.value)}><option>Todos</option>{modes.map(value => <option key={value}>{value}</option>)}</select></div></div>
     <div className={styles.catalog}><div className={`${styles.row} ${styles.head}`}><span>Código</span><span>Modo</span><span>Servicio</span><span>Tipo</span><span>Unidad</span><span>Estado</span><span>Asignación</span></div>{visibleServices.map(service => <div className={`${styles.row} ${assignments[service.code] ? styles.selected : ""}`} key={service.id}><span><strong>{service.code}</strong></span><span>{service.mode}</span><span><strong>{service.name}</strong><small>{service.description || "Sin descripción"}</small></span><span><b>{service.service_type}</b></span><span>{service.unit || "—"}</span><span>Activo</span><span><button type="button" aria-pressed={Boolean(assignments[service.code])} onClick={() => toggle(service.code)}>{assignments[service.code] ? "✓ Asignado" : "Asignar"}</button></span></div>)}{!visibleServices.length && <div className={styles.empty}>No hay servicios que coincidan.</div>}</div>
-    <div className={styles.actions}><span>{notice || "Los cambios se conservarán en el maestro compartido."}</span><button type="button" onClick={save} disabled={saving || entityId === "nuevo"}>{saving ? "Guardando…" : "Guardar servicios"}</button></div>
+    <div className={styles.actions}><span>{notice || (simulation ? "DEMO · Cambios temporales, sin guardar en el maestro compartido." : "Los cambios se conservarán en el maestro compartido.")}</span><button type="button" onClick={save} disabled={saving || entityId === "nuevo"}>{saving ? "Guardando…" : "Guardar servicios"}</button></div>
   </section>;
 }

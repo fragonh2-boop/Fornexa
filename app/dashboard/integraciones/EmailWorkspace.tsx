@@ -4,7 +4,7 @@ import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import styles from "./integraciones.module.css";
 
 type Attachment = { filename: string; content: string; contentType: string; size: number };
-type EmailEvent = { id: string; to: string; subject: string; related: string; sentAt: string; status: "Enviado" | "Error"; detail?: string };
+export type EmailEvent = { id: string; to: string; subject: string; related: string; sentAt: string; status: "Enviado" | "Error" | "Simulado"; detail?: string };
 
 const templates = {
   libre: { label: "Mensaje libre", subject: "", message: "Hola,\n\n\n\nUn saludo,\nEquipo FORNEXA" },
@@ -25,7 +25,7 @@ function fileToAttachment(file: File): Promise<Attachment> {
   });
 }
 
-export default function EmailWorkspace() {
+export default function EmailWorkspace({ simulation = false, initialHistory = [] }: { simulation?: boolean; initialHistory?: EmailEvent[] }) {
   const [template, setTemplate] = useState<keyof typeof templates>("libre");
   const [to, setTo] = useState("");
   const [cc, setCc] = useState("");
@@ -36,18 +36,19 @@ export default function EmailWorkspace() {
   const [relatedType, setRelatedType] = useState("Cliente");
   const [relatedId, setRelatedId] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [history, setHistory] = useState<EmailEvent[]>([]);
+  const [history, setHistory] = useState<EmailEvent[]>(initialHistory);
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
+    if (simulation) return;
     try { setHistory(JSON.parse(localStorage.getItem(historyKey) || "[]") as EmailEvent[]); } catch { setHistory([]); }
-  }, []);
+  }, [simulation]);
 
   function storeHistory(entry: EmailEvent) {
     setHistory(current => {
       const updated = [entry, ...current].slice(0, 50);
-      localStorage.setItem(historyKey, JSON.stringify(updated));
+      if (!simulation) localStorage.setItem(historyKey, JSON.stringify(updated));
       return updated;
     });
   }
@@ -62,6 +63,13 @@ export default function EmailWorkspace() {
     const files = [...(event.target.files ?? [])];
     const total = attachments.reduce((sum, file) => sum + file.size, 0) + files.reduce((sum, file) => sum + file.size, 0);
     if (total > 8 * 1024 * 1024) { setStatus("error"); setNotice("Los adjuntos no pueden superar 8 MB en total."); return; }
+    if (simulation) {
+      // Keep only display metadata: no file content is read or sent in the demo.
+      setAttachments(current => [...current, ...files.map(file => ({ filename: file.name, content: "", contentType: file.type, size: file.size }))]);
+      setNotice("");
+      event.target.value = "";
+      return;
+    }
     try {
       const prepared = await Promise.all(files.map(fileToAttachment));
       setAttachments(current => [...current, ...prepared]);
@@ -73,6 +81,13 @@ export default function EmailWorkspace() {
 
   async function send(event: FormEvent) {
     event.preventDefault();
+    if (simulation) {
+      storeHistory({ id: `DEMO-EMAIL-${crypto.randomUUID()}`, to, subject, related: `${relatedType} · ${relatedId || "Sin referencia"}`, sentAt: new Date().toISOString(), status: "Simulado" });
+      setStatus("sent");
+      setNotice("Envío simulado. No se ha enviado ningún correo ni guardado información fuera de esta pantalla.");
+      setAttachments([]);
+      return;
+    }
     setStatus("sending");
     setNotice("Añadiendo el mensaje a la cola de salida…");
     try {
@@ -92,7 +107,7 @@ export default function EmailWorkspace() {
   }
 
   return <section className={`${styles.panel} ${styles.emailWorkspace}`}>
-    <div className={styles.panelHeader}><div><p className={styles.eyebrow}>COMUNICACIONES</p><h2>Correo CRM</h2><p className={styles.workspaceIntro}>Envía mensajes y documentos a cualquier destinatario y conserva la trazabilidad con el registro relacionado.</p></div><span className={styles.channelStatus}>● Envío vía Resend</span></div>
+    <div className={styles.panelHeader}><div><p className={styles.eyebrow}>COMUNICACIONES</p><h2>Correo CRM</h2><p className={styles.workspaceIntro}>Envía mensajes y documentos a cualquier destinatario y conserva la trazabilidad con el registro relacionado.</p></div><span className={styles.channelStatus}>{simulation ? "● Simulación local" : "● Envío vía Resend"}</span></div>
     <div className={styles.emailLayout}>
       <form className={styles.emailComposer} onSubmit={send}>
         <div className={styles.emailGrid}>
@@ -108,10 +123,10 @@ export default function EmailWorkspace() {
         </div>
         <div className={styles.attachmentBar}><label className={styles.fileButton}>+ Adjuntar archivos<input type="file" multiple onChange={addAttachments} /></label><span>{attachments.length ? `${attachments.length} archivo(s) · ${(attachments.reduce((sum, file) => sum + file.size, 0) / 1024 / 1024).toFixed(2)} MB` : "PDF, Excel, imágenes u otros documentos · máximo 8 MB"}</span></div>
         {attachments.length > 0 && <div className={styles.attachmentList}>{attachments.map((file, index) => <button type="button" key={`${file.filename}-${index}`} onClick={() => setAttachments(current => current.filter((_, itemIndex) => itemIndex !== index))}>{file.filename} ×</button>)}</div>}
-        <div className={styles.sendBar}><span>El envío se registrará en el histórico del Hub.</span><button type="submit" className={styles.primary} disabled={status === "sending"}>{status === "sending" ? "Enviando…" : "Enviar correo"}</button></div>
-        {notice && <div className={status === "error" ? styles.emailError : styles.emailNotice}>{notice}</div>}
+        <div className={styles.sendBar}><span>{simulation ? "El resultado permanece solo en esta pantalla de demo." : "El envío se registrará en el histórico del Hub."}</span><button type="submit" className={styles.primary} disabled={status === "sending"}>{status === "sending" ? "Enviando…" : simulation ? "Simular envío" : "Enviar correo"}</button></div>
+        {notice && <div role="status" className={status === "error" ? styles.emailError : styles.emailNotice}>{notice}</div>}
       </form>
-      <aside className={styles.emailHistory}><div><p className={styles.eyebrow}>TRAZABILIDAD</p><h3>Últimos correos</h3></div>{history.length ? history.map(entry => <article key={entry.id}><div><strong>{entry.subject}</strong><span>{entry.to}</span><small>{entry.related}</small></div><div><b className={entry.status === "Enviado" ? styles.sent : styles.failed}>{entry.status}</b><time>{new Date(entry.sentAt).toLocaleString("es-ES")}</time></div>{entry.detail && <p>{entry.detail}</p>}</article>) : <p className={styles.emptyHistory}>Todavía no hay correos enviados desde este navegador.</p>}</aside>
+      <aside className={styles.emailHistory}><div><p className={styles.eyebrow}>TRAZABILIDAD</p><h3>Últimos correos</h3></div>{history.length ? history.map(entry => <article key={entry.id}><div><strong>{entry.subject}</strong><span>{entry.to}</span><small>{entry.related}</small></div><div><b className={entry.status !== "Error" ? styles.sent : styles.failed}>{entry.status}</b><time>{new Date(entry.sentAt).toLocaleString("es-ES")}</time></div>{entry.detail && <p>{entry.detail}</p>}</article>) : <p className={styles.emptyHistory}>{simulation ? "Sin envíos simulados en esta pantalla." : "Todavía no hay correos enviados desde este navegador."}</p>}</aside>
     </div>
   </section>;
 }

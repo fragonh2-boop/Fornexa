@@ -1,4 +1,33 @@
 :root { --bg:#eef3f9; --panel:#ffffff; --panel2:#f8fafc; --text:#101216; --muted:#526174; --accent:#005d8f; --accent-soft:#dcecf5; --success:#168657; --warning:#b56b00; --danger:#c43d4d; --line:rgba(18,32,52,.12); --shadow:0 16px 40px rgba(29,45,64,.10); }
+
+/* Shared screen contract. Document/print styles keep their own physical units. */
+:root {
+  --ui-page-bg: #eef3f9;
+  --ui-surface: #ffffff;
+  --ui-surface-subtle: #f8fafc;
+  --ui-text: #101216;
+  --ui-muted: #526174;
+  --ui-accent: #005d8f;
+  --ui-accent-soft: #dcecf5;
+  --ui-line: rgba(18, 32, 52, .12);
+  --ui-title-size: 42px;
+  --ui-eyebrow-size: 11px;
+  --ui-eyebrow-spacing: .15em;
+  --ui-panel-radius: 17px;
+  --ui-panel-padding: 24px;
+  --ui-button-radius: 10px;
+  --ui-button-padding: 14px 19px;
+  --ui-avatar-size: 42px;
+  --ui-metric-size: 38px;
+  --ui-success: #14532d;
+  --ui-success-soft: #ecfdf3;
+  --ui-warning: #8a4b00;
+  --ui-warning-soft: #fff4dc;
+  --ui-error: #a61b2b;
+  --ui-error-soft: #fff0f2;
+  --ui-focus: #005d8f;
+}
+
 * { box-sizing:border-box; }\n::selection { background:#c9e5f4; color:#101216; }
 html { scroll-behavior:smooth; scrollbar-gutter:stable; overflow-y:scroll; }
 body { margin:0; background:var(--bg); color:var(--text); font-family:var(--font-fornexa),Manrope,"Segoe UI",sans-serif; font-synthesis:none; text-rendering:optimizeLegibility; }

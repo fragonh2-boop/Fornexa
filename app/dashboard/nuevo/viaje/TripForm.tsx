@@ -14,12 +14,18 @@ export default function TripForm({
   vehicles,
   drivers,
   readOnly = false,
+  simulation = false,
+  basePath = "/dashboard",
 }: {
   expeditions: ExpeditionOption[];
   vehicles: VehicleOption[];
   drivers: DriverOption[];
   readOnly?: boolean;
+  simulation?: boolean;
+  basePath?: "/dashboard" | "/demo";
 }) {
+  const isSimulation = simulation || basePath === "/demo";
+  const returnBasePath = isSimulation ? "/demo" : basePath;
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>([]);
   const [plannedStart, setPlannedStart] = useState("");
@@ -60,6 +66,7 @@ export default function TripForm({
     if (readOnly) return setMessage("Modo revisión: solo lectura.");
     if (!selected.length) return setMessage("Selecciona al menos un expediente.");
     if (!vehicleRegistration || !driverCode || !driverName) return setMessage("Vehículo y conductor son obligatorios.");
+    if (isSimulation) return setMessage("Simulación completada. No se ha creado un viaje ni dado de alta vehículos o conductores.");
 
     setSaving(true);
     setMessage("");
@@ -105,11 +112,11 @@ export default function TripForm({
         <datalist id="trip-drivers">{drivers.map(item => <option key={item.code} value={item.code}>{item.name}{item.adrQualified ? " · ADR" : ""}</option>)}</datalist>
         <label>Conductor<input value={driverName} onChange={event => setDriverName(event.target.value)} required placeholder="Nombre y apellidos" /></label>
       </div>
-      <p className={styles.note}>Si la matrícula o el código de conductor no existen todavía, FORNEXA los da de alta como maestros del tenant al crear el viaje.</p>
+      <p className={styles.note}>{isSimulation ? "Datos ficticios para validar la interfaz. La simulación no crea vehículos, conductores ni registros operativos." : "Si la matrícula o el código de conductor no existen todavía, FORNEXA los da de alta como maestros del tenant al crear el viaje."}</p>
     </section>
 
     {selectedItems.length > 0 && <section className={styles.summary}><strong>Secuencia inicial:</strong> {selectedItems.map(item => item.code).join(" → ")}</section>}
-    {message && <p className={styles.message}>{message}</p>}
-    <div className={styles.actions}><Link href="/dashboard/viajes">Cancelar</Link><button type="submit" disabled={saving || readOnly || !selected.length}>{readOnly ? "Solo lectura" : saving ? "Guardando…" : "Crear viaje"}</button></div>
+    {message && <p className={styles.message} role="status">{message}</p>}
+    <div className={styles.actions}><Link href={`${returnBasePath}/viajes`}>Cancelar</Link><button type="submit" disabled={saving || readOnly || !selected.length}>{readOnly ? "Solo lectura" : saving ? "Guardando…" : isSimulation ? "Simular crear viaje" : "Crear viaje"}</button></div>
   </form>;
 }

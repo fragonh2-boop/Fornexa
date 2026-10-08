@@ -2,21 +2,22 @@
 
 import { useEffect, useState } from "react";
 import styles from "./record.module.css";
+import { DEMO_EDITOR_CONTACTS, DEMO_EDITOR_SERVICES, DEMO_EDITOR_TARIFFS } from "@/lib/preview-demo-customer-editors";
 
 type Contact = { id?: string; name: string; role: string; department: string; phone: string; email: string; language: string; isPrimary: boolean };
 type Tariff = { id: string; code: string; name: string; status: string; version: number; valid_from: string; valid_to: string | null; currency: string; service?: { code: string; name: string } | null; lines?: Array<{ pricing_unit: string; unit_price: number }> };
 type Service = { code: string; name: string };
 const emptyContact = (): Contact => ({ name: "", role: "", department: "", phone: "", email: "", language: "es", isPrimary: false });
 
-export default function CustomerSubmasters({ id }: { id: string }) {
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [tariffs, setTariffs] = useState<Tariff[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
+export default function CustomerSubmasters({ id, simulation = false }: { id: string; simulation?: boolean }) {
+  const [contacts, setContacts] = useState<Contact[]>(() => simulation ? DEMO_EDITOR_CONTACTS.map(item => ({ ...item })) : []);
+  const [tariffs, setTariffs] = useState<Tariff[]>(() => simulation ? DEMO_EDITOR_TARIFFS : []);
+  const [services, setServices] = useState<Service[]>(() => simulation ? DEMO_EDITOR_SERVICES : []);
   const [message, setMessage] = useState("");
   const [tariffForm, setTariffForm] = useState({ code: "", name: "", serviceCode: "", validFrom: "", validTo: "", pricingUnit: "SHIPMENT", unitPrice: "", currency: "EUR", activate: true });
 
   useEffect(() => {
-    if (id === "nuevo") return;
+    if (simulation || id === "nuevo") return;
     let active = true;
     Promise.all([
       fetch(`/api/customers/contacts?customerCode=${encodeURIComponent(id)}`, { cache: "no-store" }).then(response => response.json().then(result => ({ response, result }))),
@@ -29,13 +30,14 @@ export default function CustomerSubmasters({ id }: { id: string }) {
       if (servicesResult.response.ok) setServices((servicesResult.result.items ?? []).map((item: any) => ({ code: item.code, name: item.name })));
     }).catch(() => active && setMessage("No se pudieron cargar todos los submaestros."));
     return () => { active = false; };
-  }, [id]);
+  }, [id, simulation]);
 
   function updateContact(index: number, field: keyof Contact, value: string | boolean) {
     setContacts(current => current.map((contact, contactIndex) => contactIndex === index ? { ...contact, [field]: value } : field === "isPrimary" && value ? { ...contact, isPrimary: false } : contact));
   }
   async function saveContacts() {
     setMessage("");
+    if (simulation) { setMessage("DEMO · Guardado de contactos simulado. Los cambios no se han guardado."); return; }
     const response = await fetch("/api/customers/contacts", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ customerCode: id, contacts }) });
     const result = await response.json();
     if (!response.ok) return setMessage(result.error || "No se pudieron guardar los contactos.");
@@ -44,6 +46,10 @@ export default function CustomerSubmasters({ id }: { id: string }) {
   }
   async function createTariff() {
     setMessage("");
+    if (simulation) {
+      if (!tariffForm.code.trim() || !tariffForm.name.trim() || !tariffForm.validFrom || !tariffForm.unitPrice.trim()) { setMessage("Completa código, nombre, fecha de alta e importe para simular la tarifa."); return; }
+      setMessage("DEMO · Creación de tarifa simulada. No se ha creado ni activado ninguna tarifa."); return;
+    }
     const response = await fetch("/api/customers/tariffs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ customerCode: id, ...tariffForm }) });
     const result = await response.json();
     if (!response.ok) return setMessage(result.error || "No se pudo crear la tarifa.");

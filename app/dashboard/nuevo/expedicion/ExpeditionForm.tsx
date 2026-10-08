@@ -15,7 +15,11 @@ export type AvailableOrder = {
   adr: string;
 };
 
-export default function ExpeditionForm({ orders, readOnly = false }: { orders: AvailableOrder[]; readOnly?: boolean }) {
+export default function ExpeditionForm({ orders, readOnly = false, simulation = false, basePath = "/dashboard" }: {
+  orders: AvailableOrder[]; readOnly?: boolean; simulation?: boolean; basePath?: "/dashboard" | "/demo";
+}) {
+  const isSimulation = simulation || basePath === "/demo";
+  const returnBasePath = isSimulation ? "/demo" : basePath;
   const router = useRouter();
   const [selected, setSelected] = useState(orders[0]?.code ?? "");
   const [plannedDeparture, setPlannedDeparture] = useState("");
@@ -27,6 +31,7 @@ export default function ExpeditionForm({ orders, readOnly = false }: { orders: A
     event.preventDefault();
     if (readOnly) return setMessage("Modo revisión: solo lectura.");
     if (!selected) return setMessage("Selecciona una partida.");
+    if (isSimulation) return setMessage("Simulación completada. No se ha creado ningún expediente ni guardado datos.");
     setSaving(true);
     setMessage("");
     try {
@@ -81,10 +86,10 @@ export default function ExpeditionForm({ orders, readOnly = false }: { orders: A
       <p className={styles.note}>Cliente, servicio, origen y destino se heredan de la Partida. No se pueden cambiar aquí para evitar divergencias entre pedido y expediente.</p>
     </section>
 
-    {message && <p className={styles.message}>{message}</p>}
+    {message && <p className={styles.message} role="status">{message}</p>}
     <div className={styles.actions}>
-      <Link href="/dashboard/expediciones">Cancelar</Link>
-      <button type="submit" disabled={saving || !selected || readOnly}>{readOnly ? "Solo lectura" : saving ? "Guardando…" : "Crear expediente"}</button>
+      <Link href={`${returnBasePath}/expediciones`}>Cancelar</Link>
+      <button type="submit" disabled={saving || !selected || readOnly}>{readOnly ? "Solo lectura" : saving ? "Guardando…" : isSimulation ? "Simular crear expediente" : "Crear expediente"}</button>
     </div>
   </form>;
 }
