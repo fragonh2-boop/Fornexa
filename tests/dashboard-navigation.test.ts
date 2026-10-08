@@ -44,11 +44,11 @@ test("Control Tower uses one render view and never loads operational data from t
   assert.match(view, /const prefetch = basePath === "\/demo" \? false : undefined;/);
 });
 
-test("production and demo use the same fourteen-module navigation hierarchy (Decision Center retired)", () => {
-  assert.equal(dashboardNavigation.length, 14);
-  assert.equal(new Set(dashboardNavigation.map(([, suffix]) => suffix)).size, 14);
+test("production and demo use the same fifteen-module navigation hierarchy (Decision Center retired)", () => {
+  assert.equal(dashboardNavigation.length, 15);
+  assert.equal(new Set(dashboardNavigation.map(([, suffix]) => suffix)).size, 15);
   assert.ok(!dashboardNavigation.some(([, suffix]) => (suffix as string) === "/decision-center"));
-  assert.deepEqual(dashboardNavigation.map(([label]) => label), ["Control Tower", "Partidas", "Expediciones", "Viajes", "Aduanas", "Ofertas y tarifas", "Clientes", "Artículos", "Colaboradores", "Almacenes", "Tracking", "ePOD & CMR", "Integraciones", "Informes"]);
+  assert.deepEqual(dashboardNavigation.map(([label]) => label), ["Control Tower", "Partidas", "Expediciones", "Viajes", "Aduanas", "Ofertas y tarifas", "Clientes", "Artículos", "Colaboradores", "Almacenes", "Tracking", "Trazabilidad", "Documentos", "Configuración", "Informes"]);
   for (const [, suffix] of dashboardNavigation) {
     assert.equal(dashboardHref("/demo", suffix), dashboardHref("/dashboard", suffix).replace(/^\/dashboard/, "/demo"));
   }
@@ -56,7 +56,7 @@ test("production and demo use the same fourteen-module navigation hierarchy (Dec
 
 test("nested records and creation routes retain the correct active module in both namespaces", () => {
   for (const basePath of ["/dashboard", "/demo"] as const) {
-    for (const [path, active] of [["/registros/clientes/DEMO-001", "/clientes"], ["/registros/ofertas-tarifas/nuevo", "/ofertas-tarifas"], ["/nuevo/partida", "/partidas"], ["/nuevo/expedicion", "/expediciones"], ["/nuevo/viaje", "/viajes"], ["/viajes/DEMO-001", "/viajes"], ["/epod-cmr/nuevo", "/epod-cmr"], ["/articulos", "/articulos"]]) {
+    for (const [path, active] of [["/registros/clientes/DEMO-001", "/clientes"], ["/registros/ofertas-tarifas/nuevo", "/ofertas-tarifas"], ["/nuevo/partida", "/partidas"], ["/nuevo/expedicion", "/expediciones"], ["/nuevo/viaje", "/viajes"], ["/viajes/DEMO-001", "/viajes"], ["/epod-cmr/nuevo", "/epod-cmr"], ["/articulos", "/articulos"], ["/trazabilidad", "/trazabilidad"]]) {
       assert.equal(activeDashboardHref(`${basePath}${path}`, basePath), `${basePath}${active}`);
     }
     assert.equal(activeDashboardHref("/demographic/partidas", basePath), basePath);

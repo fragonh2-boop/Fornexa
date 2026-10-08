@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "08 oct 2026";
-export const memorandumCommitCoverage = 595;
+export const memorandumCommitCoverage = 596;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -102,6 +102,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.10.08-4",
+    date: "8 oct 2026",
+    surface: ["Web"],
+    title: "Documentos, Configuración, Trazabilidad y limpieza visual de cabeceras",
+    purpose: "Renombrar ePOD & CMR a Documentos e Integraciones a Configuración, crear la pantalla y menú de Trazabilidad, centrar el botón de cierre en Artículos y retirar los subtítulos explicativos bajo los títulos de pantalla.",
+    outcome: "La navegación principal y cabeceras de pantalla renombran ePOD & CMR por Documentos e Integraciones por Configuración. Se incorpora el nuevo módulo y menú de Trazabilidad para la navegación aguas arriba y aguas abajo en la cadena de suministro. Se eliminan los subtítulos descriptivos bajo los títulos en todas las pantallas. El botón de cierre del modal de alta de artículo se centra y cuadra perfectamente mediante icono SVG y dimensionamiento flex.",
+    status: "Preproducción",
+  },
   {
     version: "2026.10.08-3",
     date: "8 oct 2026",

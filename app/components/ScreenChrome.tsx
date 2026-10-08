@@ -23,7 +23,6 @@ export function ScreenHeader({ eyebrow, title, description, back, children }: {
         {back}
         <p className={styles.eyebrow}>{eyebrow}</p>
         <h1 className={styles.title}>{title}</h1>
-        {description && <p className={styles.description}>{description}</p>}
       </div>
       <div className={styles.actions}>
         {children}

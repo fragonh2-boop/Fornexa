@@ -8,8 +8,7 @@ export default function NewTripView({ expeditions, vehicles, drivers, readOnly =
   return <AppShell><div style={{ maxWidth: 1100, margin: "0 auto" }}>
     <header style={{ marginBottom: 24 }}>
       <p style={{ margin: 0, color: "#0067ad", fontSize: 11, fontWeight: 800, letterSpacing: ".12em" }}>TRANSPORTE</p>
-      <h1 style={{ margin: "7px 0 8px", fontSize: 42, lineHeight: 1.05 }}>Nuevo viaje</h1>
-      <p style={{ margin: 0, color: "#66768a" }}>Agrupa expedientes reales en un movimiento físico y asigna vehículo, conductor y secuencia.</p>
+      <h1 style={{ margin: "7px 0 0", fontSize: 42, lineHeight: 1.05 }}>Nuevo viaje</h1>
     </header>
     <TripForm expeditions={expeditions} vehicles={vehicles} drivers={drivers} readOnly={readOnly} simulation={simulation} basePath={basePath} />
   </div></AppShell>;

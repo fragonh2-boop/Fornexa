@@ -17,7 +17,7 @@ export default function TelematicsHubView({ providers, readiness, basePath = "/d
       eyebrow="TELEMATICS HUB"
       title="Conectividad telemática"
       description="Contratos técnicos normalizados para GPS, actividad, conducción/descanso y ficheros de tacógrafo. Los conectores usan solo documentación pública hasta que cada proveedor autorice credenciales y contrato tenant."
-      back={<Link href={`${basePath}/integraciones`} prefetch={simulation ? false : undefined} className={screenBackClass}>← Integraciones</Link>}
+      back={<Link href={`${basePath}/integraciones`} prefetch={simulation ? false : undefined} className={screenBackClass}>← Configuración</Link>}
     />
 
     <MetricGrid items={[

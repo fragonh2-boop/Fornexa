@@ -202,7 +202,7 @@ export default function ProductCatalog({ initialDemoCatalog }: { initialDemoCata
 
     {editorOpen && <div className={styles.overlay} onMouseDown={event => { if (event.target === event.currentTarget && !saving) closeEditor(); }}>
       <form ref={dialogRef} className={styles.editor} role="dialog" aria-modal="true" aria-labelledby="product-editor-title" onSubmit={save}>
-        <div className={styles.editorHeader}><div><p>{draft.id ? "EDICIÓN" : "ALTA"}</p><h2 id="product-editor-title">{draft.id ? `Artículo ${draft.sku}` : "Nuevo artículo"}</h2></div><button type="button" className={styles.close} onClick={closeEditor} disabled={saving} aria-label="Cerrar">×</button></div>
+        <div className={styles.editorHeader}><div><p>{draft.id ? "EDICIÓN" : "ALTA"}</p><h2 id="product-editor-title">{draft.id ? `Artículo ${draft.sku}` : "Nuevo artículo"}</h2></div><button type="button" className={styles.close} onClick={closeEditor} disabled={saving} aria-label="Cerrar"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="1" y1="1" x2="13" y2="13" /><line x1="13" y1="1" x2="1" y2="13" /></svg></button></div>
         <div className={styles.fields}>
           <label>Cliente propietario<select ref={firstFieldRef} required value={draft.ownerCustomerCode} onChange={event => patchDraft("ownerCustomerCode", event.target.value)}><option value="">Seleccionar cliente</option>{activeCustomers.map(item => <option key={item.code} value={item.code}>{item.code} · {item.name}</option>)}</select></label>
           <label>SKU<input required maxLength={100} value={draft.sku} onChange={event => patchDraft("sku", event.target.value.toUpperCase())} /></label>

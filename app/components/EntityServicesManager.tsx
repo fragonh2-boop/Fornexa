@@ -84,7 +84,7 @@ export default function EntityServicesManager({ entityId, entityType, simulation
   }
 
   return <section className={styles.manager} id="servicios">
-    <div className={styles.heading}><div><p className={styles.eyebrow}>SERVICIOS · PERFIL OPERATIVO</p><h2>{title}</h2><p className={styles.description}>Asignaciones reales vinculadas al maestro de la empresa, con vigencia, referencia e importe.</p></div><div className={styles.summary}><strong>{selected.length}</strong><span>asignados</span></div></div>
+    <div className={styles.heading}><div><p className={styles.eyebrow}>SERVICIOS · PERFIL OPERATIVO</p><h2>{title}</h2></div><div className={styles.summary}><strong>{selected.length}</strong><span>asignados</span></div></div>
     {selected.length > 0 && <div className={styles.assigned}><div className={styles.sectionTitle}><div><span>Configuración</span><strong>Vigencia y condiciones</strong></div><small>La tarifa completa se gestiona en el submaestro de tarifas.</small></div><div className={styles.assignedGrid}>{selected.map(service => {
       const assignment = assignments[service.code];
       return <article key={service.code} className={styles.assignmentCard}><div className={styles.assignmentTop}><div><strong>{service.name}</strong><small>{service.code} · {service.mode}</small></div><button type="button" onClick={() => toggle(service.code)}>Quitar</button></div><div className={styles.assignmentFields}>

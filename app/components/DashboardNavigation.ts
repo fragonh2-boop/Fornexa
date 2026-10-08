@@ -13,8 +13,9 @@ export const dashboardNavigation = [
   ["Colaboradores", "/colaboradores"],
   ["Almacenes", "/almacenes"],
   ["Tracking", "/tracking"],
-  ["ePOD & CMR", "/epod-cmr"],
-  ["Integraciones", "/integraciones"],
+  ["Trazabilidad", "/trazabilidad"],
+  ["Documentos", "/epod-cmr"],
+  ["Configuración", "/integraciones"],
   ["Informes", "/informes"],
 ] as const;
 

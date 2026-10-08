@@ -46,7 +46,7 @@ export default function IntegracionesClient({ data, simulation = false, emailHis
   const pending = connectors.filter(c => c.status === "Pendiente").length;
 
   return <main className={styles.page}>
-    <ScreenHeader eyebrow="CONNECTIVITY HUB" title="Integraciones y comunicaciones" description="Un único punto para correo, EDI, APIs, web services, ficheros, SFTP, SMTP, webhooks y futuras conexiones eFTI.">
+    <ScreenHeader eyebrow="CONNECTIVITY HUB" title="Configuración" description="Un único punto para correo, EDI, APIs, web services, ficheros, SFTP, SMTP, webhooks y futuras conexiones eFTI.">
       <button type="button" className={screenButton.secondary} onClick={simulate}>Probar conexión</button>
       <button type="button" className={screenButton.primary} onClick={simulate}>+ Nuevo conector</button>
     </ScreenHeader>
