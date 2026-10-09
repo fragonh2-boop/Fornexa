@@ -47,7 +47,7 @@ export function previewDemoTraceability(rawQuery: unknown, productId?: unknown):
   if (productId === "DEMO-PRODUCT-01" || productId === "DEMO-PRODUCT-02") return demoFound(query, "Coincidencia parcial");
   const upper = query.toUpperCase();
   if (upper === "DEMO-CAJA-001" || query === "8400000000017") return demoFound(query, query === "8400000000017" ? "EAN / GTIN" : "SKU");
-  if (upper === "DEMO-L01") return demoFound(query, "Lote / número de serie");
+  if (upper === "DEMO-L01") return { ...demoFound(query, "Lote / número de serie"), lotFilter: "DEMO-L01" };
   if (upper.startsWith("DEMO") || upper.includes("CAJA")) return { ...emptyTraceResult(query, "choose"), matchedBy: "Coincidencia parcial", matches: DEMO_MATCHES };
   return emptyTraceResult(query, "none");
 }

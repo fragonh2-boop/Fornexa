@@ -167,6 +167,7 @@ test("the demo resolves only synthetic codes and never reads the backend", () =>
   assert.equal(previewDemoTraceability("demo").status, "choose");
   assert.equal(previewDemoTraceability("demo", "DEMO-PRODUCT-01").status, "found");
   assert.equal(previewDemoTraceability("REAL-123").status, "none");
+  assert.equal(previewDemoTraceability("DEMO-L01").lotFilter, "DEMO-L01");
   const fixture = readFileSync(new URL("../lib/preview-demo-traceability.ts", import.meta.url), "utf8");
   assert.doesNotMatch(fixture, /fetch\(|supabase|process\.env|localStorage/);
 });
