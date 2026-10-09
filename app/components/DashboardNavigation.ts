@@ -3,7 +3,7 @@ export type DashboardBasePath = "/dashboard" | "/demo";
 // The same hierarchy is rendered in the authenticated app and the isolated demo.
 export const dashboardNavigation = [
   ["Control Tower", ""],
-  ["Partidas", "/partidas"],
+  ["Órdenes", "/partidas"],
   ["Expediciones", "/expediciones"],
   ["Viajes", "/viajes"],
   ["Aduanas", "/aduanas"],

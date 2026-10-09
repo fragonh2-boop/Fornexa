@@ -5,6 +5,8 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { defaultAdrDeclaration, evaluateAdrWarnings, shouldBlockForPolicy, type AdrDeclaration, type AdrFrequency, type AdrPolicy, type HazardStatus } from "@/lib/adr";
 import { EMPTY_AD_HOC_ADDRESS, NEW_ADDRESS_OPTION, normalizeAdHocAddress, type AdHocAddressDraft } from "@/lib/ad-hoc-address";
+import { getComboConfig, COMBO_UPDATED_EVENT } from "@/lib/combo-config";
+import { getStorageConfig, STORAGE_UPDATED_EVENT } from "@/lib/storage-config";
 import styles from "./partida-form.module.css";
 
 export type CustomerOption = { code: string; name: string; adrControl: boolean; adrFrequency: AdrFrequency; adrPolicy: AdrPolicy; preferredClasses: string[] };
@@ -85,6 +87,30 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
   const [lastFingerprint, setLastFingerprint] = useState("");
   const [productOptions, setProductOptions] = useState<ProductOption[]>([]);
   const [productCatalogState, setProductCatalogState] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [comboConfig, setComboConfig] = useState(() => getComboConfig("order_service"));
+  const [storageConfig, setStorageConfig] = useState(() => getStorageConfig());
+  const [attachments, setAttachments] = useState<Array<{ name: string; size: number; path: string }>>([]);
+
+  useEffect(() => {
+    function onComboUpdated() { setComboConfig(getComboConfig("order_service")); }
+    function onStorageUpdated() { setStorageConfig(getStorageConfig()); }
+    window.addEventListener(COMBO_UPDATED_EVENT, onComboUpdated);
+    window.addEventListener(STORAGE_UPDATED_EVENT, onStorageUpdated);
+    return () => {
+      window.removeEventListener(COMBO_UPDATED_EVENT, onComboUpdated);
+      window.removeEventListener(STORAGE_UPDATED_EVENT, onStorageUpdated);
+    };
+  }, []);
+
+  const effectiveServices = useMemo(() => {
+    const list = [...services];
+    for (const opt of comboConfig.options) {
+      if (!list.some(s => s.code === opt.value || s.name === opt.label)) {
+        list.push({ code: opt.value, name: opt.label });
+      }
+    }
+    return list;
+  }, [services, comboConfig.options]);
 
   const customer = useMemo(() => customers.find(item => item.code === customerCode), [customers, customerCode]);
   const pickupIsNew = pickupAddressId === NEW_ADDRESS_OPTION;
@@ -239,7 +265,7 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
     <section className={styles.card}><div className={styles.cardHeader}><div><p>CLIENTE Y SERVICIO</p><h2>Datos del pedido</h2></div><span>Datos verificados</span></div><div className={styles.grid}>
       <label>Customer ID maestro<input autoFocus name="customerCode" value={customerCode} onChange={event => setCustomerCode(event.target.value.toUpperCase())} list="canonical-customers" required placeholder="CLI-000146" /></label><datalist id="canonical-customers">{customers.map(item => <option key={item.code} value={item.code}>{item.name}</option>)}</datalist>
       <label>Cliente<input value={customer?.name ?? ""} readOnly placeholder="Se completa desde el maestro" /></label><label>Referencia cliente<input value={reference} onChange={event => setReference(event.target.value)} /></label>
-      <label>Servicio<select required value={serviceCode} className={!serviceCode ? styles.placeholderControl : ""} onChange={event => setServiceCode(event.target.value)}><option value="" disabled>Seleccionar</option>{services.map(item => <option key={item.code} value={item.code}>{item.name === item.code ? item.name : `${item.name} · ${item.code}`}</option>)}</select></label><label>Fecha prevista<input type="date" value={requestedDate} onChange={event => setRequestedDate(event.target.value)} /></label>
+      <label>Servicio<select required value={serviceCode} className={!serviceCode ? styles.placeholderControl : ""} onChange={event => setServiceCode(event.target.value)}><option value="" disabled>Seleccionar</option>{effectiveServices.map(item => <option key={item.code} value={item.code}>{item.name === item.code ? item.name : `${item.name} · ${item.code}`}</option>)}</select></label><label>Fecha prevista<input type="date" value={requestedDate} onChange={event => setRequestedDate(event.target.value)} /></label>
       <div className={styles.field}><label htmlFor="partida-adr-profile">Perfil ADR</label><input id="partida-adr-profile" value={customer ? ({ NEVER: "Nunca", SOMETIMES: "A veces", ALWAYS: "Siempre" }[customer.adrFrequency]) : ""} readOnly placeholder="Selecciona primero el cliente" />{customer ? <Link className={styles.fieldHelp} href={`${basePath}/registros/clientes/${encodeURIComponent(customer.code)}#control-adr`}>{customer.preferredClasses.length ? `Clases habituales: ${customer.preferredClasses.join(", ")} · Configurar` : "Sin clases habituales configuradas · Configurar"}</Link> : <span className={styles.fieldHelpPlaceholder}>Selecciona un cliente para consultar su configuración</span>}</div>
     </div></section>
 
@@ -276,10 +302,54 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
       {adrWarnings.length > 0 && <div className={styles.warningList}><strong>Revisión ADR</strong>{adrWarnings.map((warning, index) => <p key={`${warning.code}-${index}`}>{warning.message}</p>)}<small>Se guardarán como advertencias auditadas. La política del cliente decide si bloquean.</small></div>}
     </section>
 
+    <section className={styles.card}>
+      <div className={styles.cardHeader}>
+        <div>
+          <p>DOCUMENTACIÓN</p>
+          <h2>Archivos adjuntos</h2>
+        </div>
+        <span>{attachments.length} archivo(s)</span>
+      </div>
+      <div className={styles.grid}>
+        <div className={styles.wide}>
+          <p className={styles.hint} style={{ margin: "0 0 10px" }}>
+            Destino local configurado: <strong>{storageConfig.localDirectory}</strong> ({storageConfig.provider === "local" ? "Almacenamiento local" : "Claude Space"}).
+          </p>
+          <label style={{ display: "inline-block", cursor: "pointer", background: "#f0f4f8", border: "1px dashed #b8c8d8", borderRadius: 8, padding: "10px 16px", fontWeight: 700, color: "#1a3550" }}>
+            📎 Seleccionar archivos para adjuntar a la orden
+            <input
+              type="file"
+              multiple
+              style={{ display: "none" }}
+              onChange={e => {
+                const files = e.target.files;
+                if (!files || !files.length) return;
+                const added = Array.from(files).map(f => ({
+                  name: f.name,
+                  size: f.size,
+                  path: `${storageConfig.localDirectory}/${f.name}`,
+                }));
+                setAttachments(prev => [...prev, ...added]);
+              }}
+            />
+          </label>
+          {attachments.length > 0 && (
+            <ul style={{ margin: "12px 0 0", paddingLeft: "18px", fontSize: "13px", color: "#37475a" }}>
+              {attachments.map((att, idx) => (
+                <li key={idx}>
+                  <strong>{att.name}</strong> ({Math.round(att.size / 1024)} KB) · <code>{att.path}</code>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </section>
+
     {searchLine && <div className={styles.modalBackdrop} role="presentation" onMouseDown={() => setSearchLine(null)}><section className={styles.modal} role="dialog" aria-modal="true" aria-label="Buscar clasificación ADR" onMouseDown={event => event.stopPropagation()}><div className={styles.modalHeader}><div><p>MAESTRO OFICIAL</p><h2>Clasificar mercancía</h2></div><button type="button" onClick={() => setSearchLine(null)}>Cerrar</button></div><div className={styles.searchRow}><input autoFocus value={hazmatQuery} onChange={event => setHazmatQuery(event.target.value)} onKeyDown={event => event.key === "Enter" && (event.preventDefault(), searchHazmat())} placeholder="Número ONU o designación oficial" /><button type="button" onClick={searchHazmat} disabled={searching}>{searching ? "Buscando…" : "Buscar"}</button></div>{hazmatResults.length ? <div className={styles.results}>{hazmatResults.map(entry => <button type="button" key={entry.id} onClick={() => chooseHazmat(entry)}><strong>UN {entry.un_number}</strong><span>{entry.proper_shipping_name_es}</span><small>Clase {entry.class_code}{entry.packing_group ? ` · GE ${entry.packing_group}` : ""} · {entry.edition?.code}</small></button>)}</div> : <p className={styles.empty}>Busca sobre ediciones ADR activadas por un administrador. Si no hay resultados, el pedido puede conservarse con advertencia para revisión.</p>}</section></div>}
 
     {message && <p className={styles.message}>{message}</p>}
-    <div className={styles.saveBar}><Link href={`${basePath}/partidas`}>Volver</Link><div className={styles.saveActions}><button type="submit" name="saveMode" value="new" className={styles.secondary} disabled={saving || readOnly}>Guardar y nueva</button><button ref={keepRef} type="submit" name="saveMode" value="keep" disabled={saving || readOnly}>Guardar y mantener <kbd>F4</kbd></button><button ref={exitRef} type="submit" name="saveMode" value="exit" disabled={saving || readOnly}>Guardar y salir <kbd>F2</kbd></button></div></div>
+    <div className={styles.saveBar}><Link href={`${basePath}/partidas`}>Volver a Órdenes</Link><div className={styles.saveActions}><button type="submit" name="saveMode" value="new" className={styles.secondary} disabled={saving || readOnly}>Guardar y nueva</button><button ref={keepRef} type="submit" name="saveMode" value="keep" disabled={saving || readOnly}>Guardar y mantener <kbd>F4</kbd></button><button ref={exitRef} type="submit" name="saveMode" value="exit" disabled={saving || readOnly}>Guardar y salir <kbd>F2</kbd></button></div></div>
   </form>;
 }
 

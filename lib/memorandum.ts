@@ -18,10 +18,17 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "08 oct 2026";
-export const memorandumCommitCoverage = 596;
+export const memorandumUpdatedAt = "09 oct 2026";
+export const memorandumCommitCoverage = 597;
 
 export const memorandumPending: MemorandumPending[] = [
+  {
+    area: "Funcional",
+    title: "Conectores de almacenamiento y repositorios cloud",
+    summary: "Evolución planificada del subsistema de almacenamiento de adjuntos y expedientes documentales de órdenes: incorporación de conectores cloud corporativos (Microsoft OneDrive, Google Drive, Claude Workspace) y servicio nativo Fornexa Storage con cifrado en reposo, retención documental y cumplimiento eFTI.",
+    priority: "Siguiente",
+    state: "Por definir",
+  },
   {
     area: "Técnico",
     title: "A2 — reproducibilidad de migraciones",
@@ -102,6 +109,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.10.09-1",
+    date: "9 oct 2026",
+    surface: ["Web", "Plataforma"],
+    title: "Órdenes interactivas con re-lanzamiento, combos configurables y adjuntos locales",
+    purpose: "Renombrar Partidas a Órdenes, habilitar edición y re-lanzamiento de pedidos, configuración dinámica de desplegables (incluyendo cross y picking en servicios) y gestión de adjuntos con ruta local.",
+    outcome: "Navegación y vistas actualizadas a Órdenes, retiro del subtítulo remanente en creación de orden, panel de edición con re-lanzamiento de pedido, configuración de combos con adición/edición/borrado/defecto y modo selección única/múltiple (incorporando cross y picking en servicios), y almacenamiento local configurable para adjuntos.",
+    status: "Preproducción",
+  },
   {
     version: "2026.10.08-4",
     date: "8 oct 2026",

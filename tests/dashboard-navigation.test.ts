@@ -48,7 +48,7 @@ test("production and demo use the same fifteen-module navigation hierarchy (Deci
   assert.equal(dashboardNavigation.length, 15);
   assert.equal(new Set(dashboardNavigation.map(([, suffix]) => suffix)).size, 15);
   assert.ok(!dashboardNavigation.some(([, suffix]) => (suffix as string) === "/decision-center"));
-  assert.deepEqual(dashboardNavigation.map(([label]) => label), ["Control Tower", "Partidas", "Expediciones", "Viajes", "Aduanas", "Ofertas y tarifas", "Clientes", "Artículos", "Colaboradores", "Almacenes", "Tracking", "Trazabilidad", "Documentos", "Configuración", "Informes"]);
+  assert.deepEqual(dashboardNavigation.map(([label]) => label), ["Control Tower", "Órdenes", "Expediciones", "Viajes", "Aduanas", "Ofertas y tarifas", "Clientes", "Artículos", "Colaboradores", "Almacenes", "Tracking", "Trazabilidad", "Documentos", "Configuración", "Informes"]);
   for (const [, suffix] of dashboardNavigation) {
     assert.equal(dashboardHref("/demo", suffix), dashboardHref("/dashboard", suffix).replace(/^\/dashboard/, "/demo"));
   }

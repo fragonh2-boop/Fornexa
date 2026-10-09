@@ -5,7 +5,7 @@ import { PREVIEW_DEMO_PARTIDA } from "@/lib/preview-demo-partida";
 
 export default function DemoNewPartidaPage() {
   return <main className={styles.page}>
-    <header className={styles.header}><div><p>PEDIDO DE CLIENTE</p><h1>Nueva partida</h1><span>Alta persistente sobre el modelo operativo. El Customer ID, la ruta, ADR y magnitudes se conservarán hasta Expediente, Viaje y CMR.</span></div><Link href="/demo/partidas">Volver a Partidas</Link></header>
+    <header className={styles.header}><div><p>PEDIDO DE CLIENTE</p><h1>Nueva orden</h1></div><Link href="/demo/partidas">Volver a Órdenes</Link></header>
     <PartidaForm {...PREVIEW_DEMO_PARTIDA} />
   </main>;
 }
