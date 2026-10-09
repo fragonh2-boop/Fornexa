@@ -527,8 +527,8 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "JSON no válido." }, { status: 400 });
   }
 
-  const code = text(body.code);
-  const id = text(body.id);
+  const code = text(body.code ? decodeURIComponent(String(body.code)) : "");
+  const id = text(body.id ? decodeURIComponent(String(body.id)) : "");
 
   if (!code && !id) {
     return NextResponse.json({ error: "Se requiere code o id de la orden." }, { status: 400 });
@@ -582,6 +582,12 @@ export async function PATCH(request: Request) {
     if (!mappedStatus) {
       return NextResponse.json({ error: `Estado no válido: ${rawStatus}` }, { status: 400 });
     }
+    // Validación de transición de ciclo de vida: órdenes terminadas o canceladas no admiten relanzamiento arbitrario
+    if (mappedStatus === "READY" && (existingOrder.status === "COMPLETED" || existingOrder.status === "CANCELLED")) {
+      return NextResponse.json({
+        error: `Una orden en estado ${existingOrder.status} no puede relanzarse directamente a Preparada.`,
+      }, { status: 422 });
+    }
     updatePayload.status = mappedStatus;
   }
 
@@ -590,16 +596,32 @@ export async function PATCH(request: Request) {
     if (rawService) {
       const codeCandidate = rawService.toUpperCase();
       const legacyCode = LEGACY_SERVICE_CODES[rawService] || codeCandidate;
-      const { data: serviceItem } = await supabase
+      // Búsqueda parametrizada 100% segura sin interpolación de filtros en PostgREST
+      const { data: services } = await supabase
         .from("service_catalog")
-        .select("id")
-        .eq("tenant_id", tenantId)
-        .or(`code.eq.${legacyCode},code.eq.${codeCandidate},name.ilike.${rawService}`)
-        .maybeSingle();
-      if (serviceItem) {
-        updatePayload.service_id = serviceItem.id;
+        .select("id,code,name")
+        .eq("tenant_id", tenantId);
+
+      if (services && services.length > 0) {
+        const matched = services.find(
+          (s) =>
+            s.code.toUpperCase() === codeCandidate ||
+            s.code.toUpperCase() === legacyCode ||
+            s.name.toLowerCase() === rawService.toLowerCase()
+        );
+        if (matched) {
+          updatePayload.service_id = matched.id;
+        }
       }
     }
+  }
+
+  if (body.selectedServices !== undefined && Array.isArray(body.selectedServices)) {
+    const currentMeta = (existingOrder.metadata && typeof existingOrder.metadata === "object") ? existingOrder.metadata : {};
+    updatePayload.metadata = {
+      ...currentMeta,
+      selected_services: body.selectedServices,
+    };
   }
 
   if (body.reference !== undefined || body.customerReference !== undefined) {
@@ -627,10 +649,8 @@ export async function PATCH(request: Request) {
   }
 
   if (body.requestedDate !== undefined) {
-    const dateVal = dateOrNull(body.requestedDate);
-    if (dateVal) {
-      updatePayload.requested_pickup_start = dateVal;
-    }
+    const rawDate = text(body.requestedDate);
+    updatePayload.requested_pickup_start = rawDate ? dateOrNull(rawDate) : null;
   }
 
   const { data: updatedOrder, error: updateError } = await supabase

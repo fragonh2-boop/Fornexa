@@ -173,7 +173,7 @@ export default function OrderEditorWorkspace({
 
     setAttachments(prev => [...prev, ...newAttachments]);
     setBannerType("success");
-    setBanner(`Se han adjuntado ${files.length} archivo(s) a la orden en "${storageConfig.localDirectory}".`);
+    setBanner(`Se han vinculado ${files.length} archivo(s) como referencia local en el equipo (almacenamiento local no sincronizado con cloud).`);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -235,11 +235,12 @@ export default function OrderEditorWorkspace({
     setBanner(null);
 
     const nowIso = new Date().toISOString();
-    const finalService = comboConfig.selectionMode === "multi" ? selectedServices.join(", ") : service;
+    const primaryService = comboConfig.selectionMode === "multi" ? (selectedServices[0] || service) : service;
+    const finalServiceDisplay = comboConfig.selectionMode === "multi" ? selectedServices.join(", ") : service;
 
     const updatedData: Partial<OrderDetailData> = {
       reference,
-      service: finalService,
+      service: finalServiceDisplay,
       status,
       packages,
       grossWeight,
@@ -259,6 +260,8 @@ export default function OrderEditorWorkspace({
           body: JSON.stringify({
             code: order.code,
             ...updatedData,
+            service: primaryService,
+            selectedServices: comboConfig.selectionMode === "multi" ? selectedServices : undefined,
           }),
         });
         if (!res.ok) {
@@ -527,7 +530,7 @@ export default function OrderEditorWorkspace({
                 <h2>Archivos adjuntos de la orden</h2>
               </div>
               <span className={styles.cardHeaderBadge}>
-                {attachments.length} adjunto(s)
+                {attachments.length} adjunto(s) · Referencia local en equipo
               </span>
             </div>
 
@@ -542,6 +545,9 @@ export default function OrderEditorWorkspace({
                 Configurar ruta en Configuración →
               </Link>
             </div>
+            <p style={{ fontSize: "12px", color: "#637083", margin: "0 0 14px", lineHeight: "1.4" }}>
+              Nota: Los archivos adjuntos se registran como referencias locales en esta estación de trabajo (sin sincronización con la nube). Para almacenamiento centralizado empresarial, configure el conector Cloud en Integraciones.
+            </p>
 
             <div
               className={styles.attachmentDropzone}

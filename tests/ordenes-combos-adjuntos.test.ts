@@ -145,5 +145,18 @@ test("OrderEditorWorkspace is located in app/components with verified API error 
 
   const demoPage = source("app/demo/partidas/[id]/page.tsx");
   assert.match(demoPage, /from "@\/app\/components\/OrderEditorWorkspace"/);
+  assert.match(component, /Referencia local en equipo/);
 });
+
+test("orders PATCH enforces lifecycle transitions and parameterized service matching without PostgREST .or() injection", () => {
+  const routeSource = source("app/api/orders/route.ts");
+  // Transition validation
+  assert.match(routeSource, /existingOrder\.status === "COMPLETED" \|\| existingOrder\.status === "CANCELLED"/);
+  // Parameter decoding
+  assert.match(routeSource, /decodeURIComponent\(String\(body\.code\)\)/);
+  // Parameterized service lookup in memory rather than raw .or()
+  assert.match(routeSource, /const \{ data: services \} = await supabase/);
+  assert.doesNotMatch(routeSource, /\.or\(`code\.eq/);
+});
+
 
