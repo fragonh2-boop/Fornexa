@@ -150,13 +150,47 @@ test("OrderEditorWorkspace is located in app/components with verified API error 
 
 test("orders PATCH enforces lifecycle transitions and parameterized service matching without PostgREST .or() injection", () => {
   const routeSource = source("app/api/orders/route.ts");
-  // Transition validation
-  assert.match(routeSource, /existingOrder\.status === "COMPLETED" \|\| existingOrder\.status === "CANCELLED"/);
-  // Parameter decoding
+  // State machine transition validation
+  assert.match(routeSource, /ALLOWED_ORDER_TRANSITIONS/);
+  assert.match(routeSource, /allowedNext\.includes\(mappedStatus\)/);
+  // Parameter decoding with safe URI protection
   assert.match(routeSource, /decodeURIComponent\(String\(body\.code\)\)/);
   // Parameterized service lookup in memory rather than raw .or()
   assert.match(routeSource, /const \{ data: services \} = await supabase/);
   assert.doesNotMatch(routeSource, /\.or\(`code\.eq/);
 });
+
+test("behavioral: order status transitions enforce strict lifecycle and terminal states", async () => {
+  const { ALLOWED_ORDER_TRANSITIONS, STATUS_FROM_LABEL, STATUS_LABELS } = await import("../lib/order-status.ts");
+
+  // Terminal states must have no valid outgoing transitions
+  assert.deepEqual(ALLOWED_ORDER_TRANSITIONS["COMPLETED"], [], "COMPLETED must be a terminal state");
+  assert.deepEqual(ALLOWED_ORDER_TRANSITIONS["CANCELLED"], [], "CANCELLED must be a terminal state");
+
+  // DRAFT can only transition to READY or CANCELLED
+  assert.ok(ALLOWED_ORDER_TRANSITIONS["DRAFT"].includes("READY"));
+  assert.ok(ALLOWED_ORDER_TRANSITIONS["DRAFT"].includes("CANCELLED"));
+  assert.equal(ALLOWED_ORDER_TRANSITIONS["DRAFT"].includes("COMPLETED"), false);
+  assert.equal(ALLOWED_ORDER_TRANSITIONS["DRAFT"].includes("IN_TRANSIT"), false);
+
+  // Bidirectional status translation sanity
+  for (const [key, label] of Object.entries(STATUS_LABELS)) {
+    assert.equal(STATUS_FROM_LABEL[label], key);
+    assert.equal(STATUS_FROM_LABEL[key], key);
+  }
+});
+
+test("behavioral: storage and combo configuration persist and react predictably", () => {
+  const initialCombo = getComboConfig("order_service");
+  assert.ok(Array.isArray(initialCombo.options));
+  assert.ok(initialCombo.options.some(o => o.value === "cross"));
+  assert.ok(initialCombo.options.some(o => o.value === "picking"));
+
+  const initialStorage = getStorageConfig();
+  assert.equal(initialStorage.provider, "local");
+  assert.ok(typeof initialStorage.localDirectory === "string");
+  assert.ok(typeof initialStorage.claudeSpaceAccount === "string");
+});
+
 
 

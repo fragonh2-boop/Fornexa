@@ -433,7 +433,7 @@
 .saveBar {
   position: fixed;
   z-index: 30;
-  left: 250px;
+  left: var(--dashboard-sidebar-width, 250px);
   right: 0;
   bottom: 0;
   min-height: 72px;

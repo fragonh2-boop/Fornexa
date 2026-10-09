@@ -4,7 +4,12 @@ import { DEMO_PARTIDAS } from "@/lib/demo-operational-lists";
 
 export default async function DemoOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const decodedId = decodeURIComponent(id);
+  let decodedId = id;
+  try {
+    decodedId = decodeURIComponent(id);
+  } catch {
+    notFound();
+  }
   const demoItem = DEMO_PARTIDAS.find(item => item.id === decodedId);
 
   const routeParts = demoItem?.route.split("→").map(s => s.trim()) ?? ["Ciudad de Muestra", "Villa de Pruebas"];

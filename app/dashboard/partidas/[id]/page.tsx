@@ -18,7 +18,12 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   if (!auth) redirect("/login");
 
   const { id } = await params;
-  const decodedId = decodeURIComponent(id);
+  let decodedId = id;
+  try {
+    decodedId = decodeURIComponent(id);
+  } catch {
+    notFound();
+  }
   const supabase = createSupabaseAdmin();
 
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(decodedId);

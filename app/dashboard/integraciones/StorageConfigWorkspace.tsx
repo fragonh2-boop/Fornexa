@@ -41,8 +41,8 @@ export default function StorageConfigWorkspace() {
     setConfig(updated);
     setNotice(
       provider === "local"
-        ? `Configuración guardada. Los adjuntos se almacenarán en la ruta local: "${updated.localDirectory}".`
-        : `Configuración guardada con cuenta de espacio Claude: "${updated.claudeSpaceAccount}".`
+        ? `Configuración guardada. Destino de referencia local: "${updated.localDirectory}".`
+        : `Configuración guardada (modo prototipo espacio Claude): "${updated.claudeSpaceAccount}".`
     );
   }
 
@@ -63,12 +63,12 @@ export default function StorageConfigWorkspace() {
           <h2>Almacenamiento y adjuntos</h2>
         </div>
         <span className={`${styles.badge} ${styles.activo}`}>
-          {provider === "local" ? "Ruta local activa" : "Espacio Claude"}
+          {provider === "local" ? "Ruta local activa (Modo Prototipo)" : "Espacio Claude (En preparación)"}
         </span>
       </div>
 
       <p style={{ margin: "0 0 16px", color: "var(--ui-muted)", fontSize: "13px" }}>
-        Configura el destino de persistencia para los archivos y documentos adjuntados en las órdenes operativas (albaranes, fotografías, facturas y comprobantes).
+        Configura el destino de referencia para archivos adjuntos en las órdenes operativas. Modo prototipo / estación de trabajo: las referencias se registran localmente en el navegador del operador sin persistencia en servidor remoto.
       </p>
 
       {notice && (
@@ -122,7 +122,7 @@ export default function StorageConfigWorkspace() {
                 gap: "8px",
               }}
             >
-              ☁️ Cuenta de espacio Claude
+              ☁️ Cuenta de espacio Claude (En preparación)
             </button>
           </div>
         </div>
@@ -140,7 +140,7 @@ export default function StorageConfigWorkspace() {
               required
             />
             <small style={{ display: "block", marginTop: "6px", color: "#64748b", fontSize: "11px" }}>
-              Los archivos adjuntados en las órdenes se sincronizan con esta carpeta local del equipo de trabajo.
+              Los archivos adjuntados en las órdenes se registran como referencias locales en esta estación de trabajo (sin sincronización con la nube).
             </small>
           </div>
         ) : (

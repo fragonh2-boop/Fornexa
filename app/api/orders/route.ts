@@ -42,6 +42,16 @@ export const STATUS_FROM_LABEL: Record<string, string> = {
   "CANCELLED": "CANCELLED",
 };
 
+export const ALLOWED_ORDER_TRANSITIONS: Record<string, string[]> = {
+  DRAFT: ["READY", "CANCELLED"],
+  READY: ["DRAFT", "PARTIALLY_PLANNED", "PLANNED", "CANCELLED"],
+  PARTIALLY_PLANNED: ["READY", "PLANNED", "CANCELLED"],
+  PLANNED: ["READY", "PARTIALLY_PLANNED", "IN_TRANSIT", "CANCELLED"],
+  IN_TRANSIT: ["COMPLETED", "CANCELLED"],
+  COMPLETED: [],
+  CANCELLED: [],
+};
+
 function text(value: unknown) {
   return String(value ?? "").trim();
 }
@@ -527,8 +537,14 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "JSON no válido." }, { status: 400 });
   }
 
-  const code = text(body.code ? decodeURIComponent(String(body.code)) : "");
-  const id = text(body.id ? decodeURIComponent(String(body.id)) : "");
+  let code = "";
+  let id = "";
+  try {
+    code = body.code ? decodeURIComponent(String(body.code)).trim() : "";
+    id = body.id ? decodeURIComponent(String(body.id)).trim() : "";
+  } catch {
+    return NextResponse.json({ error: "Parámetro code o id con codificación URI no válida." }, { status: 400 });
+  }
 
   if (!code && !id) {
     return NextResponse.json({ error: "Se requiere code o id de la orden." }, { status: 400 });
@@ -582,11 +598,14 @@ export async function PATCH(request: Request) {
     if (!mappedStatus) {
       return NextResponse.json({ error: `Estado no válido: ${rawStatus}` }, { status: 400 });
     }
-    // Validación de transición de ciclo de vida: órdenes terminadas o canceladas no admiten relanzamiento arbitrario
-    if (mappedStatus === "READY" && (existingOrder.status === "COMPLETED" || existingOrder.status === "CANCELLED")) {
-      return NextResponse.json({
-        error: `Una orden en estado ${existingOrder.status} no puede relanzarse directamente a Preparada.`,
-      }, { status: 422 });
+    const currentStatus = existingOrder.status;
+    if (mappedStatus !== currentStatus) {
+      const allowedNext = ALLOWED_ORDER_TRANSITIONS[currentStatus] ?? [];
+      if (!allowedNext.includes(mappedStatus)) {
+        return NextResponse.json({
+          error: `Transición no permitida: una orden en estado ${STATUS_LABELS[currentStatus] || currentStatus} no puede pasar a ${STATUS_LABELS[mappedStatus] || mappedStatus}.`,
+        }, { status: 422 });
+      }
     }
     updatePayload.status = mappedStatus;
   }
@@ -596,31 +615,56 @@ export async function PATCH(request: Request) {
     if (rawService) {
       const codeCandidate = rawService.toUpperCase();
       const legacyCode = LEGACY_SERVICE_CODES[rawService] || codeCandidate;
-      // Búsqueda parametrizada 100% segura sin interpolación de filtros en PostgREST
+      // Búsqueda parametrizada sin interpolación PostgREST priorizando coincidencias por código
       const { data: services } = await supabase
         .from("service_catalog")
         .select("id,code,name")
-        .eq("tenant_id", tenantId);
+        .eq("tenant_id", tenantId)
+        .in("code", [codeCandidate, legacyCode]);
 
       if (services && services.length > 0) {
-        const matched = services.find(
-          (s) =>
-            s.code.toUpperCase() === codeCandidate ||
-            s.code.toUpperCase() === legacyCode ||
-            s.name.toLowerCase() === rawService.toLowerCase()
-        );
+        const matched = services.find((s) => s.code.toUpperCase() === codeCandidate) || services[0];
         if (matched) {
           updatePayload.service_id = matched.id;
+        }
+      } else {
+        const { data: byName } = await supabase
+          .from("service_catalog")
+          .select("id,code,name")
+          .eq("tenant_id", tenantId)
+          .ilike("name", rawService)
+          .limit(1);
+        if (byName && byName.length > 0) {
+          updatePayload.service_id = byName[0].id;
         }
       }
     }
   }
 
-  if (body.selectedServices !== undefined && Array.isArray(body.selectedServices)) {
+  if (body.selectedServices !== undefined) {
+    if (!Array.isArray(body.selectedServices)) {
+      return NextResponse.json({ error: "selectedServices debe ser un array de cadenas." }, { status: 400 });
+    }
+    if (body.selectedServices.length > 20) {
+      return NextResponse.json({ error: "Máximo 20 servicios seleccionados permitidos." }, { status: 400 });
+    }
+    const cleanList: string[] = [];
+    for (const item of body.selectedServices) {
+      if (typeof item !== "string") {
+        return NextResponse.json({ error: "Cada elemento de selectedServices debe ser una cadena." }, { status: 400 });
+      }
+      const trimmed = item.trim();
+      if (trimmed.length > 100) {
+        return NextResponse.json({ error: "El identificador de servicio supera la longitud máxima permitida." }, { status: 400 });
+      }
+      if (trimmed && !cleanList.includes(trimmed)) {
+        cleanList.push(trimmed);
+      }
+    }
     const currentMeta = (existingOrder.metadata && typeof existingOrder.metadata === "object") ? existingOrder.metadata : {};
     updatePayload.metadata = {
       ...currentMeta,
-      selected_services: body.selectedServices,
+      selected_services: cleanList,
     };
   }
 
@@ -680,18 +724,35 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "No se pudo actualizar la orden." }, { status: 500 });
   }
 
+  const isStatusChange = updatePayload.status !== undefined && updatePayload.status !== existingOrder.status;
+  const isRelaunch = isStatusChange && updatePayload.status === "READY";
+  const auditAction = isRelaunch ? "RELAUNCH" : (isStatusChange ? "STATUS_CHANGE" : "UPDATE");
+
   try {
     await supabase.from("audit_events").insert({
       tenant_id: tenantId,
       entity_type: "ORDER",
       entity_id: existingOrder.id,
       business_id: existingOrder.business_id,
-      action: "UPDATE",
+      action: auditAction,
       actor_user_id: userId,
       source_channel: "FORNEXA_WEB",
       user_agent: request.headers.get("user-agent"),
       ip_address: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
       changed_fields: Object.keys(updatePayload),
+      before_data: {
+        id: existingOrder.id,
+        code: existingOrder.code,
+        status: existingOrder.status,
+        customer_reference: existingOrder.customer_reference,
+        service_id: existingOrder.service_id,
+        packages: existingOrder.packages,
+        gross_weight: existingOrder.gross_weight,
+        volume: existingOrder.volume,
+        linear_meters: existingOrder.linear_meters,
+        goods_description: existingOrder.goods_description,
+        metadata: existingOrder.metadata,
+      },
       after_data: updatedOrder,
     });
   } catch (auditErr) {

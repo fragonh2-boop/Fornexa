@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import AppShell from "./AppShell";
 import { getComboConfig, COMBO_UPDATED_EVENT } from "@/lib/combo-config";
 import { getStorageConfig, STORAGE_UPDATED_EVENT } from "@/lib/storage-config";
+import { STATUS_FROM_LABEL, ALLOWED_ORDER_TRANSITIONS } from "@/lib/order-status";
 import styles from "./order-editor.module.css";
 
 export type OrderAttachment = {
@@ -153,17 +154,24 @@ export default function OrderEditorWorkspace({
   }, [comboConfig.options, order.service]);
 
   const statusOptions = useMemo(() => {
+    const dbStatus = STATUS_FROM_LABEL[order.status] ?? order.status;
+    const allowedNextEnums = ALLOWED_ORDER_TRANSITIONS[dbStatus] ?? [];
     const list = statusComboConfig.options.map(o => o.value);
-    if (!list.includes(status)) return [status, ...list];
-    return list;
-  }, [statusComboConfig.options, status]);
+    return list.filter(opt => {
+      if (opt === order.status) return true;
+      const optEnum = STATUS_FROM_LABEL[opt] ?? opt;
+      return allowedNextEnums.includes(optEnum);
+    });
+  }, [statusComboConfig.options, order.status]);
 
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
     const newAttachments: OrderAttachment[] = Array.from(files).map(file => ({
-      id: `att_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `att_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
       name: file.name,
       size: file.size,
       type: file.type || "application/octet-stream",
@@ -593,7 +601,10 @@ export default function OrderEditorWorkspace({
                       <button
                         type="button"
                         className={styles.btnSmall}
-                        onClick={() => alert(`Visualizando archivo local: ${att.path}`)}
+                        onClick={() => {
+                          setBannerType("success");
+                          setBanner(`Ruta local de referencia en equipo: ${att.path}`);
+                        }}
                       >
                         Ver ruta
                       </button>
