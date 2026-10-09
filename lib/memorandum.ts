@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "08 oct 2026";
-export const memorandumCommitCoverage = 596;
+export const memorandumCommitCoverage = 597;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -103,13 +103,22 @@ export const memorandumPending: MemorandumPending[] = [
 
 export const memorandumReleases: MemorandumRelease[] = [
   {
+    version: "2026.10.09-1",
+    date: "9 oct 2026",
+    surface: ["Web"],
+    title: "Trazabilidad de artículos desde un código",
+    purpose: "Que con solo un EAN/GTIN, un SKU, el nombre, un lote o un número de serie se pueda reconstruir el recorrido completo de un artículo sin saltar entre pantallas.",
+    outcome: "La pantalla Trazabilidad busca el artículo dentro de la empresa (coincidencia exacta de EAN/GTIN o SKU, lote o serie y, si no, coincidencia parcial con elección del artículo) y muestra en una línea de tiempo filtrable qué pasó, dónde, cuándo y quién: partidas, albaranes y expedientes; viajes con vehículo y conductor; cargas y descargas en paradas; CMR y sus firmas, fotos e incidencias; despachos de aduana relacionados solo por referencia o MRN exactos; movimientos de almacén con ubicación, lote y operario; stock actual y cambios de los registros. Resume las personas que intervinieron y enlaza con cada viaje, documento y expediente aduanero. Es de solo lectura y avisa cuando un EAN tiene el dígito de control incorrecto. Índices nuevos para las búsquedas inversas.",
+    status: "Producción",
+  },
+  {
     version: "2026.10.08-4",
     date: "8 oct 2026",
     surface: ["Web"],
     title: "Documentos, Configuración, Trazabilidad y limpieza visual de cabeceras",
     purpose: "Renombrar ePOD & CMR a Documentos e Integraciones a Configuración, crear la pantalla y menú de Trazabilidad, centrar el botón de cierre en Artículos y retirar los subtítulos explicativos bajo los títulos de pantalla.",
     outcome: "La navegación principal y cabeceras de pantalla renombran ePOD & CMR por Documentos e Integraciones por Configuración. Se incorpora el nuevo módulo y menú de Trazabilidad para la navegación aguas arriba y aguas abajo en la cadena de suministro. Se eliminan los subtítulos descriptivos bajo los títulos en todas las pantallas. El botón de cierre del modal de alta de artículo se centra y cuadra perfectamente mediante icono SVG y dimensionamiento flex.",
-    status: "Preproducción",
+    status: "Producción",
   },
   {
     version: "2026.10.08-3",
