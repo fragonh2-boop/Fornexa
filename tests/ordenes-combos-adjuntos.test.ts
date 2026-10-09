@@ -12,7 +12,7 @@ test("dashboard navigation renames Partidas to Órdenes preserving route /partid
   const item = dashboardNavigation.find(([, href]) => href === "/partidas");
   assert.ok(item, "Route /partidas must exist");
   assert.equal(item[0], "Órdenes");
-  assert.equal(dashboardNavigation.some(([label]) => label === "Partidas"), false);
+  assert.equal(dashboardNavigation.some(([label]) => (label as string) === "Partidas"), false);
 });
 
 test("PartidasListView renders Órdenes header, + Nueva orden and clickable row links to /partidas/[id]", () => {
