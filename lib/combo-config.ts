@@ -40,6 +40,7 @@ export const DEFAULT_COMBOS: Record<string, ComboConfig> = {
     options: [
       { id: "draft", label: "Borrador", value: "Borrador" },
       { id: "ready", label: "Preparada", value: "Preparada" },
+      { id: "partially_planned", label: "Parcialmente planificada", value: "Parcialmente planificada" },
       { id: "planned", label: "Planificada", value: "Planificada" },
       { id: "in_transit", label: "En tránsito", value: "En tránsito" },
       { id: "completed", label: "Completada", value: "Completada" },

@@ -121,12 +121,13 @@ test("memorandum records storage evolution and 2026.10.09-1 release", () => {
 
 test("orders API implements PATCH with STATUS_FROM_LABEL translation and tenant security", () => {
   const routeSource = source("app/api/orders/route.ts");
+  const statusSource = source("lib/order-status.ts");
   assert.match(routeSource, /export async function PATCH/);
   assert.match(routeSource, /STATUS_FROM_LABEL/);
   assert.match(routeSource, /getAuthenticatedContext/);
   assert.match(routeSource, /\.eq\("tenant_id", tenantId\)/);
-  assert.match(routeSource, /"Preparada": "READY"/);
-  assert.match(routeSource, /"Borrador": "DRAFT"/);
+  assert.match(statusSource, /"Preparada": "READY"/);
+  assert.match(statusSource, /"Borrador": "DRAFT"/);
 });
 
 test("OrderEditorWorkspace is located in app/components with verified API error handling and status persistence", () => {
@@ -148,11 +149,15 @@ test("OrderEditorWorkspace is located in app/components with verified API error 
   assert.match(component, /Referencia local en equipo/);
 });
 
-test("orders PATCH enforces lifecycle transitions and parameterized service matching without PostgREST .or() injection", () => {
+test("orders PATCH enforces lifecycle transitions, atomic CAS and parameterized service matching without PostgREST .or() injection", () => {
   const routeSource = source("app/api/orders/route.ts");
-  // State machine transition validation
+  // State machine transition validation and single source of truth import
   assert.match(routeSource, /ALLOWED_ORDER_TRANSITIONS/);
   assert.match(routeSource, /allowedNext\.includes\(mappedStatus\)/);
+  assert.match(routeSource, /from "@\/lib\/order-status"/);
+  // Compare-and-swap atomic transition against TOCTOU race conditions
+  assert.match(routeSource, /updateQuery\.eq\("status", existingOrder\.status\)/);
+  assert.match(routeSource, /status: 409/);
   // Parameter decoding with safe URI protection
   assert.match(routeSource, /decodeURIComponent\(String\(body\.code\)\)/);
   // Parameterized service lookup in memory rather than raw .or()

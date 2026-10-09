@@ -106,7 +106,10 @@ export default function OrderEditorWorkspace({
     if (typeof window !== "undefined") {
       try {
         const saved = localStorage.getItem(`fornexa_order_attachments_${initialOrder.code}`);
-        if (saved) return JSON.parse(saved);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) return parsed;
+        }
       } catch {}
     }
     return [];
@@ -327,7 +330,7 @@ export default function OrderEditorWorkspace({
             <p className={styles.eyebrow}>PEDIDO DE CLIENTE · EDICIÓN Y RELANZAMIENTO</p>
             <div className={styles.titleRow}>
               <h1 className={styles.title}>Orden {order.code}</h1>
-              <span className={`${styles.statusBadge} ${status === "Preparada" ? styles.statusReady : status === "Borrador" ? styles.statusDraft : styles.statusTransit}`}>
+              <span className={`${styles.statusBadge} ${status === "Preparada" ? styles.statusReady : status === "Borrador" ? styles.statusDraft : status === "Completada" ? styles.statusCompleted : status === "Cancelada" ? styles.statusCancelled : styles.statusTransit}`}>
                 {status}
               </span>
             </div>

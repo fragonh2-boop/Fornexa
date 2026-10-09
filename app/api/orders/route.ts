@@ -15,42 +15,16 @@ const LEGACY_SERVICE_CODES: Record<string, string> = {
   "Directo": "DIRECT",
 };
 
-export const STATUS_LABELS: Record<string, string> = {
-  DRAFT: "Borrador",
-  READY: "Preparada",
-  PARTIALLY_PLANNED: "Parcialmente planificada",
-  PLANNED: "Planificada",
-  IN_TRANSIT: "En tránsito",
-  COMPLETED: "Completada",
-  CANCELLED: "Cancelada",
-};
-
-export const STATUS_FROM_LABEL: Record<string, string> = {
-  "Borrador": "DRAFT",
-  "Preparada": "READY",
-  "Parcialmente planificada": "PARTIALLY_PLANNED",
-  "Planificada": "PLANNED",
-  "En tránsito": "IN_TRANSIT",
-  "Completada": "COMPLETED",
-  "Cancelada": "CANCELLED",
-  "DRAFT": "DRAFT",
-  "READY": "READY",
-  "PARTIALLY_PLANNED": "PARTIALLY_PLANNED",
-  "PLANNED": "PLANNED",
-  "IN_TRANSIT": "IN_TRANSIT",
-  "COMPLETED": "COMPLETED",
-  "CANCELLED": "CANCELLED",
-};
-
-export const ALLOWED_ORDER_TRANSITIONS: Record<string, string[]> = {
-  DRAFT: ["READY", "CANCELLED"],
-  READY: ["DRAFT", "PARTIALLY_PLANNED", "PLANNED", "CANCELLED"],
-  PARTIALLY_PLANNED: ["READY", "PLANNED", "CANCELLED"],
-  PLANNED: ["READY", "PARTIALLY_PLANNED", "IN_TRANSIT", "CANCELLED"],
-  IN_TRANSIT: ["COMPLETED", "CANCELLED"],
-  COMPLETED: [],
-  CANCELLED: [],
-};
+export {
+  STATUS_LABELS,
+  STATUS_FROM_LABEL,
+  ALLOWED_ORDER_TRANSITIONS,
+} from "@/lib/order-status";
+import {
+  STATUS_LABELS,
+  STATUS_FROM_LABEL,
+  ALLOWED_ORDER_TRANSITIONS,
+} from "@/lib/order-status";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -632,7 +606,7 @@ export async function PATCH(request: Request) {
           .from("service_catalog")
           .select("id,code,name")
           .eq("tenant_id", tenantId)
-          .ilike("name", rawService)
+          .eq("name", rawService)
           .limit(1);
         if (byName && byName.length > 0) {
           updatePayload.service_id = byName[0].id;
@@ -697,11 +671,18 @@ export async function PATCH(request: Request) {
     updatePayload.requested_pickup_start = rawDate ? dateOrNull(rawDate) : null;
   }
 
-  const { data: updatedOrder, error: updateError } = await supabase
+  let updateQuery = supabase
     .from("orders")
     .update(updatePayload)
     .eq("id", existingOrder.id)
-    .eq("tenant_id", tenantId)
+    .eq("tenant_id", tenantId);
+
+  // Compare-and-swap atómico para transiciones de estado: evita colisiones TOCTOU concurrentes
+  if (updatePayload.status !== undefined && updatePayload.status !== existingOrder.status) {
+    updateQuery = updateQuery.eq("status", existingOrder.status);
+  }
+
+  const { data: updatedOrder, error: updateError } = await updateQuery
     .select(`
       id,
       code,
@@ -717,11 +698,17 @@ export async function PATCH(request: Request) {
       updated_at,
       service:service_catalog!orders_service_id_fkey(code, name)
     `)
-    .single();
+    .maybeSingle();
 
   if (updateError) {
     console.error("Orders API PATCH update error", updateError);
     return NextResponse.json({ error: "No se pudo actualizar la orden." }, { status: 500 });
+  }
+
+  if (!updatedOrder) {
+    return NextResponse.json({
+      error: "Conflicto de concurrencia: el estado de la orden cambió concurrentemente durante la operación.",
+    }, { status: 409 });
   }
 
   const isStatusChange = updatePayload.status !== undefined && updatePayload.status !== existingOrder.status;
