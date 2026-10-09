@@ -88,10 +88,9 @@ export default async function NewPartidaPage() {
     <header className={styles.header}>
       <div>
         <p>PEDIDO DE CLIENTE</p>
-        <h1>Nueva partida</h1>
-        <span>Alta persistente sobre el modelo operativo. El Customer ID, la ruta, ADR y magnitudes se conservarán hasta Expediente, Viaje y CMR.</span>
+        <h1>Nueva orden</h1>
       </div>
-      <Link href="/dashboard/partidas">Volver a Partidas</Link>
+      <Link href="/dashboard/partidas">Volver a Órdenes</Link>
     </header>
     <PartidaForm customers={customers} addresses={addresses} services={services} readOnly={Boolean(auth.isReview)} />
   </main>;

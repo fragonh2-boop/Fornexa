@@ -15,15 +15,16 @@ const LEGACY_SERVICE_CODES: Record<string, string> = {
   "Directo": "DIRECT",
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  DRAFT: "Borrador",
-  READY: "Preparada",
-  PARTIALLY_PLANNED: "Parcialmente planificada",
-  PLANNED: "Planificada",
-  IN_TRANSIT: "En tránsito",
-  COMPLETED: "Completada",
-  CANCELLED: "Cancelada",
-};
+export {
+  STATUS_LABELS,
+  STATUS_FROM_LABEL,
+  ALLOWED_ORDER_TRANSITIONS,
+} from "@/lib/order-status";
+import {
+  STATUS_LABELS,
+  STATUS_FROM_LABEL,
+  ALLOWED_ORDER_TRANSITIONS,
+} from "@/lib/order-status";
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -495,3 +496,271 @@ export async function POST(request: Request) {
     },
   }, { status: 201, headers: { "Cache-Control": "no-store" } });
 }
+
+export async function PATCH(request: Request) {
+  const auth = await getAuthenticatedContext();
+  if (!auth) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+
+  const tenantId = auth.tenantId;
+  const userId = auth.userId;
+
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "JSON no válido." }, { status: 400 });
+  }
+
+  let code = "";
+  let id = "";
+  try {
+    code = body.code ? decodeURIComponent(String(body.code)).trim() : "";
+    id = body.id ? decodeURIComponent(String(body.id)).trim() : "";
+  } catch {
+    return NextResponse.json({ error: "Parámetro code o id con codificación URI no válida." }, { status: 400 });
+  }
+
+  if (!code && !id) {
+    return NextResponse.json({ error: "Se requiere code o id de la orden." }, { status: 400 });
+  }
+
+  const supabase = createSupabaseAdmin();
+
+  let findQuery = supabase
+    .from("orders")
+    .select(`
+      id,
+      code,
+      status,
+      packages,
+      gross_weight,
+      volume,
+      linear_meters,
+      goods_description,
+      customer_reference,
+      service_id,
+      metadata,
+      revision_number,
+      business_id
+    `)
+    .eq("tenant_id", tenantId);
+
+  if (code) {
+    findQuery = findQuery.eq("code", code);
+  } else {
+    findQuery = findQuery.eq("id", id);
+  }
+
+  const { data: existingOrder, error: findError } = await findQuery.maybeSingle();
+
+  if (findError) {
+    console.error("Orders API PATCH find error", findError);
+    return NextResponse.json({ error: "Error al consultar la orden." }, { status: 500 });
+  }
+
+  if (!existingOrder) {
+    return NextResponse.json({ error: "Orden no encontrada." }, { status: 404 });
+  }
+
+  const updatePayload: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (body.status !== undefined) {
+    const rawStatus = text(body.status);
+    const mappedStatus = STATUS_FROM_LABEL[rawStatus];
+    if (!mappedStatus) {
+      return NextResponse.json({ error: `Estado no válido: ${rawStatus}` }, { status: 400 });
+    }
+    const currentStatus = existingOrder.status;
+    if (mappedStatus !== currentStatus) {
+      const allowedNext = ALLOWED_ORDER_TRANSITIONS[currentStatus] ?? [];
+      if (!allowedNext.includes(mappedStatus)) {
+        return NextResponse.json({
+          error: `Transición no permitida: una orden en estado ${STATUS_LABELS[currentStatus] || currentStatus} no puede pasar a ${STATUS_LABELS[mappedStatus] || mappedStatus}.`,
+        }, { status: 422 });
+      }
+    }
+    updatePayload.status = mappedStatus;
+  }
+
+  if (body.serviceCode !== undefined || body.service !== undefined) {
+    const rawService = text(body.serviceCode || body.service);
+    if (rawService) {
+      const codeCandidate = rawService.toUpperCase();
+      const legacyCode = LEGACY_SERVICE_CODES[rawService] || codeCandidate;
+      // Búsqueda parametrizada sin interpolación PostgREST priorizando coincidencias por código
+      const { data: services } = await supabase
+        .from("service_catalog")
+        .select("id,code,name")
+        .eq("tenant_id", tenantId)
+        .in("code", [codeCandidate, legacyCode]);
+
+      if (services && services.length > 0) {
+        const matched = services.find((s) => s.code.toUpperCase() === codeCandidate) || services[0];
+        if (matched) {
+          updatePayload.service_id = matched.id;
+        }
+      } else {
+        const { data: byName } = await supabase
+          .from("service_catalog")
+          .select("id,code,name")
+          .eq("tenant_id", tenantId)
+          .eq("name", rawService)
+          .limit(1);
+        if (byName && byName.length > 0) {
+          updatePayload.service_id = byName[0].id;
+        }
+      }
+    }
+  }
+
+  if (body.selectedServices !== undefined) {
+    if (!Array.isArray(body.selectedServices)) {
+      return NextResponse.json({ error: "selectedServices debe ser un array de cadenas." }, { status: 400 });
+    }
+    if (body.selectedServices.length > 20) {
+      return NextResponse.json({ error: "Máximo 20 servicios seleccionados permitidos." }, { status: 400 });
+    }
+    const cleanList: string[] = [];
+    for (const item of body.selectedServices) {
+      if (typeof item !== "string") {
+        return NextResponse.json({ error: "Cada elemento de selectedServices debe ser una cadena." }, { status: 400 });
+      }
+      const trimmed = item.trim();
+      if (trimmed.length > 100) {
+        return NextResponse.json({ error: "El identificador de servicio supera la longitud máxima permitida." }, { status: 400 });
+      }
+      if (trimmed && !cleanList.includes(trimmed)) {
+        cleanList.push(trimmed);
+      }
+    }
+    const currentMeta = (existingOrder.metadata && typeof existingOrder.metadata === "object") ? existingOrder.metadata : {};
+    updatePayload.metadata = {
+      ...currentMeta,
+      selected_services: cleanList,
+    };
+  }
+
+  if (body.reference !== undefined || body.customerReference !== undefined) {
+    updatePayload.customer_reference = text(body.reference ?? body.customerReference) || null;
+  }
+
+  if (body.packages !== undefined) {
+    updatePayload.packages = integerOrNull(body.packages);
+  }
+
+  if (body.grossWeight !== undefined || body.weight !== undefined) {
+    updatePayload.gross_weight = numberOrNull(body.grossWeight ?? body.weight);
+  }
+
+  if (body.volume !== undefined) {
+    updatePayload.volume = numberOrNull(body.volume);
+  }
+
+  if (body.linearMeters !== undefined) {
+    updatePayload.linear_meters = numberOrNull(body.linearMeters);
+  }
+
+  if (body.goodsDescription !== undefined) {
+    updatePayload.goods_description = text(body.goodsDescription) || null;
+  }
+
+  if (body.requestedDate !== undefined) {
+    const rawDate = text(body.requestedDate);
+    updatePayload.requested_pickup_start = rawDate ? dateOrNull(rawDate) : null;
+  }
+
+  let updateQuery = supabase
+    .from("orders")
+    .update(updatePayload)
+    .eq("id", existingOrder.id)
+    .eq("tenant_id", tenantId);
+
+  // Compare-and-swap atómico para transiciones de estado: evita colisiones TOCTOU concurrentes
+  if (updatePayload.status !== undefined && updatePayload.status !== existingOrder.status) {
+    updateQuery = updateQuery.eq("status", existingOrder.status);
+  }
+
+  const { data: updatedOrder, error: updateError } = await updateQuery
+    .select(`
+      id,
+      code,
+      customer_reference,
+      packages,
+      gross_weight,
+      volume,
+      linear_meters,
+      goods_description,
+      adr,
+      status,
+      created_at,
+      updated_at,
+      service:service_catalog!orders_service_id_fkey(code, name)
+    `)
+    .maybeSingle();
+
+  if (updateError) {
+    console.error("Orders API PATCH update error", updateError);
+    return NextResponse.json({ error: "No se pudo actualizar la orden." }, { status: 500 });
+  }
+
+  if (!updatedOrder) {
+    return NextResponse.json({
+      error: "Conflicto de concurrencia: el estado de la orden cambió concurrentemente durante la operación.",
+    }, { status: 409 });
+  }
+
+  const isStatusChange = updatePayload.status !== undefined && updatePayload.status !== existingOrder.status;
+  const isRelaunch = isStatusChange && updatePayload.status === "READY";
+  const auditAction = isRelaunch ? "RELAUNCH" : (isStatusChange ? "STATUS_CHANGE" : "UPDATE");
+
+  try {
+    await supabase.from("audit_events").insert({
+      tenant_id: tenantId,
+      entity_type: "ORDER",
+      entity_id: existingOrder.id,
+      business_id: existingOrder.business_id,
+      action: auditAction,
+      actor_user_id: userId,
+      source_channel: "FORNEXA_WEB",
+      user_agent: request.headers.get("user-agent"),
+      ip_address: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
+      changed_fields: Object.keys(updatePayload),
+      before_data: {
+        id: existingOrder.id,
+        code: existingOrder.code,
+        status: existingOrder.status,
+        customer_reference: existingOrder.customer_reference,
+        service_id: existingOrder.service_id,
+        packages: existingOrder.packages,
+        gross_weight: existingOrder.gross_weight,
+        volume: existingOrder.volume,
+        linear_meters: existingOrder.linear_meters,
+        goods_description: existingOrder.goods_description,
+        metadata: existingOrder.metadata,
+      },
+      after_data: updatedOrder,
+    });
+  } catch (auditErr) {
+    console.warn("Orders API PATCH audit event warning", auditErr);
+  }
+
+  return NextResponse.json({
+    item: {
+      id: updatedOrder.code,
+      uuid: updatedOrder.id,
+      status: STATUS_LABELS[updatedOrder.status] ?? updatedOrder.status,
+      rawStatus: updatedOrder.status,
+      reference: updatedOrder.customer_reference,
+      service: (updatedOrder.service as any)?.name ?? null,
+      packages: updatedOrder.packages,
+      grossWeight: updatedOrder.gross_weight,
+      volume: updatedOrder.volume,
+      linearMeters: updatedOrder.linear_meters,
+      goodsDescription: updatedOrder.goods_description,
+      updatedAt: updatedOrder.updated_at,
+    },
+  }, { headers: { "Cache-Control": "no-store" } });
+}
+
