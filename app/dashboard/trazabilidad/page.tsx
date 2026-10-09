@@ -12,8 +12,13 @@ async function userResolver(supabase: ReturnType<typeof createSupabaseAdmin>, te
   const { data: members } = await supabase.from("tenant_members").select("user_id").eq("tenant_id", tenantId);
   const ids = new Set((members ?? []).map(member => member.user_id as string));
   if (!ids.size) return () => undefined;
-  const { data } = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  const names = new Map((data?.users ?? []).filter(user => ids.has(user.id)).map(user => [user.id, String(user.user_metadata?.display_name ?? user.user_metadata?.full_name ?? user.email ?? "Usuario de la empresa")]));
+  const names = new Map<string, string>();
+  for (let page = 1; page <= 10 && names.size < ids.size; page += 1) {
+    const { data } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
+    const users = data?.users ?? [];
+    for (const user of users) if (ids.has(user.id)) names.set(user.id, String(user.user_metadata?.display_name ?? user.user_metadata?.full_name ?? user.email ?? "Usuario de la empresa"));
+    if (users.length < 1000) break;
+  }
   return (id: string) => names.get(id);
 }
 

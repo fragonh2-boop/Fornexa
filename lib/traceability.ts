@@ -94,6 +94,8 @@ export type TraceResult = {
   query: string;
   status: "empty" | "none" | "choose" | "found" | "error";
   matchedBy?: string;
+  /** When the search matched a batch or serial number, warehouse data is narrowed to it. */
+  lotFilter?: string;
   matches: TraceProductMatch[];
   product?: TraceProductMatch & { uom: string; hazard: string };
   events: TraceEvent[];
@@ -138,9 +140,11 @@ export function hasValidGtinCheckDigit(code: string): boolean {
 }
 
 /** Newest first; undated events go last so they never hide recent activity. */
+const timeOf = (value: string) => { const time = Date.parse(value); return Number.isNaN(time) ? 0 : time; };
+
 export function sortTraceEvents(events: TraceEvent[]): TraceEvent[] {
   return [...events].sort((a, b) => {
-    if (a.at && b.at) return b.at.localeCompare(a.at);
+    if (a.at && b.at) return timeOf(b.at) - timeOf(a.at) || a.id.localeCompare(b.id);
     if (a.at) return -1;
     if (b.at) return 1;
     return a.id.localeCompare(b.id);
@@ -167,10 +171,12 @@ export function countByDomain(events: TraceEvent[]): Record<TraceDomain, number>
   return counts;
 }
 
+const dateFormatter = new Intl.DateTimeFormat("es-ES", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Madrid" });
+
 export function formatTraceDate(value: string | null | undefined): string {
   if (!value) return "—";
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "—" : new Intl.DateTimeFormat("es-ES", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Madrid" }).format(date);
+  return Number.isNaN(date.getTime()) ? "—" : dateFormatter.format(date);
 }
 
 const STOP_LABELS: Record<string, { domain: TraceDomain; label: string }> = {

@@ -94,6 +94,7 @@ export default function TraceabilityView({ result, basePath = "/dashboard", simu
         { label: "Personas", value: result.people.length, href: "#trazabilidad-personas" },
       ]} />
 
+      {result.lotFilter && <p className={styles.note} role="status">Movimientos y stock de almacén filtrados por el lote o número de serie <strong>{result.lotFilter}</strong>. Partidas, viajes y aduanas corresponden al artículo completo.</p>}
       {result.truncated && <p className={styles.warning} role="status">Hay más registros de los que se muestran: se presentan los {TRACE_LIMIT} más recientes de cada tipo.</p>}
 
       <section className={screenPanelClass} aria-labelledby="trace-timeline">
@@ -137,7 +138,7 @@ export default function TraceabilityView({ result, basePath = "/dashboard", simu
 
         <section id="trazabilidad-aduanas" className={screenPanelClass} aria-labelledby="trace-customs">
           <div className={styles.panelHead}><div><p className={styles.eyebrow}>ADUANAS</p><h2 id="trace-customs">Despachos aduaneros</h2></div></div>
-          {result.customs.length ? <ul className={styles.list}>{result.customs.map(item => <li key={item.reference}>{item.href ? <Link href={href(item.href)!} prefetch={prefetch}><strong>{item.mrn !== "—" ? item.mrn : item.reference}</strong></Link> : <strong>{item.mrn}</strong>}<span>{item.direction} · {item.system} · {item.status}</span><small>Vinculado por {item.linkedBy.toLowerCase()} · {formatTraceDate(item.updatedAt)}</small></li>)}</ul> : <p className={styles.muted}>Sin despachos vinculados. Solo se muestran expedientes cuya referencia o MRN coincide con una partida, expediente, viaje, CMR, SKU o EAN del artículo.</p>}
+          {result.customs.length ? <ul className={styles.list}>{result.customs.map(item => <li key={`${item.reference}-${item.mrn}`}>{item.href ? <Link href={href(item.href)!} prefetch={prefetch}><strong>{item.mrn !== "—" ? item.mrn : item.reference}</strong></Link> : <strong>{item.mrn}</strong>}<span>{item.direction} · {item.system} · {item.status}</span><small>Vinculado por {item.linkedBy.toLowerCase()} · {formatTraceDate(item.updatedAt)}</small></li>)}</ul> : <p className={styles.muted}>Sin despachos vinculados. Solo se muestran expedientes cuya referencia o MRN coincide con una partida, expediente, viaje, CMR, SKU o EAN del artículo.</p>}
         </section>
 
         <section id="trazabilidad-personas" className={screenPanelClass} aria-labelledby="trace-people">
@@ -150,9 +151,9 @@ export default function TraceabilityView({ result, basePath = "/dashboard", simu
         <div className={styles.panelHead}><div><p className={styles.eyebrow}>ALMACÉN</p><h2 id="trace-warehouse">Movimientos y stock</h2></div><span>{result.stock.length ? `${result.stock.length} ubicaciones con stock` : "Sin stock actual"}</span></div>
         {result.movements.length ? <div className={styles.tableWrap}><table>
           <thead><tr><th>Fecha</th><th>Movimiento</th><th>Almacén</th><th>Origen → destino</th><th>Cantidad</th><th>Lote / serie</th><th>Operario</th></tr></thead>
-          <tbody>{result.movements.map(item => <tr key={item.number}><td>{formatTraceDate(item.at)}</td><td><strong>{item.type}</strong><small>{item.number} · {item.status}</small></td><td>{item.warehouse}</td><td>{item.from} → {item.to}</td><td>{item.quantity}</td><td>{item.batch}<small>{item.serial}</small></td><td>{item.operator}</td></tr>)}</tbody>
+          <tbody>{result.movements.map((item, index) => <tr key={`${item.number}-${index}`}><td>{formatTraceDate(item.at)}</td><td><strong>{item.type}</strong><small>{item.number} · {item.status}</small></td><td>{item.warehouse}</td><td>{item.from} → {item.to}</td><td>{item.quantity}</td><td>{item.batch}<small>{item.serial}</small></td><td>{item.operator}</td></tr>)}</tbody>
         </table></div> : <p className={styles.muted}>Sin movimientos de almacén registrados.</p>}
-        {!!result.stock.length && <ul className={styles.stock}>{result.stock.map(item => <li key={`${item.warehouse}-${item.bin}-${item.batch}`}><strong>{item.quantity}</strong><span>{item.warehouse} · {item.bin}</span><small>Lote {item.batch} · {item.status}</small></li>)}</ul>}
+        {!!result.stock.length && <ul className={styles.stock}>{result.stock.map((item, index) => <li key={`${item.warehouse}-${item.bin}-${item.batch}-${index}`}><strong>{item.quantity}</strong><span>{item.warehouse} · {item.bin}</span><small>Lote {item.batch} · {item.status}</small></li>)}</ul>}
       </section>
     </>}
   </div>;

@@ -84,10 +84,64 @@ test("an exact GTIN follows partida, expediente, viaje, carga/descarga and audit
   assert.deepEqual(result.events.map(event => event.domain).slice(0, 3), ["Descarga", "Carga", "Viaje"]);
   assert.ok(result.people.some(person => person.name === "Marta"));
   assert.ok(result.people.some(person => person.name === "Conductor"));
-  // cmr_expeditions has no tenant column; it is only queried with expedition ids already scoped to the tenant.
   for (const call of calls.filter(item => item.table !== "cmr_expeditions")) {
     assert.ok(has(call, "eq", "tenant_id", TENANT), `${call.table} must be filtered by tenant`);
   }
+  // cmr_expeditions has no tenant column: it is only queried with tenant-scoped expedition ids,
+  // and the CMR ids it yields are re-read from cmr_documents filtered by tenant.
+  for (const call of calls.filter(item => item.table === "cmr_expeditions")) {
+    assert.ok(call.ops.some(([name, column, ids]) => name === "in" && column === "expedition_id" && Array.isArray(ids) && ids.every(id => id === "e1")));
+  }
+});
+
+test("each trip uses its own linked stops, and a trip without links keeps all its stops", async () => {
+  const { client } = fakeClient({
+    products: () => [{ id: "p1", sku: "SKU-1", name: "Caja", gtin: "", owner_party_id: null }],
+    order_lines: () => [{ id: "l1", order_id: "o1" }],
+    orders: () => [{ id: "o1", code: "PT-1" }],
+    delivery_note_lines: () => [{ delivery_note_id: "n1", order_line_id: "l1" }],
+    delivery_notes: () => [{ id: "n1", code: "AL-1" }],
+    expedition_delivery_notes: () => [{ expedition_id: "e1", delivery_note_id: "n1" }],
+    expeditions: call => (has(call, "in", "order_id") ? [{ id: "e2" }] : [{ id: "e1", code: "EX-1" }, { id: "e2", code: "EX-2" }]),
+    trip_expeditions: () => [{ trip_id: "t1", expedition_id: "e1" }, { trip_id: "t2", expedition_id: "e2" }],
+    trips: () => [{ id: "t1", code: "VJ-1" }, { id: "t2", code: "VJ-2" }],
+    trip_stops: () => [
+      { id: "a1", trip_id: "t1", stop_type: "PICKUP", company_name: "Otro cliente" },
+      { id: "a2", trip_id: "t1", stop_type: "PICKUP", company_name: "Origen enlazado", completed_at: "2026-10-02T07:00:00Z" },
+      { id: "b1", trip_id: "t2", stop_type: "PICKUP", company_name: "Origen VJ-2", completed_at: "2026-10-03T07:00:00Z" },
+      { id: "b2", trip_id: "t2", stop_type: "DELIVERY", company_name: "Destino VJ-2", completed_at: "2026-10-03T15:00:00Z" },
+    ],
+    trip_stop_delivery_notes: () => [{ trip_stop_id: "a2", delivery_note_id: "n1", operation: "LOAD" }],
+  });
+  const result = await loadTraceability(client, TENANT, "SKU-1");
+  assert.equal(result.trips.find(trip => trip.code === "VJ-1")?.loadPlace, "Origen enlazado");
+  const second = result.trips.find(trip => trip.code === "VJ-2");
+  assert.equal(second?.loadPlace, "Origen VJ-2");
+  assert.equal(second?.unloadPlace, "Destino VJ-2");
+});
+
+test("a customs case matched by MRN says MRN, not reference", async () => {
+  const { client } = fakeClient({
+    products: () => [{ id: "p1", sku: "SKU-1", name: "Caja", gtin: "", owner_party_id: null }],
+    order_lines: () => [{ id: "l1", order_id: "o1" }],
+    orders: () => [{ id: "o1", code: "PT-1" }],
+    customs_cases: call => (has(call, "in", "mrn") ? [{ id: "c1", reference: "OTRA-REF", mrn: "PT-1", direction: "Exportación" }] : []),
+  });
+  const result = await loadTraceability(client, TENANT, "SKU-1");
+  assert.equal(result.customs[0].linkedBy, "MRN PT-1");
+});
+
+test("a batch search narrows warehouse movements and stock to that batch", async () => {
+  const { client, calls } = fakeClient({
+    inventory_movements: call => (has(call, "select", "product_id") ? [{ product_id: "p1" }] : []),
+    products: call => (has(call, "in", "id") ? [{ id: "p1", sku: "SKU-1", name: "Caja", gtin: "" }] : []),
+  });
+  const result = await loadTraceability(client, TENANT, "LOT_7");
+  assert.equal(result.lotFilter, "LOT_7");
+  const movementCall = calls.filter(call => call.table === "inventory_movements").at(-1)!;
+  assert.ok(has(movementCall, "or", "batch_number.eq.LOT_7,serial_number.eq.LOT_7"));
+  const skuCall = calls.find(call => call.table === "products" && call.ops.some(([name]) => name === "ilike"))!;
+  assert.ok(has(skuCall, "ilike", "sku", "LOT\\_7"), "underscore is escaped in exact ILIKE matches");
 });
 
 test("several partial matches ask the user to choose; nothing found says so", async () => {
