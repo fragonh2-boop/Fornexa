@@ -6,7 +6,7 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ### 2026-10-09 — TRZ1: Trazabilidad de artículos
 - **Área:** Web / Trazabilidad
-- **Estado:** EN CURSO (Claude, desatendido): PR, revisiones, merge y producción
+- **Estado:** EN CURSO (Claude, desatendido): PR #101 en revisión; memorándum 2026.10.09-2 en Preproducción hasta el despliegue
 - **Criterio de cierre:** en producción, buscar un EAN/SKU/lote devuelve el recorrido del artículo con viajes, cargas/descargas, aduanas por referencia exacta, almacén y personas; demo con datos ficticios; índices aplicados.
 
 ### 2026-10-08 — UX92: pantallas homogéneas, Decision Center retirado, Artículos con alta en ventana
