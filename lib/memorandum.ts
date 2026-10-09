@@ -116,7 +116,7 @@ export const memorandumReleases: MemorandumRelease[] = [
     title: "Trazabilidad de artículos desde un código",
     purpose: "Que con solo un EAN/GTIN, un SKU, el nombre, un lote o un número de serie se pueda reconstruir el recorrido completo de un artículo sin saltar entre pantallas.",
     outcome: "La pantalla Trazabilidad busca el artículo dentro de la empresa (coincidencia exacta de EAN/GTIN o SKU, lote o serie y, si no, coincidencia parcial con elección del artículo) y muestra en una línea de tiempo filtrable qué pasó, dónde, cuándo y quién: órdenes, albaranes y expedientes; viajes con vehículo y conductor; cargas y descargas en paradas; CMR y sus firmas, fotos e incidencias; despachos de aduana relacionados solo por referencia o MRN exactos; movimientos de almacén con ubicación, lote y operario; stock actual y cambios de los registros. Resume las personas que intervinieron y enlaza con cada viaje, documento y expediente aduanero. Es de solo lectura y avisa cuando un EAN tiene el dígito de control incorrecto. Índices nuevos para las búsquedas inversas.",
-    status: "Preproducción",
+    status: "Producción",
   },
   {
     version: "2026.10.09-1",
