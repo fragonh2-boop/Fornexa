@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import OrderEditorWorkspace, { type OrderDetailData } from "./OrderEditorWorkspace";
+import OrderEditorWorkspace, { type OrderDetailData } from "@/app/components/OrderEditorWorkspace";
 import { getAuthenticatedOrReviewContext } from "@/lib/auth-context";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
 
@@ -21,7 +21,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const decodedId = decodeURIComponent(id);
   const supabase = createSupabaseAdmin();
 
-  const { data: order, error } = await supabase
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(decodedId);
+  const baseQuery = supabase
     .from("orders")
     .select(`
       id,
@@ -41,49 +42,17 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       service:service_catalog!orders_service_id_fkey ( name ),
       expeditions ( code, status )
     `)
-    .eq("tenant_id", auth.tenantId)
-    .or(`code.eq.${decodedId},id.eq.${decodedId}`)
-    .maybeSingle();
+    .eq("tenant_id", auth.tenantId);
+
+  const { data: order, error } = await (isUuid ? baseQuery.eq("id", decodedId) : baseQuery.eq("code", decodedId)).maybeSingle();
 
   if (error) {
     console.error("Order detail: error al leer Supabase", error);
+    notFound();
   }
 
   if (!order) {
-    // If not found in DB (e.g. PT-260184 from demo/mock), build standard fallback
-    const mockOrder: OrderDetailData = {
-      id: decodedId,
-      code: decodedId,
-      status: "Preparada",
-      customer: "Cliente Operativo General",
-      customerCode: "CLI-000146",
-      reference: `REF-${decodedId}`,
-      service: "Grupaje",
-      packages: 2,
-      grossWeight: 840,
-      volume: 1.5,
-      linearMeters: 0.8,
-      goodsDescription: "Mercancía general consolidada en palets europeos",
-      origin: {
-        code: "VAL-01",
-        name: "Almacén Central Valencia",
-        address: "Av. del Transporte, 14",
-        postalCode: "46001",
-        city: "Valencia",
-        countryCode: "ES",
-      },
-      destination: {
-        code: "LYO-01",
-        name: "Hub Logistique Lyon",
-        address: "Rue de l'Industrie, 8",
-        postalCode: "69001",
-        city: "Lyon",
-        countryCode: "FR",
-      },
-      expedition: null,
-      createdAt: new Date().toISOString(),
-    };
-    return <OrderEditorWorkspace order={mockOrder} readOnly={Boolean(auth.isReview)} />;
+    notFound();
   }
 
   const orderData: OrderDetailData = {

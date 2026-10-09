@@ -166,6 +166,29 @@
   font-size: 16px;
 }
 
+.bannerError {
+  margin: 0 0 20px;
+  padding: 14px 18px;
+  border: 1px solid #f5c2c7;
+  border-radius: 12px;
+  background: #f8d7da;
+  color: #842029;
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.bannerError button {
+  border: 0;
+  background: transparent;
+  color: #842029;
+  font-weight: 900;
+  cursor: pointer;
+  font-size: 16px;
+}
+
 .formGrid {
   display: grid;
   gap: 20px;

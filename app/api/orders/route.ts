@@ -15,7 +15,7 @@ const LEGACY_SERVICE_CODES: Record<string, string> = {
   "Directo": "DIRECT",
 };
 
-const STATUS_LABELS: Record<string, string> = {
+export const STATUS_LABELS: Record<string, string> = {
   DRAFT: "Borrador",
   READY: "Preparada",
   PARTIALLY_PLANNED: "Parcialmente planificada",
@@ -23,6 +23,23 @@ const STATUS_LABELS: Record<string, string> = {
   IN_TRANSIT: "En tránsito",
   COMPLETED: "Completada",
   CANCELLED: "Cancelada",
+};
+
+export const STATUS_FROM_LABEL: Record<string, string> = {
+  "Borrador": "DRAFT",
+  "Preparada": "READY",
+  "Parcialmente planificada": "PARTIALLY_PLANNED",
+  "Planificada": "PLANNED",
+  "En tránsito": "IN_TRANSIT",
+  "Completada": "COMPLETED",
+  "Cancelada": "CANCELLED",
+  "DRAFT": "DRAFT",
+  "READY": "READY",
+  "PARTIALLY_PLANNED": "PARTIALLY_PLANNED",
+  "PLANNED": "PLANNED",
+  "IN_TRANSIT": "IN_TRANSIT",
+  "COMPLETED": "COMPLETED",
+  "CANCELLED": "CANCELLED",
 };
 
 function text(value: unknown) {
@@ -495,3 +512,187 @@ export async function POST(request: Request) {
     },
   }, { status: 201, headers: { "Cache-Control": "no-store" } });
 }
+
+export async function PATCH(request: Request) {
+  const auth = await getAuthenticatedContext();
+  if (!auth) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+
+  const tenantId = auth.tenantId;
+  const userId = auth.userId;
+
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "JSON no válido." }, { status: 400 });
+  }
+
+  const code = text(body.code);
+  const id = text(body.id);
+
+  if (!code && !id) {
+    return NextResponse.json({ error: "Se requiere code o id de la orden." }, { status: 400 });
+  }
+
+  const supabase = createSupabaseAdmin();
+
+  let findQuery = supabase
+    .from("orders")
+    .select(`
+      id,
+      code,
+      status,
+      packages,
+      gross_weight,
+      volume,
+      linear_meters,
+      goods_description,
+      customer_reference,
+      service_id,
+      metadata,
+      revision_number,
+      business_id
+    `)
+    .eq("tenant_id", tenantId);
+
+  if (code) {
+    findQuery = findQuery.eq("code", code);
+  } else {
+    findQuery = findQuery.eq("id", id);
+  }
+
+  const { data: existingOrder, error: findError } = await findQuery.maybeSingle();
+
+  if (findError) {
+    console.error("Orders API PATCH find error", findError);
+    return NextResponse.json({ error: "Error al consultar la orden." }, { status: 500 });
+  }
+
+  if (!existingOrder) {
+    return NextResponse.json({ error: "Orden no encontrada." }, { status: 404 });
+  }
+
+  const updatePayload: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (body.status !== undefined) {
+    const rawStatus = text(body.status);
+    const mappedStatus = STATUS_FROM_LABEL[rawStatus];
+    if (!mappedStatus) {
+      return NextResponse.json({ error: `Estado no válido: ${rawStatus}` }, { status: 400 });
+    }
+    updatePayload.status = mappedStatus;
+  }
+
+  if (body.serviceCode !== undefined || body.service !== undefined) {
+    const rawService = text(body.serviceCode || body.service);
+    if (rawService) {
+      const codeCandidate = rawService.toUpperCase();
+      const legacyCode = LEGACY_SERVICE_CODES[rawService] || codeCandidate;
+      const { data: serviceItem } = await supabase
+        .from("service_catalog")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .or(`code.eq.${legacyCode},code.eq.${codeCandidate},name.ilike.${rawService}`)
+        .maybeSingle();
+      if (serviceItem) {
+        updatePayload.service_id = serviceItem.id;
+      }
+    }
+  }
+
+  if (body.reference !== undefined || body.customerReference !== undefined) {
+    updatePayload.customer_reference = text(body.reference ?? body.customerReference) || null;
+  }
+
+  if (body.packages !== undefined) {
+    updatePayload.packages = integerOrNull(body.packages);
+  }
+
+  if (body.grossWeight !== undefined || body.weight !== undefined) {
+    updatePayload.gross_weight = numberOrNull(body.grossWeight ?? body.weight);
+  }
+
+  if (body.volume !== undefined) {
+    updatePayload.volume = numberOrNull(body.volume);
+  }
+
+  if (body.linearMeters !== undefined) {
+    updatePayload.linear_meters = numberOrNull(body.linearMeters);
+  }
+
+  if (body.goodsDescription !== undefined) {
+    updatePayload.goods_description = text(body.goodsDescription) || null;
+  }
+
+  if (body.requestedDate !== undefined) {
+    const dateVal = dateOrNull(body.requestedDate);
+    if (dateVal) {
+      updatePayload.requested_pickup_start = dateVal;
+    }
+  }
+
+  const { data: updatedOrder, error: updateError } = await supabase
+    .from("orders")
+    .update(updatePayload)
+    .eq("id", existingOrder.id)
+    .eq("tenant_id", tenantId)
+    .select(`
+      id,
+      code,
+      customer_reference,
+      packages,
+      gross_weight,
+      volume,
+      linear_meters,
+      goods_description,
+      adr,
+      status,
+      created_at,
+      updated_at,
+      service:service_catalog!orders_service_id_fkey(code, name)
+    `)
+    .single();
+
+  if (updateError) {
+    console.error("Orders API PATCH update error", updateError);
+    return NextResponse.json({ error: "No se pudo actualizar la orden." }, { status: 500 });
+  }
+
+  try {
+    await supabase.from("audit_events").insert({
+      tenant_id: tenantId,
+      entity_type: "ORDER",
+      entity_id: existingOrder.id,
+      business_id: existingOrder.business_id,
+      action: "UPDATE",
+      actor_user_id: userId,
+      source_channel: "FORNEXA_WEB",
+      user_agent: request.headers.get("user-agent"),
+      ip_address: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
+      changed_fields: Object.keys(updatePayload),
+      after_data: updatedOrder,
+    });
+  } catch (auditErr) {
+    console.warn("Orders API PATCH audit event warning", auditErr);
+  }
+
+  return NextResponse.json({
+    item: {
+      id: updatedOrder.code,
+      uuid: updatedOrder.id,
+      status: STATUS_LABELS[updatedOrder.status] ?? updatedOrder.status,
+      rawStatus: updatedOrder.status,
+      reference: updatedOrder.customer_reference,
+      service: (updatedOrder.service as any)?.name ?? null,
+      packages: updatedOrder.packages,
+      grossWeight: updatedOrder.gross_weight,
+      volume: updatedOrder.volume,
+      linearMeters: updatedOrder.linear_meters,
+      goodsDescription: updatedOrder.goods_description,
+      updatedAt: updatedOrder.updated_at,
+    },
+  }, { headers: { "Cache-Control": "no-store" } });
+}
+

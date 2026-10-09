@@ -83,7 +83,7 @@ test("Configuración screen renders ComboConfigWorkspace and StorageConfigWorksp
 });
 
 test("OrderEditorWorkspace supports order editing, re-launching and file attachments with local directory display", () => {
-  const editor = source("app/dashboard/partidas/[id]/OrderEditorWorkspace.tsx");
+  const editor = source("app/components/OrderEditorWorkspace.tsx");
   assert.match(editor, /Volver a lanzar orden/);
   assert.match(editor, /Guardar cambios/);
   assert.match(editor, /← Volver a Órdenes/);
@@ -118,3 +118,32 @@ test("memorandum records storage evolution and 2026.10.09-1 release", () => {
   assert.match(latestRelease.title, /Órdenes/);
   assert.match(latestRelease.outcome, /cross y picking/);
 });
+
+test("orders API implements PATCH with STATUS_FROM_LABEL translation and tenant security", () => {
+  const routeSource = source("app/api/orders/route.ts");
+  assert.match(routeSource, /export async function PATCH/);
+  assert.match(routeSource, /STATUS_FROM_LABEL/);
+  assert.match(routeSource, /getAuthenticatedContext/);
+  assert.match(routeSource, /\.eq\("tenant_id", tenantId\)/);
+  assert.match(routeSource, /"Preparada": "READY"/);
+  assert.match(routeSource, /"Borrador": "DRAFT"/);
+});
+
+test("OrderEditorWorkspace is located in app/components with verified API error handling and status persistence", () => {
+  const component = source("app/components/OrderEditorWorkspace.tsx");
+  assert.match(component, /fetch\("\/api\/orders"/);
+  assert.match(component, /method: "PATCH"/);
+  assert.match(component, /status: "READY"/);
+  assert.match(component, /if \(!res\.ok\)/);
+  assert.match(component, /relaunchError/);
+  assert.match(component, /saveError/);
+
+  // Authenticated page must not contain mockOrder fallback and demo page must import from app/components
+  const prodPage = source("app/dashboard/partidas/[id]/page.tsx");
+  assert.doesNotMatch(prodPage, /mockOrder/);
+  assert.match(prodPage, /notFound\(\)/);
+
+  const demoPage = source("app/demo/partidas/[id]/page.tsx");
+  assert.match(demoPage, /from "@\/app\/components\/OrderEditorWorkspace"/);
+});
+

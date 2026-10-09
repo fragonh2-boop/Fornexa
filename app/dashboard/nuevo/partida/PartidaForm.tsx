@@ -105,7 +105,7 @@ export default function PartidaForm({ customers, addresses, services, readOnly =
   const effectiveServices = useMemo(() => {
     const list = [...services];
     for (const opt of comboConfig.options) {
-      if (!list.some(s => s.code === opt.value || s.name === opt.label)) {
+      if (!list.some(s => s.code.toLowerCase() === opt.value.toLowerCase() || s.name.toLowerCase() === opt.label.toLowerCase())) {
         list.push({ code: opt.value, name: opt.label });
       }
     }

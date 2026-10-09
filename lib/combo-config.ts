@@ -11,7 +11,7 @@ export interface ComboConfig {
   name: string;
   description: string;
   options: ComboOption[];
-  defaultValue: string | string[];
+  defaultValue: string;
   selectionMode: SelectionMode;
 }
 

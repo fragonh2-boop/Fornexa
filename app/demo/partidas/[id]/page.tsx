@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import OrderEditorWorkspace, { type OrderDetailData } from "../../../dashboard/partidas/[id]/OrderEditorWorkspace";
+import OrderEditorWorkspace, { type OrderDetailData } from "@/app/components/OrderEditorWorkspace";
 import { DEMO_PARTIDAS } from "@/lib/demo-operational-lists";
 
 export default async function DemoOrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
