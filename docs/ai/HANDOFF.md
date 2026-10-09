@@ -2,6 +2,15 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-09 — TRZ1: Trazabilidad de artículos
+
+- **Petición de Fran:** con solo un EAN/código de producto llegar a viajes, aduanas, movimientos de almacén, usuarios que lo leyeron o movieron y cargas/descargas; mismo patrón UX; proceso desatendido hasta merge y deploy.
+- **Referentes analizados:** GS1 EPCIS (qué/dónde/cuándo/por qué/quién por evento), informe de trazabilidad de lotes de Odoo (un único informe aguas arriba/abajo con enlace a cada documento), SAP Global Batch Traceability (rastreo hacia delante/atrás y lista de dónde se usa) y buscadores universales de visibilidad de envíos (un único campo que acepta cualquier identificador).
+- **Diseño:** `app/dashboard/trazabilidad` (y `/demo/trazabilidad` con datos ficticios). Un campo de búsqueda por GET (`?q=`, enlazable y compatible con lector de códigos) → resolución EAN/GTIN exacto → SKU exacto → lote/serie → coincidencia parcial con lista para elegir (`&p=`). Resultado: ficha del artículo, tarjetas (partidas, viajes, aduanas, movimientos, personas), línea de tiempo única filtrable por dominio y paneles de viajes (carga/descarga, vehículo, conductor), partidas y CMR, aduanas, personas y almacén (movimientos y stock).
+- **Datos:** `lib/traceability-loader.ts`, solo lectura, todas las consultas con `tenant_id`, límite de 200 por tipo con aviso. Aduanas sin clave ajena: solo coincidencia exacta de referencia o MRN con códigos del recorrido o del artículo, y se muestra el motivo del vínculo. Nombres de usuario solo de miembros de la empresa; en modo revisión se muestra la etiqueta genérica «Usuario de la empresa». `inventory_quants` tiene `batch_number` y `serial_number` (comprobado en el esquema). El memorándum marca 2026.10.09-2 como Preproducción hasta el despliegue; el cierre posterior lo pasa a Producción.
+- **Migración:** `20261009090000_traceability_lookup_indexes.sql` (solo índices para búsquedas inversas).
+- **Fase 2 (no incluida):** genealogía de lotes y series entre artículos, búsqueda por partida/viaje como punto de entrada, exportación CSV/PDF, registro de auditoría de las propias consultas, y lecturas de escáner del conductor o del operario cuando existan esos eventos.
+
 ## 2026-10-08 — UX92: pantallas homogéneas, Decision Center retirado y alta de artículos en ventana
 
 - **Petición de Fran (Slack 15:50–15:53, con capturas de producción):** eliminar Decision Center; homogeneizar colores de tarjetas, disposición y tamaños, que diferían en cada pantalla (botones secundarios sin estilo en Partidas/Aduanas, primarios partidos en dos líneas, avatar de distinto color, identificadores `VJ-…` cortados); Artículos debe mostrar solo el grid y abrir el alta en una ventana superpuesta con el botón o el atajo `+`.

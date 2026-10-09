@@ -113,8 +113,8 @@ test("memorandum records storage evolution and 2026.10.09-1 release", () => {
   assert.match(storagePending.summary, /Google Drive/i);
   assert.match(storagePending.summary, /Fornexa Storage/i);
 
-  const latestRelease = memorandumReleases[0];
-  assert.equal(latestRelease.version, "2026.10.09-1");
+  const latestRelease = memorandumReleases.find(release => release.version === "2026.10.09-1");
+  assert.ok(latestRelease, "2026.10.09-1 release must exist");
   assert.match(latestRelease.title, /Órdenes/);
   assert.match(latestRelease.outcome, /cross y picking/);
 });

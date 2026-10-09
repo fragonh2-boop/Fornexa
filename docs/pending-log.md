@@ -4,6 +4,11 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-09 — TRZ1: Trazabilidad de artículos
+- **Área:** Web / Trazabilidad
+- **Estado:** EN CURSO (Claude, desatendido): PR #101 en revisión; memorándum 2026.10.09-2 en Preproducción hasta el despliegue
+- **Criterio de cierre:** en producción, buscar un EAN/SKU/lote devuelve el recorrido del artículo con viajes, cargas/descargas, aduanas por referencia exacta, almacén y personas; demo con datos ficticios; índices aplicados.
+
 ### 2026-10-08 — UX92: pantallas homogéneas, Decision Center retirado, Artículos con alta en ventana
 - **Área:** Web / UX
 - **Estado:** INTEGRADO Y DESPLEGADO — PR #97 squash `5a39929` (8 oct). Revisiones exact-HEAD `cb9cd0e`: DeepSeek y Gemini MERGE YES, 0 MUST. Vercel producción READY del SHA integrado con alias `fornexasc.com`; `/demo` 404 en producción; sin errores de runtime. Pendiente: validación de Fran en producción
