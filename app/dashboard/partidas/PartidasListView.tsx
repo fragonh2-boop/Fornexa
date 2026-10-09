@@ -39,22 +39,23 @@ export default function PartidasListView({ items, basePath = "/dashboard" }: {
   }));
 
   return <AppShell><div className={styles.page}>
-    <ScreenHeader eyebrow="PEDIDOS DE CLIENTE" title="Partidas" description="Pedidos persistentes del tenant. Una partida debe incorporarse a un expediente antes de viajar.">
+    <ScreenHeader eyebrow="PEDIDOS DE CLIENTE" title="Órdenes">
       <Link href={`${basePath}/importar?entidad=partidas`} className={screenButton.secondary}>Importar Excel</Link>
-      <Link href={`${basePath}/nuevo/partida`} className={screenButton.primary}>+ Nueva partida</Link>
+      <Link href={`${basePath}/nuevo/partida`} className={screenButton.primary}>+ Nueva orden</Link>
     </ScreenHeader>
     <MetricGrid items={[
       { label: "Abiertas", value: abiertas },
       { label: "Pendientes de expediente", value: pendientes },
       { label: "ADR", value: adr },
-      { label: "Última partida", value: items[0]?.id ?? "—", text: true },
+      { label: "Última orden", value: items[0]?.id ?? "—", text: true },
     ]} />
     <section className={screenPanelClass}>
       <DataGrid
         storageKey={demo ? "demo-partidas-canonical" : "partidas-canonical"}
         persistPreferences={!demo}
+        rowHrefs={rows.map(row => `${basePath}/partidas/${encodeURIComponent(row.id)}`)}
         columns={[
-          { key: "id", label: "Partida" },
+          { key: "id", label: "Orden" },
           { key: "cliente", label: "Cliente" },
           { key: "referencia", label: "Referencia" },
           { key: "ruta", label: "Origen / destino" },
@@ -65,8 +66,8 @@ export default function PartidasListView({ items, basePath = "/dashboard" }: {
           { key: "estado", label: "Estado" },
         ]}
         rows={rows}
-        searchPlaceholder="Buscar por partida, cliente, referencia, ruta, servicio, ADR o expediente"
-        emptyMessage="No hay partidas persistidas todavía."
+        searchPlaceholder="Buscar por orden, cliente, referencia, ruta, servicio, ADR o expediente"
+        emptyMessage="No hay órdenes persistidas todavía."
       />
     </section>
   </div></AppShell>;

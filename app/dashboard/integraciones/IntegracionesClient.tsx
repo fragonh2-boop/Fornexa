@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import EmailWorkspace, { type EmailEvent } from "./EmailWorkspace";
+import ComboConfigWorkspace from "./ComboConfigWorkspace";
+import StorageConfigWorkspace from "./StorageConfigWorkspace";
 import type { DashboardBasePath } from "../../components/DashboardNavigation";
 import { MetricGrid, ScreenHeader, screenButton } from "../../components/ScreenChrome";
 import styles from "./integraciones.module.css";
@@ -46,7 +48,7 @@ export default function IntegracionesClient({ data, simulation = false, emailHis
   const pending = connectors.filter(c => c.status === "Pendiente").length;
 
   return <main className={styles.page}>
-    <ScreenHeader eyebrow="CONNECTIVITY HUB" title="Configuración" description="Un único punto para correo, EDI, APIs, web services, ficheros, SFTP, SMTP, webhooks y futuras conexiones eFTI.">
+    <ScreenHeader eyebrow="CONNECTIVITY HUB" title="Configuración">
       <button type="button" className={screenButton.secondary} onClick={simulate}>Probar conexión</button>
       <button type="button" className={screenButton.primary} onClick={simulate}>+ Nuevo conector</button>
     </ScreenHeader>
@@ -58,6 +60,10 @@ export default function IntegracionesClient({ data, simulation = false, emailHis
       { label: "Errores", value: errors, detail: "Requieren revisión", tone: errors ? "error" : undefined },
       { label: "Eventos hoy", value: eventsToday ?? "—", detail: "Entrada + salida" },
     ]} />
+
+    <ComboConfigWorkspace />
+
+    <StorageConfigWorkspace />
 
     <EmailWorkspace simulation={simulation} initialHistory={emailHistory} />
 

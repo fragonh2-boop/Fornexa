@@ -8,7 +8,7 @@ import { TRACE_DOMAINS, TRACE_LIMIT, countByDomain, formatTraceDate, hasValidGti
 import styles from "./trazabilidad.module.css";
 
 const DOMAIN_TONE: Record<TraceDomain, string> = {
-  Partida: styles.toneOrder,
+  Orden: styles.toneOrder,
   Expediente: styles.toneOrder,
   Viaje: styles.toneTrip,
   Carga: styles.toneTrip,
@@ -49,7 +49,7 @@ export default function TraceabilityView({ result, basePath = "/dashboard", simu
       <h2>Del código al recorrido completo</h2>
       <ol>
         <li><strong>Identifica</strong> el artículo con el código que tengas a mano.</li>
-        <li><strong>Sigue</strong> sus partidas, expedientes y los viajes que lo cargaron y descargaron.</li>
+        <li><strong>Sigue</strong> sus órdenes, expedientes y los viajes que lo cargaron y descargaron.</li>
         <li><strong>Comprueba</strong> despachos de aduana, movimientos de almacén y quién intervino en cada paso.</li>
       </ol>
     </section>}
@@ -58,7 +58,7 @@ export default function TraceabilityView({ result, basePath = "/dashboard", simu
 
     {result.status === "none" && <section className={`${screenPanelClass} ${styles.empty}`} role="status">
       <h2>Sin resultados para «{result.query}»</h2>
-      <p>No hay ningún artículo, línea de partida, lote ni número de serie con ese código en tu empresa. Comprueba el código o busca por parte del nombre.</p>
+      <p>No hay ningún artículo, línea de orden, lote ni número de serie con ese código en tu empresa. Comprueba el código o busca por parte del nombre.</p>
       <Link href={`${basePath}/articulos`} prefetch={prefetch}>Abrir el maestro de artículos</Link>
     </section>}
 
@@ -83,18 +83,18 @@ export default function TraceabilityView({ result, basePath = "/dashboard", simu
             <div><dt>Unidad</dt><dd>{result.product.uom}</dd></div>
             <div><dt>Estado</dt><dd>{result.product.status}</dd></div>
           </dl>
-        </> : <div><p className={styles.eyebrow}>{result.matchedBy}</p><h2>{result.query}</h2><p className={styles.note}>Código presente en líneas de partida pero no vinculado a un artículo del maestro.</p></div>}
+        </> : <div><p className={styles.eyebrow}>{result.matchedBy}</p><h2>{result.query}</h2><p className={styles.note}>Código presente en líneas de orden pero no vinculado a un artículo del maestro.</p></div>}
       </section>
 
       <MetricGrid label="Resumen de trazabilidad" prefetch={prefetch} items={[
-        { label: "Partidas", value: result.orders.length, href: "#trazabilidad-partidas" },
+        { label: "Órdenes", value: result.orders.length, href: "#trazabilidad-ordenes" },
         { label: "Viajes", value: result.trips.length, detail: `${counts.Carga} ${counts.Carga === 1 ? "carga" : "cargas"} · ${counts.Descarga} ${counts.Descarga === 1 ? "descarga" : "descargas"}`, href: "#trazabilidad-viajes" },
         { label: "Aduanas", value: result.customs.length, href: "#trazabilidad-aduanas" },
         { label: "Movimientos de almacén", value: result.movements.length, href: "#trazabilidad-almacen" },
         { label: "Personas", value: result.people.length, href: "#trazabilidad-personas" },
       ]} />
 
-      {result.lotFilter && <p className={styles.note} role="status">Movimientos y stock de almacén filtrados por el lote o número de serie <strong>{result.lotFilter}</strong>. Partidas, viajes y aduanas corresponden al artículo completo.</p>}
+      {result.lotFilter && <p className={styles.note} role="status">Movimientos y stock de almacén filtrados por el lote o número de serie <strong>{result.lotFilter}</strong>. Órdenes, viajes y aduanas corresponden al artículo completo.</p>}
       {result.truncated && <p className={styles.warning} role="status">Hay más registros de los que se muestran: se presentan los {TRACE_LIMIT} más recientes de cada tipo.</p>}
 
       <section className={screenPanelClass} aria-labelledby="trace-timeline">
@@ -130,15 +130,15 @@ export default function TraceabilityView({ result, basePath = "/dashboard", simu
           </table></div> : <p className={styles.muted}>No consta en ningún viaje.</p>}
         </section>
 
-        <section id="trazabilidad-partidas" className={screenPanelClass} aria-labelledby="trace-orders">
-          <div className={styles.panelHead}><div><p className={styles.eyebrow}>PEDIDOS</p><h2 id="trace-orders">Partidas y documentos</h2></div></div>
-          {result.orders.length ? <ul className={styles.list}>{result.orders.map(order => <li key={order.code}><strong>{order.code}</strong><span>{order.customer}{order.reference ? ` · Ref. ${order.reference}` : ""}</span><small>{order.status} · {formatTraceDate(order.createdAt)}</small></li>)}</ul> : <p className={styles.muted}>No figura en ninguna partida.</p>}
+        <section id="trazabilidad-ordenes" className={screenPanelClass} aria-labelledby="trace-orders">
+          <div className={styles.panelHead}><div><p className={styles.eyebrow}>PEDIDOS</p><h2 id="trace-orders">Órdenes y documentos</h2></div></div>
+          {result.orders.length ? <ul className={styles.list}>{result.orders.map(order => <li key={order.code}>{order.href ? <Link href={href(order.href)!} prefetch={prefetch}><strong>{order.code}</strong></Link> : <strong>{order.code}</strong>}<span>{order.customer}{order.reference ? ` · Ref. ${order.reference}` : ""}</span><small>{order.status} · {formatTraceDate(order.createdAt)}</small></li>)}</ul> : <p className={styles.muted}>No figura en ninguna orden.</p>}
           {!!result.documents.length && <ul className={styles.list}>{result.documents.map(doc => <li key={doc.number}>{doc.href ? <Link href={href(doc.href)!} prefetch={prefetch}><strong>{doc.number}</strong></Link> : <strong>{doc.number}</strong>}<span>CMR · {doc.status}</span><small>{formatTraceDate(doc.issuedAt)}</small></li>)}</ul>}
         </section>
 
         <section id="trazabilidad-aduanas" className={screenPanelClass} aria-labelledby="trace-customs">
           <div className={styles.panelHead}><div><p className={styles.eyebrow}>ADUANAS</p><h2 id="trace-customs">Despachos aduaneros</h2></div></div>
-          {result.customs.length ? <ul className={styles.list}>{result.customs.map(item => <li key={`${item.reference}-${item.mrn}`}>{item.href ? <Link href={href(item.href)!} prefetch={prefetch}><strong>{item.mrn !== "—" ? item.mrn : item.reference}</strong></Link> : <strong>{item.mrn}</strong>}<span>{item.direction} · {item.system} · {item.status}</span><small>Vinculado por {item.linkedBy.toLowerCase()} · {formatTraceDate(item.updatedAt)}</small></li>)}</ul> : <p className={styles.muted}>Sin despachos vinculados. Solo se muestran expedientes cuya referencia o MRN coincide con una partida, expediente, viaje, CMR, SKU o EAN del artículo.</p>}
+          {result.customs.length ? <ul className={styles.list}>{result.customs.map(item => <li key={`${item.reference}-${item.mrn}`}>{item.href ? <Link href={href(item.href)!} prefetch={prefetch}><strong>{item.mrn !== "—" ? item.mrn : item.reference}</strong></Link> : <strong>{item.mrn}</strong>}<span>{item.direction} · {item.system} · {item.status}</span><small>Vinculado por {item.linkedBy.toLowerCase()} · {formatTraceDate(item.updatedAt)}</small></li>)}</ul> : <p className={styles.muted}>Sin despachos vinculados. Solo se muestran expedientes cuya referencia o MRN coincide con una orden, expediente, viaje, CMR, SKU o EAN del artículo.</p>}
         </section>
 
         <section id="trazabilidad-personas" className={screenPanelClass} aria-labelledby="trace-people">

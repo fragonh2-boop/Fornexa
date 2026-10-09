@@ -45,19 +45,19 @@ test("GTIN detection and GS1 check digit", () => {
 
 test("timeline is newest first with undated events last, and people are grouped by actor", () => {
   const events: TraceEvent[] = [
-    { id: "a", at: "2026-10-01T00:00:00Z", domain: "Partida", label: "Incluido en partida", actor: "Ana" },
+    { id: "a", at: "2026-10-01T00:00:00Z", domain: "Orden", label: "Incluido en orden", actor: "Ana" },
     { id: "b", at: null, domain: "Registro", label: "Alta del artículo", actor: "Ana" },
     { id: "c", at: "2026-10-03T00:00:00Z", domain: "Carga", label: "Cargado en vehículo", actor: "Luis" },
   ];
   assert.deepEqual(sortTraceEvents(events).map(event => event.id), ["c", "a", "b"]);
   const people = summarizePeople(sortTraceEvents(events));
   assert.equal(people[0].name, "Luis");
-  assert.deepEqual(people.find(person => person.name === "Ana")?.actions, ["Incluido en partida", "Alta del artículo"]);
+  assert.deepEqual(people.find(person => person.name === "Ana")?.actions, ["Incluido en orden", "Alta del artículo"]);
   assert.equal(stopEvent("PICKUP").domain, "Carga");
   assert.equal(stopEvent("DELIVERY").domain, "Descarga");
 });
 
-test("an exact GTIN follows partida, expediente, viaje, carga/descarga and audit, always inside the tenant", async () => {
+test("an exact GTIN follows orden, expediente, viaje, carga/descarga and audit, always inside the tenant", async () => {
   const product = { id: "p1", sku: "SKU-1", name: "Caja", gtin: "8400000000017", status: "ACTIVE", uom_base: "UN", hazard_status: "UNKNOWN", owner_party_id: "c1" };
   const { client, calls } = fakeClient({
     products: () => [product],

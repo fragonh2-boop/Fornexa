@@ -88,7 +88,7 @@ export async function loadTraceability(supabase: Client, tenantId: string, rawQu
 
   // Order lines may carry a free-text SKU that was never linked to the catalogue.
   const looseLines = !products.length
-    ? await rows(supabase.from("order_lines").select("id").eq("tenant_id", tenantId).ilike("sku", likeLiteral(query)).limit(1), "líneas de partida")
+    ? await rows(supabase.from("order_lines").select("id").eq("tenant_id", tenantId).ilike("sku", likeLiteral(query)).limit(1), "líneas de orden")
     : [];
   if (!products.length && !looseLines.length) return { ...emptyTraceResult(query, "none") };
 
@@ -97,7 +97,7 @@ export async function loadTraceability(supabase: Client, tenantId: string, rawQu
 
   const result = emptyTraceResult(query, "found");
   const markTruncated = () => { result.truncated = true; };
-  result.matchedBy = selected ? matchedBy : "SKU en líneas de partida";
+  result.matchedBy = selected ? matchedBy : "SKU en líneas de orden";
   result.lotFilter = lotFilter;
   result.matches = matches;
   if (selected) {
@@ -111,23 +111,23 @@ export async function loadTraceability(supabase: Client, tenantId: string, rawQu
     return options.resolveUser?.(id) ?? "Usuario de la empresa";
   };
 
-  // 1. Order lines → partidas.
+  // 1. Order lines → órdenes (formerly partidas).
   const sku = normalizeTraceQuery(selected?.sku ?? query) || query;
   const lines = selected
-    ? await rows(supabase.from("order_lines").select("id,order_id,sku,description,packages,gross_weight,created_at").eq("tenant_id", tenantId).or(`product_id.eq.${selected.id},sku.ilike.${likeLiteral(sku)}`).limit(TRACE_LIMIT), "líneas de partida")
-    : await rows(supabase.from("order_lines").select("id,order_id,sku,description,packages,gross_weight,created_at").eq("tenant_id", tenantId).ilike("sku", likeLiteral(query)).limit(TRACE_LIMIT), "líneas de partida");
+    ? await rows(supabase.from("order_lines").select("id,order_id,sku,description,packages,gross_weight,created_at").eq("tenant_id", tenantId).or(`product_id.eq.${selected.id},sku.ilike.${likeLiteral(sku)}`).limit(TRACE_LIMIT), "líneas de orden")
+    : await rows(supabase.from("order_lines").select("id,order_id,sku,description,packages,gross_weight,created_at").eq("tenant_id", tenantId).ilike("sku", likeLiteral(query)).limit(TRACE_LIMIT), "líneas de orden");
   if (lines.length >= TRACE_LIMIT) result.truncated = true;
   const orderIds = uniq<string>(lines.map(item => item.order_id));
-  const orders = orderIds.length ? await rows(supabase.from("orders").select("id,code,status,customer_id,customer_reference,created_at,launched_at").eq("tenant_id", tenantId).in("id", orderIds), "partidas") : [];
+  const orders = orderIds.length ? await rows(supabase.from("orders").select("id,code,status,customer_id,customer_reference,created_at,launched_at").eq("tenant_id", tenantId).in("id", orderIds), "órdenes") : [];
   const customerIds = uniq<string>(orders.map(item => item.customer_id));
   const customers = customerIds.length ? await rows(supabase.from("parties").select("id,code,trade_name,legal_name").eq("tenant_id", tenantId).in("id", customerIds), "clientes") : [];
   const customerById = new Map(customers.map(item => [item.id, item]));
   const orderById = new Map(orders.map(item => [item.id, item]));
-  result.orders = orders.map(item => ({ code: item.code, customer: partyName(customerById.get(item.customer_id)), status: String(item.status ?? "—"), createdAt: item.created_at ?? null, reference: String(item.customer_reference ?? "") }));
+  result.orders = orders.map(item => ({ code: item.code, customer: partyName(customerById.get(item.customer_id)), status: String(item.status ?? "—"), createdAt: item.created_at ?? null, reference: String(item.customer_reference ?? ""), href: `/partidas/${encodeURIComponent(item.code)}` }));
   for (const line of lines) {
     const order = orderById.get(line.order_id);
     if (!order) continue;
-    events.push({ id: `line-${line.id}`, at: order.launched_at ?? order.created_at ?? line.created_at ?? null, domain: "Partida", label: "Incluido en partida", reference: order.code, detail: [line.packages ? `${line.packages} bultos` : "", line.gross_weight ? `${line.gross_weight} kg` : "", line.description].filter(Boolean).join(" · "), place: partyName(customerById.get(order.customer_id)) });
+    events.push({ id: `line-${line.id}`, at: order.launched_at ?? order.created_at ?? line.created_at ?? null, domain: "Orden", label: "Incluido en orden", reference: order.code, href: `/partidas/${encodeURIComponent(order.code)}`, detail: [line.packages ? `${line.packages} bultos` : "", line.gross_weight ? `${line.gross_weight} kg` : "", line.description].filter(Boolean).join(" · "), place: partyName(customerById.get(order.customer_id)) });
   }
 
   // 2. Delivery notes and expeditions.

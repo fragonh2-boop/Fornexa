@@ -7,9 +7,9 @@
  * single timeline, and each domain also keeps its own detailed list.
  */
 
-export type TraceDomain = "Partida" | "Expediente" | "Viaje" | "Carga" | "Descarga" | "Documento" | "Aduana" | "Almacén" | "Registro";
+export type TraceDomain = "Orden" | "Expediente" | "Viaje" | "Carga" | "Descarga" | "Documento" | "Aduana" | "Almacén" | "Registro";
 
-export const TRACE_DOMAINS: TraceDomain[] = ["Partida", "Expediente", "Viaje", "Carga", "Descarga", "Documento", "Aduana", "Almacén", "Registro"];
+export const TRACE_DOMAINS: TraceDomain[] = ["Orden", "Expediente", "Viaje", "Carga", "Descarga", "Documento", "Aduana", "Almacén", "Registro"];
 
 export type TraceEvent = {
   id: string;
@@ -17,7 +17,7 @@ export type TraceEvent = {
   domain: TraceDomain;
   /** What happened, in business words. */
   label: string;
-  /** Reference of the record involved (partida, viaje, CMR, MRN…). */
+  /** Reference of the record involved (orden, viaje, CMR, MRN…). */
   reference?: string;
   detail?: string;
   /** Where it happened (address, warehouse/bin, vehicle). */
@@ -99,7 +99,7 @@ export type TraceResult = {
   matches: TraceProductMatch[];
   product?: TraceProductMatch & { uom: string; hazard: string };
   events: TraceEvent[];
-  orders: { code: string; customer: string; status: string; createdAt: string | null; reference: string }[];
+  orders: { code: string; customer: string; status: string; createdAt: string | null; reference: string; href?: string }[];
   trips: TraceTrip[];
   customs: TraceCustoms[];
   movements: TraceMovement[];
@@ -232,7 +232,7 @@ export function auditLabel(entity: string | null | undefined, action: string | n
   const base = AUDIT_LABELS[String(action ?? "").toUpperCase()] ?? "Cambio registrado";
   const kind = String(entity ?? "").toUpperCase();
   if (kind === "PRODUCT") return base.replace("del registro", "del artículo");
-  if (kind === "ORDER") return base.replace("del registro", "de la partida");
+  if (kind === "ORDER") return base.replace("del registro", "de la orden");
   if (kind === "EXPEDITION") return base.replace("del registro", "del expediente");
   if (kind === "TRIP") return base.replace("del registro", "del viaje");
   return base;
