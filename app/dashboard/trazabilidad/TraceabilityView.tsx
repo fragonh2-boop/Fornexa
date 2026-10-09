@@ -88,7 +88,7 @@ export default function TraceabilityView({ result, basePath = "/dashboard", simu
 
       <MetricGrid label="Resumen de trazabilidad" prefetch={prefetch} items={[
         { label: "Partidas", value: result.orders.length, href: "#trazabilidad-partidas" },
-        { label: "Viajes", value: result.trips.length, detail: `${counts.Carga} cargas · ${counts.Descarga} descargas`, href: "#trazabilidad-viajes" },
+        { label: "Viajes", value: result.trips.length, detail: `${counts.Carga} ${counts.Carga === 1 ? "carga" : "cargas"} · ${counts.Descarga} ${counts.Descarga === 1 ? "descarga" : "descargas"}`, href: "#trazabilidad-viajes" },
         { label: "Aduanas", value: result.customs.length, href: "#trazabilidad-aduanas" },
         { label: "Movimientos de almacén", value: result.movements.length, href: "#trazabilidad-almacen" },
         { label: "Personas", value: result.people.length, href: "#trazabilidad-personas" },
