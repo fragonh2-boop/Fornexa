@@ -18,8 +18,8 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "09 oct 2026";
-export const memorandumCommitCoverage = 598;
+export const memorandumUpdatedAt = "13 oct 2026";
+export const memorandumCommitCoverage = 597;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -109,6 +109,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.10.13-1",
+    date: "13 oct 2026",
+    surface: ["Web", "Plataforma"],
+    title: "Carga sintética de revisión en producción (DATA150)",
+    purpose: "Habilitar lote sintético autorizado de pruebas con 150 filas completas y distintas por tabla de negocio aplicable para revisión operativa, preservando datos existentes y excluyendo entidades de seguridad o auditoría.",
+    outcome: "Inventario exhaustivo y reconciliación de las 89 tablas del esquema (7 excluidas por seguridad/auth, 3 en cuarentena por decisión regulatoria pendiente, 2 de registros técnicos, 3 catálogos finitos estándar, 7 normativas ADR preservadas y 67 tablas de negocio objetivo), generador determinista acíclico de registros de prueba identificados, 150 direcciones logísticas completas y únicas en territorio europeo, manifiesto de procedencia, cargador transaccional idempotente con captura efectiva por RETURNING y mecanismo de rollback exacto por recibo de ejecución.",
+    status: "Preproducción",
+  },
   {
     version: "2026.10.09-2",
     date: "9 oct 2026",

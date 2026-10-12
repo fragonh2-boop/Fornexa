@@ -1,0 +1,342 @@
+{
+  "batch_id": "DATA150-PRODUCTION-20261009",
+  "generated_at": "2026-10-09T11:09:58.361396+00:00",
+  "tenant_id": "00000000-0000-4000-8000-000000000001",
+  "tables": {
+    "tariff_zones": {
+      "row_count": 150,
+      "sample_id": "7c596a00-ee8a-5ed0-a529-c05c3a541ea2",
+      "has_tenant": true
+    },
+    "operational_events": {
+      "row_count": 150,
+      "sample_id": "composite",
+      "has_tenant": true
+    },
+    "local_storage_sync_runs": {
+      "row_count": 150,
+      "sample_id": "c3bbc016-73f8-5c34-9085-e82cf0d38dc7",
+      "has_tenant": true
+    },
+    "external_identifiers": {
+      "row_count": 150,
+      "sample_id": "4afd2f0b-415d-5a2e-8c34-0b76b6146a0c",
+      "has_tenant": true
+    },
+    "customs_cases": {
+      "row_count": 150,
+      "sample_id": "8cffe24e-1cb7-519f-9857-c4901715386a",
+      "has_tenant": true
+    },
+    "connectors": {
+      "row_count": 150,
+      "sample_id": "93465da2-faca-5d08-8643-baa27f1c0ac9",
+      "has_tenant": true
+    },
+    "parties": {
+      "row_count": 150,
+      "sample_id": "c9f0d7f6-4453-530f-8dba-0c9ce2426a83",
+      "has_tenant": true
+    },
+    "fuel_indices": {
+      "row_count": 150,
+      "sample_id": "8aba6fb6-528d-5091-a62c-866ed567d2e0",
+      "has_tenant": true
+    },
+    "vehicles": {
+      "row_count": 150,
+      "sample_id": "e050c445-70cb-5fea-93f3-af0a471fe1e3",
+      "has_tenant": true
+    },
+    "drivers": {
+      "row_count": 150,
+      "sample_id": "d6abd1e1-afc5-594d-8950-7bdf07bb1551",
+      "has_tenant": true
+    },
+    "products": {
+      "row_count": 150,
+      "sample_id": "f9f46557-de83-5a69-b2f2-8605ed36dd34",
+      "has_tenant": true
+    },
+    "service_catalog": {
+      "row_count": 150,
+      "sample_id": "962f2f55-00b3-56bd-9546-2028d9769ce3",
+      "has_tenant": true
+    },
+    "local_storage_imports": {
+      "row_count": 150,
+      "sample_id": "b55fca4c-7953-56a8-b9d2-ae7d2ea787da",
+      "has_tenant": true
+    },
+    "tariff_zone_members": {
+      "row_count": 150,
+      "sample_id": "4169998c-0893-5fbe-b118-e149efb5711f",
+      "has_tenant": true
+    },
+    "tariff_headers": {
+      "row_count": 150,
+      "sample_id": "72c4c8fc-a762-5a5a-988f-abde9c4a3069",
+      "has_tenant": true
+    },
+    "connector_events": {
+      "row_count": 150,
+      "sample_id": "209ca308-506e-52d5-aaf6-8731f2b2fe35",
+      "has_tenant": true
+    },
+    "customs_messages": {
+      "row_count": 150,
+      "sample_id": "2714941f-3295-5797-a78a-64c67204b2ff",
+      "has_tenant": true
+    },
+    "customs_events": {
+      "row_count": 150,
+      "sample_id": "composite",
+      "has_tenant": true
+    },
+    "communications": {
+      "row_count": 150,
+      "sample_id": "450c8675-462a-5974-a0c8-48461c02e465",
+      "has_tenant": true
+    },
+    "party_contacts": {
+      "row_count": 150,
+      "sample_id": "afb4a9c9-32b7-5e51-9614-fb2f27aafb98",
+      "has_tenant": true
+    },
+    "party_addresses": {
+      "row_count": 150,
+      "sample_id": "52f69594-6c37-58e4-b677-8e2ee752764f",
+      "has_tenant": true
+    },
+    "party_adr_profiles": {
+      "row_count": 150,
+      "sample_id": "c9f0d7f6-4453-530f-8dba-0c9ce2426a83",
+      "has_tenant": true
+    },
+    "customer_billing_profiles": {
+      "row_count": 150,
+      "sample_id": "c9f0d7f6-4453-530f-8dba-0c9ce2426a83",
+      "has_tenant": true
+    },
+    "customer_blocks": {
+      "row_count": 150,
+      "sample_id": "feded23a-c37c-5d7b-adf5-93dced212b36",
+      "has_tenant": true
+    },
+    "carrier_profiles": {
+      "row_count": 150,
+      "sample_id": "c9f0d7f6-4453-530f-8dba-0c9ce2426a83",
+      "has_tenant": true
+    },
+    "fuel_index_values": {
+      "row_count": 150,
+      "sample_id": "3a9f80de-69b2-566d-937c-e53000703ce8",
+      "has_tenant": true
+    },
+    "fuel_index_bands": {
+      "row_count": 150,
+      "sample_id": "fee324a5-8b2c-57cb-899e-9fb97a14b391",
+      "has_tenant": true
+    },
+    "product_packagings": {
+      "row_count": 150,
+      "sample_id": "f05bb767-1a5b-5bff-94b3-f638fea9eea9",
+      "has_tenant": true
+    },
+    "warehouses": {
+      "row_count": 150,
+      "sample_id": "9e9e91c6-7b5e-5360-a31c-d24f08f41edd",
+      "has_tenant": true
+    },
+    "warehouse_zones": {
+      "row_count": 150,
+      "sample_id": "bfe03469-ba27-5dc7-b53c-18e052941c10",
+      "has_tenant": true
+    },
+    "companies": {
+      "row_count": 150,
+      "sample_id": "6ce19bf7-3490-55b0-999d-8af64c193a72",
+      "has_tenant": true
+    },
+    "party_roles": {
+      "row_count": 150,
+      "sample_id": "0df32c52-5f83-5ac7-9a8d-60365110b36b",
+      "has_tenant": true
+    },
+    "party_services": {
+      "row_count": 150,
+      "sample_id": "7e3aa8e5-0053-5198-a25e-d57b6c04a69e",
+      "has_tenant": true
+    },
+    "address_operational_profiles": {
+      "row_count": 150,
+      "sample_id": "52f69594-6c37-58e4-b677-8e2ee752764f",
+      "has_tenant": true
+    },
+    "party_address_assignments": {
+      "row_count": 150,
+      "sample_id": "a8f778ff-ce5c-505d-9f30-c3d59db252a3",
+      "has_tenant": true
+    },
+    "warehouse_bins": {
+      "row_count": 150,
+      "sample_id": "0ecac1fa-1dcb-5c37-b307-24fb11ad14c7",
+      "has_tenant": true
+    },
+    "tariff_lines": {
+      "row_count": 150,
+      "sample_id": "d73f383a-901d-5ca1-b2f6-93fb66255389",
+      "has_tenant": true
+    },
+    "tariff_assignments": {
+      "row_count": 150,
+      "sample_id": "fdd72d09-3af4-5bd4-baeb-1b09cc31a265",
+      "has_tenant": true
+    },
+    "tariff_rules": {
+      "row_count": 150,
+      "sample_id": "02387f7f-b5b5-5316-baac-817dbe839861",
+      "has_tenant": true
+    },
+    "transit_times": {
+      "row_count": 150,
+      "sample_id": "ed03c5e3-b97b-5c3c-858d-b01a6b4d7ac2",
+      "has_tenant": true
+    },
+    "external_service_mappings": {
+      "row_count": 150,
+      "sample_id": "93d45021-211d-5cdc-a0ef-8e9a9e7764b6",
+      "has_tenant": true
+    },
+    "pricing_runs": {
+      "row_count": 150,
+      "sample_id": "4f149b74-fde8-53ba-85dd-51a23e753126",
+      "has_tenant": true
+    },
+    "offers": {
+      "row_count": 150,
+      "sample_id": "726d9e62-2500-59c9-8a00-d96d615a52f4",
+      "has_tenant": true
+    },
+    "orders": {
+      "row_count": 150,
+      "sample_id": "fa39dd8d-6276-5d74-b6e7-ac7f02d3f2a7",
+      "has_tenant": true
+    },
+    "offer_lines": {
+      "row_count": 150,
+      "sample_id": "1cc27337-71a2-55c8-b8c5-fe51160f4661",
+      "has_tenant": true
+    },
+    "order_lines": {
+      "row_count": 150,
+      "sample_id": "edaae229-1f61-5af8-82ad-4bd6a9e4740f",
+      "has_tenant": true
+    },
+    "delivery_notes": {
+      "row_count": 150,
+      "sample_id": "d696aa20-a494-58b5-9795-42edebbc57cf",
+      "has_tenant": true
+    },
+    "expeditions": {
+      "row_count": 150,
+      "sample_id": "52b2042a-368c-5b77-85d8-a22e3e271128",
+      "has_tenant": true
+    },
+    "order_hazmat_assessments": {
+      "row_count": 150,
+      "sample_id": "053de07d-7c79-57fb-9551-ebeaa43dfa20",
+      "has_tenant": true
+    },
+    "inventory_quants": {
+      "row_count": 150,
+      "sample_id": "ef2d4288-cc37-5388-a1db-775090b554ed",
+      "has_tenant": true
+    },
+    "pricing_run_components": {
+      "row_count": 150,
+      "sample_id": "3972e0cd-cb83-5715-b530-38ef7355b8c3",
+      "has_tenant": true
+    },
+    "delivery_note_lines": {
+      "row_count": 150,
+      "sample_id": "6346caaf-1620-51f2-ac59-86f778730343",
+      "has_tenant": true
+    },
+    "expedition_delivery_notes": {
+      "row_count": 150,
+      "sample_id": "85af30a3-96dd-5239-b081-4b27d00a3885",
+      "has_tenant": true
+    },
+    "inventory_movements": {
+      "row_count": 150,
+      "sample_id": "0e998d8b-c11c-5c1b-a86b-629a49afd212",
+      "has_tenant": true
+    },
+    "trips": {
+      "row_count": 150,
+      "sample_id": "a182ff8b-0717-5b1d-ab8e-6ebcfbbd133a",
+      "has_tenant": true
+    },
+    "trip_expeditions": {
+      "row_count": 150,
+      "sample_id": "48fd8f02-c2de-5c9a-8f68-e913db0cf603",
+      "has_tenant": true
+    },
+    "trip_stops": {
+      "row_count": 150,
+      "sample_id": "3fd33769-dfa3-594f-92b8-33b7b4f8860f",
+      "has_tenant": true
+    },
+    "trip_stop_delivery_notes": {
+      "row_count": 150,
+      "sample_id": "51193211-bf82-5da8-a12f-afa755bc1ce3",
+      "has_tenant": true
+    },
+    "trip_hazmat_assessments": {
+      "row_count": 150,
+      "sample_id": "99bfe25b-403b-55d7-9487-3404fe0c540d",
+      "has_tenant": true
+    },
+    "cmr_documents": {
+      "row_count": 150,
+      "sample_id": "35b5ee58-4e75-5c17-ad55-f7ec1a1b7574",
+      "has_tenant": true
+    },
+    "transport_stops": {
+      "row_count": 150,
+      "sample_id": "5d5a1f05-b6ee-58c7-8843-ac854feeb148",
+      "has_tenant": true
+    },
+    "cmr_clauses": {
+      "row_count": 150,
+      "sample_id": "2cf3e50c-eb9a-527e-8273-dc794e524a1a",
+      "has_tenant": false
+    },
+    "cmr_attachments": {
+      "row_count": 150,
+      "sample_id": "d76d1211-e624-5638-b0de-5e36968da9cc",
+      "has_tenant": false
+    },
+    "cmr_parties": {
+      "row_count": 150,
+      "sample_id": "b5a5d190-105f-5749-b2fd-f56afcd0bd89",
+      "has_tenant": false
+    },
+    "cmr_goods_lines": {
+      "row_count": 150,
+      "sample_id": "3ea36f4b-e16b-5752-9894-042b87c2ed09",
+      "has_tenant": false
+    },
+    "cmr_expeditions": {
+      "row_count": 150,
+      "sample_id": "composite",
+      "has_tenant": false
+    },
+    "transport_events": {
+      "row_count": 150,
+      "sample_id": "9e41b752-773d-5360-bc9f-a05e93d537cf",
+      "has_tenant": true
+    }
+  }
+}

@@ -2,6 +2,32 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-12 — DATA150: Carga sintética de revisión en producción
+
+- **Petición de Fran:** Generar un lote sintético autorizado de pruebas persistido en producción con al menos 150 filas distintas y completas por tabla de negocio aplicable para el tenant titular FORNEXA, con 150 puntos de dirección completos y diferentes. Excluidas tablas de autenticación, credenciales, membresías, secretos, tokens, migraciones y auditoría.
+- **Ejecución y coordinación:** Gemini único ejecutor en rama/worktree aislados (`data150/synthetic-production-batch`, `/tmp/fornexa-gemini-data150`). FornexaGPT coordina y verifica evidencia.
+- **Inventario y clasificación (89 tablas):**
+  - 7 excluidas por seguridad y control técnico (`fornexa_schema_migrations`, `tenants`, `tenant_members`, `audit_events`, `cmr_view_sessions`, `regulatory_document_access_tokens`, `mobile_trip_access`).
+  - 3 excluidas / en cuarentena por mandato legal y regulatorio pendientes de decisión de Fran (`cmr_signatures`, `transport_evidence`, `regulatory_document_artifacts`).
+  - 2 excluidas como logs técnicos/dispatch/revisiones internas (`entity_revisions`, `device_revision_dispatches`).
+  - 3 catálogos finitos estándar con cardinalidad fija legítima (`uom_definitions`: 10 unidades ISO/UNECE, `uom_conversions`: 6 factores, `hazmat_editions`: 1 tratado ADR 2025).
+  - 7 normativas legales ADR globales preservadas (`hazmat_entries`, `hazmat_entry_synonyms`, `hazmat_packaging_types`, `hazmat_entry_packaging_options`, `hazmat_transport_category_rules`, `order_line_hazmat`, `product_hazmat_assignments`) para no inventar reglas de seguridad ni contaminar catálogos sin tenant.
+  - 67 tablas de negocio objetivo ordenadas topológicamente sin ciclos en 8 capas acíclicas estrictas ($67 \times 150 = 10.050$ registros).
+- **Implementación y artefactos:**
+  - Manifiesto de procedencia: `docs/verification/data150-manifest-20261009.json` y `data150-dataset.json` (10.050 filas sintéticas identificadas con `[PRUEBA]` y `batch_id: 'DATA150-PRODUCTION-20261009'`).
+  - Direcciones (`party_addresses`): 150 localizaciones logísticas sintéticas de prueba, completas y diferentes en España y Europa con calles, municipios, códigos postales, provincias, coordenadas WGS84, horarios y contactos en `@fornexatest.invalid`. Sin teléfonos asignados (fijados en `NULL`).
+  - Conectores inertes (`connectors`): estado `DISABLED` con flag `inert: true, mock: true` (cero llamadas salientes ni webhooks).
+  - Artefactos regulatorios en cuarentena (`regulatory_document_artifacts`): excluido de la carga junto con `cmr_signatures` y `transport_evidence` hasta decisión de Fran.
+  - Cargador SQL y Rollback exacto: `scripts/data150/data150-loader.sql` y `scripts/data150/data150-rollback.sql` transaccionales (`BEGIN ... COMMIT`) con serialización tipada (`jsonb` `[]` como `'[]'::jsonb`, `ARRAY` como `'{}'`), inserciones idempotentes (`WHERE NOT EXISTS`), captura estricta por `RETURNING` en `docs/verification/data150-execution-receipt.json` y rollback que solo elimina claves del recibo y preserva filas ajenas/preexistentes.
+  - Verificador de lote: `lib/data150-loader.ts` con consumo directo de recibo durable (`loadReceipt`), comprobación de claves compuestas completas, validación fail-closed de metadatos de esquema (`validateReceiptEntryAgainstMeta`), validación de `RETURNING` (`validateReturnedRow`), reconciliación de cortes en vuelo (`reconcileInFlightReceipt`), serialización completa bajo lock con guardas de PID activo y fsync de directorio.
+  - Endurecimiento de locking y reconciliación (13 oct): callbacks ordinarios con Promise diferida retenidos bajo lock hasta liquidación con verificación estricta de token PID/contextId al liberar; invalidación inmediata del arrendamiento causal al liberar (`isReleased = true`, `activeLocks.delete`); cola asíncrona en proceso con temporizadores de limpieza y prevención de esperas síncronas bloqueantes; protocolo `.reclaim.lock` crash-safe con detección de PIDs muertos (`ESRCH`); reconciliación estricta de intentos con 0 claves tipada `COMMIT_INDETERMINATE` sin fabricar timestamps ni semántica de commit desde staging vacío.
+  - Fidelidad de catálogo (13 oct): 235 FKs en schema `public` contrastadas con baseline mediante set equality bidireccional estricto, paridad de acciones (`confdeltype`, `confupdtype`), `condeferrable`, 171 restricciones CHECK, 61 restricciones UNIQUE, 485 columnas con DEFAULT/IDENTITY e invariante estricta de triggers append-only (SQLSTATE 55000); suite negativa con 5 contraejemplos mutados reales rechazados por la misma función comparadora.
+  - Build estándar: `next.config.ts` restaurado a configuración canónica estándar de producción (sin ampliación de raíz de sistema de archivos ni `turbopack.root = "/"`).
+  - Ensayos en PostgreSQL 17.11 local: `run_local_pg_rehearsal.py` y `run_operational_loader_trial.ts` superados al 100% con retornos de RETURNING contrastados (10.048 filas con colisión de PK previa), reintento idempotente, bloqueo 55P03, rollback operativo dinámico y verificación post-rollback en 67 tablas.
+  - Preflight estricto: `preflight_schema_validation.py` con 0 errores críticos y 0 columnas inventadas.
+  - Tests automatizados: `tests/data150-batch-integrity.test.ts` (25/25 passing), `npm test` completo (246/246 passing), `npm run typecheck` (0 errores de tipos), `npm run lint` (0 errores).
+- **Cierre y gates:** Matriz y artefactos versionados, memorandum actualizado (cobertura 597, fecha 13 oct 2026), suite íntegra pasando. Bloqueo fail-closed estricto: cero escrituras en BD productiva hasta gates HIGH y decisión de Fran sobre excepciones regulatorias.
+
 ## 2026-10-09 — TRZ1: Trazabilidad de artículos
 
 - **Petición de Fran:** con solo un EAN/código de producto llegar a viajes, aduanas, movimientos de almacén, usuarios que lo leyeron o movieron y cargas/descargas; mismo patrón UX; proceso desatendido hasta merge y deploy.

@@ -1,0 +1,8 @@
+{
+  "status": "PENDING_EXECUTION",
+  "batch_id": "DATA150-PRODUCTION-20261009",
+  "tenant_id": "00000000-0000-4000-8000-000000000001",
+  "executed_at": null,
+  "note": "Execution receipt is generated upon live execution with RETURNING. Unexecuted prior to live run.",
+  "tables": {}
+}
