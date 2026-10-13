@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync, writeFileSync, unlinkSync, existsSync } from "node:fs";
 import { spawn } from "node:child_process";
 import test from "node:test";
+import os from "node:os";
+import path from "node:path";
 import {
   loadReceipt,
   recordExecutionReceiptFromReturning,
@@ -1057,7 +1059,7 @@ test("DATA150 multi-process concurrency: distinct OS processes with barrier and 
 });
 
 test("Point 2a: Ordinary callback returning deferred Promise holds lock until settlement and verifies token on release", async () => {
-  const testFile = "/private/tmp/data150-test-2a.json";
+  const testFile = path.join(os.tmpdir(), "data150-test-2a.json");
   const lockFile = `${testFile}.lock`;
   if (existsSync(lockFile)) unlinkSync(lockFile);
   if (existsSync(testFile)) unlinkSync(testFile);
@@ -1099,7 +1101,7 @@ test("Point 2a: Ordinary callback returning deferred Promise holds lock until se
 });
 
 test("Point 2b: Causal context is invalidated on release, preventing delayed descendant from bypassing lock while B holds it", async () => {
-  const testFile = "/private/tmp/data150-test-2b.json";
+  const testFile = path.join(os.tmpdir(), "data150-test-2b.json");
   const lockFile = `${testFile}.lock`;
   if (existsSync(lockFile)) unlinkSync(lockFile);
   if (existsSync(testFile)) unlinkSync(testFile);
@@ -1143,7 +1145,7 @@ test("Point 2b: Causal context is invalidated on release, preventing delayed des
 });
 
 test("Point 1.3: withFileLock safely normalizes PromiseLike/thenables that lack .finally without releasing early", async () => {
-  const testFile = "/private/tmp/data150-test-thenable.json";
+  const testFile = path.join(os.tmpdir(), "data150-test-thenable.json");
   const lockFile = `${testFile}.lock`;
   if (existsSync(lockFile)) unlinkSync(lockFile);
   if (existsSync(testFile)) unlinkSync(testFile);
@@ -1185,7 +1187,7 @@ test("Point 1.3: withFileLock safely normalizes PromiseLike/thenables that lack 
 });
 
 test("Point 2c: In-process async queue timeout cleans up waiter without leaving orphaned state", async () => {
-  const testFile = "/private/tmp/data150-test-2c.json";
+  const testFile = path.join(os.tmpdir(), "data150-test-2c.json");
   const lockFile = `${testFile}.lock`;
   if (existsSync(lockFile)) unlinkSync(lockFile);
   if (existsSync(testFile)) unlinkSync(testFile);
@@ -1218,7 +1220,7 @@ test("Point 2c: In-process async queue timeout cleans up waiter without leaving 
 });
 
 test("Point 2d: Crash-safe orphan reclaim detects dead reclaimer in .reclaim.lock and recovers", async () => {
-  const testFile = "/private/tmp/data150-test-2d.json";
+  const testFile = path.join(os.tmpdir(), "data150-test-2d.json");
   const lockFile = `${testFile}.lock`;
   const reclaimLockFile = `${lockFile}.reclaim.lock`;
   if (existsSync(lockFile)) unlinkSync(lockFile);
@@ -1244,7 +1246,7 @@ test("Point 2d: Crash-safe orphan reclaim detects dead reclaimer in .reclaim.loc
 });
 
 test("Point 1.2: Crash-safe recovery of empty/corrupted 0-byte .reclaim.lock without killing live holders", async () => {
-  const testFile = "/private/tmp/data150-test-p2-empty.json";
+  const testFile = path.join(os.tmpdir(), "data150-test-p2-empty.json");
   const lockFile = `${testFile}.lock`;
   const reclaimLockFile = `${lockFile}.reclaim.lock`;
   if (existsSync(lockFile)) unlinkSync(lockFile);
@@ -1268,7 +1270,7 @@ test("Point 1.2: Crash-safe recovery of empty/corrupted 0-byte .reclaim.lock wit
 });
 
 test("Point 1.1: Concurrent multi-process orphan reclaim maintains mutual exclusion and never deletes live lock", async () => {
-  const testFile = "/private/tmp/data150-test-p1-race.json";
+  const testFile = path.join(os.tmpdir(), "data150-test-p1-race.json");
   const lockFile = `${testFile}.lock`;
   const reclaimLockFile = `${lockFile}.reclaim.lock`;
   if (existsSync(lockFile)) unlinkSync(lockFile);
@@ -1329,7 +1331,7 @@ run().catch((e) => {
 });
 
 test("Point 3: Reconciliation with empty staging preserves committed ledger and marks attempt indeterminate", async () => {
-  const receiptPath = "/private/tmp/data150-test-p3-receipt.json";
+  const receiptPath = path.join(os.tmpdir(), "data150-test-p3-receipt.json");
   if (existsSync(receiptPath)) unlinkSync(receiptPath);
 
   const sqlContent = readFileSync(LOADER_SQL_PATH, "utf8");
