@@ -205,138 +205,173 @@ function getInProcessLockQueue(lockPath: string): InProcessLockQueue {
   return q;
 }
 
-function safeReclaimOrphanLock(lockPath: string, holderPid: number): void {
+export function checkLiveProcessHoldingFd(filePath: string): { determined: boolean; hasLiveHolder: boolean } {
+  try {
+    const res = spawnSync("lsof", ["-t", filePath], { encoding: "utf8", timeout: 1000 });
+    if (res.error || res.signal || (res.status !== 0 && res.status !== 1)) {
+      // Missing tool, execution failure, signal kill, or timeout: FAIL CLOSED!
+      return { determined: false, hasLiveHolder: true };
+    }
+    const output = res.stdout ? res.stdout.trim() : "";
+    if (res.status === 1 && !output) {
+      // Succeeded with exit 1 and empty stdout: lsof confirms no process in OS holds open descriptor
+      return { determined: true, hasLiveHolder: false };
+    }
+    if (res.status === 0 && output) {
+      const pids = output.split("\n").map((p) => parseInt(p.trim(), 10)).filter((p) => !isNaN(p));
+      for (const p of pids) {
+        try {
+          process.kill(p, 0);
+          // Live process found holding open descriptor!
+          return { determined: true, hasLiveHolder: true };
+        } catch (e: any) {
+          if (e.code !== "ESRCH") {
+            return { determined: true, hasLiveHolder: true };
+          }
+        }
+      }
+      // All reported PIDs are dead
+      return { determined: true, hasLiveHolder: false };
+    }
+    // Ambiguous response: fail-closed
+    return { determined: false, hasLiveHolder: true };
+  } catch {
+    // Exception executing lsof: fail-closed!
+    return { determined: false, hasLiveHolder: true };
+  }
+}
+
+export function safeReclaimOrphanLock(lockPath: string, holderPid: number): void {
   const reclaimLockPath = `${lockPath}.reclaim.lock`;
   const reclaimContextId = randomUUID();
   let acquiredReclaim = false;
 
-  // 1. Atomic creation via linkSync (Point 1.2)
+  // 1. Atomic creation via linkSync (Point 1.2 & MUST #3)
   // Write PID and reclaimContextId into a temporary file first, then hardlink atomically.
-  // This guarantees reclaimLockPath is NEVER created empty or NaN even if a crash occurs.
+  // This guarantees reclaimLockPath is NEVER created empty or NaN.
+  // NO openSync("wx") fallback is permitted as that reintroduces a 0-byte creation window.
   const tmpReclaimPath = `${reclaimLockPath}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`;
   try {
     writeFileSync(tmpReclaimPath, `${process.pid}\n${Date.now()}\n${reclaimContextId}\n`, "utf8");
     try {
       linkSync(tmpReclaimPath, reclaimLockPath);
       acquiredReclaim = true;
-    } catch (linkErr: any) {
-      if (linkErr.code !== "EEXIST") {
-        try {
-          const fd = openSync(reclaimLockPath, "wx");
-          writeSync(fd, `${process.pid}\n${Date.now()}\n${reclaimContextId}\n`);
-          closeSync(fd);
-          acquiredReclaim = true;
-        } catch {}
-      }
+    } catch {
+      // EEXIST or other link error: reclaimLockPath already exists or cannot be created.
     }
   } finally {
     try { if (existsSync(tmpReclaimPath)) unlinkSync(tmpReclaimPath); } catch {}
   }
 
-  // 2. If EEXIST: handle dead reclaimer or empty/corrupted lockfile (Point 1.1 & 1.2)
+  // 2. If EEXIST: handle dead reclaimer or empty/corrupted lockfile (Point 1.1, 1.2 & MUST #1, #3)
   if (!acquiredReclaim && existsSync(reclaimLockPath)) {
     try {
       let isReclaimerDead = false;
-      let isCorruptedOrEmpty = false;
+      let deadHolderToken = "";
 
       try {
         const reclaimContent = readFileSync(reclaimLockPath, "utf8");
         const lines = reclaimContent.split("\n");
         const parsedPid = parseInt(lines[0]?.trim(), 10);
+        const parsedContextId = lines[2]?.trim() || "";
         if (parsedPid && !isNaN(parsedPid) && parsedPid !== process.pid) {
           try {
             process.kill(parsedPid, 0);
           } catch (killErr: any) {
             if (killErr.code === "ESRCH") {
               isReclaimerDead = true;
+              deadHolderToken = parsedContextId || String(parsedPid);
             }
           }
         } else if (isNaN(parsedPid) || !lines[0]?.trim()) {
-          // File is empty or NaN (simulated or real crash between open and write)
-          isCorruptedOrEmpty = true;
+          // File is empty or NaN.
+          // Point 1.2 & MUST #3: Inspect with lsof strictly fail-closed!
+          const inspection = checkLiveProcessHoldingFd(reclaimLockPath);
+          if (inspection.determined && !inspection.hasLiveHolder) {
+            isReclaimerDead = true;
+            deadHolderToken = "corrupted_zero_byte";
+          }
         }
       } catch {}
 
-      if (isCorruptedOrEmpty) {
-        // Point 1.2: Check if any live process currently has an open file descriptor on it
-        // Fail-closed inspection with lsof: never reclaim live holders by simple age.
-        let liveHolderExists = false;
+      if (isReclaimerDead && deadHolderToken) {
+        // Point 1.1 & MUST #1: Claim-token based eviction of dead reclaim mutex.
+        // DO NOT rename reclaimLockPath to an eviction path!
+        // That would move a live holder if another process acquired it concurrently,
+        // create a gap where a third process acquires it, and overwrite it on rename-back.
+        // Instead: contenders compete for an exclusive claim token tied to this deadHolderToken.
+        const claimTokenPath = `${reclaimLockPath}.claim.${deadHolderToken}`;
+        const claimTmpPath = `${claimTokenPath}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`;
+        let wonClaim = false;
         try {
-          const lsofCheck = spawnSync("lsof", ["-t", reclaimLockPath], { encoding: "utf8", timeout: 1000 });
-          if (lsofCheck.status === 0 && lsofCheck.stdout?.trim()) {
-            const openPid = parseInt(lsofCheck.stdout.trim().split("\n")[0], 10);
-            if (openPid && !isNaN(openPid)) {
-              try {
-                process.kill(openPid, 0);
-                liveHolderExists = true;
-              } catch (e: any) {
-                if (e.code !== "ESRCH") liveHolderExists = true;
-              }
-            }
-          }
-        } catch {}
-
-        if (!liveHolderExists) {
-          isReclaimerDead = true;
-        }
-      }
-
-      if (isReclaimerDead) {
-        // Point 1.1: Atomic eviction protocol for the reclaim mutex.
-        // Instead of read/check/unlink which races and allows competitor B to delete winner A's mutex,
-        // we use an atomic renameSync to a unique eviction path.
-        // Exactly ONE process wins renameSync; all competitors receive ENOENT and back off.
-        const evictReclaimPath = `${reclaimLockPath}.evict.${process.pid}.${Date.now()}.${randomUUID()}`;
-        try {
-          renameSync(reclaimLockPath, evictReclaimPath);
-          // We won the eviction race exclusively! Verify the evicted file was indeed dead/empty
-          let canUnlinkEvicted = true;
+          writeFileSync(claimTmpPath, `${process.pid}\n${Date.now()}\n${reclaimContextId}\n`, "utf8");
           try {
-            const evContent = readFileSync(evictReclaimPath, "utf8");
-            const evPid = parseInt(evContent.split("\n")[0]?.trim(), 10);
-            if (evPid && !isNaN(evPid)) {
+            linkSync(claimTmpPath, claimTokenPath);
+            wonClaim = true;
+          } catch {}
+        } finally {
+          try { if (existsSync(claimTmpPath)) unlinkSync(claimTmpPath); } catch {}
+        }
+
+        if (wonClaim) {
+          try {
+            // Verify reclaimLockPath BEFORE replacing:
+            // Ensure it still holds the deadHolderToken and is not held by a live holder!
+            let canReplace = false;
+            try {
+              const currentContent = readFileSync(reclaimLockPath, "utf8");
+              const currentLines = currentContent.split("\n");
+              const currentPid = parseInt(currentLines[0]?.trim(), 10);
+              const currentCtx = currentLines[2]?.trim() || "";
+              if (deadHolderToken === "corrupted_zero_byte") {
+                if (!currentLines[0]?.trim() || isNaN(currentPid)) {
+                  const recheck = checkLiveProcessHoldingFd(reclaimLockPath);
+                  if (recheck.determined && !recheck.hasLiveHolder) {
+                    canReplace = true;
+                  }
+                }
+              } else {
+                if (currentCtx === deadHolderToken || String(currentPid) === deadHolderToken) {
+                  try {
+                    process.kill(currentPid, 0);
+                  } catch (e: any) {
+                    if (e.code === "ESRCH") {
+                      canReplace = true;
+                    }
+                  }
+                }
+              }
+            } catch {}
+
+            if (canReplace) {
+              // Atomically replace the dead reclaim lock with our new reclaim lock.
+              // POSIX rename(newReclaimTmp, reclaimLockPath) atomically replaces the dead file
+              // without any intermediate gap where the file is missing from disk.
+              const newReclaimTmp = `${reclaimLockPath}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`;
               try {
-                process.kill(evPid, 0);
-                canUnlinkEvicted = false;
-                try { renameSync(evictReclaimPath, reclaimLockPath); } catch {}
-              } catch (e: any) {
-                if (e.code === "ESRCH") canUnlinkEvicted = true;
+                writeFileSync(newReclaimTmp, `${process.pid}\n${Date.now()}\n${reclaimContextId}\n`, "utf8");
+                renameSync(newReclaimTmp, reclaimLockPath);
+                acquiredReclaim = true;
+              } finally {
+                try { if (existsSync(newReclaimTmp)) unlinkSync(newReclaimTmp); } catch {}
               }
             }
-          } catch {}
-
-          if (canUnlinkEvicted) {
-            try { unlinkSync(evictReclaimPath); } catch {}
-            // Now acquire the reclaim mutex atomically
-            const retryTmp = `${reclaimLockPath}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`;
-            try {
-              writeFileSync(retryTmp, `${process.pid}\n${Date.now()}\n${reclaimContextId}\n`, "utf8");
-              linkSync(retryTmp, reclaimLockPath);
-              acquiredReclaim = true;
-            } catch {
-              try {
-                const fd = openSync(reclaimLockPath, "wx");
-                writeSync(fd, `${process.pid}\n${Date.now()}\n${reclaimContextId}\n`);
-                closeSync(fd);
-                acquiredReclaim = true;
-              } catch {}
-            } finally {
-              try { if (existsSync(retryTmp)) unlinkSync(retryTmp); } catch {}
-            }
+          } finally {
+            try { unlinkSync(claimTokenPath); } catch {}
           }
-        } catch {
-          // renameSync failed with ENOENT: another reclaimer already won the eviction race
         }
       }
     } catch {}
   }
 
   if (!acquiredReclaim) {
-    return; // Another live reclaimer won the mutex
+    return; // Another live reclaimer holds or acquired the mutex
   }
 
   try {
-    // 3. Under reclaim mutex, safely evict the orphan primary lockPath (Point 1.1)
+    // 3. Under reclaim mutex, safely remove the orphan primary lockPath (MUST #1)
+    // Verify lockPath still contains holderPid and that holderPid is STILL DEAD before unlinking.
+    // NEVER rename lockPath to an eviction path, as that could move or replace a live holder!
     if (existsSync(lockPath)) {
       try {
         const currentContent = readFileSync(lockPath, "utf8");
@@ -351,18 +386,7 @@ function safeReclaimOrphanLock(lockPath: string, holderPid: number): void {
             }
           }
           if (stillDead) {
-            // Atomic eviction of lockPath:
-            const evictLockPath = `${lockPath}.evict.${process.pid}.${Date.now()}.${randomUUID()}`;
-            try {
-              renameSync(lockPath, evictLockPath);
-              const evContent = readFileSync(evictLockPath, "utf8");
-              const evPid = parseInt(evContent.split("\n")[0]?.trim(), 10);
-              if (evPid === holderPid) {
-                unlinkSync(evictLockPath);
-              } else {
-                try { renameSync(evictLockPath, lockPath); } catch {}
-              }
-            } catch {}
+            unlinkSync(lockPath);
           }
         }
       } catch {}
@@ -380,6 +404,36 @@ function safeReclaimOrphanLock(lockPath: string, holderPid: number): void {
         }
       }
     } catch {}
+  }
+}
+
+function settleDeferred(
+  value: any,
+  onSettled: (isError: boolean, resolvedOrError: any) => void
+): void {
+  if (value && (typeof value === "object" || typeof value === "function") && typeof value.then === "function") {
+    let called = false;
+    try {
+      value.then(
+        (innerVal: any) => {
+          if (called) return;
+          called = true;
+          settleDeferred(innerVal, onSettled);
+        },
+        (innerErr: any) => {
+          if (called) return;
+          called = true;
+          onSettled(true, innerErr);
+        }
+      );
+    } catch (thenErr) {
+      if (!called) {
+        called = true;
+        onSettled(true, thenErr);
+      }
+    }
+  } else {
+    onSettled(false, value);
   }
 }
 
@@ -464,7 +518,16 @@ async function withFileLockAsyncInternal<T>(
       }
     }
 
-    return await causalLockStorage.run(newContext, () => fn());
+    const result = await causalLockStorage.run(newContext, () => fn());
+    if (result && (typeof result === "object" || typeof result === "function") && typeof (result as any).then === "function") {
+      return await new Promise<any>((resolvePromise, rejectPromise) => {
+        settleDeferred(result, (isErr, finalVal) => {
+          if (isErr) rejectPromise(finalVal);
+          else resolvePromise(finalVal);
+        });
+      });
+    }
+    return result;
   } finally {
     releaseLock();
   }
@@ -560,26 +623,22 @@ function withFileLockSyncOrDeferredInternal<T>(
       throw fnErr;
     }
 
-    // Point 2a & Point 1.3: Check if result is a thenable / Promise
-    if (result && typeof (result as any).then === "function") {
-      // Defer release until the Promise / thenable settles!
+    // Point 2a, Point 1.3 & MUST #2: Check if result is a thenable / Promise
+    if (result && (typeof result === "object" || typeof result === "function") && typeof (result as any).then === "function") {
+      // Defer release until the Promise / thenable and any nested thenables settle!
       // Do NOT call .finally() directly on unknown thenables that might lack it.
+      // Do NOT release before nested innerDeferredPromises have fully assimilated!
       return new Promise<any>((resolvePromise, rejectPromise) => {
-        try {
-          (result as any).then(
-            (val: any) => {
-              try { releaseLock(); } catch {}
-              resolvePromise(val);
-            },
-            (err: any) => {
-              try { releaseLock(); } catch {}
-              rejectPromise(err);
-            }
-          );
-        } catch (callErr) {
-          try { releaseLock(); } catch {}
-          rejectPromise(callErr);
-        }
+        settleDeferred(result, (isErr, finalVal) => {
+          try {
+            releaseLock();
+          } catch {}
+          if (isErr) {
+            rejectPromise(finalVal);
+          } else {
+            resolvePromise(finalVal);
+          }
+        });
       }) as any;
     }
 

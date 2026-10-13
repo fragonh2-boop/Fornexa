@@ -716,38 +716,16 @@ runChild().catch((err) => {
   }
   console.log("  * Recibo promovido exitosamente a COMMITTED en disco tras rescate de lock, preservando cmr_parties (sin tenant_id).");
 
-  // 3. Reintento legítimo sobre el recibo ya COMMITTED: debe devolver 0 filas nuevas y preservar las claves
-  const session3cRetry = new LivePsqlSession();
-  const res3cRetry = await executeData150Loader(
-    (sql) => session3cRetry.query(sql),
-    {
-      loaderSql: trial3cSql,
-      targetReceiptPath: test3cReceiptPath,
-      tenantId: DATA150_TENANT_ID,
-    }
-  );
-  session3cRetry.close();
-
-  console.log(`  * Reintento tras reconciliación: éxito=${res3cRetry.success}, nuevas filas=${res3cRetry.inserted_rows_total}`);
-  if (!res3cRetry.success || res3cRetry.status !== "COMMITTED" || res3cRetry.inserted_rows_total !== 0) {
-    throw new Error(`ERROR: Reintento sobre recibo reconciliado falló (éxito=${res3cRetry.success}, filas=${res3cRetry.inserted_rows_total}).`);
-  }
-  if (
-    res3cRetry.receipt?.tariff_zones?.inserted_count !== 1 ||
-    res3cRetry.receipt?.cmr_documents?.inserted_count !== 1 ||
-    res3cRetry.receipt?.cmr_parties?.inserted_count !== 1
-  ) {
-    throw new Error("ERROR: Claves durables perdidas tras reintento de 0 filas.");
-  }
-  console.log("  * Reintento verificado: 0 filas nuevas devueltas y 100% claves preservadas.");
-
-  // 4. Generar Y EJECUTAR el rollback operacional dinámico contra PostgreSQL 17.11 vivo
+  // 3. Generar Y EJECUTAR el rollback operacional dinámico DIRECTO desde el recibo reconciliado (SIN retry previo)
+  // Demuestra que un recibo promovido a COMMITTED por reconciliación
+  // (con execution_reconciled=true, reconciled_at registrado y sin executed_at restampado)
+  // produce un rollback operacional 100% válido y se ejecuta directamente con éxito en PostgreSQL.
   const test3cRollbackSqlPath = "/tmp/data150-trial3c-rollback.sql";
   const test3cSqlPath = "/tmp/data150-trial3c.sql";
   if (existsSync(test3cRollbackSqlPath)) unlinkSync(test3cRollbackSqlPath);
   writeFileSync(test3cSqlPath, trial3cSql, "utf8");
 
-  console.log("  * Generando y ejecutando rollback operacional dinámico sobre PostgreSQL vivo...");
+  console.log("  * Generando y ejecutando rollback operacional DIRECTO desde estado reconciliado (SIN retry previo)...");
   const rollbackSql3c = generateOperationalRollback(test3cReceiptPath, test3cRollbackSqlPath, test3cSqlPath);
   if (
     !rollbackSql3c.includes("DELETE FROM public.cmr_parties") ||
@@ -757,9 +735,9 @@ runChild().catch((err) => {
     throw new Error("ERROR: Rollback operacional generado no contiene el tratamiento esperado.");
   }
 
-  // Ejecución real del rollback en PostgreSQL vivo:
+  // Ejecución real del rollback en PostgreSQL vivo DIRECTO desde estado reconciliado:
   await runDirectPsqlCmd(rollbackSql3c);
-  console.log("  * Rollback operacional de ensayo 3C ejecutado con éxito en PostgreSQL vivo.");
+  console.log("  * Rollback operacional directo desde estado reconciliado ejecutado con éxito en PostgreSQL vivo.");
 
   // Comprobar borrado selectivo según política de inmutabilidad y protección en cascada:
   // - tariff_zones y cmr_parties: mutables -> eliminadas por el rollback (count 0)
@@ -768,7 +746,7 @@ runChild().catch((err) => {
   const cmr3cPostCount = await runDirectPsqlCmd(`SELECT count(*) FROM public.cmr_documents WHERE id = '${trial3cCmrId}';`);
   const cmrParty3cPostCount = await runDirectPsqlCmd(`SELECT count(*) FROM public.cmr_parties WHERE id = '${trial3cCmrPartyId}';`);
   if (tz3cPostCount !== "0" || cmrParty3cPostCount !== "0") {
-    throw new Error(`ERROR: Filas mutables del ensayo 3C persisten tras rollback (tz=${tz3cPostCount}, cmr_parties=${cmrParty3cPostCount}).`);
+    throw new Error(`ERROR: Filas mutables del ensayo 3C persisten tras rollback directo (tz=${tz3cPostCount}, cmr_parties=${cmrParty3cPostCount}).`);
   }
   if (cmr3cPostCount !== "1") {
     throw new Error(`ERROR: cmr_documents debía ser preservada por la regla de protección en cascada (obtenido ${cmr3cPostCount}).`);
@@ -783,12 +761,55 @@ runChild().catch((err) => {
   if (tzPreCheck !== "1") {
     throw new Error("ERROR: Filas preexistentes de Ensayos 1/2 afectadas por rollback 3C.");
   }
-  console.log("  * Filas preexistentes de Ensayos 1/2 100% intactas tras rollback 3C.");
+  console.log("  * Filas preexistentes de Ensayos 1/2 100% intactas tras rollback directo 3C.");
+
+  // 4. Sub-ensayo 3C.2: Reintento legítimo sobre recibo reconciliado en BD
+  // Reinyectamos las filas para probar el reintento sobre recibo reconciliado:
+  console.log("  * Sub-ensayo 3C.2: Probando reintento sobre recibo reconciliado...");
+  await runDirectPsqlCmd(trial3cSql);
+  // Reconciliamos de nuevo para simular recibo COMMITTED reconciliado:
+  const sessionReconcile3c2 = new LivePsqlSession();
+  try {
+    await reconcileInFlightReceipt(
+      (sql) => sessionReconcile3c2.query(sql),
+      test3cReceiptPath,
+      computeSqlSha256(trial3cSql)
+    );
+  } finally {
+    sessionReconcile3c2.close();
+  }
+  const session3cRetry = new LivePsqlSession();
+  const res3cRetry = await executeData150Loader(
+    (sql) => session3cRetry.query(sql),
+    {
+      loaderSql: trial3cSql,
+      targetReceiptPath: test3cReceiptPath,
+      tenantId: DATA150_TENANT_ID,
+    }
+  );
+  session3cRetry.close();
+  console.log(`  * Reintento tras reconciliación: éxito=${res3cRetry.success}, nuevas filas=${res3cRetry.inserted_rows_total}`);
+  if (!res3cRetry.success || res3cRetry.status !== "COMMITTED" || res3cRetry.inserted_rows_total !== 0) {
+    throw new Error(`ERROR: Reintento sobre recibo reconciliado falló (éxito=${res3cRetry.success}, filas=${res3cRetry.inserted_rows_total}).`);
+  }
+  if (
+    res3cRetry.receipt?.tariff_zones?.inserted_count !== 1 ||
+    res3cRetry.receipt?.cmr_documents?.inserted_count !== 1 ||
+    res3cRetry.receipt?.cmr_parties?.inserted_count !== 1
+  ) {
+    throw new Error("ERROR: Claves durables perdidas tras reintento de 0 filas.");
+  }
+  console.log("  * Reintento verificado: 0 filas nuevas devueltas y 100% claves preservadas.");
+
+  // Limpieza final del sub-ensayo 3C.2
+  const cleanupRollback = generateOperationalRollback(test3cReceiptPath, test3cRollbackSqlPath, test3cSqlPath);
+  await runDirectPsqlCmd(cleanupRollback);
+  await runDirectPsqlCmd(`DELETE FROM public.cmr_documents WHERE id = '${trial3cCmrId}';`);
 
   if (existsSync(test3cRollbackSqlPath)) unlinkSync(test3cRollbackSqlPath);
   if (existsSync(test3cSqlPath)) unlinkSync(test3cSqlPath);
   if (existsSync(test3cReceiptPath)) unlinkSync(test3cReceiptPath);
-  console.log("  => VERIFICADO: Ciclo muerte abrupta (SIGKILL)→lock huérfano rescatado→reconcile(child PID)→retry→rollback real en BD ejecutado con éxito.");
+  console.log("  => VERIFICADO: Rollback directo sin retry probado + Reintento con 0 duplicados y preservación probado.");
 
   // --------------------------------------------------------------------------
   // TEST 3D: Negative Reconciliation Tests (Partial Key Presence & Strict Protocol Contract)

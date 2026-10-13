@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync, unlinkSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, unlinkSync, existsSync, openSync, closeSync } from "node:fs";
 import { spawn } from "node:child_process";
 import test from "node:test";
 import os from "node:os";
@@ -17,6 +17,8 @@ import {
   DATA150_TENANT_ID,
   DATA150_BATCH_ID,
   withFileLock,
+  safeReclaimOrphanLock,
+  checkLiveProcessHoldingFd,
 } from "../lib/data150-loader.ts";
 import type { Data150ExecutionReceipt } from "../lib/data150-loader.ts";
 import {
@@ -1186,6 +1188,70 @@ test("Point 1.3: withFileLock safely normalizes PromiseLike/thenables that lack 
   assert.ok(!existsSync(lockFile), "Lockfile must be unlinked after all settled");
 });
 
+test("Point 1.3b: Nested thenables with inner deferred Promise retain lock until full recursive settlement (MUST #2)", async () => {
+  const testFile = path.join(os.tmpdir(), "data150-test-nested-thenable.json");
+  const lockFile = `${testFile}.lock`;
+  if (existsSync(lockFile)) unlinkSync(lockFile);
+  if (existsSync(testFile)) unlinkSync(testFile);
+
+  let innerSettled = false;
+  let callerBBlockedWhileInnerPending = false;
+  let callerBEntered = false;
+
+  // Inner deferred promise that takes 120ms to settle
+  const innerDeferredPromise = new Promise<string>((resolve) => {
+    setTimeout(() => {
+      innerSettled = true;
+      resolve("deeply-nested-resolution");
+    }, 120);
+  });
+
+  // Custom outer thenable that fulfills by passing the innerDeferredPromise to resolve callback
+  const outerThenable = {
+    then(onFulfilled: (val: any) => void) {
+      setTimeout(() => {
+        // Fulfills with another unresolved Promise!
+        onFulfilled(innerDeferredPromise);
+      }, 30);
+    },
+  };
+
+  const lockPromiseA = withFileLock(testFile, () => outerThenable as unknown as Promise<string>);
+
+  // Wait 50ms so outer thenable fulfills and passes innerDeferredPromise
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(innerSettled, false, "Inner promise must still be pending");
+  assert.ok(existsSync(lockFile), "Lockfile MUST remain held while innerDeferredPromise is pending");
+
+  // Caller B tries to acquire with a 40ms timeout: MUST reject because lock is still held by inner promise!
+  await assert.rejects(
+    async () => {
+      await withFileLock(testFile, async () => "callerB-short", 40);
+    },
+    (err: Error) => {
+      callerBBlockedWhileInnerPending = true;
+      return err.message.includes("Timeout");
+    },
+    "Caller B must timeout while innerDeferredPromise is pending"
+  );
+
+  // Queued Caller C waits for full settlement
+  const lockPromiseC = withFileLock(testFile, async () => {
+    callerBEntered = true;
+    assert.equal(innerSettled, true, "Caller C must only enter after inner promise settled");
+    return "callerC-done";
+  });
+
+  const resA = await lockPromiseA;
+  const resC = await lockPromiseC;
+
+  assert.equal(resA, "deeply-nested-resolution");
+  assert.equal(resC, "callerC-done");
+  assert.equal(callerBBlockedWhileInnerPending, true);
+  assert.equal(callerBEntered, true);
+  assert.ok(!existsSync(lockFile), "Lockfile must be unlinked once all holders release");
+});
+
 test("Point 2c: In-process async queue timeout cleans up waiter without leaving orphaned state", async () => {
   const testFile = path.join(os.tmpdir(), "data150-test-2c.json");
   const lockFile = `${testFile}.lock`;
@@ -1273,8 +1339,17 @@ test("Point 1.1: Concurrent multi-process orphan reclaim maintains mutual exclus
   const testFile = path.join(os.tmpdir(), "data150-test-p1-race.json");
   const lockFile = `${testFile}.lock`;
   const reclaimLockFile = `${lockFile}.reclaim.lock`;
+  const startBarrier = path.join(os.tmpdir(), "data150-test-p1-barrier.flag");
+  const counterFile = path.join(os.tmpdir(), "data150-test-p1-counter.txt");
+  const violationsFile = path.join(os.tmpdir(), "data150-test-p1-violations.txt");
+
   if (existsSync(lockFile)) unlinkSync(lockFile);
   if (existsSync(reclaimLockFile)) unlinkSync(reclaimLockFile);
+  if (existsSync(startBarrier)) unlinkSync(startBarrier);
+  if (existsSync(counterFile)) unlinkSync(counterFile);
+  if (existsSync(violationsFile)) unlinkSync(violationsFile);
+
+  writeFileSync(counterFile, "0");
 
   // Abandoned primary lock with dead PID
   writeFileSync(lockFile, "999992\n1000\nfake-ctx-1\n");
@@ -1283,11 +1358,38 @@ test("Point 1.1: Concurrent multi-process orphan reclaim maintains mutual exclus
 
   const childWorkerScript = `
 import { withFileLock } from "./lib/data150-loader.ts";
+import * as fs from "node:fs";
+
 async function run() {
   const file = process.env.DATA150_TEST_FILE!;
   const id = process.env.DATA150_WORKER_ID!;
+  const barrier = process.env.DATA150_START_BARRIER!;
+  const counterFile = process.env.DATA150_COUNTER_FILE!;
+  const violationsFile = process.env.DATA150_VIOLATIONS_FILE!;
+
+  // Wait for start barrier so both processes contend at the exact same moment
+  while (!fs.existsSync(barrier)) {
+    await new Promise((r) => setTimeout(r, 5));
+  }
+
   await withFileLock(file, async () => {
-    await new Promise((r) => setTimeout(r, 60));
+    // Concurrency verification
+    let current = 0;
+    try { current = parseInt(fs.readFileSync(counterFile, "utf8").trim(), 10) || 0; } catch {}
+    if (current > 0) {
+      fs.appendFileSync(violationsFile, "OVERLAP_ENTRY:" + id + " saw " + current + "\\n");
+    }
+    fs.writeFileSync(counterFile, String(current + 1));
+
+    await new Promise((r) => setTimeout(r, 80));
+
+    let active = 0;
+    try { active = parseInt(fs.readFileSync(counterFile, "utf8").trim(), 10) || 0; } catch {}
+    if (active !== 1) {
+      fs.appendFileSync(violationsFile, "OVERLAP_CONCURRENT:" + id + " saw " + active + "\\n");
+    }
+    fs.writeFileSync(counterFile, "0");
+
     console.log("HOLDER:" + id);
   });
 }
@@ -1299,12 +1401,26 @@ run().catch((e) => {
 
   const p1 = spawn("node", ["--experimental-strip-types", "-e", childWorkerScript], {
     cwd: process.cwd(),
-    env: { ...process.env, DATA150_TEST_FILE: testFile, DATA150_WORKER_ID: "P1" },
+    env: {
+      ...process.env,
+      DATA150_TEST_FILE: testFile,
+      DATA150_WORKER_ID: "P1",
+      DATA150_START_BARRIER: startBarrier,
+      DATA150_COUNTER_FILE: counterFile,
+      DATA150_VIOLATIONS_FILE: violationsFile,
+    },
     stdio: ["pipe", "pipe", "pipe"],
   });
   const p2 = spawn("node", ["--experimental-strip-types", "-e", childWorkerScript], {
     cwd: process.cwd(),
-    env: { ...process.env, DATA150_TEST_FILE: testFile, DATA150_WORKER_ID: "P2" },
+    env: {
+      ...process.env,
+      DATA150_TEST_FILE: testFile,
+      DATA150_WORKER_ID: "P2",
+      DATA150_START_BARRIER: startBarrier,
+      DATA150_COUNTER_FILE: counterFile,
+      DATA150_VIOLATIONS_FILE: violationsFile,
+    },
     stdio: ["pipe", "pipe", "pipe"],
   });
 
@@ -1317,6 +1433,10 @@ run().catch((e) => {
   p1.stderr?.on("data", (d) => { err1 += d.toString(); });
   p2.stderr?.on("data", (d) => { err2 += d.toString(); });
 
+  // Release the start barrier to release both workers simultaneously
+  await new Promise((r) => setTimeout(r, 40));
+  writeFileSync(startBarrier, "GO\n");
+
   const [code1, code2] = await Promise.all([
     new Promise<number>((r) => p1.on("close", r)),
     new Promise<number>((r) => p2.on("close", r)),
@@ -1326,8 +1446,70 @@ run().catch((e) => {
   assert.equal(code2, 0, `Process 2 must exit 0: ${out2} ${err2}`);
   assert.ok(out1.includes("HOLDER:P1"));
   assert.ok(out2.includes("HOLDER:P2"));
+
+  // Check overlap violations file: MUST NOT exist or must be empty!
+  if (existsSync(violationsFile)) {
+    const violations = readFileSync(violationsFile, "utf8").trim();
+    assert.equal(violations, "", `Zero concurrency overlap violations allowed: ${violations}`);
+    unlinkSync(violationsFile);
+  }
+  if (existsSync(counterFile)) unlinkSync(counterFile);
+  if (existsSync(startBarrier)) unlinkSync(startBarrier);
   assert.ok(!existsSync(lockFile), "Final lockfile must be cleanly removed");
   assert.ok(!existsSync(reclaimLockFile), "Final reclaim lockfile must be cleanly removed");
+});
+
+test("Point 1.1b: Forced interleaving: Dead mutex claim does NOT evict or replace newly acquired live reclaimer", async () => {
+  const testFile = path.join(os.tmpdir(), "data150-test-p1-interleaving.json");
+  const lockFile = `${testFile}.lock`;
+  const reclaimLockFile = `${lockFile}.reclaim.lock`;
+  if (existsSync(lockFile)) unlinkSync(lockFile);
+  if (existsSync(reclaimLockFile)) unlinkSync(reclaimLockFile);
+
+  // Setup: Primary lock has dead holder PID 999991
+  writeFileSync(lockFile, "999991\n1000\nfake-primary\n");
+
+  // Reclaim lock has OUR current PID (LIVE holder!) with a unique context ID
+  const liveContextId = "live-reclaim-context-12345";
+  writeFileSync(reclaimLockFile, `${process.pid}\n${Date.now()}\n${liveContextId}\n`);
+
+  // Now, call safeReclaimOrphanLock from a simulated concurrent contender
+  // Contender observes that reclaimLockFile exists and holder is process.pid (ALIVE!).
+  safeReclaimOrphanLock(lockFile, 999991);
+
+  // Assert that Process B's live reclaim lock was NOT deleted, moved, or altered!
+  assert.ok(existsSync(reclaimLockFile), "Live reclaimer's lock must remain on disk");
+  const contentAfter = readFileSync(reclaimLockFile, "utf8");
+  assert.ok(contentAfter.includes(liveContextId), "Live reclaimer's context MUST NOT be overwritten or evicted");
+
+  // Cleanup
+  if (existsSync(reclaimLockFile)) unlinkSync(reclaimLockFile);
+  if (existsSync(lockFile)) unlinkSync(lockFile);
+});
+
+test("Point 1.2b: Fail-closed inspection: lsof error or timeout never evicts unverified 0-byte file", () => {
+  const testFile = path.join(os.tmpdir(), "data150-test-p2-failclosed.json");
+  const lockFile = `${testFile}.lock`;
+  const reclaimLockFile = `${lockFile}.reclaim.lock`;
+  if (existsSync(lockFile)) unlinkSync(lockFile);
+  if (existsSync(reclaimLockFile)) unlinkSync(reclaimLockFile);
+
+  // 1. Live process holds an open file descriptor on the 0-byte file!
+  writeFileSync(reclaimLockFile, "");
+  const fd = openSync(reclaimLockFile, "r+");
+  try {
+    // With an open fd held by our live PID, checkLiveProcessHoldingFd MUST report live holder!
+    const inspection = checkLiveProcessHoldingFd(reclaimLockFile);
+    assert.equal(inspection.hasLiveHolder, true, "Must detect live holder holding open fd");
+
+    // safeReclaimOrphanLock MUST fail closed and NOT evict or replace the file!
+    safeReclaimOrphanLock(lockFile, 999991);
+    assert.ok(existsSync(reclaimLockFile), "0-byte lock held by live process MUST NOT be evicted");
+  } finally {
+    closeSync(fd);
+    if (existsSync(reclaimLockFile)) unlinkSync(reclaimLockFile);
+    if (existsSync(lockFile)) unlinkSync(lockFile);
+  }
 });
 
 test("Point 3: Reconciliation with empty staging preserves committed ledger and marks attempt indeterminate", async () => {
