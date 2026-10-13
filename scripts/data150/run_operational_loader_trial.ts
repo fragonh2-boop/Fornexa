@@ -474,17 +474,24 @@ export async function runOperationalLoaderTrial() {
   console.log("  => VERIFICADO: Desconexión real de backend capturada sin falsos COMMITTED; cluster PostgreSQL 100% operativo y recuperación probada.");
 
   // --------------------------------------------------------------------------
-  // TEST 3C: Real Post-COMMIT Recovery, Live Promotion & Child Table without Tenant (cmr_parties)
-  // Acredita:
-  // 1. Transacción confirmada en PostgreSQL vivo pero interrumpida antes del marcado en disco.
-  // 2. Nueva sesión limpia ejecuta reconcileInFlightReceipt sobre PostgreSQL real.
-  // 3. Resolución parent-aware exitosa sobre DATA150_TABLES_WITHOUT_TENANT (cmr_parties sin tenant_id).
-  // 4. Promoción a COMMITTED sin pérdida de recibo ni claves.
-  // 5. Retry subsiguiente con retorno 0 filas que preserva el recibo íntegro.
+  // TEST 3C: Real Post-COMMIT Abrupt Death, Lockfile Orphan Recovery & Rollback Execution
+  // Acredita rigurosamente (Puntos 3.1 & 3.2):
+  // 1. Proceso titular sufre muerte abrupta inmediata (SIGKILL no capturable) tras COMMIT en BD,
+  //    dejando el archivo .lock huérfano con PID muerto y recibo en estado staged IN_TRANSACTION_PRE_COMMIT.
+  // 2. Proceso hijo independiente (PID distinto) ejecuta reconcileInFlightReceipt,
+  //    reclamando atómicamente el mutex huérfano (safeReclaimOrphanLock), reconciliando
+  //    exitosamente tablas con y sin tenant_id (cmr_parties) contra PostgreSQL 17.11 vivo
+  //    y promoviendo el recibo a COMMITTED con execution_reconciled: true.
+  // 3. Retry legítimo sobre el recibo ya COMMITTED devuelve 0 filas nuevas y preserva las claves.
+  // 4. Generación Y EJECUCIÓN REAL del rollback operacional dinámico contra PostgreSQL vivo,
+  //    verificando con consultas SQL reales que el 100% de las filas se eliminan de BD,
+  //    preservando los datos ajenos y preexistentes.
   // --------------------------------------------------------------------------
-  console.log("\n[ENSAYO 3C] Recuperación Local Real Post-COMMIT, Reconciliación Viva y Tabla Sin tenant_id (cmr_parties):");
+  console.log("\n[ENSAYO 3C] Muerte Abrupta Real (SIGKILL), Rescate de Bloqueo Huérfano, Reconciliación y Rollback Efectivo:");
   const test3cReceiptPath = "/tmp/data150-real-postcommit-receipt.json";
+  const test3cLockPath = `${test3cReceiptPath}.lock`;
   if (existsSync(test3cReceiptPath)) unlinkSync(test3cReceiptPath);
+  if (existsSync(test3cLockPath)) unlinkSync(test3cLockPath);
 
   const trial3cTzId = "7c596a00-ee8a-5ed0-a529-c05c3a541ec3";
   const trial3cCmrId = "35b5ee58-4e75-5c17-ad55-f7ec1a1b7599";
@@ -504,33 +511,145 @@ export async function runOperationalLoaderTrial() {
     "COMMIT;",
   ].join("\n");
 
-  const session3cInterrupted = new LivePsqlSession();
-  const res3cInterrupted = await executeData150Loader(
-    (sql) => session3cInterrupted.query(sql),
-    {
-      loaderSql: trial3cSql,
-      targetReceiptPath: test3cReceiptPath,
-      tenantId: DATA150_TENANT_ID,
-      simulatePostCommitFailure: true,
-    }
-  );
-  session3cInterrupted.close();
+  // 1. Spawning child process that executes executeData150Loader and gets abrupt SIGKILL after COMMIT
+  console.log("  * Spawning proceso titular que ejecutará loader y sufrirá SIGKILL abrupto post-COMMIT...");
+  const childLoaderScript = `
+import { LivePsqlSession } from "./scripts/data150/run_operational_loader_trial.ts";
+import { executeData150Loader, DATA150_TENANT_ID } from "./lib/data150-loader.ts";
 
-  console.log(`  * Estado inmediatamente tras corte post-commit: ${res3cInterrupted.status} (db_committed: ${res3cInterrupted.db_committed})`);
-  if (!res3cInterrupted.db_committed || res3cInterrupted.status !== "COMMIT_CONFIRMED_POST_COMMIT_WRITE_FAILED") {
-    throw new Error("ERROR: Estado post-commit simulado no registró COMMIT confirmado en BD.");
+async function runLoader() {
+  const receiptPath = process.env.DATA150_CHILD_RECEIPT_PATH!;
+  const sql = process.env.DATA150_CHILD_SQL!;
+  const session = new LivePsqlSession();
+  try {
+    await executeData150Loader(
+      async (s) => {
+        const res = await session.query(s);
+        if (s.trim().toUpperCase().startsWith("COMMIT")) {
+          // Transaction committed in PostgreSQL. Hold lock and signal parent:
+          process.stdout.write("[CHILD_COMMITTED_HOLDING_LOCK]\\n");
+          // Sleep forever holding withFileLock until parent delivers SIGKILL
+          await new Promise(() => {});
+        }
+        return res;
+      },
+      {
+        loaderSql: sql,
+        targetReceiptPath: receiptPath,
+        tenantId: DATA150_TENANT_ID,
+      }
+    );
+  } finally {
+    session.close();
+  }
+}
+runLoader().catch((err) => {
+  console.error("Child loader error:", err);
+  process.exit(1);
+});
+`;
+
+  const childLoader = spawn("node", ["--experimental-strip-types", "-e", childLoaderScript], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      DATA150_CHILD_RECEIPT_PATH: test3cReceiptPath,
+      DATA150_CHILD_SQL: trial3cSql,
+    },
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+
+  const childPid = childLoader.pid!;
+  let committedReceived = false;
+
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      try { childLoader.kill("SIGKILL"); } catch {}
+      reject(new Error("Timeout esperando [CHILD_COMMITTED_HOLDING_LOCK] desde el loader hijo"));
+    }, 15000);
+
+    childLoader.stdout?.on("data", (d: Buffer) => {
+      const text = d.toString();
+      if (text.includes("[CHILD_COMMITTED_HOLDING_LOCK]")) {
+        committedReceived = true;
+        clearTimeout(timeout);
+        // Abruptly kill child process with SIGKILL (no finally, no cleanup, leaves lock on disk)
+        try {
+          process.kill(childPid, "SIGKILL");
+        } catch (kErr) {
+          reject(kErr);
+          return;
+        }
+        resolve();
+      }
+    });
+
+    childLoader.stderr?.on("data", (d: Buffer) => {
+      console.error("Child loader stderr:", d.toString());
+    });
+
+    childLoader.on("error", (err) => {
+      clearTimeout(timeout);
+      reject(err);
+    });
+  });
+
+  // Wait for child process exit:
+  await new Promise<void>((resolve) => {
+    childLoader.on("exit", () => resolve());
+  });
+
+  if (!committedReceived) {
+    throw new Error("ERROR: Proceso hijo no emitió confirmación de COMMIT antes de finalizar.");
   }
 
-  // Verificar que en disco el recibo previo quedó staged como IN_TRANSACTION_PRE_COMMIT antes del fallo
+  // Verify child process is dead:
+  let childDead = false;
+  try {
+    process.kill(childPid, 0);
+  } catch (err: any) {
+    if (err.code === "ESRCH") childDead = true;
+  }
+  if (!childDead) {
+    throw new Error(`ERROR: Proceso hijo PID ${childPid} aún sigue vivo tras SIGKILL.`);
+  }
+  console.log(`  * Proceso titular original PID ${childPid} terminado abruptamente con SIGKILL.`);
+
+  // Verify that the lock file remains orphaned on disk with the dead PID:
+  if (!existsSync(test3cLockPath)) {
+    throw new Error(`ERROR: El archivo de bloqueo huérfano ${test3cLockPath} no existe en disco.`);
+  }
+  const orphanLockContent = readFileSync(test3cLockPath, "utf8");
+  const orphanLockPid = parseInt(orphanLockContent.split("\n")[0]?.trim(), 10);
+  if (orphanLockPid !== childPid) {
+    throw new Error(`ERROR: El bloqueo huérfano contiene PID ${orphanLockPid}, esperado ${childPid}.`);
+  }
+  console.log(`  * Bloqueo huérfano ${test3cLockPath} verificado en disco retenido por PID muerto ${orphanLockPid}.`);
+
+  // Verify that disk receipt is staged as IN_TRANSACTION_PRE_COMMIT:
+  if (!existsSync(test3cReceiptPath)) {
+    throw new Error(`ERROR: El recibo staged ${test3cReceiptPath} no existe en disco.`);
+  }
   const diskPreCommit3c = JSON.parse(readFileSync(test3cReceiptPath, "utf8"));
   if (diskPreCommit3c.status !== "IN_TRANSACTION_PRE_COMMIT") {
-    throw new Error(`ERROR: Recibo previo en disco debía ser IN_TRANSACTION_PRE_COMMIT, obtenido '${diskPreCommit3c.status}'.`);
+    throw new Error(`ERROR: Recibo en disco debía ser IN_TRANSACTION_PRE_COMMIT, obtenido '${diskPreCommit3c.status}'.`);
   }
-  console.log("  * Recibo en disco conservó estado staged IN_TRANSACTION_PRE_COMMIT con claves intactas.");
+  console.log("  * Recibo en disco verificado en estado staged IN_TRANSACTION_PRE_COMMIT con claves intactas.");
+
+  // Verify rows are actually committed in PostgreSQL:
+  const tzCommitted = await runDirectPsqlCmd(`SELECT count(*) FROM public.tariff_zones WHERE id = '${trial3cTzId}';`);
+  const cmrCommitted = await runDirectPsqlCmd(`SELECT count(*) FROM public.cmr_documents WHERE id = '${trial3cCmrId}';`);
+  const cmrPartyCommitted = await runDirectPsqlCmd(`SELECT count(*) FROM public.cmr_parties WHERE id = '${trial3cCmrPartyId}';`);
+  if (tzCommitted !== "1" || cmrCommitted !== "1" || cmrPartyCommitted !== "1") {
+    throw new Error("ERROR: Filas no se confirmaron en BD antes de la muerte del proceso.");
+  }
+  console.log("  * Filas comprometidas y durables verificadas en BD tras caída abrupta del titular.");
 
   // 2. Ejecutar reconciliación en proceso hijo independiente (PID distinto)
+  // Este proceso encontrará el bloqueo huérfano del PID muerto, rescatará el lock atómicamente,
+  // verificará las 3 tablas en PostgreSQL y promoverá el recibo a COMMITTED.
   console.log("  * Ejecutando reconciliación autónoma en proceso hijo independiente (PID distinto)...");
-  const childScript = `
+  const childReconcilerScript = `
 import { LivePsqlSession } from "./scripts/data150/run_operational_loader_trial.ts";
 import { reconcileInFlightReceipt } from "./lib/data150-loader.ts";
 
@@ -554,7 +673,7 @@ runChild().catch((err) => {
   process.exit(1);
 });
 `;
-  const childRes = spawnSync("node", ["--experimental-strip-types", "-e", childScript], {
+  const childRes = spawnSync("node", ["--experimental-strip-types", "-e", childReconcilerScript], {
     cwd: process.cwd(),
     env: {
       ...process.env,
@@ -571,7 +690,7 @@ runChild().catch((err) => {
     throw new Error(`ERROR: Proceso hijo de reconciliación no devolvió resultado válido. Salida: ${childRes.stdout}`);
   }
   const recon3cResult = JSON.parse(matchChild[1]);
-  console.log(`  * Resultado de reconciliación desde proceso hijo (PID independiente): status=${recon3cResult.status}, confirmedKeys=${recon3cResult.confirmedKeysCount}`);
+  console.log(`  * Rescate de lock huérfano y reconciliación exitosa (PID independiente): status=${recon3cResult.status}, confirmedKeys=${recon3cResult.confirmedKeysCount}`);
 
   if (recon3cResult.status !== "COMMITTED" || recon3cResult.confirmedKeysCount !== 3) {
     throw new Error(`ERROR: Reconciliación real post-COMMIT falló (status=${recon3cResult.status}, keys=${recon3cResult.confirmedKeysCount}).`);
@@ -595,28 +714,9 @@ runChild().catch((err) => {
   ) {
     throw new Error("ERROR: Recibo promovido no contiene las 3 tablas completas.");
   }
-  console.log("  * Recibo promovido exitosamente a COMMITTED en disco preservando cmr_parties (sin tenant_id).");
+  console.log("  * Recibo promovido exitosamente a COMMITTED en disco tras rescate de lock, preservando cmr_parties (sin tenant_id).");
 
-  // 3. Generar y validar inmediatamente rollback operacional sobre el recibo reconciliado ANTES de reintentar
-  const test3cRollbackSqlPath = "/tmp/data150-trial3c-rollback.sql";
-  const test3cSqlPath = "/tmp/data150-trial3c.sql";
-  if (existsSync(test3cRollbackSqlPath)) unlinkSync(test3cRollbackSqlPath);
-  writeFileSync(test3cSqlPath, trial3cSql, "utf8");
-
-  console.log("  * Generando y validando rollback operacional inmediato desde el recibo reconciliado...");
-  const rollbackSql3c = generateOperationalRollback(test3cReceiptPath, test3cRollbackSqlPath, test3cSqlPath);
-  if (
-    !rollbackSql3c.includes("DELETE FROM public.cmr_parties") ||
-    !rollbackSql3c.includes("[CASCADE PROTECTED TABLE] Table public.cmr_documents") ||
-    !rollbackSql3c.includes("DELETE FROM public.tariff_zones")
-  ) {
-    throw new Error("ERROR: Rollback operacional generado tras reconciliación no contiene el tratamiento esperado (DELETE cmr_parties/tariff_zones y protección en cascada de cmr_documents).");
-  }
-  if (existsSync(test3cRollbackSqlPath)) unlinkSync(test3cRollbackSqlPath);
-  if (existsSync(test3cSqlPath)) unlinkSync(test3cSqlPath);
-  console.log("  * Rollback operacional validado con éxito sobre el recibo reconciliado antes de ejecutar retry.");
-
-  // 4. Reintento legítimo sobre el recibo ya COMMITTED: debe devolver 0 filas nuevas y preservar las claves
+  // 3. Reintento legítimo sobre el recibo ya COMMITTED: debe devolver 0 filas nuevas y preservar las claves
   const session3cRetry = new LivePsqlSession();
   const res3cRetry = await executeData150Loader(
     (sql) => session3cRetry.query(sql),
@@ -639,7 +739,56 @@ runChild().catch((err) => {
   ) {
     throw new Error("ERROR: Claves durables perdidas tras reintento de 0 filas.");
   }
-  console.log("  => VERIFICADO: Ciclo crash→reconcile(child PID)→rollback-check→retry probado sobre PostgreSQL vivo.");
+  console.log("  * Reintento verificado: 0 filas nuevas devueltas y 100% claves preservadas.");
+
+  // 4. Generar Y EJECUTAR el rollback operacional dinámico contra PostgreSQL 17.11 vivo
+  const test3cRollbackSqlPath = "/tmp/data150-trial3c-rollback.sql";
+  const test3cSqlPath = "/tmp/data150-trial3c.sql";
+  if (existsSync(test3cRollbackSqlPath)) unlinkSync(test3cRollbackSqlPath);
+  writeFileSync(test3cSqlPath, trial3cSql, "utf8");
+
+  console.log("  * Generando y ejecutando rollback operacional dinámico sobre PostgreSQL vivo...");
+  const rollbackSql3c = generateOperationalRollback(test3cReceiptPath, test3cRollbackSqlPath, test3cSqlPath);
+  if (
+    !rollbackSql3c.includes("DELETE FROM public.cmr_parties") ||
+    !rollbackSql3c.includes("[CASCADE PROTECTED TABLE] Table public.cmr_documents") ||
+    !rollbackSql3c.includes("DELETE FROM public.tariff_zones")
+  ) {
+    throw new Error("ERROR: Rollback operacional generado no contiene el tratamiento esperado.");
+  }
+
+  // Ejecución real del rollback en PostgreSQL vivo:
+  await runDirectPsqlCmd(rollbackSql3c);
+  console.log("  * Rollback operacional de ensayo 3C ejecutado con éxito en PostgreSQL vivo.");
+
+  // Comprobar borrado selectivo según política de inmutabilidad y protección en cascada:
+  // - tariff_zones y cmr_parties: mutables -> eliminadas por el rollback (count 0)
+  // - cmr_documents: en DATA150_CASCADE_PROTECTED_TABLES -> retenida intencionadamente para no romper cascadas de eventos (count 1)
+  const tz3cPostCount = await runDirectPsqlCmd(`SELECT count(*) FROM public.tariff_zones WHERE id = '${trial3cTzId}';`);
+  const cmr3cPostCount = await runDirectPsqlCmd(`SELECT count(*) FROM public.cmr_documents WHERE id = '${trial3cCmrId}';`);
+  const cmrParty3cPostCount = await runDirectPsqlCmd(`SELECT count(*) FROM public.cmr_parties WHERE id = '${trial3cCmrPartyId}';`);
+  if (tz3cPostCount !== "0" || cmrParty3cPostCount !== "0") {
+    throw new Error(`ERROR: Filas mutables del ensayo 3C persisten tras rollback (tz=${tz3cPostCount}, cmr_parties=${cmrParty3cPostCount}).`);
+  }
+  if (cmr3cPostCount !== "1") {
+    throw new Error(`ERROR: cmr_documents debía ser preservada por la regla de protección en cascada (obtenido ${cmr3cPostCount}).`);
+  }
+  console.log("  * Filas mutables eliminadas al 100% y cmr_documents preservada por protección en cascada según política de rollback.");
+
+  // Limpieza explícita de cmr_documents tras validar su protección en el rollback
+  await runDirectPsqlCmd(`DELETE FROM public.cmr_documents WHERE id = '${trial3cCmrId}';`);
+
+  // Comprobar preservación de filas de Ensayo 1/2:
+  const tzPreCheck = await runDirectPsqlCmd(`SELECT count(*) FROM public.tariff_zones WHERE id = '7c596a00-ee8a-5ed0-a529-c05c3a541ea2';`);
+  if (tzPreCheck !== "1") {
+    throw new Error("ERROR: Filas preexistentes de Ensayos 1/2 afectadas por rollback 3C.");
+  }
+  console.log("  * Filas preexistentes de Ensayos 1/2 100% intactas tras rollback 3C.");
+
+  if (existsSync(test3cRollbackSqlPath)) unlinkSync(test3cRollbackSqlPath);
+  if (existsSync(test3cSqlPath)) unlinkSync(test3cSqlPath);
+  if (existsSync(test3cReceiptPath)) unlinkSync(test3cReceiptPath);
+  console.log("  => VERIFICADO: Ciclo muerte abrupta (SIGKILL)→lock huérfano rescatado→reconcile(child PID)→retry→rollback real en BD ejecutado con éxito.");
 
   // --------------------------------------------------------------------------
   // TEST 3D: Negative Reconciliation Tests (Partial Key Presence & Strict Protocol Contract)
@@ -650,8 +799,16 @@ runChild().catch((err) => {
   // --------------------------------------------------------------------------
   console.log("\n[ENSAYO 3D] Pruebas Negativas de Reconciliación (Presencia Parcial y Contrato Estricto):");
 
-  // 1. Presencia parcial: eliminamos cmr_parties de PostgreSQL para simular estado inconsistente
-  await runDirectPsqlCmd(`DELETE FROM public.cmr_parties WHERE id = '${trial3cCmrPartyId}';`);
+  // 1. Presencia parcial: insertamos sólo tariff_zones y cmr_documents (omitiendo cmr_parties)
+  await runDirectPsqlCmd(`
+    INSERT INTO public.tariff_zones ("id", "tenant_id", "name", "country", "purpose")
+    VALUES ('${trial3cTzId}', '${DATA150_TENANT_ID}', '[PRUEBA 3D] Zona 3D', 'ES', 'Distribución 3D')
+    ON CONFLICT ("id") DO NOTHING;
+
+    INSERT INTO public.cmr_documents ("id", "cmr_number", "access_key", "status", "source", "customer_ids", "sender", "recipient", "pickup_location", "delivery_location", "carrier", "goods_description", "adr", "metadata", "issued_at", "created_at", "updated_at", "tenant_id", "carriage_charges", "cash_on_delivery", "document_kind")
+    VALUES ('${trial3cCmrId}', 'DATA150-CMR-TRIAL3D', 'CMRKEY3DSECUREX99', 'Borrador', 'DATA150_BATCH', '{"00000000-0000-4000-8000-000000000001"}', 'Sender 3D', 'Recipient 3D', 'Madrid', 'Getafe', 'Carrier 3D', 'Goods 3D', '{"is_adr": false}'::jsonb, '{"batch": "DATA150-PRODUCTION-20261009"}'::jsonb, '2026-10-09T11:09:57Z', '2026-10-09T11:09:57Z', '2026-10-09T11:09:57Z', '${DATA150_TENANT_ID}', '{"prepaid": true}'::jsonb, '{"has_cod": false}'::jsonb, 'cmr')
+    ON CONFLICT ("id") DO NOTHING;
+  `);
 
   // Simulamos recibo en vuelo con las 3 tablas en staged_tables
   const test3dReceiptPath = "/tmp/data150-partial-test-receipt.json";
@@ -722,13 +879,11 @@ runChild().catch((err) => {
   }
   console.log("  => VERIFICADO: Pruebas negativas acreditan fail-closed estricto ante presencia parcial y violaciones de contrato de conteo.");
 
-  // Limpieza de claves 3C/3D de PostgreSQL y archivos temporales
+  // Limpieza de claves 3D de PostgreSQL y archivos temporales
   await runDirectPsqlCmd(`
-    DELETE FROM public.cmr_parties WHERE id = '${trial3cCmrPartyId}';
     DELETE FROM public.cmr_documents WHERE id = '${trial3cCmrId}';
     DELETE FROM public.tariff_zones WHERE id = '${trial3cTzId}';
   `);
-  if (existsSync(test3cReceiptPath)) unlinkSync(test3cReceiptPath);
   if (existsSync(test3dReceiptPath)) unlinkSync(test3dReceiptPath);
 
   // --------------------------------------------------------------------------

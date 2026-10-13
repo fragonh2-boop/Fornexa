@@ -1098,39 +1098,90 @@ test("Point 2a: Ordinary callback returning deferred Promise holds lock until se
   assert.ok(!existsSync(lockFile), "Lockfile must be unlinked once all holders release");
 });
 
-test("Point 2b: Causal context is invalidated on release, preventing delayed descendant from bypassing lock", async () => {
+test("Point 2b: Causal context is invalidated on release, preventing delayed descendant from bypassing lock while B holds it", async () => {
   const testFile = "/private/tmp/data150-test-2b.json";
   const lockFile = `${testFile}.lock`;
   if (existsSync(lockFile)) unlinkSync(lockFile);
   if (existsSync(testFile)) unlinkSync(testFile);
 
-  let delayedCallbackBypassedLock = false;
+  let enteredConcurrentlyWithB = false;
+  let callerBActive = false;
+  let callerBFinished = false;
+  let lateDescendantAcquired = false;
 
   // Caller A acquires lock, spawns a delayed task, and finishes immediately
   let delayedTaskPromise: Promise<void>;
   await withFileLock(testFile, async () => {
     delayedTaskPromise = (async () => {
-      // Yield to let A finish and release the lock
-      await new Promise((r) => setTimeout(r, 50));
-      // Now attempt withFileLock: since A already released, this task must NOT bypass lock via inherited context
+      // Yield slightly so A finishes and B has time to acquire
+      await new Promise((r) => setTimeout(r, 20));
+      // Now attempt withFileLock: B is currently holding the lock!
+      // If a broken implementation allowed bypass via inherited context,
+      // this callback would enter immediately while callerBActive === true!
       await withFileLock(testFile, async () => {
-        delayedCallbackBypassedLock = false;
+        if (callerBActive) {
+          enteredConcurrentlyWithB = true; // LOCK BYPASS DETECTED!
+        }
+        lateDescendantAcquired = true;
       });
     })();
   });
 
-  // Immediately acquire with Caller B
-  let callerBHeld = false;
+  // Caller B acquires lock immediately and holds it for 100ms
   await withFileLock(testFile, async () => {
-    callerBHeld = true;
-    await new Promise((r) => setTimeout(r, 80));
-    callerBHeld = false;
+    callerBActive = true;
+    await new Promise((r) => setTimeout(r, 100));
+    callerBActive = false;
+    callerBFinished = true;
   });
 
   await delayedTaskPromise!;
-  assert.equal(delayedCallbackBypassedLock, false);
-  assert.equal(callerBHeld, false);
+  assert.equal(enteredConcurrentlyWithB, false, "Late descendant must NOT enter concurrently with caller B");
+  assert.equal(callerBFinished, true, "Caller B must have finished before descendant entered");
+  assert.equal(lateDescendantAcquired, true, "Late descendant must successfully acquire after B releases");
   assert.ok(!existsSync(lockFile));
+});
+
+test("Point 1.3: withFileLock safely normalizes PromiseLike/thenables that lack .finally without releasing early", async () => {
+  const testFile = "/private/tmp/data150-test-thenable.json";
+  const lockFile = `${testFile}.lock`;
+  if (existsSync(lockFile)) unlinkSync(lockFile);
+  if (existsSync(testFile)) unlinkSync(testFile);
+
+  let thenableSettled = false;
+
+  // An object with .then, but strictly NO .finally property
+  const customThenable = {
+    then(onFulfilled: (val: any) => void) {
+      setTimeout(() => {
+        thenableSettled = true;
+        onFulfilled("custom-thenable-result");
+      }, 80);
+    },
+  };
+  assert.equal((customThenable as any).finally, undefined);
+
+  const lockPromise = withFileLock(testFile, () => customThenable as unknown as Promise<string>);
+
+  // While pending, check that lockfile exists
+  await new Promise((r) => setTimeout(r, 20));
+  assert.ok(existsSync(lockFile), "Lock must remain held while thenable is pending");
+  assert.equal(thenableSettled, false);
+
+  // Another caller in queue
+  let secondCallerSawSettlement = false;
+  const secondPromise = withFileLock(testFile, async () => {
+    secondCallerSawSettlement = thenableSettled;
+    return "second-done";
+  });
+
+  const res = await lockPromise;
+  const res2 = await secondPromise;
+
+  assert.equal(res, "custom-thenable-result");
+  assert.equal(res2, "second-done");
+  assert.equal(secondCallerSawSettlement, true, "Second caller must only run after thenable settled");
+  assert.ok(!existsSync(lockFile), "Lockfile must be unlinked after all settled");
 });
 
 test("Point 2c: In-process async queue timeout cleans up waiter without leaving orphaned state", async () => {
@@ -1190,6 +1241,91 @@ test("Point 2d: Crash-safe orphan reclaim detects dead reclaimer in .reclaim.loc
   assert.equal(acquiredCleanly, true);
   assert.ok(!existsSync(reclaimLockFile), "Reclaim lock must be cleaned up");
   assert.ok(!existsSync(lockFile), "Primary lock must be cleaned up");
+});
+
+test("Point 1.2: Crash-safe recovery of empty/corrupted 0-byte .reclaim.lock without killing live holders", async () => {
+  const testFile = "/private/tmp/data150-test-p2-empty.json";
+  const lockFile = `${testFile}.lock`;
+  const reclaimLockFile = `${lockFile}.reclaim.lock`;
+  if (existsSync(lockFile)) unlinkSync(lockFile);
+  if (existsSync(reclaimLockFile)) unlinkSync(reclaimLockFile);
+
+  // Simulate an abandoned primary lock with dead PID
+  writeFileSync(lockFile, "999991\n1000\nfake-ctx-1\n");
+  // Simulate an abandoned empty .reclaim.lock (0 bytes, from crash between open and write)
+  writeFileSync(reclaimLockFile, "");
+
+  let acquiredCleanly = false;
+  const result = await withFileLock(testFile, async () => {
+    acquiredCleanly = true;
+    return "empty-reclaim-recovered";
+  });
+
+  assert.equal(result, "empty-reclaim-recovered");
+  assert.equal(acquiredCleanly, true);
+  assert.ok(!existsSync(reclaimLockFile));
+  assert.ok(!existsSync(lockFile));
+});
+
+test("Point 1.1: Concurrent multi-process orphan reclaim maintains mutual exclusion and never deletes live lock", async () => {
+  const testFile = "/private/tmp/data150-test-p1-race.json";
+  const lockFile = `${testFile}.lock`;
+  const reclaimLockFile = `${lockFile}.reclaim.lock`;
+  if (existsSync(lockFile)) unlinkSync(lockFile);
+  if (existsSync(reclaimLockFile)) unlinkSync(reclaimLockFile);
+
+  // Abandoned primary lock with dead PID
+  writeFileSync(lockFile, "999992\n1000\nfake-ctx-1\n");
+  // Abandoned .reclaim.lock with dead reclaimer PID
+  writeFileSync(reclaimLockFile, "999993\n1000\n");
+
+  const childWorkerScript = `
+import { withFileLock } from "./lib/data150-loader.ts";
+async function run() {
+  const file = process.env.DATA150_TEST_FILE!;
+  const id = process.env.DATA150_WORKER_ID!;
+  await withFileLock(file, async () => {
+    await new Promise((r) => setTimeout(r, 60));
+    console.log("HOLDER:" + id);
+  });
+}
+run().catch((e) => {
+  console.error("ERROR:" + e.message);
+  process.exit(1);
+});
+`;
+
+  const p1 = spawn("node", ["--experimental-strip-types", "-e", childWorkerScript], {
+    cwd: process.cwd(),
+    env: { ...process.env, DATA150_TEST_FILE: testFile, DATA150_WORKER_ID: "P1" },
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  const p2 = spawn("node", ["--experimental-strip-types", "-e", childWorkerScript], {
+    cwd: process.cwd(),
+    env: { ...process.env, DATA150_TEST_FILE: testFile, DATA150_WORKER_ID: "P2" },
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+
+  let out1 = "";
+  let out2 = "";
+  let err1 = "";
+  let err2 = "";
+  p1.stdout?.on("data", (d) => { out1 += d.toString(); });
+  p2.stdout?.on("data", (d) => { out2 += d.toString(); });
+  p1.stderr?.on("data", (d) => { err1 += d.toString(); });
+  p2.stderr?.on("data", (d) => { err2 += d.toString(); });
+
+  const [code1, code2] = await Promise.all([
+    new Promise<number>((r) => p1.on("close", r)),
+    new Promise<number>((r) => p2.on("close", r)),
+  ]);
+
+  assert.equal(code1, 0, `Process 1 must exit 0: ${out1} ${err1}`);
+  assert.equal(code2, 0, `Process 2 must exit 0: ${out2} ${err2}`);
+  assert.ok(out1.includes("HOLDER:P1"));
+  assert.ok(out2.includes("HOLDER:P2"));
+  assert.ok(!existsSync(lockFile), "Final lockfile must be cleanly removed");
+  assert.ok(!existsSync(reclaimLockFile), "Final reclaim lockfile must be cleanly removed");
 });
 
 test("Point 3: Reconciliation with empty staging preserves committed ledger and marks attempt indeterminate", async () => {

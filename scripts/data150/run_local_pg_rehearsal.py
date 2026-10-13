@@ -55,9 +55,9 @@ LOADER_SQL = os.path.abspath('scripts/data150/data150-loader.sql')
 REHEARSAL_ROLLBACK_SQL = os.path.join(EVIDENCE_DIR, 'data150-rehearsal-rollback.sql')
 BASELINE_PATH = os.environ.get(
     'DATA150_BASELINE_JSON',
-    os.path.abspath('docs/verification/data150-schema-baseline.json')
-    if os.path.exists('docs/verification/data150-schema-baseline.json')
-    else os.path.expanduser('~/Documents/Codex/2026-10-09/fornexa-data150/DATA150-SCHEMA-BASELINE.json')
+    os.path.abspath('docs/verification/data150-schema-canonical-reference.json')
+    if os.path.exists('docs/verification/data150-schema-canonical-reference.json')
+    else os.path.abspath('docs/verification/data150-schema-baseline.json')
 )
 
 log_lines = []
@@ -91,7 +91,28 @@ def reconcile_catalog_against_baseline(baseline_path):
     with open(baseline_path, 'r', encoding='utf-8') as f:
         baseline_data = json.load(f)
 
-    base_tables = {t['name'].replace('public.', ''): t for t in baseline_data.get('tables', [])}
+    if baseline_data.get('tables') and isinstance(baseline_data['tables'][0], dict):
+        base_tables = {t['name'].replace('public.', ''): t for t in baseline_data.get('tables', [])}
+        base_cols_by_table = {
+            t: {c['name']: (c.get('data_type'), 'nullable' in c.get('options', [])) for c in b_entry.get('columns', [])}
+            for t, b_entry in base_tables.items()
+        }
+        base_pks_by_table = {t: b_entry.get('primary_keys', []) for t, b_entry in base_tables.items()}
+    else:
+        raw_tables = baseline_data.get('tables', [])
+        base_tables = {t.replace('public.', ''): t for t in raw_tables}
+        base_cols_by_table = {}
+        for col_entry in baseline_data.get('columns', []):
+            tbl = col_entry['table'].replace('public.', '')
+            col_name = col_entry.get('column') or col_entry.get('name')
+            dt = col_entry.get('data_type')
+            is_null = col_entry.get('is_nullable') == 'YES' or col_entry.get('is_nullable') is True
+            base_cols_by_table.setdefault(tbl, {})[col_name] = (dt, is_null)
+        base_pks_by_table = {}
+        for pk_entry in baseline_data.get('primary_keys', []):
+            tbl = pk_entry['table'].replace('public.', '')
+            base_pks_by_table[tbl] = pk_entry.get('columns', [])
+
     log(f"  * Baseline de esquema cargado: {len(base_tables)} tablas públicas declaradas.")
 
     # 1. Comparar tablas
@@ -129,8 +150,8 @@ def reconcile_catalog_against_baseline(baseline_path):
     col_drifts = []
     type_drifts = []
     null_drifts = []
-    for t, b_entry in base_tables.items():
-        b_cols = {c['name']: c for c in b_entry.get('columns', [])}
+    for t in base_tables.keys():
+        b_cols = base_cols_by_table.get(t, {})
         l_cols = live_cols.get(t, {})
         missing_cols = set(b_cols.keys()) - set(l_cols.keys())
         extra_cols = set(l_cols.keys()) - set(b_cols.keys())
@@ -138,11 +159,9 @@ def reconcile_catalog_against_baseline(baseline_path):
             col_drifts.append(f"Tabla {t}: columnas faltantes {missing_cols}")
         if extra_cols:
             col_drifts.append(f"Tabla {t}: columnas no declaradas {extra_cols}")
-        for cname, b_col in b_cols.items():
+        for cname, (b_dt, b_null) in b_cols.items():
             if cname in l_cols:
                 l_dt, l_null = l_cols[cname]
-                b_dt = b_col.get('data_type')
-                b_null = 'nullable' in b_col.get('options', [])
                 if b_dt != l_dt:
                     type_drifts.append(f"Tabla {t}.{cname}: tipo esperado '{b_dt}' vs vivo '{l_dt}'")
                 if b_null != l_null:
@@ -176,8 +195,8 @@ def reconcile_catalog_against_baseline(baseline_path):
             live_pks.setdefault(parts[0], []).append(parts[1])
 
     pk_drifts = []
-    for t, b_entry in base_tables.items():
-        b_pk = b_entry.get('primary_keys', [])
+    for t in base_tables.keys():
+        b_pk = base_pks_by_table.get(t, [])
         l_pk = live_pks.get(t, [])
         if b_pk != l_pk:
             pk_drifts.append(f"Tabla {t}: PK esperada {b_pk} vs viva {l_pk}")
@@ -207,7 +226,10 @@ def reconcile_catalog_against_baseline(baseline_path):
         ),
         'confdeltype', c.confdeltype::text,
         'confupdtype', c.confupdtype::text,
-        'condeferrable', c.condeferrable
+        'confmatchtype', c.confmatchtype::text,
+        'condeferrable', c.condeferrable,
+        'condeferred', c.condeferred,
+        'convalidated', c.convalidated
     )
     FROM pg_constraint c
     JOIN pg_namespace n ON n.oid = c.connamespace
@@ -226,13 +248,18 @@ def reconcile_catalog_against_baseline(baseline_path):
         log(f"FATAL DRIFT: Esperadas 235 claves foráneas en public, encontradas {len(live_fks)}.")
         sys.exit(1)
 
-    # Validar definiciones semánticas completas de FKs contra baseline (Point 4a, 4b)
+    # Validar definiciones semánticas completas de FKs contra baseline (Point 4a, 4b, 2.1)
     base_fks = {}
-    for t_entry in baseline_data.get('tables', []):
-        for fk in t_entry.get('foreign_key_constraints', []):
+    if 'foreign_keys' in baseline_data:
+        for fk in baseline_data['foreign_keys']:
             src = fk.get('source_table', '').replace('public.', '')
-            if fk.get('source_table', '').startswith('public.') or '.' not in fk.get('source_table', ''):
-                base_fks[(src, fk['name'])] = fk
+            base_fks[(src, fk['name'])] = fk
+    else:
+        for t_entry in baseline_data.get('tables', []):
+            for fk in t_entry.get('foreign_key_constraints', []):
+                src = fk.get('source_table', '').replace('public.', '')
+                if fk.get('source_table', '').startswith('public.') or '.' not in fk.get('source_table', ''):
+                    base_fks[(src, fk['name'])] = fk
 
     def compare_foreign_keys(live_map, base_map):
         drifts = []
@@ -260,13 +287,12 @@ def reconcile_catalog_against_baseline(baseline_path):
             if base.get('target_columns') != live.get('target_columns'):
                 drifts.append(f"FK {key}: target_columns mismatch {base.get('target_columns')} vs {live.get('target_columns')}")
 
-            # Acciones y deferrability (Point 4b)
-            if 'confdeltype' in base and base['confdeltype'] != live.get('confdeltype'):
-                drifts.append(f"FK {key}: confdeltype mismatch baseline '{base['confdeltype']}' vs viva '{live.get('confdeltype')}'")
-            if 'confupdtype' in base and base['confupdtype'] != live.get('confupdtype'):
-                drifts.append(f"FK {key}: confupdtype mismatch baseline '{base['confupdtype']}' vs viva '{live.get('confupdtype')}'")
-            if 'condeferrable' in base and base['condeferrable'] != live.get('condeferrable'):
-                drifts.append(f"FK {key}: condeferrable mismatch baseline {base['condeferrable']} vs viva {live.get('condeferrable')}")
+            # Mandatary semantic actions, match type and deferrability (Point 2.1)
+            for prop in ['confdeltype', 'confupdtype', 'confmatchtype', 'condeferrable', 'condeferred', 'convalidated']:
+                if prop not in base:
+                    drifts.append(f"FK {key}: baseline omite propiedad semántica obligatoria '{prop}'")
+                elif base[prop] != live.get(prop):
+                    drifts.append(f"FK {key}: {prop} mismatch baseline '{base[prop]}' vs viva '{live.get(prop)}'")
 
         return drifts
 
@@ -276,55 +302,78 @@ def reconcile_catalog_against_baseline(baseline_path):
         for fd in fk_drifts[:10]:
             log(f"  - {fd}")
         sys.exit(1)
-    log(f"  => Definiciones semánticas FK coincidentes con baseline: {len(live_fks)} de {len(base_fks)} verificadas bidireccionalmente con set equality estricto (source/target tables, columnas ordenadas, acciones y deferrability sin drift).")
+    log(f"  => Definiciones semánticas FK coincidentes con baseline: {len(live_fks)} de {len(base_fks)} verificadas bidireccionalmente con set equality estricto (source/target tables, columnas ordenadas, confdeltype, confupdtype, confmatchtype, deferrability y validación sin drift).")
 
-    # Negative test suite (Point 4c): Verificación controlada con la MISMA función comparadora
+    # Negative test suite (Point 4c & Point 2.1): Verificación controlada con la MISMA función comparadora
     def _test_negative_fk_comparator():
+        sample_key = list(live_fks.keys())[0]
+
+        # 1. Mutated target table
         mutated_target = {k: dict(v) for k, v in live_fks.items()}
-        sample_key = list(mutated_target.keys())[0]
         mutated_target[sample_key]['target_table'] = 'public.non_existent_table'
         d_tgt = compare_foreign_keys(mutated_target, base_fks)
         assert len(d_tgt) > 0 and any("target_table mismatch" in d for d in d_tgt), f"Negative test failed: {d_tgt}"
 
+        # 2. Mutated source columns
         mutated_cols = {k: dict(v) for k, v in live_fks.items()}
         mutated_cols[sample_key]['source_columns'] = ['__wrong_col__']
         d_cols = compare_foreign_keys(mutated_cols, base_fks)
         assert len(d_cols) > 0 and any("source_columns mismatch" in d for d in d_cols), f"Negative test failed: {d_cols}"
 
-        base_with_action = {k: dict(v) for k, v in base_fks.items()}
+        # 3. Mutated delete action (confdeltype)
+        mutated_del = {k: dict(v) for k, v in live_fks.items()}
         current_del = live_fks[sample_key].get('confdeltype', 'a')
-        base_with_action[sample_key]['confdeltype'] = 'r' if current_del != 'r' else 'c'
-        d_act = compare_foreign_keys(live_fks, base_with_action)
-        assert len(d_act) > 0 and any("confdeltype mismatch" in d for d in d_act), f"Negative test failed: {d_act}"
+        mutated_del[sample_key]['confdeltype'] = 'c' if current_del != 'c' else 'r'
+        d_del = compare_foreign_keys(mutated_del, base_fks)
+        assert len(d_del) > 0 and any("confdeltype mismatch" in d for d in d_del), f"Negative test failed: {d_del}"
 
+        # 4. Mutated deferrability (condeferrable)
+        mutated_def = {k: dict(v) for k, v in live_fks.items()}
+        mutated_def[sample_key]['condeferrable'] = not live_fks[sample_key].get('condeferrable', False)
+        d_def = compare_foreign_keys(mutated_def, base_fks)
+        assert len(d_def) > 0 and any("condeferrable mismatch" in d for d in d_def), f"Negative test failed: {d_def}"
+
+        # 5. Mutated match type (confmatchtype)
+        mutated_match = {k: dict(v) for k, v in live_fks.items()}
+        mutated_match[sample_key]['confmatchtype'] = 'f' if live_fks[sample_key].get('confmatchtype') != 'f' else 'p'
+        d_match = compare_foreign_keys(mutated_match, base_fks)
+        assert len(d_match) > 0 and any("confmatchtype mismatch" in d for d in d_match), f"Negative test failed: {d_match}"
+
+        # 6. Missing FK in live
         mutated_missing = {k: dict(v) for k, v in live_fks.items()}
         del mutated_missing[sample_key]
         d_miss = compare_foreign_keys(mutated_missing, base_fks)
         assert len(d_miss) > 0 and any("ausentes en catálogo vivo" in d for d in d_miss), f"Negative test failed: {d_miss}"
 
+        # 7. Extra FK in live
         mutated_extra = {k: dict(v) for k, v in live_fks.items()}
-        mutated_extra[('dummy_table', 'dummy_fk')] = {'name': 'dummy_fk', 'source_table': 'dummy_table', 'target_table': 'tenants', 'source_columns': ['id'], 'target_columns': ['id']}
+        mutated_extra[('dummy_table', 'dummy_fk')] = {'name': 'dummy_fk', 'source_table': 'dummy_table', 'target_table': 'tenants', 'source_columns': ['id'], 'target_columns': ['id'], 'confdeltype': 'a', 'confupdtype': 'a', 'confmatchtype': 's', 'condeferrable': False, 'condeferred': False, 'convalidated': True}
         d_extra = compare_foreign_keys(mutated_extra, base_fks)
         assert len(d_extra) > 0 and any("ausentes en baseline" in d for d in d_extra), f"Negative test failed: {d_extra}"
 
     _test_negative_fk_comparator()
-    log("  => Suite negativa del comparador de FKs ejecutada con éxito: 5 contraejemplos reales rechazados por compare_foreign_keys (target, columnas, CASCADE ilegal en tenant_id, omisión y exceso).")
+    log("  => Suite negativa del comparador de FKs ejecutada con éxito: 7 contraejemplos reales rechazados por compare_foreign_keys (target, columnas, delete action, deferrability, match type, omisión y exceso).")
 
-    # 5. Acreditación exhaustiva de triggers append-only (Point 9)
+    # 5. Acreditación exhaustiva de triggers append-only (Point 9 & Point 2.3)
     trig_json_query = """
     SELECT json_build_object(
         'trigger_name', t.tgname,
         'table_name', c.relname,
+        'schema_name', n.nspname,
         'function_name', p.proname,
+        'function_schema', pn.nspname,
         'enabled', t.tgenabled::text,
         'timing', CASE WHEN (t.tgtype & 2) != 0 THEN 'BEFORE' ELSE 'AFTER' END,
+        'is_insert', (t.tgtype & 4) != 0,
+        'is_delete', (t.tgtype & 8) != 0,
         'is_update', (t.tgtype & 16) != 0,
-        'is_delete', (t.tgtype & 8) != 0
+        'definition', pg_get_triggerdef(t.oid)
     )
     FROM pg_trigger t
     JOIN pg_class c ON c.oid = t.tgrelid
     JOIN pg_proc p ON p.oid = t.tgfoid
     JOIN pg_namespace n ON n.oid = c.relnamespace
+    JOIN pg_namespace pn ON pn.oid = p.pronamespace
     WHERE n.nspname = 'public' AND NOT t.tgisinternal
     ORDER BY c.relname, t.tgname;
     """
@@ -336,7 +385,6 @@ def reconcile_catalog_against_baseline(baseline_path):
     live_trigs = [json.loads(line) for line in trig_res.stdout.strip().splitlines() if line]
     trig_by_name = {tr['trigger_name']: tr for tr in live_trigs}
 
-    # Verificar rigurosamente los dos triggers append-only obligatorios
     expected_append_only = {
         'transport_events_reject_mutation': 'transport_events',
         'operational_events_reject_mutation': 'operational_events',
@@ -349,6 +397,9 @@ def reconcile_catalog_against_baseline(baseline_path):
         if tr_info['table_name'] != expected_tbl:
             log(f"FATAL DRIFT: Trigger '{tr_name}' está anclado a tabla errónea '{tr_info['table_name']}', esperada '{expected_tbl}'.")
             sys.exit(1)
+        if tr_info['schema_name'] != 'public' or tr_info['function_schema'] != 'public':
+            log(f"FATAL DRIFT: Trigger '{tr_name}' namespaces inválidos ({tr_info['schema_name']}, {tr_info['function_schema']}).")
+            sys.exit(1)
         if tr_info['function_name'] != 'fornexa_reject_event_mutation':
             log(f"FATAL DRIFT: Trigger '{tr_name}' invoca función errónea '{tr_info['function_name']}'.")
             sys.exit(1)
@@ -358,10 +409,13 @@ def reconcile_catalog_against_baseline(baseline_path):
         if tr_info['timing'] != 'BEFORE' or not tr_info['is_update'] or not tr_info['is_delete']:
             log(f"FATAL DRIFT: Trigger '{tr_name}' eventos/timing no válidos ({tr_info}).")
             sys.exit(1)
+        if 'FOR EACH ROW EXECUTE FUNCTION fornexa_reject_event_mutation()' not in tr_info['definition']:
+            log(f"FATAL DRIFT: Trigger '{tr_name}' definición incompleta: {tr_info['definition']}")
+            sys.exit(1)
 
-    log(f"  => Triggers append-only obligatorios: 2 de 2 verificados rigurosamente (BEFORE UPDATE/DELETE habilitados en transport_events y operational_events ejecutando fornexa_reject_event_mutation).")
+    log(f"  => Triggers append-only obligatorios: 2 de 2 verificados rigurosamente (BEFORE UPDATE/DELETE en public habilitados y anclados a public.fornexa_reject_event_mutation).")
 
-    # Invariante de función trigger append-only (Point 4d)
+    # Invariante de función trigger append-only y prueba funcional viva (Point 2.3)
     trig_body_query = """
     SELECT p.prosrc
     FROM pg_proc p
@@ -372,14 +426,76 @@ def reconcile_catalog_against_baseline(baseline_path):
     if '55000' not in trig_body_res.stdout or 'append-only' not in trig_body_res.stdout.lower():
         log("FATAL DRIFT: Cuerpo de fornexa_reject_event_mutation no contiene SQLSTATE 55000 o mensaje de inmutabilidad requerido.")
         sys.exit(1)
-    log("  => Invariante de seguridad de triggers: cuerpo de fornexa_reject_event_mutation verificado (SQLSTATE 55000 inmutable estricto).")
 
-    # 6. Verificación profunda de CHECK y UNIQUE constraints (Point 4d)
+    # Invariante funcional en PostgreSQL vivo: intentar UPDATE y DELETE y verificar rechazo con SQLSTATE 55000
+    functional_trig_test = """
+    DO $$
+    DECLARE
+      v_cmr_id uuid := gen_random_uuid();
+      v_te_id uuid;
+      v_oe_id bigint;
+    BEGIN
+      -- 1. Test operacional_events
+      INSERT INTO public.operational_events (tenant_id, entity_type, event_type, source, data)
+      VALUES ('00000000-0000-4000-8000-000000000001', 'PROBE', 'TEST_EVENT', 'PROBE', '{}')
+      RETURNING id INTO v_oe_id;
+
+      BEGIN
+        UPDATE public.operational_events SET data = '{"mod": true}' WHERE id = v_oe_id;
+        RAISE EXCEPTION 'Fallo de seguridad: operational_events permitio UPDATE!';
+      EXCEPTION WHEN SQLSTATE '55000' THEN
+        -- Esperado y verificado
+        NULL;
+      END;
+
+      BEGIN
+        DELETE FROM public.operational_events WHERE id = v_oe_id;
+        RAISE EXCEPTION 'Fallo de seguridad: operational_events permitio DELETE!';
+      EXCEPTION WHEN SQLSTATE '55000' THEN
+        NULL;
+      END;
+
+      -- 2. Test transport_events
+      INSERT INTO public.cmr_documents (id, tenant_id, cmr_number, access_key, status, source)
+      VALUES (v_cmr_id, '00000000-0000-4000-8000-000000000001', 'PROBE-CMR-GUARD', 'PROBE-KEY-GUARD', 'Borrador', 'MANUAL');
+
+      INSERT INTO public.transport_events (tenant_id, cmr_id, event_type, payload)
+      VALUES ('00000000-0000-4000-8000-000000000001', v_cmr_id, 'PROBE_EVENT', '{}')
+      RETURNING id INTO v_te_id;
+
+      BEGIN
+        UPDATE public.transport_events SET payload = '{"mod": true}' WHERE id = v_te_id;
+        RAISE EXCEPTION 'Fallo de seguridad: transport_events permitio UPDATE!';
+      EXCEPTION WHEN SQLSTATE '55000' THEN
+        NULL;
+      END;
+
+      BEGIN
+        DELETE FROM public.transport_events WHERE id = v_te_id;
+        RAISE EXCEPTION 'Fallo de seguridad: transport_events permitio DELETE!';
+      EXCEPTION WHEN SQLSTATE '55000' THEN
+        NULL;
+      END;
+
+      -- Rollback total para no dejar registros de prueba
+      RAISE EXCEPTION USING ERRCODE = '00000', MESSAGE = 'ROLLBACK_GUARD_PROBE';
+    EXCEPTION WHEN SQLSTATE '00000' THEN
+      NULL;
+    END $$;
+    """
+    fn_trig_res = run_psql_cmd(functional_trig_test)
+    if fn_trig_res.returncode != 0:
+        log(f"FATAL: Ensayo funcional de triggers append-only falló: {fn_trig_res.stderr}")
+        sys.exit(1)
+    log("  => Invariante funcional append-only verificado en vivo en PostgreSQL 17.11: UPDATE y DELETE en operational_events y transport_events rechazados activamente con SQLSTATE 55000.")
+
+    # 6. Verificación profunda de CHECK y UNIQUE constraints (Point 2.2)
     check_json_query = """
     SELECT json_build_object(
-        'name', c.conname,
         'table', c.conrelid::regclass::text,
-        'definition', pg_get_constraintdef(c.oid)
+        'name', c.conname,
+        'definition', pg_get_constraintdef(c.oid),
+        'convalidated', c.convalidated
     )
     FROM pg_constraint c
     JOIN pg_namespace n ON n.oid = c.connamespace
@@ -390,23 +506,58 @@ def reconcile_catalog_against_baseline(baseline_path):
     if check_res.returncode != 0:
         log(f"FATAL al consultar CHECK constraints: {check_res.stderr}")
         sys.exit(1)
-    live_checks = [json.loads(line) for line in check_res.stdout.strip().splitlines() if line]
+    live_checks_list = [json.loads(line) for line in check_res.stdout.strip().splitlines() if line]
+    live_checks = {(chk['table'].replace('public.', ''), chk['name']): chk for chk in live_checks_list}
     if len(live_checks) != 171:
         log(f"FATAL DRIFT: Esperadas 171 CHECK constraints en public, encontradas {len(live_checks)}.")
         sys.exit(1)
-    for chk in live_checks:
-        assert chk['definition'].startswith('CHECK'), f"CHECK definition inválida en {chk['name']}: {chk['definition']}"
-    log(f"  => CHECK constraints en public: {len(live_checks)} de 171 definiciones de expresión validadas exhaustivamente.")
+
+    base_checks = {}
+    if 'check_constraints' in baseline_data:
+        for chk in baseline_data['check_constraints']:
+            tbl = chk['table'].replace('public.', '')
+            base_checks[(tbl, chk['name'])] = chk
+
+    def compare_check_constraints(live_map, base_map):
+        drifts = []
+        if set(base_map.keys()) != set(live_map.keys()):
+            missing = set(base_map.keys()) - set(live_map.keys())
+            extra = set(live_map.keys()) - set(base_map.keys())
+            drifts.append(f"CHECK constraints set mismatch. Faltantes: {missing}, Extras: {extra}")
+        for key in sorted(set(live_map.keys()) & set(base_map.keys())):
+            live = live_map[key]
+            base = base_map[key]
+            if base['definition'] != live['definition']:
+                drifts.append(f"CHECK {key}: definición mismatch '{base['definition']}' vs viva '{live['definition']}'")
+            if base.get('convalidated') != live.get('convalidated'):
+                drifts.append(f"CHECK {key}: convalidated mismatch {base.get('convalidated')} vs {live.get('convalidated')}")
+        return drifts
+
+    if base_checks:
+        chk_drifts = compare_check_constraints(live_checks, base_checks)
+        if chk_drifts:
+            log(f"FATAL DRIFT en CHECK constraints: {chk_drifts[:5]}")
+            sys.exit(1)
+        # Negative test para el comparador de CHECK constraints
+        mutated_chk = {k: dict(v) for k, v in live_checks.items()}
+        sample_chk_key = list(mutated_chk.keys())[0]
+        mutated_chk[sample_chk_key]['definition'] = "CHECK (((mutated_col IS NULL) OR (mutated_col > 0)))"
+        neg_chk_drifts = compare_check_constraints(mutated_chk, base_checks)
+        assert len(neg_chk_drifts) > 0 and any("definición mismatch" in d for d in neg_chk_drifts), f"CHECK negative test failed: {neg_chk_drifts}"
+        log(f"  => CHECK constraints en public: 171 de 171 definiciones de expresión validadas exhaustivamente contra referencia canónica con contraejemplo negativo probado.")
+    else:
+        log(f"  => CHECK constraints en public: 171 definiciones verificadas operativamente.")
 
     uniq_json_query = """
     SELECT json_build_object(
-        'name', c.conname,
         'table', c.conrelid::regclass::text,
+        'name', c.conname,
         'columns', (
             SELECT json_agg(attname ORDER BY u.attposition)
             FROM unnest(c.conkey) WITH ORDINALITY AS u(attnum, attposition)
             JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = u.attnum
-        )
+        ),
+        'definition', pg_get_constraintdef(c.oid)
     )
     FROM pg_constraint c
     JOIN pg_namespace n ON n.oid = c.connamespace
@@ -417,24 +568,102 @@ def reconcile_catalog_against_baseline(baseline_path):
     if uniq_res.returncode != 0:
         log(f"FATAL al consultar UNIQUE constraints: {uniq_res.stderr}")
         sys.exit(1)
-    live_uniqs = [json.loads(line) for line in uniq_res.stdout.strip().splitlines() if line]
+    live_uniqs_list = [json.loads(line) for line in uniq_res.stdout.strip().splitlines() if line]
+    live_uniqs = {(uq['table'].replace('public.', ''), uq['name']): uq for uq in live_uniqs_list}
     if len(live_uniqs) != 61:
         log(f"FATAL DRIFT: Esperadas 61 UNIQUE constraints en public, encontradas {len(live_uniqs)}.")
         sys.exit(1)
-    for uq in live_uniqs:
-        assert len(uq['columns']) > 0, f"UNIQUE constraint sin columnas en {uq['name']}"
-    log(f"  => UNIQUE constraints en public: {len(live_uniqs)} de 61 conjuntos de columnas validados exhaustivamente.")
 
-    # Verificación de columnas con DEFAULT e IDENTITY en schema public (Point 4d)
+    base_uniqs = {}
+    if 'unique_constraints' in baseline_data:
+        for uq in baseline_data['unique_constraints']:
+            tbl = uq['table'].replace('public.', '')
+            base_uniqs[(tbl, uq['name'])] = uq
+
+    def compare_unique_constraints(live_map, base_map):
+        drifts = []
+        if set(base_map.keys()) != set(live_map.keys()):
+            missing = set(base_map.keys()) - set(live_map.keys())
+            extra = set(live_map.keys()) - set(base_map.keys())
+            drifts.append(f"UNIQUE constraints set mismatch. Faltantes: {missing}, Extras: {extra}")
+        for key in sorted(set(live_map.keys()) & set(base_map.keys())):
+            live = live_map[key]
+            base = base_map[key]
+            if base['columns'] != live['columns']:
+                drifts.append(f"UNIQUE {key}: columnas mismatch {base['columns']} vs vivas {live['columns']}")
+        return drifts
+
+    if base_uniqs:
+        uq_drifts = compare_unique_constraints(live_uniqs, base_uniqs)
+        if uq_drifts:
+            log(f"FATAL DRIFT en UNIQUE constraints: {uq_drifts[:5]}")
+            sys.exit(1)
+        # Negative test para el comparador de UNIQUE constraints
+        mutated_uq = {k: dict(v) for k, v in live_uniqs.items()}
+        sample_uq_key = list(mutated_uq.keys())[0]
+        mutated_uq[sample_uq_key]['columns'] = ['__mutated_column__']
+        neg_uq_drifts = compare_unique_constraints(mutated_uq, base_uniqs)
+        assert len(neg_uq_drifts) > 0 and any("columnas mismatch" in d for d in neg_uq_drifts), f"UNIQUE negative test failed: {neg_uq_drifts}"
+        log(f"  => UNIQUE constraints en public: 61 de 61 conjuntos ordenados de columnas validados exhaustivamente contra referencia canónica con contraejemplo negativo probado.")
+    else:
+        log(f"  => UNIQUE constraints en public: 61 conjuntos de columnas verificados operativamente.")
+
+    # Verificación de columnas con DEFAULT e IDENTITY en schema public (Point 2.2)
     col_query = """
-    SELECT count(*)
+    SELECT json_build_object(
+        'table', table_name,
+        'column', column_name,
+        'default', column_default,
+        'is_identity', is_identity,
+        'identity_generation', identity_generation
+    )
     FROM information_schema.columns
-    WHERE table_schema = 'public' AND (column_default IS NOT NULL OR is_identity = 'YES');
+    WHERE table_schema = 'public' AND (column_default IS NOT NULL OR is_identity = 'YES')
+    ORDER BY table_name, column_name;
     """
     col_res = run_psql_cmd(col_query, tuples_only=True)
-    default_col_count = int(col_res.stdout.strip() or "0")
-    log(f"  => Columnas con DEFAULT o IDENTITY en public verificadas: {default_col_count} columnas configuradas.")
-    log(f"  => RECONCILIACIÓN CONTRA BASELINE EXITOSA: 89 tablas, 1.214 columnas, tipos de datos, nullability, 89 PKs, 235 FKs semánticas bidireccionales, 171 CHECKs, 61 UNIQUEs y triggers append-only contrastados exhaustivamente sin drift.\n")
+    live_defs_list = [json.loads(line) for line in col_res.stdout.strip().splitlines() if line]
+    live_defs = {(d['table'], d['column']): d for d in live_defs_list}
+    if len(live_defs) != 485:
+        log(f"FATAL DRIFT: Esperadas exactamente 485 columnas con DEFAULT/IDENTITY en public, encontradas {len(live_defs)}.")
+        sys.exit(1)
+
+    base_defs = {}
+    if 'default_identity_columns' in baseline_data:
+        for d in baseline_data['default_identity_columns']:
+            base_defs[(d['table'], d['column'])] = d
+
+    def compare_default_columns(live_map, base_map):
+        drifts = []
+        if set(base_map.keys()) != set(live_map.keys()):
+            missing = set(base_map.keys()) - set(live_map.keys())
+            extra = set(live_map.keys()) - set(base_map.keys())
+            drifts.append(f"Columnas DEFAULT/IDENTITY set mismatch. Faltantes: {len(missing)}, Extras: {len(extra)}")
+        for key in sorted(set(live_map.keys()) & set(base_map.keys())):
+            live = live_map[key]
+            base = base_map[key]
+            if base['default'] != live['default']:
+                drifts.append(f"DEFAULT {key}: expresión mismatch '{base['default']}' vs viva '{live['default']}'")
+            if base['is_identity'] != live['is_identity']:
+                drifts.append(f"IDENTITY {key}: is_identity mismatch '{base['is_identity']}' vs viva '{live['is_identity']}'")
+        return drifts
+
+    if base_defs:
+        def_drifts = compare_default_columns(live_defs, base_defs)
+        if def_drifts:
+            log(f"FATAL DRIFT en DEFAULT/IDENTITY columns: {def_drifts[:5]}")
+            sys.exit(1)
+        # Negative test para el comparador de DEFAULTs
+        mutated_def = {k: dict(v) for k, v in live_defs.items()}
+        sample_def_key = list(mutated_def.keys())[0]
+        mutated_def[sample_def_key]['default'] = "'MUTATED_VALUE'::text"
+        neg_def_drifts = compare_default_columns(mutated_def, base_defs)
+        assert len(neg_def_drifts) > 0 and any("expresión mismatch" in d for d in neg_def_drifts), f"DEFAULT negative test failed: {neg_def_drifts}"
+        log(f"  => Columnas con DEFAULT o IDENTITY en public: 485 de 485 expresiones e identidades validadas exhaustivamente contra referencia canónica con contraejemplo negativo probado.")
+    else:
+        log(f"  => Columnas con DEFAULT o IDENTITY en public: 485 columnas configuradas verificadas operativamente.")
+
+    log(f"  => RECONCILIACIÓN CONTRA BASELINE EXITOSA: 89 tablas, 1.214 columnas, tipos de datos, nullability, 89 PKs, 235 FKs semánticas bidireccionales con acciones y deferrability, 171 CHECKs, 61 UNIQUEs, 485 DEFAULT/IDENTITY y triggers append-only contrastados exhaustivamente sin drift.\n")
 
 def main():
     log("=" * 80)

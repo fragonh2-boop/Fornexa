@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "13 oct 2026";
-export const memorandumCommitCoverage = 597;
+export const memorandumCommitCoverage = 598;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -115,7 +115,7 @@ export const memorandumReleases: MemorandumRelease[] = [
     surface: ["Web", "Plataforma"],
     title: "Carga sintética de revisión en producción (DATA150)",
     purpose: "Habilitar lote sintético autorizado de pruebas con 150 filas completas y distintas por tabla de negocio aplicable para revisión operativa, preservando datos existentes y excluyendo entidades de seguridad o auditoría.",
-    outcome: "Inventario exhaustivo y reconciliación de las 89 tablas del esquema (7 excluidas por seguridad/auth, 3 en cuarentena por decisión regulatoria pendiente, 2 de registros técnicos, 3 catálogos finitos estándar, 7 normativas ADR preservadas y 67 tablas de negocio objetivo), generador determinista acíclico de registros de prueba identificados, 150 direcciones logísticas completas y únicas en territorio europeo, manifiesto de procedencia, cargador transaccional idempotente con captura efectiva por RETURNING y mecanismo de rollback exacto por recibo de ejecución.",
+    outcome: "Ensayado localmente sobre PostgreSQL 17.11: reconciliación semántica de 89 tablas (1.214 columnas, 89 PKs, 235 FKs con acciones/deferrability, 171 CHECKs, 61 UNIQUEs, 485 DEFAULT/IDENTITY y 2 triggers append-only con invariante funcional 55000), cargador transaccional con protocolo de bloqueo atómico resistente a caídas abruptas (SIGKILL) y recuperación de huérfanos, 10.048 filas de ensayo capturadas por RETURNING, retry de 0 filas y rollback dinámico verificado en BD. Alcance productivo y carga de 150 filas por tabla permanecen en preproducción a la espera de la decisión de Fran sobre excepciones regulatorias (cuarentena de firmas y artefactos CMR) y superación de gates.",
     status: "Preproducción",
   },
   {
