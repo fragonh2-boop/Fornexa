@@ -90,6 +90,81 @@ test("DATA150 loader SQL file is well-formed, transactional, idempotent, and use
   assert.ok(sql.includes("@fornexatest.invalid"), "Must use reserved .invalid test domain");
 });
 
+test("DATA150 M1: transport_events loader resolves real active tenant members and eliminates sentinel fallback", () => {
+  assert.ok(existsSync(LOADER_SQL_PATH), "Loader SQL must exist");
+  const sql = readFileSync(LOADER_SQL_PATH, "utf8");
+
+  // Sentinel actor must never appear in loader SQL
+  const SENTINEL_ACTOR = "00000000-0000-4000-a000-000000000001";
+  assert.ok(
+    !sql.includes(SENTINEL_ACTOR),
+    `Loader SQL must have zero occurrences of sentinel actor ${SENTINEL_ACTOR}`
+  );
+
+  // Must resolve active OWNER/ADMIN from tenant_members joining auth.users or evaluate to NULL
+  assert.ok(
+    sql.includes("JOIN auth.users u ON u.id = tm.user_id"),
+    "Loader must join auth.users to ensure foreign key constraint satisfaction"
+  );
+  assert.ok(
+    sql.includes("tm.status = 'ACTIVE' AND tm.role IN ('OWNER', 'ADMIN')"),
+    "Loader must filter for ACTIVE OWNER/ADMIN tenant members"
+  );
+  assert.ok(
+    sql.includes("ORDER BY CASE tm.role WHEN 'OWNER' THEN 1 WHEN 'ADMIN' THEN 2 ELSE 3 END"),
+    "Loader must prioritize OWNER over ADMIN role"
+  );
+
+  // In dataset JSON, transport_events actor_user_id must be null
+  assert.ok(existsSync(DATASET_PATH), "Dataset JSON must exist");
+  const rawDataset = readFileSync(DATASET_PATH, "utf8");
+  const dataset = JSON.parse(rawDataset);
+  const teActors = new Set(dataset.transport_events.map((r: any) => r.actor_user_id));
+  assert.deepEqual(
+    Array.from(teActors),
+    [null],
+    "All transport_events in synthetic dataset must have null actor_user_id without fabricated external UUIDs"
+  );
+});
+
+test("DATA150 M1: preflight schema validation verifies external auth.users FKs and fails closed on unverified actors", () => {
+  const pyCode = `
+import json, copy, sys
+from scripts.data150.preflight_schema_validation import load_baseline, validate_dataset
+
+baseline = load_baseline()
+with open("${DATASET_PATH}", "r", encoding="utf-8") as f:
+    dataset = json.load(f)
+
+# 1. Baseline dataset with NULL actors must pass
+errors, _, stats = validate_dataset(dataset, baseline)
+if len(errors) != 0:
+    print(f"FAILED: Expected 0 errors for NULL actors, got {len(errors)}: {errors}", file=sys.stderr)
+    sys.exit(1)
+
+# 2. Mutated dataset with unverified actor must fail closed
+bad_dataset = copy.deepcopy(dataset)
+bad_dataset['transport_events'][0]['actor_user_id'] = '00000000-0000-4000-a000-000000000001'
+errors, _, stats = validate_dataset(bad_dataset, baseline)
+if len(errors) != 1 or stats['foreign_key_violations'] != 1:
+    print(f"FAILED: Expected 1 FK error for unverified actor, got {len(errors)} errors and {stats['foreign_key_violations']} violations", file=sys.stderr)
+    sys.exit(1)
+if 'references external auth.users without verified destination membership (fail closed)' not in errors[0]:
+    print(f"FAILED: Unexpected error message: {errors[0]}", file=sys.stderr)
+    sys.exit(1)
+
+# 3. Verified auth_users allows matching user ID
+errors, _, stats = validate_dataset(bad_dataset, baseline, auth_users={'00000000-0000-4000-a000-000000000001'})
+if len(errors) != 0:
+    print(f"FAILED: Expected 0 errors with verified auth_users, got {len(errors)}: {errors}", file=sys.stderr)
+    sys.exit(1)
+
+print("PREFLIGHT_FAIL_CLOSED_VERIFIED")
+`;
+  const result = execFileSync("python3", ["-c", pyCode], { encoding: "utf8" });
+  assert.ok(result.includes("PREFLIGHT_FAIL_CLOSED_VERIFIED"));
+});
+
 test("DATA150 loader parses exactly 10,500 INSERT statements across all 70 tables (0 lost statements)", () => {
   const sql = readFileSync(LOADER_SQL_PATH, "utf8");
   const rawLines = sql.split("\n");

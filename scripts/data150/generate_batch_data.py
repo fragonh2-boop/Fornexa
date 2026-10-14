@@ -1612,7 +1612,7 @@ def generate_all_tables():
             'idempotency_key': f"EVT-IDEMP-{i:05d}",
             'created_at': timelines[i]['event_created'],
             'tenant_id': TENANT_ID,
-            'actor_user_id': '00000000-0000-4000-a000-000000000001'
+            'actor_user_id': None
         } for i in range(150)
     ]
 
@@ -1825,7 +1825,12 @@ def generate_sql_loader_and_rollback(dataset, baseline_tables):
                 vals_list = []
                 for c in col_names:
                     if c == 'actor_user_id':
-                        vals_list.append(f"COALESCE((SELECT user_id FROM public.tenant_members WHERE tenant_id = '{TENANT_ID}' LIMIT 1), '00000000-0000-4000-a000-000000000001'::uuid)")
+                        vals_list.append(
+                            f"(SELECT tm.user_id FROM public.tenant_members tm "
+                            f"JOIN auth.users u ON u.id = tm.user_id "
+                            f"WHERE tm.tenant_id = '{TENANT_ID}' AND tm.status = 'ACTIVE' AND tm.role IN ('OWNER', 'ADMIN') "
+                            f"ORDER BY CASE tm.role WHEN 'OWNER' THEN 1 WHEN 'ADMIN' THEN 2 ELSE 3 END, tm.created_at ASC LIMIT 1)"
+                        )
                     else:
                         vals_list.append(sql_val(r.get(c), col_map.get(c)))
                 row_vals = ', '.join(vals_list)

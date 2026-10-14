@@ -71,7 +71,7 @@ def parse_check_allowed_values(check_str):
         return set(allowed)
     return None
 
-def validate_dataset(dataset, baseline_tables):
+def validate_dataset(dataset, baseline_tables, auth_users=None):
     errors = []
     warnings = []
     stats = {
@@ -294,6 +294,29 @@ def validate_dataset(dataset, baseline_tables):
                             errors.append(f"Table '{tname}' row {idx} composite FK {src_cols}={src_tuple} not found in {target_t}.{tgt_cols}.")
                             stats['foreign_key_violations'] += 1
 
+            # Check external FK to auth.users (fail closed on unverified non-null destination)
+            elif target_t in ('auth.users', 'users') or fk.get('target_table') == 'auth.users':
+                if len(src_cols) == 1:
+                    src_col = src_cols[0]
+                    for idx, row in enumerate(rows):
+                        val = row.get(src_col)
+                        if val is not None:
+                            if auth_users is not None and val in auth_users:
+                                continue
+                            if auth_users is not None:
+                                errors.append(f"Table '{tname}' row {idx} FK {src_col}='{val}' not found in verified auth.users.")
+                            else:
+                                errors.append(f"Table '{tname}' row {idx} FK {src_col}='{val}' references external auth.users without verified destination membership (fail closed).")
+                            stats['foreign_key_violations'] += 1
+
+            # Strict fail-closed: any other external target table not in dataset and not tenants
+            else:
+                for idx, row in enumerate(rows):
+                    non_null_vals = [row.get(c) for c in src_cols if row.get(c) is not None]
+                    if non_null_vals:
+                        errors.append(f"Table '{tname}' row {idx} FK {src_cols}={non_null_vals} references unmanaged external table '{fk['target_table']}' (fail closed).")
+                        stats['foreign_key_violations'] += 1
+
     return errors, warnings, stats
 
 def main():
@@ -321,6 +344,7 @@ def main():
     print(f"Missing required columns (warnings): {stats['missing_required_cols_count']}")
     print(f"Type mismatches: {stats['type_mismatches']}")
     print(f"CHECK constraint failures: {stats['check_constraint_failures']}")
+    print(f"Foreign key violations: {stats['foreign_key_violations']}")
     print(f"Total critical errors: {len(errors)}")
     print("="*50)
 

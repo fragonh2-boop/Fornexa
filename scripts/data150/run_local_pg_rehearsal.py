@@ -1254,7 +1254,12 @@ def main():
     # 1. Reset & apply all 38 migrations
     # ---------------------------------------------------------
     log("\n[FASE 0] Preparación y Replay de Migraciones:")
-    run_psql_cmd("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO postgres; GRANT ALL ON SCHEMA public TO public;")
+    run_psql_cmd("""
+    DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO postgres; GRANT ALL ON SCHEMA public TO public;
+    DROP SCHEMA IF EXISTS auth CASCADE; CREATE SCHEMA auth;
+    DROP SCHEMA IF EXISTS storage CASCADE; CREATE SCHEMA storage;
+    DROP SCHEMA IF EXISTS private CASCADE; CREATE SCHEMA private;
+    """)
     run_psql_cmd("""
     DO $$
     BEGIN
@@ -1345,15 +1350,6 @@ def main():
     INSERT INTO public.tenants (id, code, name, status)
     VALUES ('{TENANT_ID}', 'FORNEXA-PILOT', 'FORNEXA Pilot', 'PILOT')
     ON CONFLICT (id) DO UPDATE SET name = excluded.name;
-
-    -- Pre-seed auth.users operator and tenant_members for tenant actor resolution
-    INSERT INTO auth.users (id, email)
-    VALUES ('00000000-0000-4000-a000-000000000001', 'operador@fornexatest.invalid')
-    ON CONFLICT (id) DO NOTHING;
-
-    INSERT INTO public.tenant_members (id, tenant_id, user_id, role, status)
-    VALUES ('00000000-0000-4000-a000-000000000002', '{TENANT_ID}', '00000000-0000-4000-a000-000000000001', 'OPERATOR', 'ACTIVE')
-    ON CONFLICT (tenant_id, user_id) DO NOTHING;
 
     -- Ensure foreign tenant exists
     INSERT INTO public.tenants (id, code, name, status)
@@ -1650,6 +1646,104 @@ def main():
         log(f"FATAL ERROR: DELETE on transport_stops did not fail with cascade 55000:\n{del_stop_res.stderr}")
         sys.exit(1)
     log("  => VERIFICADO (6E): DELETE sobre public.transport_stops BLOQUEADO por trigger de eventos en cascada (55000).")
+
+    # ---------------------------------------------------------
+    # 6B. Actor Resolution & External FK Contract Verification (M1)
+    # ---------------------------------------------------------
+    log("\n[FASE 5B] Validación Exhaustiva del Contrato de Actor en transport_events (M1):")
+
+    # Caso 1: Tenant sin miembro (Root Tenant sin miembros cargado en FASE 2)
+    # Verificar que los 150 registros cargados en FASE 2 tienen actor_user_id IS NULL
+    te_null_actor_res = run_psql_cmd(
+        f"SELECT count(*) FROM public.transport_events WHERE tenant_id = '{TENANT_ID}' AND actor_user_id IS NOT NULL;",
+        tuples_only=True
+    )
+    non_null_count = int(te_null_actor_res.stdout.strip() or '0')
+    if non_null_count != 0:
+        log(f"FATAL ERROR: Se encontraron {non_null_count} filas en transport_events con actor no nulo para tenant sin miembros!")
+        sys.exit(1)
+    log("  => VERIFICADO (5B.1): Tenant sin miembros: las 150 filas de transport_events resolvieron a NULL de forma contractualmente limpia.")
+
+    # Caso 2 & Caso 3: Prueba exhaustiva en bloque PL/pgSQL
+    # - Resolución con miembro real activo ADMIN
+    # - Prevalencia de OWNER sobre ADMIN
+    # - Rechazo estricto con SQLSTATE 23503 ante actor inválido (FK auth.users)
+    m1_probe_sql = f"""
+    DO $$
+    DECLARE
+      v_test_tenant uuid := '11111111-1111-4111-8111-111111111111';
+      v_admin_user uuid := '22222222-2222-4222-8222-222222222222';
+      v_owner_user uuid := '33333333-3333-4333-8333-333333333333';
+      v_res_admin uuid;
+      v_res_owner uuid;
+      v_null_res uuid;
+      v_cmr_id uuid := '35b5ee58-4e75-5c17-ad55-f7ec1a1b7574';
+      v_invalid_caught boolean := false;
+    BEGIN
+      -- A) Tenant sin miembros devuelve NULL
+      SELECT (SELECT tm.user_id FROM public.tenant_members tm JOIN auth.users u ON u.id = tm.user_id WHERE tm.tenant_id = v_test_tenant AND tm.status = 'ACTIVE' AND tm.role IN ('OWNER', 'ADMIN') ORDER BY CASE tm.role WHEN 'OWNER' THEN 1 WHEN 'ADMIN' THEN 2 ELSE 3 END, tm.created_at ASC LIMIT 1) INTO v_null_res;
+      IF v_null_res IS NOT NULL THEN
+        RAISE EXCEPTION 'Fallo M1: Tenant sin miembro resolvio a valor no nulo: %', v_null_res;
+      END IF;
+
+      -- B) Sembrar tenant y miembro ADMIN activo
+      INSERT INTO public.tenants (id, code, name, status) VALUES (v_test_tenant, 'TEST-M1-TEN', 'Tenant M1 Verification', 'ACTIVE');
+      INSERT INTO auth.users (id, email) VALUES (v_admin_user, 'admin-m1@fornexatest.invalid');
+      INSERT INTO public.tenant_members (tenant_id, user_id, role, status) VALUES (v_test_tenant, v_admin_user, 'ADMIN', 'ACTIVE');
+
+      SELECT (SELECT tm.user_id FROM public.tenant_members tm JOIN auth.users u ON u.id = tm.user_id WHERE tm.tenant_id = v_test_tenant AND tm.status = 'ACTIVE' AND tm.role IN ('OWNER', 'ADMIN') ORDER BY CASE tm.role WHEN 'OWNER' THEN 1 WHEN 'ADMIN' THEN 2 ELSE 3 END, tm.created_at ASC LIMIT 1) INTO v_res_admin;
+      IF v_res_admin != v_admin_user THEN
+        RAISE EXCEPTION 'Fallo M1: Resolucion ADMIN fallo: esperado %, obtenido %', v_admin_user, v_res_admin;
+      END IF;
+
+      -- C) Sembrar miembro OWNER activo y verificar precedencia
+      INSERT INTO auth.users (id, email) VALUES (v_owner_user, 'owner-m1@fornexatest.invalid');
+      INSERT INTO public.tenant_members (tenant_id, user_id, role, status) VALUES (v_test_tenant, v_owner_user, 'OWNER', 'ACTIVE');
+
+      SELECT (SELECT tm.user_id FROM public.tenant_members tm JOIN auth.users u ON u.id = tm.user_id WHERE tm.tenant_id = v_test_tenant AND tm.status = 'ACTIVE' AND tm.role IN ('OWNER', 'ADMIN') ORDER BY CASE tm.role WHEN 'OWNER' THEN 1 WHEN 'ADMIN' THEN 2 ELSE 3 END, tm.created_at ASC LIMIT 1) INTO v_res_owner;
+      IF v_res_owner != v_owner_user THEN
+        RAISE EXCEPTION 'Fallo M1: Resolucion OWNER fallo: esperado %, obtenido %', v_owner_user, v_res_owner;
+      END IF;
+
+      -- D) Actor invalido: debe disparar foreign_key_violation (SQLSTATE 23503)
+      BEGIN
+        INSERT INTO public.transport_events (id, cmr_id, event_type, tenant_id, actor_user_id)
+        VALUES ('77777777-7777-4777-8777-777777777777', v_cmr_id, 'test_invalid_actor', '{TENANT_ID}', '00000000-0000-4000-a000-999999999999');
+        RAISE EXCEPTION 'Fallo M1: Insercion con actor invalido NO disparo excepcion!';
+      EXCEPTION WHEN foreign_key_violation THEN
+        v_invalid_caught := true;
+      END;
+
+      IF NOT v_invalid_caught THEN
+        RAISE EXCEPTION 'Fallo M1: Insercion con actor invalido no capturo SQLSTATE 23503.';
+      END IF;
+
+      -- Revertir el bloque de sonda para no dejar residuos en la base de datos
+      RAISE EXCEPTION 'M1_VERIFICATION_COMPLETE_ROLLBACK';
+    EXCEPTION WHEN OTHERS THEN
+      IF SQLERRM = 'M1_VERIFICATION_COMPLETE_ROLLBACK' THEN
+        NULL;
+      ELSE
+        RAISE;
+      END IF;
+    END $$;
+    """
+    m1_res = run_psql_cmd(m1_probe_sql)
+    if m1_res.returncode != 0:
+        log(f"FATAL ERROR en verificación M1:\n{m1_res.stderr}")
+        sys.exit(1)
+    log("  => VERIFICADO (5B.2): Miembro real activo: resuelve a auth.users con orden de precedencia OWNER > ADMIN.")
+    log("  => VERIFICADO (5B.3): Actor inválido: rechazo estricto con SQLSTATE 23503 (FK auth.users transport_events_actor_user_id_fkey).")
+
+    # Standalone assertion of invalid actor insertion failure with 23503
+    direct_inv_res = run_psql_cmd(f"""
+    INSERT INTO public.transport_events (id, cmr_id, event_type, tenant_id, actor_user_id)
+    VALUES ('88888888-8888-4888-8888-888888888888', '35b5ee58-4e75-5c17-ad55-f7ec1a1b7574', 'direct_invalid', '{TENANT_ID}', '00000000-0000-4000-a000-999999999999');
+    """)
+    if "23503" not in direct_inv_res.stderr or "transport_events_actor_user_id_fkey" not in direct_inv_res.stderr:
+        log(f"FATAL ERROR: Direct invalid actor insert did not fail with 23503:\n{direct_inv_res.stderr}")
+        sys.exit(1)
+    log("  => VERIFICADO (5B.3b): Inserción directa de actor inválido rechazada taxativamente con SQLSTATE 23503 (transport_events_actor_user_id_fkey).")
 
     # ---------------------------------------------------------
     # 7. Generate Dynamic Rollback from Confirmed Receipt
