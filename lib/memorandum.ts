@@ -25,7 +25,7 @@ export const memorandumPending: MemorandumPending[] = [
   {
     area: "Funcional",
     title: "Muelles — planificación y patio",
-    summary: "Núcleo en preparación para revisión: planificación por muelle, alta y edición en ventana, patio, trazabilidad, horarios y reglas configurables e informes derivados de eventos. La integración y carga quedan condicionadas a la disponibilidad verificada de los maestros de prueba. La revisión ha endurecido los cambios de estado y la compatibilidad de horarios antiguos. PLANNER dispone de los mismos permisos de citas que OPERATOR. El portal del transportista se revisa por separado.",
+    summary: "Núcleo en preparación para revisión: planificación por muelle, alta y edición en ventana, patio, trazabilidad, horarios y reglas configurables e informes derivados de eventos. La integración y carga quedan condicionadas a la disponibilidad verificada de los maestros de prueba. La revisión ha endurecido los cambios de estado y la compatibilidad de horarios antiguos. PLANNER dispone de los mismos permisos de citas que OPERATOR. El portal del transportista está preparado para revisión de seguridad independiente y aún no está habilitado en producción.",
     priority: "Ahora",
     state: "En seguimiento",
   },
@@ -116,6 +116,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.10.14-2",
+    date: "14 oct 2026",
+    surface: ["Web", "Plataforma"],
+    title: "Muelles y portal de reserva del transportista",
+    purpose: "Planificar la recepción y expedición por muelle y permitir reservas sobre viajes asignados al transportista.",
+    outcome: "Planificación, patio, alta y edición en ventana, trazabilidad, horarios, configuración e informes. Portal de reservas con acceso temporal revocable, validación de los datos, disponibilidad agregada y consulta de citas propias. Implementación en revisión, condicionada a la carga y verificación de los maestros de prueba; todavía sin integración, despliegue ni carga.",
+    status: "Preproducción",
+  },
   {
     version: "2026.10.14-1",
     date: "14 oct 2026",

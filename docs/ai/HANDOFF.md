@@ -1,6 +1,13 @@
 # FORNEXA — Technical handoff
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
+## 2026-10-14 — MUELLES-V1 · portal #105 rebasado sobre core a3afb9a
+
+- **Base:** #104 HEAD `a3afb9a2055aa10f919fc8941af7647094311bd4`. #105 incorpora la corrección de core y memorándum 609 conservando su superficie pública separada. Nuevo CI exact-HEAD y revisión HIGH pendientes al preparar el commit.
+- **Portal:** capacidad temporal por transportista/almacén, emisor ADMIN/OWNER vigente, revocación, identidad HMAC fail-closed, throttling transaccional y bloqueo por fallos. Reserva idempotente con EXCLUDE/buffer, referencia y matrícula de viaje preasignado, capacidad/calendario/compatibilidad, HARD/WARNING/no-show. API pública sin UUIDs/tenant ni datos de otros transportistas. Auditoría PORTAL sin suplantar al emisor; sin envío real, ficheros, analítica cliente o localStorage.
+- **Verificación:** 233 tests con core, typecheck/lint/build estándar y PostgreSQL local core/portal; ver `docs/verification/muelles-v1-portal.md`. HTTP local sin credenciales confirmó fail-closed/no-store/no-referrer. No replay íntegro, Supabase/PostgREST HTTP autenticado o prueba visual desplegada. Configuración remota de identidad de red pendiente.
+- **Gate:** sin aprobación HIGH aún; gates locales y CI exact-HEAD requeridos antes de revisión. Seed/rollback por compensación pendiente, guard T1 intacto. Nada integrado/desplegado/cargado; DATA150 se mantiene intacto.
+
 ## 2026-10-14 — MUELLES-V1 · corrección HIGH R2 preparada
 
 - **Revisión:** Claude coordinador entregó HIGH completa de #104 HEAD `827fefeea71f160acb90d549eea36a89adcd4d5e` (Slack `1791973599.450889`), MERGE NO, dos MUST. Listener Claude fallido sustituido por revisión directa; DeepSeek falló BUDGET_EXCEEDED y sigue sin dictamen. No reenviar triggers idénticos; coordinador pide nuevo HEAD y re-revisión.

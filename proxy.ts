@@ -79,6 +79,13 @@ export async function proxy(request: NextRequest, event: NextFetchEvent) {
       .catch(() => undefined),
   );
 
+  if (pathname.startsWith("/muelles/p/") || pathname.startsWith("/api/dock-portal/")) {
+    const publicPortal = noStore(NextResponse.next({ request }));
+    publicPortal.headers.set("Referrer-Policy", "no-referrer");
+    publicPortal.headers.set("X-Robots-Tag", "noindex, nofollow");
+    return publicPortal;
+  }
+
   if (pathname === "/review") {
     const token = searchParams.get("token");
     if (!(await isValidReviewToken(token))) {

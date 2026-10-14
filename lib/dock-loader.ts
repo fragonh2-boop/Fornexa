@@ -107,7 +107,7 @@ export async function loadDockData(
           .limit(1000),
         db
           .from("audit_events")
-          .select("id,entity_id,action,occurred_at,actor_user_id,reason")
+          .select("id,entity_id,action,occurred_at,actor_user_id,source_channel,reason")
           .eq("tenant_id", tenantId)
           .eq("entity_type", "DOCK_APPOINTMENT")
           .in("entity_id", ids.slice(i, i + 100))
@@ -126,7 +126,7 @@ export async function loadDockData(
     ...new Set(
       [...data.events, ...data.audits]
         .map((row) => row.actor_user_id)
-        .filter(Boolean),
+        .filter((id): id is string => !!id),
     ),
   ];
   if (actorIds.length) {

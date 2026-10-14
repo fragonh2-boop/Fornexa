@@ -5,6 +5,7 @@ import Script from "next/script";
 const bridge = `
 (() => {
   if (window.location.pathname === "/demo" || window.location.pathname.startsWith("/demo/")) return;
+  if (window.location.pathname.startsWith("/muelles/p/")) return;
   if (window.__fornexaStorageBridge) return;
   window.__fornexaStorageBridge = true;
   const original = Storage.prototype.setItem;

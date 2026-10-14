@@ -1,4 +1,5 @@
 "use client";
+import DockPortalAccessManager from "./DockPortalAccessManager";
 import { useState, type FormEvent } from "react";
 import {
   CARGO_PROFILES,
@@ -656,6 +657,14 @@ export default function DockConfigWorkspace() {
             </div>
           </section>
         </>
+      )}
+      {wid && (
+        <DockPortalAccessManager
+          key={wid}
+          warehouseId={wid}
+          carriers={data.carriers}
+          disabled={disabled}
+        />
       )}
       {editor && (
         <DockDialog

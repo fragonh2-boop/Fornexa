@@ -138,10 +138,11 @@ export type DockEvent = {
 };
 export type DockAudit = {
   id: number;
+  source_channel: string;
   entity_id: string;
   action: string;
   occurred_at: string;
-  actor_user_id: string;
+  actor_user_id: string | null;
   reason: string | null;
 };
 export type DockData = {
