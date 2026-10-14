@@ -205,16 +205,24 @@ function getInProcessLockQueue(lockPath: string): InProcessLockQueue {
   return q;
 }
 
-export function checkLiveProcessHoldingFd(filePath: string): { determined: boolean; hasLiveHolder: boolean } {
+export function checkLiveProcessHoldingFd(
+  filePath: string,
+  spawnFn: typeof spawnSync = spawnSync
+): { determined: boolean; hasLiveHolder: boolean } {
   try {
-    const res = spawnSync("lsof", ["-t", filePath], { encoding: "utf8", timeout: 1000 });
+    const res = spawnFn("lsof", ["-t", filePath], { encoding: "utf8", timeout: 1000 });
     if (res.error || res.signal || (res.status !== 0 && res.status !== 1)) {
       // Missing tool, execution failure, signal kill, or timeout: FAIL CLOSED!
       return { determined: false, hasLiveHolder: true };
     }
+    // Fail-closed if stderr contains ANY error or diagnostic output (MUST #2)
+    const stderr = res.stderr ? res.stderr.trim() : "";
+    if (stderr.length > 0) {
+      return { determined: false, hasLiveHolder: true };
+    }
     const output = res.stdout ? res.stdout.trim() : "";
     if (res.status === 1 && !output) {
-      // Succeeded with exit 1 and empty stdout: lsof confirms no process in OS holds open descriptor
+      // Succeeded with exit 1, empty stdout, and clean stderr: lsof confirms no process in OS holds open descriptor
       return { determined: true, hasLiveHolder: false };
     }
     if (res.status === 0 && output) {
@@ -241,7 +249,11 @@ export function checkLiveProcessHoldingFd(filePath: string): { determined: boole
   }
 }
 
-export function safeReclaimOrphanLock(lockPath: string, holderPid: number): void {
+export function safeReclaimOrphanLock(
+  lockPath: string,
+  holderPid: number,
+  testHookAfterClaimWon?: () => void
+): void {
   const reclaimLockPath = `${lockPath}.reclaim.lock`;
   const reclaimContextId = randomUUID();
   let acquiredReclaim = false;
@@ -308,12 +320,52 @@ export function safeReclaimOrphanLock(lockPath: string, holderPid: number): void
           try {
             linkSync(claimTmpPath, claimTokenPath);
             wonClaim = true;
-          } catch {}
+          } catch {
+            // EEXIST: Check if the previous claimer died before replacing the mutex (MUST #1)
+            if (existsSync(claimTokenPath)) {
+              try {
+                const claimContent = readFileSync(claimTokenPath, "utf8");
+                const claimLines = claimContent.split("\n");
+                const claimPid = parseInt(claimLines[0]?.trim(), 10);
+                let isClaimerDead = false;
+                if (claimPid && !isNaN(claimPid) && claimPid !== process.pid) {
+                  try {
+                    process.kill(claimPid, 0);
+                  } catch (kErr: any) {
+                    if (kErr.code === "ESRCH") isClaimerDead = true;
+                  }
+                } else if (isNaN(claimPid) || !claimLines[0]?.trim()) {
+                  const claimInspect = checkLiveProcessHoldingFd(claimTokenPath);
+                  if (claimInspect.determined && !claimInspect.hasLiveHolder) {
+                    isClaimerDead = true;
+                  }
+                }
+
+                if (isClaimerDead) {
+                  // Previous claimer died after linkSync(claim) but before replacing mutex!
+                  // Safely unlink the dead claim token if it still belongs to that dead claimer,
+                  // then attempt atomic linkSync to acquire it.
+                  try {
+                    const recheckContent = readFileSync(claimTokenPath, "utf8");
+                    const recheckPid = parseInt(recheckContent.split("\n")[0]?.trim(), 10);
+                    if (recheckPid === claimPid || (isNaN(recheckPid) && isClaimerDead)) {
+                      unlinkSync(claimTokenPath);
+                      linkSync(claimTmpPath, claimTokenPath);
+                      wonClaim = true;
+                    }
+                  } catch {}
+                }
+              } catch {}
+            }
+          }
         } finally {
           try { if (existsSync(claimTmpPath)) unlinkSync(claimTmpPath); } catch {}
         }
 
         if (wonClaim) {
+          if (testHookAfterClaimWon) {
+            testHookAfterClaimWon();
+          }
           try {
             // Verify reclaimLockPath BEFORE replacing:
             // Ensure it still holds the deadHolderToken and is not held by a live holder!

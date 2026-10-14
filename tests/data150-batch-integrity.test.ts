@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync, unlinkSync, existsSync, openSync, closeSync } from "node:fs";
+import { readFileSync, writeFileSync, unlinkSync, existsSync, openSync, closeSync, mkdirSync, rmSync } from "node:fs";
 import { spawn } from "node:child_process";
 import test from "node:test";
 import os from "node:os";
@@ -1340,16 +1340,15 @@ test("Point 1.1: Concurrent multi-process orphan reclaim maintains mutual exclus
   const lockFile = `${testFile}.lock`;
   const reclaimLockFile = `${lockFile}.reclaim.lock`;
   const startBarrier = path.join(os.tmpdir(), "data150-test-p1-barrier.flag");
-  const counterFile = path.join(os.tmpdir(), "data150-test-p1-counter.txt");
+  const activeDir = path.join(os.tmpdir(), "data150-test-p1-active-" + Date.now());
   const violationsFile = path.join(os.tmpdir(), "data150-test-p1-violations.txt");
 
   if (existsSync(lockFile)) unlinkSync(lockFile);
   if (existsSync(reclaimLockFile)) unlinkSync(reclaimLockFile);
   if (existsSync(startBarrier)) unlinkSync(startBarrier);
-  if (existsSync(counterFile)) unlinkSync(counterFile);
   if (existsSync(violationsFile)) unlinkSync(violationsFile);
-
-  writeFileSync(counterFile, "0");
+  if (existsSync(activeDir)) rmSync(activeDir, { recursive: true, force: true });
+  mkdirSync(activeDir, { recursive: true });
 
   // Abandoned primary lock with dead PID
   writeFileSync(lockFile, "999992\n1000\nfake-ctx-1\n");
@@ -1359,13 +1358,15 @@ test("Point 1.1: Concurrent multi-process orphan reclaim maintains mutual exclus
   const childWorkerScript = `
 import { withFileLock } from "./lib/data150-loader.ts";
 import * as fs from "node:fs";
+import * as path from "node:path";
 
 async function run() {
   const file = process.env.DATA150_TEST_FILE!;
   const id = process.env.DATA150_WORKER_ID!;
   const barrier = process.env.DATA150_START_BARRIER!;
-  const counterFile = process.env.DATA150_COUNTER_FILE!;
+  const activeDir = process.env.DATA150_ACTIVE_DIR!;
   const violationsFile = process.env.DATA150_VIOLATIONS_FILE!;
+  const myFlag = path.join(activeDir, "active-" + id + ".flag");
 
   // Wait for start barrier so both processes contend at the exact same moment
   while (!fs.existsSync(barrier)) {
@@ -1373,22 +1374,27 @@ async function run() {
   }
 
   await withFileLock(file, async () => {
-    // Concurrency verification
-    let current = 0;
-    try { current = parseInt(fs.readFileSync(counterFile, "utf8").trim(), 10) || 0; } catch {}
-    if (current > 0) {
-      fs.appendFileSync(violationsFile, "OVERLAP_ENTRY:" + id + " saw " + current + "\\n");
-    }
-    fs.writeFileSync(counterFile, String(current + 1));
+    // 1. Publish presence in activeDir
+    fs.writeFileSync(myFlag, id + "\\n" + Date.now() + "\\n", "utf8");
 
-    await new Promise((r) => setTimeout(r, 80));
-
-    let active = 0;
-    try { active = parseInt(fs.readFileSync(counterFile, "utf8").trim(), 10) || 0; } catch {}
-    if (active !== 1) {
-      fs.appendFileSync(violationsFile, "OVERLAP_CONCURRENT:" + id + " saw " + active + "\\n");
+    // 2. Atomic presence check: list active flags in directory
+    const flagsOnEntry = fs.readdirSync(activeDir).filter((f) => f.startsWith("active-") && f.endsWith(".flag"));
+    if (flagsOnEntry.length > 1) {
+      fs.appendFileSync(violationsFile, "OVERLAP_ENTRY:" + id + " saw [" + flagsOnEntry.join(",") + "]\\n");
     }
-    fs.writeFileSync(counterFile, "0");
+
+    // 3. Hold critical section while actively polling for concurrent invaders
+    const startTime = Date.now();
+    while (Date.now() - startTime < 80) {
+      const currentFlags = fs.readdirSync(activeDir).filter((f) => f.startsWith("active-") && f.endsWith(".flag"));
+      if (currentFlags.length > 1) {
+        fs.appendFileSync(violationsFile, "OVERLAP_HOLDING:" + id + " saw [" + currentFlags.join(",") + "]\\n");
+      }
+      await new Promise((r) => setTimeout(r, 8));
+    }
+
+    // 4. Remove presence flag before releasing lock
+    try { fs.unlinkSync(myFlag); } catch {}
 
     console.log("HOLDER:" + id);
   });
@@ -1406,7 +1412,7 @@ run().catch((e) => {
       DATA150_TEST_FILE: testFile,
       DATA150_WORKER_ID: "P1",
       DATA150_START_BARRIER: startBarrier,
-      DATA150_COUNTER_FILE: counterFile,
+      DATA150_ACTIVE_DIR: activeDir,
       DATA150_VIOLATIONS_FILE: violationsFile,
     },
     stdio: ["pipe", "pipe", "pipe"],
@@ -1418,7 +1424,7 @@ run().catch((e) => {
       DATA150_TEST_FILE: testFile,
       DATA150_WORKER_ID: "P2",
       DATA150_START_BARRIER: startBarrier,
-      DATA150_COUNTER_FILE: counterFile,
+      DATA150_ACTIVE_DIR: activeDir,
       DATA150_VIOLATIONS_FILE: violationsFile,
     },
     stdio: ["pipe", "pipe", "pipe"],
@@ -1453,10 +1459,102 @@ run().catch((e) => {
     assert.equal(violations, "", `Zero concurrency overlap violations allowed: ${violations}`);
     unlinkSync(violationsFile);
   }
-  if (existsSync(counterFile)) unlinkSync(counterFile);
+  if (existsSync(activeDir)) rmSync(activeDir, { recursive: true, force: true });
   if (existsSync(startBarrier)) unlinkSync(startBarrier);
   assert.ok(!existsSync(lockFile), "Final lockfile must be cleanly removed");
   assert.ok(!existsSync(reclaimLockFile), "Final reclaim lockfile must be cleanly removed");
+});
+
+test("Point 1.1 negative: Without withFileLock, concurrent workers reliably trigger overlap violations", async () => {
+  const startBarrier = path.join(os.tmpdir(), "data150-test-p1-neg-barrier.flag");
+  const activeDir = path.join(os.tmpdir(), "data150-test-p1-neg-active-" + Date.now());
+  const violationsFile = path.join(os.tmpdir(), "data150-test-p1-neg-violations.txt");
+
+  if (existsSync(startBarrier)) unlinkSync(startBarrier);
+  if (existsSync(violationsFile)) unlinkSync(violationsFile);
+  if (existsSync(activeDir)) rmSync(activeDir, { recursive: true, force: true });
+  mkdirSync(activeDir, { recursive: true });
+
+  const unshieldedWorkerScript = `
+import * as fs from "node:fs";
+import * as path from "node:path";
+
+async function run() {
+  const id = process.env.DATA150_WORKER_ID!;
+  const barrier = process.env.DATA150_START_BARRIER!;
+  const activeDir = process.env.DATA150_ACTIVE_DIR!;
+  const violationsFile = process.env.DATA150_VIOLATIONS_FILE!;
+  const myFlag = path.join(activeDir, "active-" + id + ".flag");
+
+  while (!fs.existsSync(barrier)) {
+    await new Promise((r) => setTimeout(r, 5));
+  }
+
+  // UNGUARDED EXECUTION (NO withFileLock!)
+  fs.writeFileSync(myFlag, id + "\\n" + Date.now() + "\\n", "utf8");
+  const flagsOnEntry = fs.readdirSync(activeDir).filter((f) => f.startsWith("active-") && f.endsWith(".flag"));
+  if (flagsOnEntry.length > 1) {
+    fs.appendFileSync(violationsFile, "OVERLAP_ENTRY:" + id + " saw [" + flagsOnEntry.join(",") + "]\\n");
+  }
+
+  const startTime = Date.now();
+  while (Date.now() - startTime < 80) {
+    const currentFlags = fs.readdirSync(activeDir).filter((f) => f.startsWith("active-") && f.endsWith(".flag"));
+    if (currentFlags.length > 1) {
+      fs.appendFileSync(violationsFile, "OVERLAP_HOLDING:" + id + " saw [" + currentFlags.join(",") + "]\\n");
+    }
+    await new Promise((r) => setTimeout(r, 8));
+  }
+
+  try { fs.unlinkSync(myFlag); } catch {}
+  console.log("HOLDER:" + id);
+}
+run().catch((e) => {
+  console.error("ERROR:" + e.message);
+  process.exit(1);
+});
+`;
+
+  const p1 = spawn("node", ["--experimental-strip-types", "-e", unshieldedWorkerScript], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      DATA150_WORKER_ID: "NEG_P1",
+      DATA150_START_BARRIER: startBarrier,
+      DATA150_ACTIVE_DIR: activeDir,
+      DATA150_VIOLATIONS_FILE: violationsFile,
+    },
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  const p2 = spawn("node", ["--experimental-strip-types", "-e", unshieldedWorkerScript], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      DATA150_WORKER_ID: "NEG_P2",
+      DATA150_START_BARRIER: startBarrier,
+      DATA150_ACTIVE_DIR: activeDir,
+      DATA150_VIOLATIONS_FILE: violationsFile,
+    },
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+
+  await new Promise((r) => setTimeout(r, 40));
+  writeFileSync(startBarrier, "GO\n");
+
+  await Promise.all([
+    new Promise<number>((r) => p1.on("close", r)),
+    new Promise<number>((r) => p2.on("close", r)),
+  ]);
+
+  // Assert that violations WERE captured because there was no lock!
+  assert.ok(existsSync(violationsFile), "Violations file must exist for unshielded concurrent execution");
+  const violations = readFileSync(violationsFile, "utf8").trim();
+  assert.ok(violations.includes("OVERLAP"), `Unshielded execution must trigger overlap: ${violations}`);
+
+  // Cleanup
+  if (existsSync(violationsFile)) unlinkSync(violationsFile);
+  if (existsSync(activeDir)) rmSync(activeDir, { recursive: true, force: true });
+  if (existsSync(startBarrier)) unlinkSync(startBarrier);
 });
 
 test("Point 1.1b: Forced interleaving: Dead mutex claim does NOT evict or replace newly acquired live reclaimer", async () => {
@@ -1487,6 +1585,109 @@ test("Point 1.1b: Forced interleaving: Dead mutex claim does NOT evict or replac
   if (existsSync(lockFile)) unlinkSync(lockFile);
 });
 
+test("Point 1.1c: Orphaned claim token recovery: Reclaimer recovers dead claim token and replaces dead mutex (MUST #1)", () => {
+  const testFile = path.join(os.tmpdir(), "data150-test-p1-claim-orphan.json");
+  const lockFile = `${testFile}.lock`;
+  const reclaimLockFile = `${lockFile}.reclaim.lock`;
+  const deadHolderToken = "dead-holder-token-999992";
+  const claimTokenFile = `${reclaimLockFile}.claim.${deadHolderToken}`;
+
+  if (existsSync(lockFile)) unlinkSync(lockFile);
+  if (existsSync(reclaimLockFile)) unlinkSync(reclaimLockFile);
+  if (existsSync(claimTokenFile)) unlinkSync(claimTokenFile);
+
+  // Primary lock with dead PID
+  writeFileSync(lockFile, "999991\n1000\nfake-primary\n");
+  // Reclaim lock with dead PID and deadHolderToken
+  writeFileSync(reclaimLockFile, `999992\n1000\n${deadHolderToken}\n`);
+  // Orphaned claim token left by another reclaimer that crashed after linkSync(claim)
+  writeFileSync(claimTokenFile, "999993\n1000\norphaned-claim-ctx\n");
+
+  // Live contender runs safeReclaimOrphanLock:
+  safeReclaimOrphanLock(lockFile, 999991);
+
+  // Assert: dead claim token was detected as dead, unlinked, re-acquired, and primary orphan lock removed!
+  assert.ok(!existsSync(lockFile), "Primary orphan lock must be safely removed after claim recovery");
+  assert.ok(!existsSync(claimTokenFile), "Claim token must be cleanly unlinked in finally block");
+  if (existsSync(reclaimLockFile)) unlinkSync(reclaimLockFile);
+});
+
+test("Point 1.1d: Live claim token protection: Contender never evicts or replaces a LIVE claim token (MUST #1)", () => {
+  const testFile = path.join(os.tmpdir(), "data150-test-p1-claim-live.json");
+  const lockFile = `${testFile}.lock`;
+  const reclaimLockFile = `${lockFile}.reclaim.lock`;
+  const deadHolderToken = "dead-holder-token-999992";
+  const claimTokenFile = `${reclaimLockFile}.claim.${deadHolderToken}`;
+
+  if (existsSync(lockFile)) unlinkSync(lockFile);
+  if (existsSync(reclaimLockFile)) unlinkSync(reclaimLockFile);
+  if (existsSync(claimTokenFile)) unlinkSync(claimTokenFile);
+
+  // Primary lock with dead PID
+  writeFileSync(lockFile, "999991\n1000\nfake-primary\n");
+  // Reclaim lock with dead PID and deadHolderToken
+  writeFileSync(reclaimLockFile, `999992\n1000\n${deadHolderToken}\n`);
+  // Claim token held by our LIVE PID!
+  const liveClaimContext = "live-claim-active-holder-555";
+  writeFileSync(claimTokenFile, `${process.pid}\n${Date.now()}\n${liveClaimContext}\n`);
+
+  // Contender runs safeReclaimOrphanLock:
+  safeReclaimOrphanLock(lockFile, 999991);
+
+  // Assert: live claim token was NOT unlinked or overwritten!
+  assert.ok(existsSync(claimTokenFile), "Live claim token must remain on disk");
+  const content = readFileSync(claimTokenFile, "utf8");
+  assert.ok(content.includes(liveClaimContext), "Live claim token context must be preserved");
+
+  // Cleanup
+  if (existsSync(claimTokenFile)) unlinkSync(claimTokenFile);
+  if (existsSync(reclaimLockFile)) unlinkSync(reclaimLockFile);
+  if (existsSync(lockFile)) unlinkSync(lockFile);
+});
+
+test("Point 1.1e: Controlled crash boundary using testHookAfterClaimWon (MUST #1)", () => {
+  const testFile = path.join(os.tmpdir(), "data150-test-p1-crash-boundary.json");
+  const lockFile = `${testFile}.lock`;
+  const reclaimLockFile = `${lockFile}.reclaim.lock`;
+  const deadHolderToken = "dead-holder-token-boundary";
+  const claimTokenFile = `${reclaimLockFile}.claim.${deadHolderToken}`;
+
+  if (existsSync(lockFile)) unlinkSync(lockFile);
+  if (existsSync(reclaimLockFile)) unlinkSync(reclaimLockFile);
+  if (existsSync(claimTokenFile)) unlinkSync(claimTokenFile);
+
+  // Primary lock with dead PID
+  writeFileSync(lockFile, "999991\n1000\nfake-primary\n");
+  // Reclaim lock with dead PID
+  writeFileSync(reclaimLockFile, `999992\n1000\n${deadHolderToken}\n`);
+
+  // Process A acquires the claim token, then suffers a simulated fatal crash right at the boundary
+  let crashTriggered = false;
+  try {
+    safeReclaimOrphanLock(lockFile, 999991, () => {
+      // Crash boundary: hook executes AFTER winning the claim token and BEFORE replacing the mutex!
+      // In a real process crash, the process exits without running finally:
+      crashTriggered = true;
+      throw new Error("FATAL_SIMULATED_PROCESS_CRASH_AFTER_CLAIM_WON");
+    });
+  } catch (e: any) {
+    if (e.message !== "FATAL_SIMULATED_PROCESS_CRASH_AFTER_CLAIM_WON") throw e;
+  }
+  assert.ok(crashTriggered, "Crash hook must have fired at exact boundary");
+
+  // Simulate that the crashed process is now dead by updating the PID in the claim token to 999994
+  writeFileSync(claimTokenFile, "999994\n1000\ncrashed-reclaimer-token\n");
+  assert.ok(existsSync(claimTokenFile), "Claim token must exist on disk after crash");
+
+  // Process B runs safeReclaimOrphanLock and successfully recovers from the crashed claimer!
+  safeReclaimOrphanLock(lockFile, 999991);
+
+  // Assert: Process B cleanly recovered and completed the orphan lock eviction!
+  assert.ok(!existsSync(lockFile), "Primary lock must be cleanly removed after crash recovery");
+  assert.ok(!existsSync(claimTokenFile), "Claim token must be cleanly unlinked after recovery");
+  if (existsSync(reclaimLockFile)) unlinkSync(reclaimLockFile);
+});
+
 test("Point 1.2b: Fail-closed inspection: lsof error or timeout never evicts unverified 0-byte file", () => {
   const testFile = path.join(os.tmpdir(), "data150-test-p2-failclosed.json");
   const lockFile = `${testFile}.lock`;
@@ -1509,6 +1710,108 @@ test("Point 1.2b: Fail-closed inspection: lsof error or timeout never evicts unv
     closeSync(fd);
     if (existsSync(reclaimLockFile)) unlinkSync(reclaimLockFile);
     if (existsSync(lockFile)) unlinkSync(lockFile);
+  }
+});
+
+test("Point 1.2c: checkLiveProcessHoldingFd strictly fails closed on stderr errors, timeouts, signals, and spawn errors (MUST #2)", () => {
+  const dummyFile = path.join(os.tmpdir(), "data150-test-p2c-dummy.txt");
+  writeFileSync(dummyFile, "test\n");
+
+  try {
+    // 1. Stderr diagnostic warning/error with status 1: MUST fail closed!
+    const mockStderr = () => ({
+      status: 1,
+      stdout: "",
+      stderr: "lsof: WARNING: can't stat() filesystem /net\n",
+      pid: 1234,
+      output: [],
+      signal: null,
+    } as any);
+    const resStderr = checkLiveProcessHoldingFd(dummyFile, mockStderr);
+    assert.equal(resStderr.determined, false, "Stderr warning must result in indeterminate inspection");
+    assert.equal(resStderr.hasLiveHolder, true, "Must fail closed (hasLiveHolder: true) on stderr warning");
+
+    // 2. Timeout error: MUST fail closed!
+    const mockTimeout = () => ({
+      status: null,
+      stdout: "",
+      stderr: "",
+      error: Object.assign(new Error("ETIMEDOUT"), { code: "ETIMEDOUT" }),
+      pid: 1234,
+      output: [],
+      signal: "SIGTERM",
+    } as any);
+    const resTimeout = checkLiveProcessHoldingFd(dummyFile, mockTimeout);
+    assert.equal(resTimeout.determined, false);
+    assert.equal(resTimeout.hasLiveHolder, true);
+
+    // 3. Spawn failure (tool missing / ENOENT): MUST fail closed!
+    const mockMissing = () => ({
+      status: null,
+      stdout: "",
+      stderr: "",
+      error: Object.assign(new Error("ENOENT"), { code: "ENOENT" }),
+      pid: 1234,
+      output: [],
+      signal: null,
+    } as any);
+    const resMissing = checkLiveProcessHoldingFd(dummyFile, mockMissing);
+    assert.equal(resMissing.determined, false);
+    assert.equal(resMissing.hasLiveHolder, true);
+
+    // 4. Killed by signal: MUST fail closed!
+    const mockSignal = () => ({
+      status: null,
+      stdout: "",
+      stderr: "",
+      signal: "SIGKILL",
+      pid: 1234,
+      output: [],
+    } as any);
+    const resSignal = checkLiveProcessHoldingFd(dummyFile, mockSignal);
+    assert.equal(resSignal.determined, false);
+    assert.equal(resSignal.hasLiveHolder, true);
+
+    // 5. Exit status 2 (error): MUST fail closed!
+    const mockStatus2 = () => ({
+      status: 2,
+      stdout: "",
+      stderr: "",
+      signal: null,
+      pid: 1234,
+      output: [],
+    } as any);
+    const resStatus2 = checkLiveProcessHoldingFd(dummyFile, mockStatus2);
+    assert.equal(resStatus2.determined, false);
+    assert.equal(resStatus2.hasLiveHolder, true);
+
+    // 6. Clean exit 1 with empty stdout and clean stderr: Confirmed absence!
+    const mockCleanAbsence = () => ({
+      status: 1,
+      stdout: "",
+      stderr: "",
+      signal: null,
+      pid: 1234,
+      output: [],
+    } as any);
+    const resClean = checkLiveProcessHoldingFd(dummyFile, mockCleanAbsence);
+    assert.equal(resClean.determined, true, "Clean exit 1 must be determined");
+    assert.equal(resClean.hasLiveHolder, false, "Clean exit 1 must report no live holders");
+
+    // 7. Clean exit 0 with our live PID: Confirmed presence!
+    const mockCleanPresence = () => ({
+      status: 0,
+      stdout: `${process.pid}\n`,
+      stderr: "",
+      signal: null,
+      pid: 1234,
+      output: [],
+    } as any);
+    const resPresence = checkLiveProcessHoldingFd(dummyFile, mockCleanPresence);
+    assert.equal(resPresence.determined, true);
+    assert.equal(resPresence.hasLiveHolder, true);
+  } finally {
+    if (existsSync(dummyFile)) unlinkSync(dummyFile);
   }
 });
 

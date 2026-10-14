@@ -17,6 +17,7 @@
 
 import { spawn, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, unlinkSync, existsSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { homedir } from "node:os";
 import {
@@ -191,10 +192,18 @@ async function runDirectPsqlCmd(sql: string): Promise<string> {
 }
 
 export async function runOperationalLoaderTrial() {
+  const gitHead = spawnSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).stdout?.trim() || "unknown";
+  const runnerScriptHash = createHash("sha256").update(readFileSync(resolve(process.cwd(), "scripts/data150/run_operational_loader_trial.ts"))).digest("hex");
+  const loaderLibHash = createHash("sha256").update(readFileSync(resolve(process.cwd(), "lib/data150-loader.ts"))).digest("hex");
+
   console.log("=".repeat(80));
   console.log("FORNEXA — LIVE POSTGRESQL OPERATIONAL LOADER TRIAL (executeData150Loader)");
+  console.log(`Timestamp: ${new Date().toISOString()}`);
+  console.log(`Git HEAD SHA: ${gitHead}`);
+  console.log(`Operational Runner TS SHA256: ${runnerScriptHash}`);
+  console.log(`Loader Library TS SHA256: ${loaderLibHash}`);
   console.log(`Target Database: ${DB_NAME} on socket ${SOCKET_DIR}:${PORT}`);
-  console.log(`Tenant: ${DATA150_TENANT_ID} | Batch: ${DATA150_BATCH_ID}`);
+  console.log(`User: ${PG_USER} | Tenant: ${DATA150_TENANT_ID} | Batch: ${DATA150_BATCH_ID}`);
   console.log("=".repeat(80));
 
   const testReceiptPath = "/tmp/data150-live-operational-receipt.json";

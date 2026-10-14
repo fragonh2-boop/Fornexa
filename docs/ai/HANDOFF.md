@@ -5,7 +5,7 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 ## 2026-10-12 — DATA150: Carga sintética de revisión en producción
 
 - **Petición de Fran:** Generar un lote sintético autorizado de pruebas persistido en producción con al menos 150 filas distintas y completas por tabla de negocio aplicable para el tenant titular FORNEXA, con 150 puntos de dirección completos y diferentes. Excluidas tablas de autenticación, credenciales, membresías, secretos, tokens, migraciones y auditoría.
-- **Ejecución y coordinación:** Gemini único ejecutor en rama/worktree aislados (`data150/synthetic-production-batch`, `/tmp/fornexa-gemini-data150`). FornexaGPT coordina y verifica evidencia.
+- **Ejecución y coordinación:** Gemini único ejecutor en rama/worktree aislados (`data150/synthetic-production-batch`, worktree dedicado `fornexa-gemini-data150`). FornexaGPT coordina y verifica evidencia.
 - **Inventario y clasificación (89 tablas):**
   - 7 excluidas por seguridad y control técnico (`fornexa_schema_migrations`, `tenants`, `tenant_members`, `audit_events`, `cmr_view_sessions`, `regulatory_document_access_tokens`, `mobile_trip_access`).
   - 3 excluidas / en cuarentena por mandato legal y regulatorio pendientes de decisión de Fran (`cmr_signatures`, `transport_evidence`, `regulatory_document_artifacts`).
@@ -38,12 +38,12 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
     * `next.config.ts` restaurado a configuración canónica estándar de producción (sin ampliación de raíz de sistema de archivos ni `turbopack.root = "/"`). Dependencias resueltas limpiamente desde el store local de pnpm fuera de volúmenes iCloud.
     * `npm run build` compila con Turbopack en 3.0s, TypeScript en 4.0s, generando 17/17 páginas estáticas con código 0.
   - Ensayos en PostgreSQL 17.11 local:
-    * `scripts/data150/run_local_pg_rehearsal.py`: 8 fases completadas al 100% (replay de 38 migraciones, reconciliación de 89 tablas sin drift, 10.048 filas de ensayo capturadas por RETURNING con colisión de PK previa, reintento de 0 filas, contención 55P03, triggers 55000, rollback dinámico y verificación post-rollback en 67 tablas). Log persistido en `/tmp/data150-rehearsal-evidence/data150-local-pg-rehearsal.log`.
+    * `scripts/data150/run_local_pg_rehearsal.py`: 8 fases completadas al 100% (replay de 38 migraciones, reconciliación de 89 tablas sin drift, 10.048 filas de ensayo capturadas por RETURNING con colisión de PK previa, reintento de 0 filas, contención 55P03, triggers 55000, rollback dinámico y verificación post-rollback en 67 tablas). Log persistido en directorio de evidencias del ensayo local.
     * `scripts/data150/run_operational_loader_trial.ts`: superado íntegramente con código 0 (Ensayos 1, 2, 3, 3B, 3C con SIGKILL, reconciliación, rollback directo y retry 3C.2, 3D con 7 negativos, 4 y 5).
-  - Tests automatizados: `npm test` completo (249/249 passing en 2.4s), `npm run typecheck` (0 errores), `npm run lint` (0 errores). Portabilidad multiplataforma de suite de tests garantizada mediante resolución dinámica `os.tmpdir()` en `tests/data150-batch-integrity.test.ts` (sustituyendo rutas fijas `/private/tmp/` para compatibilidad Linux/CI).
+  - Tests automatizados: `npm test` completo (257/257 passing), `npm run typecheck` (0 errores), `npm run lint` (0 errores). Portabilidad multiplataforma de suite de tests garantizada mediante resolución dinámica `os.tmpdir()` en `tests/data150-batch-integrity.test.ts` (sustituyendo rutas fijas `/private/tmp/` para compatibilidad Linux/CI).
   - Delimitación operativa y de gobernanza:
     * La integridad técnica y el mecanismo de carga/rollback han sido completamente demostrados en entorno no productivo local sobre PostgreSQL 17.11.
-    * El alcance final y la carga productiva de 150 filas por cada tabla permanecen bloqueados a la espera de la decisión de Fran sobre excepciones regulatorias (cuarentena de firmas y artefactos CMR) y la aprobación de revisiones independientes Claude + DeepSeek (0 MUSTs) y CI exact-HEAD. Cero escrituras en Supabase productivo (`gqkjqhpmyejmehbuombk`), cero merge y cero deploy.
+    * El alcance final y la carga productiva de 150 filas por cada tabla permanecen bloqueados a la espera de la decisión de Fran sobre excepciones regulatorias (cuarentena de firmas y artefactos CMR) y la aprobación de revisiones independientes Claude + DeepSeek (0 MUSTs) y CI exact-HEAD. Cero escrituras en Supabase productivo (proyecto fornexa), cero merge y cero deploy.
 
 ## 2026-10-09 — TRZ1: Trazabilidad de artículos
 
