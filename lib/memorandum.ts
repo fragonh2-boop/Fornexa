@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "14 oct 2026";
-export const memorandumCommitCoverage = 603;
+export const memorandumCommitCoverage = 604;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -115,7 +115,7 @@ export const memorandumReleases: MemorandumRelease[] = [
     surface: ["Web", "Plataforma"],
     title: "Carga sintética de revisión en producción (DATA150)",
     purpose: "Habilitar lote sintético autorizado de pruebas con 150 filas completas y distintas por tabla de negocio aplicable para revisión operativa, preservando datos existentes y excluyendo entidades de seguridad o auditoría.",
-    outcome: "Incorporación autorizada por Fran (Opción B) de las 3 tablas regulatorias y de firmas (cmr_signatures, transport_evidence, regulatory_document_artifacts) con 150 registros sintéticos mock identificados ([PRUEBA], synthetic: true), elevando el lote a 70 tablas de negocio objetivo (10.500 filas sintéticas totales). Ensayado localmente sobre PostgreSQL 17.11 con 8 fases y 100% de integridad: doble reconciliación de catálogo (89 tablas públicas, 1.214 cols, 89 PKs, 235 FKs con acciones/deferrability, 171 CHECKs, 61 UNIQUEs, 485 DEFAULT/IDENTITY y 2 triggers append-only inmutables), cargador transaccional con exclusión mutua crash-safe, captura efectiva por RETURNING (10.498 filas devueltas preservando colisiones), retry idempotente de 0 filas y verificación de rollback en BD. Permanece en preproducción hasta superación de gates y revisiones independientes de Claude y DeepSeek.",
+    outcome: "Incorporación autorizada por Fran (Opción B) de las 3 tablas regulatorias y de firmas (cmr_signatures, transport_evidence, regulatory_document_artifacts) con 150 registros sintéticos mock identificados ([PRUEBA], synthetic: true), elevando el lote a 70 tablas de negocio objetivo (10.500 filas sintéticas totales). Resolución de observaciones de Codex Review: emparejamiento canónico estricto de tipos y ámbitos regulatorios (deca/deca_es, cmr/cmr_convention, ecmr/ecmr_protocol, pod/efti) para interoperabilidad con los endpoints de acceso (/api/regulatory/artifacts/[artifact]/access) y descarga pública (/regulatory/d/[token]); generación de artefactos sintéticos con payloads PDF y JPEG reales en disco, derivando tamaño exacto y hash SHA-256 de los bytes de prueba. Ensayado localmente sobre PostgreSQL 17.11 con 8 fases y 100% de integridad: doble reconciliación de catálogo (89 tablas públicas, 1.214 cols, 89 PKs, 235 FKs, 171 CHECKs, 61 UNIQUEs, 485 DEFAULT/IDENTITY y triggers append-only inmutables), cargador transaccional con exclusión mutua crash-safe, captura efectiva por RETURNING (10.498 filas devueltas preservando colisiones), retry idempotente de 0 filas y verificación de rollback en BD. Permanece en preproducción hasta superación de gates y revisiones independientes.",
     status: "Preproducción",
   },
   {

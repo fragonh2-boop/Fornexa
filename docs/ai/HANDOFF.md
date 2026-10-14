@@ -44,11 +44,14 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
    - Ensayos en PostgreSQL 17.11 local:
     * `scripts/data150/run_local_pg_rehearsal.py`: 8 fases completadas al 100% (replay de 38 migraciones, reconciliación de 89 tablas sin drift, 10.498 filas de ensayo capturadas por RETURNING con colisión de PK previa, reintento de 0 filas, contención 55P03, triggers 55000, rollback dinámico y verificación post-rollback en 70 tablas). Log persistido en directorio de evidencias del ensayo local.
     * `scripts/data150/run_operational_loader_trial.ts`: superado íntegramente con código 0 (Ensayos 1, 2, 3, 3B, 3C con SIGKILL, reconciliación, rollback directo y retry 3C.2, 3D con 7 negativos, 4 y 5) con captura raw log en `data150-operational-loader.log`.
-   - Tests automatizados: `npm test` completo (259/259 passing), `npm run typecheck` (0 errores), `npm run lint` (0 errores). Portabilidad multiplataforma de suite de tests garantizada mediante resolución dinámica `os.tmpdir()` en `tests/data150-batch-integrity.test.ts` (sustituyendo rutas fijas `/private/tmp/` para compatibilidad Linux/CI).
-  - Delimitación operativa y de gobernanza:
-    * La integridad técnica y el mecanismo de carga/rollback han sido completamente demostrados en entorno no productivo local sobre PostgreSQL 17.11.
-    * Fran ha aprobado formalmente la Opción B (incorporación de las 3 tablas regulatorias/firmas como datos de prueba sintéticos para validación de flujos completos).
-    * El procedimiento productivo permanece en fail-closed a la espera de la aprobación de revisiones independientes Claude + DeepSeek (0 MUSTs) y CI exact-HEAD. Cero escrituras en Supabase productivo (proyecto fornexa), cero merge y cero deploy.
+   - Tests automatizados: `npm test` completo (260/260 passing), `npm run typecheck` (0 errores), `npm run lint` (0 errores). Portabilidad multiplataforma de suite de tests garantizada mediante resolución dinámica `os.tmpdir()` en `tests/data150-batch-integrity.test.ts` (sustituyendo rutas fijas `/private/tmp/` para compatibilidad Linux/CI).
+   - Resolución de revisión Codex (14 oct):
+     * Corrección de emparejamiento canónico `document_kind` / `regulatory_scope` en `regulatory_document_artifacts` (`deca`/`deca_es`, `cmr`/`cmr_convention`, `ecmr`/`ecmr_protocol`, `pod`/`efti`) asegurando interoperabilidad estricta con los endpoints de acceso `/api/regulatory/artifacts/[artifact]/access` y descarga `/regulatory/d/[token]`.
+     * Generación de archivos sintéticos reales con payloads PDF-1.4 válidos y JPEG JFIF en `scripts/data150/artifacts/` vinculados deterministamente por tamaño exacto en bytes y SHA-256.
+   - Delimitación operativa y de gobernanza:
+     * La integridad técnica y el mecanismo de carga/rollback han sido completamente demostrados en entorno no productivo local sobre PostgreSQL 17.11.
+     * Fran ha aprobado formalmente la Opción B (incorporación de las 3 tablas regulatorias/firmas como datos de prueba sintéticos para validación de flujos completos).
+     * El procedimiento productivo permanece en fail-closed a la espera de la aprobación de revisiones independientes (0 MUSTs) y CI exact-HEAD. Cero escrituras en Supabase productivo (proyecto fornexa), cero merge y cero deploy.
 
 ## 2026-10-09 — TRZ1: Trazabilidad de artículos
 

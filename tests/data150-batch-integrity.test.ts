@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import test from "node:test";
 import os from "node:os";
 import path from "node:path";
+import crypto from "node:crypto";
 import {
   loadReceipt,
   recordExecutionReceiptFromReturning,
@@ -243,6 +244,54 @@ test("DATA150 fixtures are inert and regulatory entities included as synthetic m
   for (const s of dataset.cmr_signatures) {
     assert.equal(s.metadata.synthetic, true);
     assert.ok(s.signer_name.startsWith("[PRUEBA]"));
+  }
+});
+
+test("DATA150 regulatory and evidence artifacts have canonical kind/scope pairs and valid synthetic payloads", () => {
+  const dataset = JSON.parse(readFileSync(DATASET_PATH, "utf8"));
+
+  const validPairs: Record<string, string> = {
+    deca: "deca_es",
+    cmr: "cmr_convention",
+    ecmr: "ecmr_protocol",
+    pod: "efti",
+  };
+
+  assert.equal(dataset.regulatory_document_artifacts.length, 150);
+  let decaCount = 0;
+
+  for (let i = 0; i < dataset.regulatory_document_artifacts.length; i++) {
+    const art = dataset.regulatory_document_artifacts[i];
+    assert.equal(art.regulatory_scope, validPairs[art.document_kind], `Artifact ${i} must pair ${art.document_kind} with ${validPairs[art.document_kind]}`);
+    if (art.document_kind === "deca") {
+      decaCount++;
+      assert.equal(art.regulatory_scope, "deca_es");
+    }
+
+    // Verify canonical storage path
+    const pathRegex = /^[0-9a-f-]{36}\/[0-9a-f-]{36}\/[a-z_]+\/[a-z_]+\/v1-[a-f0-9]{24}\.pdf$/;
+    assert.match(art.storage_path, pathRegex, `Storage path ${art.storage_path} must match canonical regulatory path`);
+
+    // Verify actual file exists and matches sha256 and byte_size
+    const pdfPath = path.join(process.cwd(), `scripts/data150/artifacts/regulatory/doc_${String(i).padStart(4, "0")}.pdf`);
+    assert.ok(existsSync(pdfPath), `Synthetic PDF file ${pdfPath} must exist`);
+    const pdfBytes = readFileSync(pdfPath);
+    assert.equal(pdfBytes.length, art.byte_size, `byte_size must match actual file bytes for artifact ${i}`);
+    const hash = crypto.createHash("sha256").update(pdfBytes).digest("hex");
+    assert.equal(hash, art.sha256, `sha256 must match actual file hash for artifact ${i}`);
+    assert.ok(pdfBytes.toString("latin1").startsWith("%PDF-1.4"), `File ${pdfPath} must be valid PDF-1.4`);
+  }
+
+  assert.ok(decaCount >= 37, "Must contain at least 37 deca/deca_es artifacts for access and issuance workflows");
+
+  // Verify transport_evidence payloads
+  assert.equal(dataset.transport_evidence.length, 150);
+  for (let i = 0; i < dataset.transport_evidence.length; i++) {
+    const ev = dataset.transport_evidence[i];
+    const evRegex = /^[0-9a-f-]{36}\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/DATA150-MOCK-EVIDENCE-\d{4}\.jpg$/;
+    assert.match(ev.storage_path, evRegex, `Evidence storage path must match canonical mobile stop path`);
+    const jpgPath = path.join(process.cwd(), `scripts/data150/artifacts/evidence/pod_${String(i).padStart(4, "0")}.jpg`);
+    assert.ok(existsSync(jpgPath), `Synthetic JPEG file ${jpgPath} must exist`);
   }
 });
 

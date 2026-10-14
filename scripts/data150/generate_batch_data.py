@@ -37,6 +37,58 @@ def gen_gs1_13(i: int, prefix7: str = '8412345') -> str:
     check = calc_gs1_check(pref12)
     return f"{pref12}{check}"
 
+def make_synthetic_pdf_bytes(artifact_id: str, index: int, cmr_id: str, kind: str, scope: str) -> bytes:
+    stream_text = (
+        f"BT\n"
+        f"/F1 14 Tf\n"
+        f"40 750 Td\n"
+        f"([PRUEBA] Documento Regulatorio Sintetico FORNEXA) Tj\n"
+        f"0 -24 Td\n"
+        f"/F1 10 Tf\n"
+        f"(Tipo: {kind} | Ambito: {scope} | Version: 1) Tj\n"
+        f"0 -18 Td\n"
+        f"(Artifact ID: {artifact_id}) Tj\n"
+        f"0 -18 Td\n"
+        f"(CMR Asociado: {cmr_id}) Tj\n"
+        f"0 -18 Td\n"
+        f"(Lote: DATA150-PRODUCTION-20261009 | Fila: {index:03d}/150) Tj\n"
+        f"0 -24 Td\n"
+        f"(Documento de ensayo sintetico generado para verificacion de flujos) Tj\n"
+        f"ET\n"
+    ).encode('latin-1')
+
+    stream_len = len(stream_text)
+
+    parts = [
+        b"%PDF-1.4\n",
+        b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+        b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
+        b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n",
+        f"4 0 obj\n<< /Length {stream_len} >>\nstream\n".encode('latin-1') + stream_text + b"endstream\nendobj\n",
+        b"5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+    ]
+
+    offsets = [0]
+    curr = len(parts[0])
+    for p in parts[1:]:
+        offsets.append(curr)
+        curr += len(p)
+
+    xref = b"xref\n0 6\n0000000000 65535 f \n"
+    for off in offsets:
+        xref += f"{off:010d} 00000 n \n".encode('latin-1')
+
+    trailer = f"trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{curr}\n%%EOF\n".encode('latin-1')
+    return b"".join(parts) + xref + trailer
+
+SYNTHETIC_JPEG_BYTES = (
+    b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\xff\xdb\x00C\x00\x08\x06\x06\x07\x06\x05\x08"
+    b"\x07\x07\x07\t\t\x08\n\x0c\x14\r\x0c\x0b\x0b\x0c\x19\x12\x13\x0f\x14\x1d\x1a\x1f\x1e\x1d\x1a\x1c\x1c $.' \",#"
+    b"\x1c\x1c(7),01444\x1f'9=82<.342\xff\xc0\x00\x0b\x08\x00\x01\x00\x01\x01\x01\x11\x00\xff\xc4\x00\x1f\x00\x00"
+    b"\x01\x05\x01\x01\x01\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x01\x02\x03\x04\x05\x06\x07\x08\t\n\x0b\xff"
+    b"\xda\x00\x08\x01\x01\x00\x00?\x00\xbf\x00\xff\xd9"
+)
+
 def get_cycle_timeline(i: int) -> dict:
     days_back = (149 - i) * 0.18
     cycle_dt = BASE_TIME - datetime.timedelta(
@@ -1588,44 +1640,88 @@ def generate_all_tables():
     ]
 
     # 69. transport_evidence
-    dataset['transport_evidence'] = [
-        {
-            'id': gen_uuid('transport_evidence', i),
-            'cmr_id': gen_uuid('cmr_documents', i),
-            'stop_id': gen_uuid('transport_stops', i),
-            'event_id': gen_uuid('transport_events', i),
+    evidence_dir = Path('scripts/data150/artifacts/evidence')
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    evidence_rows = []
+    for i in range(150):
+        ev_id = gen_uuid('transport_evidence', i)
+        cmr_id = gen_uuid('cmr_documents', i)
+        stop_id = gen_uuid('transport_stops', i)
+        event_id = gen_uuid('transport_events', i)
+        storage_path = f"{TENANT_ID}/{cmr_id}/{stop_id}/DATA150-MOCK-EVIDENCE-{i:04d}.jpg"
+        jpg_file = evidence_dir / f"pod_{i:04d}.jpg"
+        with open(jpg_file, 'wb') as f:
+            f.write(SYNTHETIC_JPEG_BYTES)
+
+        evidence_rows.append({
+            'id': ev_id,
+            'cmr_id': cmr_id,
+            'stop_id': stop_id,
+            'event_id': event_id,
             'kind': 'pod_photo',
-            'storage_path': f"mock-evidence/pod_{i:04d}_{i}.jpg",
+            'storage_path': storage_path,
             'captured_at': timelines[i]['event_occurred'],
-            'metadata': {'batch': BATCH_ID, 'synthetic': True, 'test_flow': 'DATA150-MOCK-EVIDENCE', 'index': i},
+            'metadata': {
+                'batch': BATCH_ID,
+                'synthetic': True,
+                'test_flow': 'DATA150-MOCK-EVIDENCE',
+                'index': i,
+                'fileName': f"pod_{i:04d}.jpg",
+                'size': len(SYNTHETIC_JPEG_BYTES),
+                'sha256': hashlib.sha256(SYNTHETIC_JPEG_BYTES).hexdigest()
+            },
             'created_at': timelines[i]['event_created'],
             'tenant_id': TENANT_ID
-        } for i in range(150)
-    ]
+        })
+    dataset['transport_evidence'] = evidence_rows
 
     # 70. regulatory_document_artifacts
-    doc_kinds = ['cmr', 'deca', 'ecmr', 'pod']
+    doc_kinds = ['deca', 'cmr', 'ecmr', 'pod']
     reg_scopes = ['deca_es', 'cmr_convention', 'ecmr_protocol', 'efti']
-    dataset['regulatory_document_artifacts'] = [
-        {
-            'id': gen_uuid('regulatory_document_artifacts', i),
+    artifacts_dir = Path('scripts/data150/artifacts/regulatory')
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    artifacts_rows = []
+
+    for i in range(150):
+        art_id = gen_uuid('regulatory_document_artifacts', i)
+        cmr_id = gen_uuid('cmr_documents', i)
+        kind = doc_kinds[i % 4]
+        scope = reg_scopes[i % 4]
+        nonce = hashlib.sha256(f"DATA150-REG-NONCE-{i}".encode('utf-8')).hexdigest()[:24]
+        storage_path = f"{TENANT_ID}/{cmr_id}/{kind}/{scope}/v1-{nonce}.pdf"
+        pdf_bytes = make_synthetic_pdf_bytes(art_id, i, cmr_id, kind, scope)
+        sha256_hash = hashlib.sha256(pdf_bytes).hexdigest()
+        byte_size = len(pdf_bytes)
+
+        pdf_file = artifacts_dir / f"doc_{i:04d}.pdf"
+        with open(pdf_file, 'wb') as f:
+            f.write(pdf_bytes)
+
+        artifacts_rows.append({
+            'id': art_id,
             'tenant_id': TENANT_ID,
-            'cmr_id': gen_uuid('cmr_documents', i),
-            'document_kind': doc_kinds[i % 4],
-            'regulatory_scope': reg_scopes[i % 4],
+            'cmr_id': cmr_id,
+            'document_kind': kind,
+            'regulatory_scope': scope,
             'version': 1,
             'mime_type': 'application/pdf',
-            'storage_path': f"mock-regulatory/doc_{i:04d}_{i}.pdf",
-            'sha256': hashlib.sha256(f"mock-doc-{i}".encode('utf-8')).hexdigest(),
-            'byte_size': 102400 + (i * 1024),
+            'storage_path': storage_path,
+            'sha256': sha256_hash,
+            'byte_size': byte_size,
             'document_created_at': timelines[i]['cmr_created'],
             'document_modified_at': timelines[i]['cmr_created'],
             'issued_at': timelines[i]['cmr_created'],
             'supersedes_artifact_id': None,
-            'metadata': {'batch': BATCH_ID, 'synthetic': True, 'test_flow': 'DATA150-MOCK-ARTIFACT', 'index': i},
+            'metadata': {
+                'batch': BATCH_ID,
+                'synthetic': True,
+                'test_flow': 'DATA150-MOCK-ARTIFACT',
+                'index': i,
+                'canonical_pair': f"{kind}/{scope}"
+            },
             'created_at': timelines[i]['cmr_created']
-        } for i in range(150)
-    ]
+        })
+    dataset['regulatory_document_artifacts'] = artifacts_rows
 
     return dataset
 
