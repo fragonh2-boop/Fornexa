@@ -2106,3 +2106,211 @@ test("Point 3: Reconciliation with empty staging preserves committed ledger and 
 
   if (existsSync(receiptPath)) unlinkSync(receiptPath);
 });
+
+test("DATA150 M2/M3: Manifest declares RFC 8785 canonical row hashes for all 10,500 rows anchored to Git 7145665 and documents 22 exceptions", () => {
+  assert.ok(existsSync(MANIFEST_PATH), "Manifest must exist");
+  const raw = readFileSync(MANIFEST_PATH, "utf8");
+  const manifest = JSON.parse(raw);
+
+  assert.equal(manifest.batch_id, BATCH_ID);
+  assert.equal(manifest.tenant_id, TENANT_ID);
+  assert.equal(manifest.git_anchor_commit, "71456653b834fd050d2832e0015219cbd47d4a22");
+  assert.ok(manifest.canonicalization.includes("RFC-8785"), "Must explicitly document RFC-8785 canonicalization");
+
+  // Summary counts
+  assert.equal(manifest.summary.total_tables, 70);
+  assert.equal(manifest.summary.total_rows, 10500);
+  assert.equal(manifest.summary.tables_with_physical_marker, 48);
+  assert.equal(manifest.summary.rows_with_physical_marker, 7200);
+  assert.equal(manifest.summary.tables_exceptional_no_marker, 22);
+  assert.equal(manifest.summary.rows_exceptional_no_marker, 3300);
+  assert.ok(manifest.summary.dataset_merkle_root && manifest.summary.dataset_merkle_root.length === 64);
+
+  // 22 exceptional tables catalog
+  const catalog = manifest.exceptional_tables_catalog;
+  const exceptionalNames = Object.keys(catalog);
+  assert.equal(exceptionalNames.length, 22, "Must document exactly 22 exceptional tables");
+  for (const [table, meta] of Object.entries<any>(catalog)) {
+    assert.ok(meta.category, `Table ${table} must have category`);
+    assert.ok(meta.justification, `Table ${table} must have justification`);
+    assert.ok(meta.provenance_anchor, `Table ${table} must have provenance_anchor`);
+  }
+
+  // Row entries verification across all 70 tables
+  const tables = Object.keys(manifest.tables);
+  assert.equal(tables.length, 70);
+
+  const tableHashes: string[] = [];
+  for (const [tname, tmeta] of Object.entries<any>(manifest.tables)) {
+    assert.equal(tmeta.row_count, 150, `Table ${tname} must have 150 rows`);
+    assert.equal(tmeta.row_entries.length, 150, `Table ${tname} must have 150 row entries`);
+
+    const rowHashes: string[] = [];
+    for (const re of tmeta.row_entries) {
+      assert.ok(re.key, `Row entry in ${tname} must have key`);
+      assert.equal(re.hash.length, 64, `Row entry in ${tname} must have 64-char SHA256`);
+      rowHashes.push(re.hash);
+    }
+
+    const expectedTableHash = crypto.createHash("sha256").update(rowHashes.join(""), "utf8").digest("hex");
+    assert.equal(tmeta.rows_sha256, expectedTableHash, `Table ${tname} rows_sha256 must chain all 150 row hashes`);
+    tableHashes.push(expectedTableHash);
+  }
+
+  const expectedMerkleRoot = crypto.createHash("sha256").update(tableHashes.join(""), "utf8").digest("hex");
+  assert.equal(manifest.summary.dataset_merkle_root, expectedMerkleRoot, "Dataset Merkle root must chain all 70 table hashes");
+});
+
+test("DATA150 M4: Loader SQL header declares 150 authorized MOCK synthetic signatures without legal validity", () => {
+  assert.ok(existsSync(LOADER_SQL_PATH), "Loader SQL must exist");
+  const sql = readFileSync(LOADER_SQL_PATH, "utf8");
+
+  // Line 5 constraint check
+  assert.ok(
+    sql.includes("-- Constraint: Zero invented columns, 150 firmas MOCK sintéticas autorizadas expresamente (Opción B) sin validez legal atribuida, fail-closed"),
+    "Loader header must declare authorized 150 MOCK signatures with zero legal validity"
+  );
+  assert.ok(
+    !sql.includes("zero fabricated signatures"),
+    "Loader header must retire contradictory 'zero fabricated signatures' claim"
+  );
+});
+
+test("DATA150 M2/M3: Identity tables use RETURNING to distinguish INSERTED from SKIPPED rows", () => {
+  const sql = readFileSync(LOADER_SQL_PATH, "utf8");
+
+  assert.ok(
+    sql.includes("INSERT INTO public.operational_events") &&
+      sql.includes("WHERE NOT EXISTS (SELECT 1 FROM public.operational_events WHERE tenant_id = '00000000-0000-4000-8000-000000000001' AND entity_code =") &&
+      sql.includes("RETURNING id, entity_code;"),
+    "operational_events must use WHERE NOT EXISTS idempotency and RETURNING id, entity_code"
+  );
+
+  assert.ok(
+    sql.includes("INSERT INTO public.customs_events") &&
+      sql.includes("WHERE NOT EXISTS (SELECT 1 FROM public.customs_events WHERE tenant_id = '00000000-0000-4000-8000-000000000001' AND case_id =") &&
+      sql.includes("RETURNING id, case_id;"),
+    "customs_events must use WHERE NOT EXISTS idempotency and RETURNING id, case_id"
+  );
+
+  // When RETURNING produces empty array (collision skipped), recordExecutionReceiptFromReturning records 0 inserted rows
+  const emptyReturningReceipt = recordExecutionReceiptFromReturning(
+    { operational_events: [] },
+    { persistToFile: false }
+  );
+  assert.equal(emptyReturningReceipt.operational_events?.inserted_count, 0, "Empty returning must record 0 inserted rows for operational_events");
+  assert.deepEqual(emptyReturningReceipt.operational_events?.inserted_keys, [], "Empty returning must have empty inserted_keys");
+
+  // When RETURNING produces inserted row, receipt records the exact key
+  const returningReceipt = recordExecutionReceiptFromReturning(
+    {
+      operational_events: [
+        { id: "11111111-1111-4000-8000-000000000001", entity_code: "DATA150-EVT-001" },
+      ],
+    },
+    { persistToFile: false }
+  );
+  assert.equal(returningReceipt.operational_events?.inserted_count, 1);
+  assert.equal(returningReceipt.operational_events?.inserted_keys[0], "11111111-1111-4000-8000-000000000001");
+});
+
+test("DATA150 M2/M3 Negative Test 1 (falta): Missing row fails manifest canonical verification", () => {
+  const pyCode = `
+import json, tempfile, subprocess, copy, os, sys
+with open("${DATASET_PATH}") as f:
+    dataset = json.load(f)
+bad = copy.deepcopy(dataset)
+bad["orders"].pop()
+with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+    json.dump(bad, f)
+    fname = f.name
+res = subprocess.run(["python3", "-c", f"""
+import sys
+from scripts.data150.verify_manifest import verify_manifest
+sys.exit(0 if verify_manifest(dataset_path="{fname}") else 1)
+"""], capture_output=True, text=True)
+os.unlink(fname)
+if res.returncode != 1 or "expected 150" not in res.stderr.lower():
+    print(f"FAILED: Expected returncode 1 with 'expected 150', got {res.returncode}: {res.stderr}", file=sys.stderr)
+    sys.exit(1)
+print("FALTA_REJECTED_SUCCESSFULLY")
+`;
+  const result = execFileSync("python3", ["-c", pyCode], { encoding: "utf8" });
+  assert.ok(result.includes("FALTA_REJECTED_SUCCESSFULLY"));
+});
+
+test("DATA150 M2/M3 Negative Test 2 (extra): Extra row fails manifest canonical verification", () => {
+  const pyCode = `
+import json, tempfile, subprocess, copy, os, sys
+with open("${DATASET_PATH}") as f:
+    dataset = json.load(f)
+bad = copy.deepcopy(dataset)
+bad["orders"].append(copy.deepcopy(bad["orders"][0]))
+with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+    json.dump(bad, f)
+    fname = f.name
+res = subprocess.run(["python3", "-c", f"""
+import sys
+from scripts.data150.verify_manifest import verify_manifest
+sys.exit(0 if verify_manifest(dataset_path="{fname}") else 1)
+"""], capture_output=True, text=True)
+os.unlink(fname)
+if res.returncode != 1 or "expected 150" not in res.stderr.lower():
+    print(f"FAILED: Expected returncode 1 with 'expected 150', got {res.returncode}: {res.stderr}", file=sys.stderr)
+    sys.exit(1)
+print("EXTRA_REJECTED_SUCCESSFULLY")
+`;
+  const result = execFileSync("python3", ["-c", pyCode], { encoding: "utf8" });
+  assert.ok(result.includes("EXTRA_REJECTED_SUCCESSFULLY"));
+});
+
+test("DATA150 M2/M3 Negative Test 3 (duplicado): Duplicate row key fails manifest canonical verification", () => {
+  const pyCode = `
+import json, tempfile, subprocess, copy, os, sys
+with open("${DATASET_PATH}") as f:
+    dataset = json.load(f)
+bad = copy.deepcopy(dataset)
+bad["orders"][1] = copy.deepcopy(bad["orders"][0])
+with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+    json.dump(bad, f)
+    fname = f.name
+res = subprocess.run(["python3", "-c", f"""
+import sys
+from scripts.data150.verify_manifest import verify_manifest
+sys.exit(0 if verify_manifest(dataset_path="{fname}") else 1)
+"""], capture_output=True, text=True)
+os.unlink(fname)
+if res.returncode != 1 or "mismatch" not in res.stderr.lower():
+    print(f"FAILED: Expected returncode 1 with 'mismatch', got {res.returncode}: {res.stderr}", file=sys.stderr)
+    sys.exit(1)
+print("DUPLICADO_REJECTED_SUCCESSFULLY")
+`;
+  const result = execFileSync("python3", ["-c", pyCode], { encoding: "utf8" });
+  assert.ok(result.includes("DUPLICADO_REJECTED_SUCCESSFULLY"));
+});
+
+test("DATA150 M2/M3 Negative Test 4 (hash incorrecto): Tampered field value fails manifest canonical verification", () => {
+  const pyCode = `
+import json, tempfile, subprocess, copy, os, sys
+with open("${DATASET_PATH}") as f:
+    dataset = json.load(f)
+bad = copy.deepcopy(dataset)
+# Tamper numeric observed_value in exceptional table fuel_index_values
+bad["fuel_index_values"][0]["observed_value"] += 0.05
+with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+    json.dump(bad, f)
+    fname = f.name
+res = subprocess.run(["python3", "-c", f"""
+import sys
+from scripts.data150.verify_manifest import verify_manifest
+sys.exit(0 if verify_manifest(dataset_path="{fname}") else 1)
+"""], capture_output=True, text=True)
+os.unlink(fname)
+if res.returncode != 1 or "mismatch" not in res.stderr.lower():
+    print(f"FAILED: Expected returncode 1 with 'mismatch', got {res.returncode}: {res.stderr}", file=sys.stderr)
+    sys.exit(1)
+print("HASH_INCORRECTO_REJECTED_SUCCESSFULLY")
+`;
+  const result = execFileSync("python3", ["-c", pyCode], { encoding: "utf8" });
+  assert.ok(result.includes("HASH_INCORRECTO_REJECTED_SUCCESSFULLY"));
+});

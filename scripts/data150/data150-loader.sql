@@ -2,7 +2,7 @@
 -- Batch ID: DATA150-PRODUCTION-20261009
 -- Target Tenant: 00000000-0000-4000-8000-000000000001
 -- Total Tables: 70 | Rows per table: 150 | Total rows: 10,500
--- Constraint: Zero invented columns, zero fabricated signatures, fail-closed
+-- Constraint: Zero invented columns, 150 firmas MOCK sintéticas autorizadas expresamente (Opción B) sin validez legal atribuida, fail-closed
 -- Real Return: Statements use RETURNING to capture effectively inserted rows only
 -- ==========================================================================
 

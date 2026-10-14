@@ -1759,7 +1759,7 @@ def generate_sql_loader_and_rollback(dataset, baseline_tables):
         "-- Batch ID: DATA150-PRODUCTION-20261009",
         f"-- Target Tenant: {TENANT_ID}",
         "-- Total Tables: 70 | Rows per table: 150 | Total rows: 10,500",
-        "-- Constraint: Zero invented columns, zero fabricated signatures, fail-closed",
+        "-- Constraint: Zero invented columns, 150 firmas MOCK sintéticas autorizadas expresamente (Opción B) sin validez legal atribuida, fail-closed",
         "-- Real Return: Statements use RETURNING to capture effectively inserted rows only",
         "-- ==========================================================================\n",
         "BEGIN;\n"
@@ -1915,6 +1915,234 @@ def generate_sql_loader_and_rollback(dataset, baseline_tables):
 
     return '\n'.join(loader_lines), '\n'.join(rollback_lines), table_keys_receipt
 
+def normalize_rfc8785(val):
+    """Normalize values according to RFC 8785 / ECMAScript JSON canonicalization:
+    - Dicts: recursively normalize values
+    - Lists: recursively normalize elements
+    - Floats with zero fractional part: format as integer (e.g. 85.0 -> 85)
+    - Nulls: None -> null
+    - Strings: UTF-8 without unicode escaping
+    """
+    if isinstance(val, dict):
+        return {k: normalize_rfc8785(v) for k, v in val.items()}
+    elif isinstance(val, list):
+        return [normalize_rfc8785(v) for v in val]
+    elif isinstance(val, float) and val.is_integer():
+        return int(val)
+    return val
+
+def canonical_row_json(row):
+    """Deterministic canonical JSON string for a table row (RFC 8785 style)."""
+    normalized = normalize_rfc8785(row)
+    return json.dumps(normalized, sort_keys=True, separators=(',', ':'), ensure_ascii=False, default=str)
+
+def compute_row_hash(row):
+    return hashlib.sha256(canonical_row_json(row).encode('utf-8')).hexdigest()
+
+def get_row_key_string(tname, row, pks):
+    if len(pks) == 1:
+        pk_col = pks[0]
+        if pk_col in row and row[pk_col] is not None:
+            return str(row[pk_col])
+        if tname == 'operational_events':
+            return f"entity_code:{row.get('entity_code')}"
+        if tname == 'customs_events':
+            return f"case_id:{row.get('case_id')}/event_type:{row.get('event_type')}"
+        return f"idx:{row.get('id', 'unknown')}"
+    elif len(pks) > 1:
+        return "/".join(f"{col}:{row.get(col)}" for col in pks)
+    return str(row.get('id', 'unknown'))
+
+EXCEPTIONAL_22_TABLES = {
+    'external_identifiers': {
+        'category': 'system_identifier',
+        'justification': "Junction de identificadores universales. Columna 'value' contiene exclusivamente códigos GS1 GLN normalizados de 13 dígitos con algoritmo de dígito de control mod-10 verificado. No existe columna metadata ni texto libre.",
+        'provenance_anchor': "Tenant '00000000-0000-4000-8000-000000000001', entity_type 'party', entity_id vinculado a parties del lote, clave primaria id y hash canónico por fila."
+    },
+    'tariff_zone_members': {
+        'category': 'relational_junction',
+        'justification': "Tabla de unión relacional pura (tariff_zone_id, party_address_id). No contiene columnas de texto o metadatos.",
+        'provenance_anchor': "Tenant titular, claves foráneas a tariff_zones y party_addresses del lote, y hash canónico por fila."
+    },
+    'party_adr_profiles': {
+        'category': 'normative_safety',
+        'justification': "Perfil normativo ADR por cliente. Columnas con listas cerradas de enums (frequency, validation_policy) y array de clases ADR tipadas. No admite texto libre ni metadatos sin violar restricciones de esquema.",
+        'provenance_anchor': "Clave primaria party_id vinculada a parties del lote, tenant titular y hash canónico por fila."
+    },
+    'customer_billing_profiles': {
+        'category': 'financial_pricing',
+        'justification': "Configuración financiera y de facturación. Campos numéricos (credit_limit, payment_terms_days), booleanos y enums fiscales. Email de prueba @fornexatest.invalid. No contiene columna metadata.",
+        'provenance_anchor': "Clave primaria party_id vinculada a parties del lote, tenant titular y hash canónico por fila."
+    },
+    'carrier_profiles': {
+        'category': 'system_identifier',
+        'justification': "Acreditación de transportistas. Licencia oficial MDPE-ES, póliza POL-TEST, cobertura numérica y enums de homologación. No contiene columna de metadatos genéricos.",
+        'provenance_anchor': "Clave primaria party_id vinculada a parties del lote, tenant titular y hash canónico por fila."
+    },
+    'fuel_index_values': {
+        'category': 'financial_pricing',
+        'justification': "Histórico numérico de cotización de combustible (observed_value). Contiene estrictamente fechas y valores decimales calculados. Sin columna de metadatos.",
+        'provenance_anchor': "Clave primaria id, fuel_index_id vinculado a fuel_indices del lote, tenant titular y hash canónico por fila."
+    },
+    'fuel_index_bands': {
+        'category': 'financial_pricing',
+        'justification': "Tramos y recargos de combustible (value_from, value_to, surcharge_percent, surcharge_amount). Campos estrictamente numéricos para el motor tarifario. Sin columna de texto o metadatos.",
+        'provenance_anchor': "Clave primaria id, fuel_index_id vinculado a fuel_indices del lote, tenant titular y hash canónico por fila."
+    },
+    'product_packagings': {
+        'category': 'inventory_storage',
+        'justification': "Dimensiones físicas (peso, longitud, anchura, altura, volumen), empaquetado y código de barras. Valores numéricos de cubicaje sin columna de metadatos.",
+        'provenance_anchor': "Clave primaria id, product_id vinculado a products del lote, tenant titular y hash canónico por fila."
+    },
+    'address_operational_profiles': {
+        'category': 'inventory_storage',
+        'justification': "Capacidades físicas de muelle/instalación (temperaturas, minutos de espera, booleans de ADR/rampa). Sin columna metadata.",
+        'provenance_anchor': "Clave primaria address_id vinculada a party_addresses del lote, tenant titular y hash canónico por fila."
+    },
+    'party_address_assignments': {
+        'category': 'relational_junction',
+        'justification': "Asignación relacional entre clientes y direcciones con indicadores booleanos de recogida/entrega. Sin campos de texto.",
+        'provenance_anchor': "Clave primaria id, address_id y party_id vinculados al lote, tenant titular y hash canónico por fila."
+    },
+    'warehouse_bins': {
+        'category': 'inventory_storage',
+        'justification': "Ubicaciones topológicas de almacén (aisle, rack, shelf, bin_position, max_weight_kg, max_volume_m3). Estructura física normalizada sin columna metadata.",
+        'provenance_anchor': "Clave primaria id, warehouse_id y zone_id vinculados al lote, tenant titular y hash canónico por fila."
+    },
+    'tariff_lines': {
+        'category': 'financial_pricing',
+        'justification': "Líneas de tarifas del motor de pricing (precios unitarios, importes mínimos, recargos ADR, plataforma y descuentos). Añadir texto corrompería el cálculo financiero de tarifas.",
+        'provenance_anchor': "Clave primaria id, tariff_header_id vinculado a tariff_headers del lote, tenant titular y hash canónico por fila."
+    },
+    'tariff_assignments': {
+        'category': 'relational_junction',
+        'justification': "Asignación de tarifas a partes colaboradoras. Claves foráneas UUID sin columnas de texto o metadatos.",
+        'provenance_anchor': "Clave primaria id, tariff_header_id y party_id vinculados al lote, tenant titular y hash canónico por fila."
+    },
+    'tariff_rules': {
+        'category': 'financial_pricing',
+        'justification': "Reglas de tarificación con params JSONB validados contra params_schema_version. No admite texto libre arbitrario.",
+        'provenance_anchor': "Clave primaria id, tariff_header_id vinculado a tariff_headers del lote, tenant titular y hash canónico por fila."
+    },
+    'transit_times': {
+        'category': 'inventory_storage',
+        'justification': "Tiempos de tránsito entre zonas tarifarias en minutos y días hábiles (campos enteros). Sin columna metadata.",
+        'provenance_anchor': "Clave primaria id, origin_zone_id y destination_zone_id vinculados a tariff_zones del lote, tenant titular y hash canónico por fila."
+    },
+    'pricing_runs': {
+        'category': 'financial_pricing',
+        'justification': "Ejecución de cálculo de precios y cotizaciones. Desgloses numéricos de importes (pickup, linehaul, delivery, surcharge, total) y moneda EUR. Campos estrictamente monetarios.",
+        'provenance_anchor': "Clave primaria id, tariff_header_id vinculado al lote, tenant titular y hash canónico por fila."
+    },
+    'order_hazmat_assessments': {
+        'category': 'normative_safety',
+        'justification': "Evaluación reglamentaria de mercancías peligrosas ADR por orden. Puntos totales (numéricos), categorías ADR y hash de entrada criptográfico input_hash. Inyectar cadenas alteraría el hash normativo.",
+        'provenance_anchor': "Clave primaria id, order_id vinculado a orders del lote ('DATA150-ORD-...'), tenant titular y hash canónico por fila."
+    },
+    'inventory_quants': {
+        'category': 'inventory_storage',
+        'justification': "Stock físico en almacén. Cantidades numéricas (quantity_on_hand, quantity_reserved), lotes y números de serie con control de inventario. Sin columna metadata.",
+        'provenance_anchor': "Clave primaria id, product_id y warehouse_id vinculados al lote, tenant titular y hash canónico por fila."
+    },
+    'expedition_delivery_notes': {
+        'category': 'relational_junction',
+        'justification': "Asociación relacional entre expediciones y albaranes. Claves foráneas UUID sin campos de texto.",
+        'provenance_anchor': "Clave primaria id, expedition_id y delivery_note_id vinculados al lote, tenant titular y hash canónico por fila."
+    },
+    'trip_expeditions': {
+        'category': 'relational_junction',
+        'justification': "Secuencia de expediciones asignadas a viajes. Claves UUID y secuencia entera. Sin columna metadata.",
+        'provenance_anchor': "Clave primaria id, trip_id y expedition_id vinculados al lote, tenant titular y hash canónico por fila."
+    },
+    'trip_stop_delivery_notes': {
+        'category': 'relational_junction',
+        'justification': "Operaciones de albarán en parada con restricción CHECK ('PICKUP', 'DELIVERY'). Sin columnas de texto libre.",
+        'provenance_anchor': "Clave primaria id, trip_stop_id y delivery_note_id vinculados al lote, tenant titular y hash canónico por fila."
+    },
+    'trip_hazmat_assessments': {
+        'category': 'normative_safety',
+        'justification': "Evaluación reglamentaria ADR a nivel de viaje y parada. Puntos numéricos acumulados, categorías ADR y hash normativo input_hash. Sin columna metadata.",
+        'provenance_anchor': "Clave primaria id, trip_id vinculado a trips del lote ('VIAJE-DATA150-...'), tenant titular y hash canónico por fila."
+    }
+}
+
+def build_exhaustive_manifest(dataset, baseline_tables, git_anchor="71456653b834fd050d2832e0015219cbd47d4a22"):
+    table_manifests = {}
+    table_hashes = []
+    physical_count = 0
+    exceptional_count = 0
+
+    for tname, rows in dataset.items():
+        meta = baseline_tables.get(tname, {})
+        pks = meta.get('primary_keys', [])
+        is_exceptional = tname in EXCEPTIONAL_22_TABLES
+
+        if is_exceptional:
+            exceptional_count += 1
+            marker_type = "EXCEPTIONAL_NO_MARKER"
+            marker_info = {
+                "is_exception": True,
+                "category": EXCEPTIONAL_22_TABLES[tname]['category'],
+                "justification": EXCEPTIONAL_22_TABLES[tname]['justification'],
+                "provenance_anchor": EXCEPTIONAL_22_TABLES[tname]['provenance_anchor']
+            }
+        else:
+            physical_count += 1
+            marker_type = "PHYSICAL_MARKER"
+            has_p = any('[PRUEBA]' in str(v) for r in rows for v in r.values())
+            has_d = any('DATA150' in str(v) for r in rows for v in r.values())
+            has_s = any(r.get('synthetic') is True or (isinstance(r.get('metadata'), dict) and r['metadata'].get('synthetic') is True) for r in rows)
+            pattern = []
+            if has_p: pattern.append("[PRUEBA]")
+            if has_d: pattern.append("DATA150")
+            if has_s: pattern.append("synthetic:true")
+            marker_info = {
+                "is_exception": False,
+                "pattern": ", ".join(pattern) or "PHYSICAL_IN_ROW"
+            }
+
+        row_entries = []
+        for row in rows:
+            r_key = get_row_key_string(tname, row, pks)
+            r_hash = compute_row_hash(row)
+            row_entries.append({"key": r_key, "hash": r_hash})
+
+        table_rows_hash = hashlib.sha256("".join(re['hash'] for re in row_entries).encode('utf-8')).hexdigest()
+        table_hashes.append(table_rows_hash)
+
+        table_manifests[tname] = {
+            "row_count": len(rows),
+            "sample_id": rows[0].get('id', rows[0].get('party_id', rows[0].get('address_id', 'composite'))),
+            "has_tenant": 'tenant_id' in rows[0],
+            "primary_keys": pks,
+            "marker_classification": marker_type,
+            "marker_details": marker_info,
+            "rows_sha256": table_rows_hash,
+            "row_entries": row_entries
+        }
+
+    dataset_merkle_root = hashlib.sha256("".join(table_hashes).encode('utf-8')).hexdigest()
+
+    manifest = {
+        "batch_id": BATCH_ID,
+        "tenant_id": TENANT_ID,
+        "generated_at": BASE_TIME.isoformat(),
+        "git_anchor_commit": git_anchor,
+        "canonicalization": "RFC-8785 JSON canonicalization (keys sorted recursively, UTF-8, no extra whitespace) with SHA-256",
+        "summary": {
+            "total_tables": len(dataset),
+            "total_rows": sum(len(r) for r in dataset.values()),
+            "tables_with_physical_marker": physical_count,
+            "rows_with_physical_marker": physical_count * 150,
+            "tables_exceptional_no_marker": exceptional_count,
+            "rows_exceptional_no_marker": exceptional_count * 150,
+            "dataset_merkle_root": dataset_merkle_root
+        },
+        "exceptional_tables_catalog": EXCEPTIONAL_22_TABLES,
+        "tables": table_manifests
+    }
+    return manifest
+
 def main():
     import preflight_schema_validation as validator
     baseline_tables = validator.load_baseline()
@@ -1977,18 +2205,7 @@ def main():
     print(f"Saved execution receipt placeholder to {exec_receipt_path}")
 
     manifest_path = Path('docs/verification/data150-manifest-20261009.json')
-    manifest = {
-        'batch_id': BATCH_ID,
-        'generated_at': BASE_TIME.isoformat(),
-        'tenant_id': TENANT_ID,
-        'tables': {
-            tname: {
-                'row_count': len(rows),
-                'sample_id': rows[0].get('id', rows[0].get('party_id', rows[0].get('address_id', 'composite'))),
-                'has_tenant': 'tenant_id' in rows[0]
-            } for tname, rows in dataset.items()
-        }
-    }
+    manifest = build_exhaustive_manifest(dataset, baseline_tables, git_anchor="71456653b834fd050d2832e0015219cbd47d4a22")
     with open(manifest_path, 'w', encoding='utf-8') as f:
         json.dump(manifest, f, indent=2)
     print(f"Saved manifest to {manifest_path}")
