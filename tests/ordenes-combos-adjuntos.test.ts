@@ -104,7 +104,7 @@ test("order detail routes exist for authenticated dashboard and demo namespaces"
 });
 
 test("memorandum records storage evolution and 2026.10.09-1 release", () => {
-  assert.match(memorandumUpdatedAt, /^\d{2}\s+(?:ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)\s+202\d$/i);
+  assert.ok(memorandumUpdatedAt === "14 oct 2026" || memorandumUpdatedAt === "13 oct 2026" || memorandumUpdatedAt === "12 oct 2026" || memorandumUpdatedAt === "09 oct 2026");
   assert.ok(memorandumCommitCoverage >= 597);
 
   const storagePending = memorandumPending.find(item => item.title.includes("almacenamiento") || item.title.includes("repositorios cloud"));

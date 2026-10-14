@@ -10,4 +10,5 @@ out
 .DS_Store
 .env*
 docs/verification/*.log
+!docs/verification/data150-local-pg-rehearsal.log
 scripts/data150/artifacts/

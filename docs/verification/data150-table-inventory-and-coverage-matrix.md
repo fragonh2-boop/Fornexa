@@ -207,8 +207,8 @@ Orden topológico estricto de inserción (0 dependencias circulares, 100% de cla
      * **Modificación Auxiliar de Replay (Customs):** En PostgreSQL vanilla local, `20260807_customs_core.sql` crea inicialmente `customs_messages` y `customs_events` sin `tenant_id`. Debido a que `20260812_fornexa_operational_core.sql` utiliza `CREATE TABLE IF NOT EXISTS`, la columna `tenant_id` se omite en el replay directo si la tabla preexiste. El runner aplica un `ALTER TABLE IF EXISTS ... ADD COLUMN IF NOT EXISTS tenant_id uuid` previo a 20260812 para equiparar la estructura real con el catálogo productivo de Supabase.
    - **Acreditación Rigurosa de Catálogo de Base de Datos (Inspección Directa de Catálogo en Vivo):**
      * `information_schema.tables`: 89 tablas base creadas en esquema `public`, conciliadas al 100% con `DATA150-SCHEMA-BASELINE.json`.
-     * `information_schema.columns`: 1214 columnas totales creadas en el catálogo de esquema `public` (de las cuales 951 columnas corresponden a las 67 tablas del lote de negocio).
-     * `pg_constraint`: 231 restricciones de clave foránea en schema `public` (187 de ellas correspondientes a las 67 tablas de negocio), 89 claves primarias (`contype = 'p'`), 52 restricciones de unicidad (`contype = 'u'`) y 34 restricciones de comprobación (`contype = 'c'`).
+     * `information_schema.columns`: 1214 columnas totales creadas en el catálogo de esquema `public` (de las cuales 993 columnas corresponden a las 70 tablas del lote de negocio).
+     * `pg_constraint`: 235 restricciones de clave foránea en schema `public` (196 de ellas correspondientes a las 70 tablas de negocio), 89 claves primarias (`contype = 'p'`), 61 restricciones de unicidad (`contype = 'u'`) y 171 restricciones de comprobación (`contype = 'c'`).
      * Cobertura de campos: 100% de los campos obligatorios poblados con valores sintéticos conformes. Campos opcionales (NULL o con default) justificados con estricta semántica de negocio (ej. `phone` fijado en NULL por privacidad RFC 2606, `deleted_at` nulo por ser registros activos no eliminados, timestamps de cierre ausentes en entidades en curso).
    - **Stubs Auxiliares Locales Declarados:**
      * En Supabase gestionado, los esquemas `auth`, `storage` y la extensión `pgcrypto` en `extensions` son gestionados internamente por la plataforma con hooks y servicios propietarios.
@@ -230,12 +230,14 @@ Orden topológico estricto de inserción (0 dependencias circulares, 100% de cla
      * Fila colisionante FORNEXA: `party_addresses` con ID `52f69594-6c37-58e4-b677-8e2ee752764f` (`Plataforma Humana Previa S.L.`, código `ADDR-PREEXISTING-COLLISION`).
      * Empresa colisionante FORNEXA: `parties` con ID `c9f0d7f6-4453-530f-8dba-0c9ce2426a83` (`Fornexa Carrier Base 000`, código `TER-PRV-0000`).
      * Fixtures de tenant ajeno: `parties` y `party_addresses` bajo tenant `99999999-9999-4999-8999-999999999999`.
-   - Al ejecutar el lote de 10.050 INSERTs con RETURNING en transacción atómica:
+   - Al ejecutar el lote de 10.500 INSERTs con RETURNING en transacción atómica:
      * Sentencias colisionantes ejecutan `ON CONFLICT ("id") DO NOTHING` devolviendo `INSERT 0 0` (0 filas retornadas).
      * `party_addresses` captura exactamente 149 claves (excluyendo la fila humana previa).
      * `parties` captura exactamente 149 claves (excluyendo la empresa previa).
-     * Las 65 tablas restantes capturan 150 claves cada una. Total filas capturadas por RETURNING: 10.048.
-   - **Aislamiento de Recibos:** El recibo efectivo del ensayo se persiste privadamente en `/private/tmp/data150-rehearsal-evidence/` fuera del repositorio. El archivo `docs/verification/data150-execution-receipt.json` rastreado por Git permanece inmutable en estado `PENDING_EXECUTION`.
+     * Las 68 tablas restantes capturan 150 claves cada una. Total filas capturadas por RETURNING: 10.498.
+   - **Aislamiento y Versionado de Recibos:**
+     * **Recibo de Ensayo Versionado (`COMMITTED`):** El recibo efectivo de la ejecución local en PostgreSQL 17.11 se encuentra versionado y auditado en `docs/verification/data150-rehearsal-execution-receipt.json` (SHA-256: `5692d819e442d99cae74f89477861306258a1b90bce876423ae03c02e4aa0235`), reflejando el estado real post-ensayo con 10.498 claves capturadas y 2 colisiones deliberadas excluidas.
+     * **Plantilla de Ejecución Productiva (`PENDING_EXECUTION`):** El archivo `docs/verification/data150-execution-receipt.json` permanece inmutable en estado `PENDING_EXECUTION` a la espera de la ejecución futura en el entorno final.
 
 4. **Reejecución Idempotente (Fase 3):**
    - Segunda ejecución del lote completo sobre PostgreSQL: 0 filas nuevas devueltas por RETURNING. 100% de filas existentes preservadas sin mutación ni duplicados (0.63s).
@@ -253,7 +255,7 @@ Orden topológico estricto de inserción (0 dependencias circulares, 100% de cla
    - `DELETE` sobre `public.cmr_documents` bloqueado con SQLSTATE `55000` por cascada hacia eventos inmutables.
    - `DELETE` sobre `public.transport_stops` bloqueado con SQLSTATE `55000` por cascada hacia eventos inmutables.
 
-7. **Generación de Rollback y Verificación Exhaustiva en 67 Tablas (Fase 6, 7 & 8):**
+7. **Generación de Rollback y Verificación Exhaustiva en 70 Tablas (Fase 6, 7 & 8):**
    - Rollback dinámico generado estrictamente desde el recibo de ejecución confirmado:
      * Excluye al 100% las tablas append-only (`transport_events`, `operational_events`) y protegidas por cascada (`cmr_documents`, `transport_stops`).
      * Excluye al 100% las claves preexistentes colisionadas (`party_addresses`, `parties`).
@@ -268,8 +270,8 @@ Orden topológico estricto de inserción (0 dependencias circulares, 100% de cla
      * `operational_events`: 150 registros append-only 100% idénticos conservados.
      * `cmr_documents`: 150 documentos protegidos por cascada conservados con su identidad y atributos intactos. Las claves foráneas hacia viajes y expediciones eliminados fueron nulificadas conforme a la regla de catálogo `ON DELETE SET NULL`.
      * `transport_stops`: 150 paradas de transporte conservadas con sus claves e identidad intactas, y FKs dependientes nulificadas por `ON DELETE SET NULL`.
-   - **Verificación Completa de las 67 Tablas y Claves Compuestas:**
-     * Todas las 63 tablas mutables verificadas con 0 filas restantes mediante consultas que evalúan la totalidad de claves primarias (incluyendo todas las 150 tuplas compuestas de `cmr_expeditions` con `WHERE (cmr_id, expedition_id) IN (...)`).
+   - **Verificación Completa de las 70 Tablas y Claves Compuestas:**
+     * Todas las 66 tablas mutables verificadas con 0 filas restantes mediante consultas que evalúan la totalidad de claves primarias (incluyendo todas las 150 tuplas compuestas de `cmr_expeditions` con `WHERE (cmr_id, expedition_id) IN (...)`).
 
 ---
 

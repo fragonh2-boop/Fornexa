@@ -460,7 +460,7 @@ test("collision preservation: RETURNING excludes pre-existing row and rollback p
 });
 
 test("DATA150 atomic fsync receipt writer is durable and resilient to partial writes", () => {
-  const tempTarget = `/tmp/data150-atomic-test-${Date.now()}.json`;
+  const tempTarget = path.join(os.tmpdir(), `data150-atomic-test-${Date.now()}.json`);
   const data1 = { test: "initial_data", timestamp: Date.now() };
   const data2 = { test: "updated_data", timestamp: Date.now() + 100 };
 
@@ -839,7 +839,7 @@ test("DATA150 transactional in-memory unit simulation succeeds with 100% logic i
 });
 
 test("DATA150 validateAndLoadDurableReceipt strictly fails closed on corrupt, staging, uncommitted, mismatched or invalid receipts", () => {
-  const dummyFile = "/tmp/data150-validate-failclosed-test.json";
+  const dummyFile = path.join(os.tmpdir(), "data150-validate-failclosed-test.json");
   const dummySql = "BEGIN;\nSELECT 1;\nCOMMIT;";
   const dummyHash = computeSqlSha256(dummySql);
 
@@ -1018,7 +1018,7 @@ test("DATA150 validateReturnedRow strictly rejects malformed or missing primary 
 });
 
 test("DATA150 reconcileInFlightReceipt explicitly verifies staged keys vs DB: commits if present, aborts if absent", async () => {
-  const reconcileTestFile = "/tmp/data150-reconcile-test.json";
+  const reconcileTestFile = path.join(os.tmpdir(), "data150-reconcile-test.json");
   const dummySql = "BEGIN;\nSELECT 1;\nCOMMIT;";
   const dummyHash = computeSqlSha256(dummySql);
 
@@ -1093,10 +1093,10 @@ test("DATA150 reconcileInFlightReceipt explicitly verifies staged keys vs DB: co
 });
 
 test("DATA150 multi-process concurrency: distinct OS processes with barrier and disjoint returns guarded by withFileLock preserve 100% of keys without loss", async () => {
-  const concurrentReceiptPath = "/tmp/data150-multiprocess-barrier-test.json";
-  const barrierPath = "/tmp/data150-barrier-release";
-  const readyA = "/tmp/data150-worker-a-ready";
-  const readyB = "/tmp/data150-worker-b-ready";
+  const concurrentReceiptPath = path.join(os.tmpdir(), "data150-multiprocess-barrier-test.json");
+  const barrierPath = path.join(os.tmpdir(), "data150-barrier-release");
+  const readyA = path.join(os.tmpdir(), "data150-worker-a-ready");
+  const readyB = path.join(os.tmpdir(), "data150-worker-b-ready");
 
   if (existsSync(concurrentReceiptPath)) unlinkSync(concurrentReceiptPath);
   if (existsSync(barrierPath)) unlinkSync(barrierPath);
@@ -1126,7 +1126,7 @@ test("DATA150 multi-process concurrency: distinct OS processes with barrier and 
   });
 
   const workerScript = "tests/helpers/data150-concurrent-worker.ts";
-  const contentionSignalPath = "/tmp/data150-contention-signal.txt";
+  const contentionSignalPath = path.join(os.tmpdir(), "data150-contention-signal.txt");
   if (existsSync(contentionSignalPath)) unlinkSync(contentionSignalPath);
 
   // Spawn Worker H (Holder) and Worker C (Contender) in distinct concurrent OS processes
@@ -2465,12 +2465,28 @@ test("DATA150 M5: deterministic materialized rollback reproduces byte-for-byte w
   );
 });
 
-test("DATA150 M5: rehearsal report markdown documents PG17 environment, exit code 0, hashes, and residual accounting", () => {
+test("DATA150 M5: rehearsal report markdown documents PG17 environment, exit code 0, hashes, residual accounting, and strict table inventory equality", () => {
   const REPORT_PATH = "docs/verification/data150-rehearsal-report.md";
+  const MANIFEST_PATH = "docs/verification/data150-manifest-20261009.json";
+  const RECEIPT_PATH = "docs/verification/data150-rehearsal-execution-receipt.json";
+  const ROLLBACK_PATH = "docs/verification/data150-rehearsal-rollback.sql";
+  const LOADER_PATH = "scripts/data150/data150-loader.sql";
+  const LOG_PATH = "docs/verification/data150-local-pg-rehearsal.log";
+
   assert.ok(existsSync(REPORT_PATH), "Rehearsal report markdown must exist");
+  assert.ok(existsSync(RECEIPT_PATH), "Rehearsal execution receipt must exist");
+  assert.ok(existsSync(ROLLBACK_PATH), "Rehearsal rollback SQL must exist");
+  assert.ok(existsSync(LOADER_PATH), "Loader SQL must exist");
+  assert.ok(existsSync(LOG_PATH), "Rehearsal log must exist");
 
   const report = readFileSync(REPORT_PATH, "utf8");
+  const manifest = JSON.parse(readFileSync(MANIFEST_PATH, "utf8"));
+  const receipt = JSON.parse(readFileSync(RECEIPT_PATH, "utf8"));
+  const rollbackSql = readFileSync(ROLLBACK_PATH, "utf8");
+  const loaderSql = readFileSync(LOADER_PATH, "utf8");
+  const logContent = readFileSync(LOG_PATH, "utf8");
 
+  // 1. Report metadata and environment assertions
   assert.ok(report.includes("PostgreSQL 17.11"), "Report must document PostgreSQL 17.11");
   assert.ok(report.includes("0 (SUCCESS"), "Report must document exit code 0 (SUCCESS)");
   assert.ok(report.includes("28996cacc2535155669e1107f07d8b8bceebfb272d52ce893c6bcc176d9a8a77"), "Report must document loader SHA-256");
@@ -2479,5 +2495,46 @@ test("DATA150 M5: rehearsal report markdown documents PG17 environment, exit cod
   assert.ok(report.includes("SQLSTATE 55000"), "Report must document SQLSTATE 55000 append-only guard");
   assert.ok(report.includes("ON DELETE SET NULL"), "Report must document ON DELETE SET NULL cascade protection");
   assert.ok(report.includes("Cero objetos en Supabase Storage"), "Report must declare zero objects in Supabase Storage");
+
+  // 2. Strict Table Inventory set equality: Report §6 == Manifest == Receipt == 70 tables
+  const reportTables = [...report.matchAll(/^\|\s*\d+\s*\|\s*`([a-z0-9_]+)`\s*\|/gm)].map((m) => m[1]);
+  assert.equal(reportTables.length, 70, "Section 6 table inventory must contain exactly 70 tables");
+
+  const manifestTables = Object.keys(manifest.tables);
+  const receiptTables = Object.keys(receipt.tables);
+  assert.equal(manifestTables.length, 70, "Manifest must have 70 tables");
+  assert.equal(receiptTables.length, 70, "Receipt must have 70 tables");
+
+  assert.deepEqual(new Set(reportTables), new Set(manifestTables), "Report inventory must match manifest tables exactly");
+  assert.deepEqual(new Set(reportTables), new Set(receiptTables), "Report inventory must match receipt tables exactly");
+
+  // 3. Exact SHA-256 file matching
+  const receiptHash = crypto.createHash("sha256").update(readFileSync(RECEIPT_PATH)).digest("hex");
+  const rollbackHash = crypto.createHash("sha256").update(readFileSync(ROLLBACK_PATH)).digest("hex");
+  const loaderHash = crypto.createHash("sha256").update(loaderSql).digest("hex");
+
+  assert.equal(receiptHash, "5692d819e442d99cae74f89477861306258a1b90bce876423ae03c02e4aa0235", "Receipt SHA-256 mismatch");
+  assert.ok(report.includes(receiptHash), "Report must record exact receipt SHA-256");
+
+  assert.equal(rollbackHash, "88ac89a290a4d48612d67802793c43e521ead24a34d688b25818e37bd1b12a57", "Rollback SHA-256 mismatch");
+  assert.ok(report.includes(rollbackHash), "Report must record exact rollback SHA-256");
+
+  assert.equal(loaderHash, "28996cacc2535155669e1107f07d8b8bceebfb272d52ce893c6bcc176d9a8a77", "Loader SHA-256 mismatch");
+  assert.ok(report.includes(loaderHash), "Report must record exact loader SHA-256");
+
+  // 4. Rollback DELETE statements accounting (66 mutable tables, 4 residual tables protected)
+  const deleteMatches = [...rollbackSql.matchAll(/^DELETE FROM\s+public\.([a-z0-9_]+)/gm)].map((m) => m[1]);
+  assert.equal(deleteMatches.length, 66, "Rollback SQL must contain exactly 66 DELETE statements");
+  assert.ok(report.includes("66 sentencias `DELETE`"), "Report must document exactly 66 DELETE statements");
+  assert.ok(report.includes("66 tablas mutables"), "Report must document exactly 66 mutable tables");
+
+  const residualTables = ["transport_events", "operational_events", "cmr_documents", "transport_stops"];
+  for (const resTable of residualTables) {
+    assert.ok(!deleteMatches.includes(resTable), `Residual table ${resTable} must not have a DELETE statement`);
+  }
+
+  // 5. Versioned rehearsal log
+  assert.ok(logContent.includes("10498"), "Versioned rehearsal log must document 10498 rows");
+  assert.ok(logContent.includes("Exit Code: 0 (SUCCESS)"), "Versioned rehearsal log must document SUCCESS exit code");
 });
 
