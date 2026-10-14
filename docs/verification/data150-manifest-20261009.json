@@ -337,6 +337,21 @@
       "row_count": 150,
       "sample_id": "9e41b752-773d-5360-bc9f-a05e93d537cf",
       "has_tenant": true
+    },
+    "cmr_signatures": {
+      "row_count": 150,
+      "sample_id": "a9451e31-9753-5ded-8fe2-12f4c94a7d01",
+      "has_tenant": false
+    },
+    "transport_evidence": {
+      "row_count": 150,
+      "sample_id": "68ba62b3-123a-57d8-8749-a777d1638204",
+      "has_tenant": true
+    },
+    "regulatory_document_artifacts": {
+      "row_count": 150,
+      "sample_id": "fb926f03-c36e-590a-8cfd-5a57d5ea9d1c",
+      "has_tenant": true
     }
   }
 }

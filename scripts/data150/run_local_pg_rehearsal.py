@@ -6,7 +6,7 @@ Target: local PostgreSQL 17.11 cluster at /private/tmp/data150-pg-CUM6hE:55439 (
 Tests on real PostgreSQL:
 1. Baseline schema migration application (38 migrations, 89 tables verified).
 2. Seed baseline root tenant (FORNEXA), foreign tenant, and real PK collision fixture.
-3. Transactional execution of full 10,050 INSERT batch with RETURNING clauses.
+3. Transactional execution of full 10,500 INSERT batch with RETURNING clauses.
    - Effective RETURNING rows captured table-by-table from PostgreSQL stdout.
    - Collision row returns 0 rows (INSERT 0 0); exactly 149 keys captured for party_addresses.
    - Durable receipt staged with atomic fsync (docs/verification/data150-rehearsal-execution-receipt.json).
@@ -1707,7 +1707,7 @@ def main():
     # ---------------------------------------------------------
     # 9. Verify Post-Rollback State & Row Preservation
     # ---------------------------------------------------------
-    log("\n[FASE 8] Verificación Exhaustiva del Estado Post-Rollback en 67 Tablas:")
+    log("\n[FASE 8] Verificación Exhaustiva del Estado Post-Rollback en 70 Tablas:")
 
     # 1. Verification of 100% fixture column preservation pre vs post rollback:
     post_non_colliding_addr = snapshot_row('party_addresses', 'id', '00000000-0000-4000-a000-000000000001')
@@ -1784,8 +1784,8 @@ def main():
             sys.exit(1)
     log(f"  * Paradas de transporte protegidas por cascada (transport_stops): {len(post_stops)} registros 100% preservados (claves e identidad intactas; FKs a paradas de viaje nulificadas por ON DELETE SET NULL).")
 
-    # 3. Exhaustive verification across ALL 67 tables against confirmed receipt keys
-    log("\n  * Verificación exhaustiva de TODAS las claves efectivas en las 67 tablas:")
+    # 3. Exhaustive verification across ALL 70 tables against confirmed receipt keys
+    log("\n  * Verificación exhaustiva de TODAS las claves efectivas en las 70 tablas:")
     receipt_data = json.load(open(REHEARSAL_RECEIPT_PATH, 'r'))
     all_tables_verified = 0
     total_receipt_tables = len(receipt_data.get('tables', {}))
@@ -1836,12 +1836,12 @@ def main():
         log(f"FATAL: Verified only {all_tables_verified}/{total_receipt_tables} tables!")
         sys.exit(1)
 
-    log(f"  => 100% de las 67 tablas verificadas post-rollback ({all_tables_verified}/{total_receipt_tables} comprobadas contra claves efectivas del recibo).")
+    log(f"  => 100% de las 70 tablas verificadas post-rollback ({all_tables_verified}/{total_receipt_tables} comprobadas contra claves efectivas del recibo).")
 
     log("\n" + "=" * 80)
     log("✅ ENSAYO POSTGRESQL 17.11 LOCAL COMPLETADO CON 100% DE INTEGRIDAD")
     log("   - 89 tablas creadas y reconciliadas con baseline.")
-    log("   - 10.050 INSERT ejecutados en transacción atómica con RETURNING.")
+    log("   - 10.500 INSERT ejecutados en transacción atómica con RETURNING.")
     log("   - Colisión real de PK probada: fila humana previa 100% preservada.")
     log("   - Reejecución idempotente verificada (0 filas duplicadas).")
     log("   - Concurrencia de 2 sesiones verificada con bloqueo estricto 55P03.")

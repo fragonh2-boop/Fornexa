@@ -6,9 +6,8 @@ Total tablas inspeccionadas: 89 | Reconciliación: 100% de tablas del esquema
 ---
 
 ## Resumen Ejecutivo de Clasificación (89 Tablas Totales)
-- **Tablas de negocio objetivo (67 tablas):** 150 filas sintéticas completas, distintas y coherentes generadas por tabla (10.050 filas de prueba identificadas).
+- **Tablas de negocio objetivo (70 tablas):** 150 filas sintéticas completas, distintas y coherentes generadas por tabla (10.500 filas de prueba identificadas), incorporando firmas simuladas (`cmr_signatures`), evidencias de transporte (`transport_evidence`) y artefactos documentales regulatorios (`regulatory_document_artifacts`) conforme a la decisión formal de Fran (Opción B) para testeo de flujos completos.
 - **Tablas excluidas por autenticación, tokens, migraciones y auditoría (7 tablas):** Preservadas intactas sin datos ficticios.
-- **Tablas excluidas / en cuarentena por mandato legal y regulatorio (3 tablas):** Prohibición expresa de fabricar firmas humanas o evidencias probatorias reales (`cmr_signatures`, `transport_evidence`), y cuarentena formal de artefactos documentales (`regulatory_document_artifacts`) por carecer de archivos en almacenamiento real y no discriminar los consumidores operativos (`lib/regulatory-documents.ts:84-92`) el atributo `metadata.unissued`, a la espera de decisión formal de Fran.
 - **Tablas reclasificadas como logs técnicos / despacho / revisiones (2 tablas):** Excluidas de carga operativa para no ensuciar colas de sincronización móvil o ledger interno (`entity_revisions`, `device_revision_dispatches`).
 - **Catálogos finitos estándar legítimos < 150 (3 tablas):** Unidades de medida ISO/UNECE y edición activa de tratado internacional (`uom_definitions`, `uom_conversions`, `hazmat_editions`).
 - **Catálogos normativos ADR preservados y asignaciones dependientes (7 tablas):** Preservación de seguridad legal; prohibido contaminar catálogos normativos ADR activos o inventar reglas de seguridad (`hazmat_entries`, `hazmat_entry_synonyms`, `hazmat_packaging_types`, `hazmat_entry_packaging_options`, `hazmat_transport_category_rules`, `order_line_hazmat`, `product_hazmat_assignments`).
@@ -28,12 +27,10 @@ Total tablas inspeccionadas: 89 | Reconciliación: 100% de tablas del esquema
 
 ---
 
-## 2. Tablas Excluidas / en Cuarentena: Mandato Legal y Regulatorio — Firmas, Evidencias y Artefactos (3 tablas)
-| Tabla | Justificación estricta de exclusión / cuarentena |
-| --- | --- |
-| `public.cmr_signatures` | Prohibición expresa de fabricar firmas humanas, trazos biométricos o consentimientos legales falsos (Mandato DATA150 Línea 42 y MUST 4). |
-| `public.transport_evidence` | Prohibición expresa de generar evidencias probatorias reales, albaranes firmados o fotografías falsas de entrega (Mandato DATA150 Línea 42 y MUST 4). |
-| `public.regulatory_document_artifacts` | Cuarentena formal: los consumidores operativos (`lib/regulatory-documents.ts:84-92`) no discriminan `metadata.unissued`. Ficheros sintéticos con storage simulado provocarían errores de descarga o runtime. Condicionado a decisión formal de Fran. |
+## 2. Decisión de Fran sobre Tablas Regulatorias y Legales (Opción B: Flujos Completos de Testeo)
+Fran ha resuelto expresamente adoptar la **Opción B**: generar datos sintéticos de prueba rotulados inequívocamente como `[PRUEBA]` / mock en `cmr_signatures`, `transport_evidence` y `regulatory_document_artifacts` (150 filas completas en cada una).
+Esta decisión permite validar y testear en producción flujos de datos operativos de extremo a extremo (visores de cartas de porte firmadas, galerías de evidencias de transporte y consulta de artefactos documentales), garantizando que cuando la aplicación se entregue a terceros clientes reales de Fornexa se entregará completamente libre de valores.
+Las 3 tablas pasan a integrarse en el lote de negocio objetivo bajo la Capa 8 de dependencia topológica.
 
 ---
 
@@ -67,7 +64,7 @@ Total tablas inspeccionadas: 89 | Reconciliación: 100% de tablas del esquema
 
 ---
 
-## 6. Tablas de Negocio Objetivo (67 tablas — 150 filas sintéticas completas cada una)
+## 6. Tablas de Negocio Objetivo (70 tablas — 150 filas sintéticas completas cada una)
 Orden topológico estricto de inserción (0 dependencias circulares, 100% de claves foráneas resueltas).
 > Para el inventario exhaustivo columna por columna (951 columnas totales) y el detalle de las 187 restricciones de clave foránea resueltas, véase [Matriz Detallada de Cobertura por Campo y Claves Foráneas](data150-field-and-fk-coverage-matrix.md).
 
@@ -140,6 +137,9 @@ Orden topológico estricto de inserción (0 dependencias circulares, 100% de cla
 | 65 | L8 | `public.cmr_goods_lines` | +150 | 24 | `id` | `cmr_documents`, `order_lines` |
 | 66 | L8 | `public.cmr_expeditions` | +150 | 5 | `(cmr_id, expedition_id)` | `cmr_documents`, `expeditions` |
 | 67 | L8 | `public.transport_events` | +150 | 12 | `id` | `tenants`, `cmr_documents`, `transport_stops` |
+| 68 | L8 | `public.cmr_signatures` | +150 | 16 | `id` | `cmr_documents`, `transport_stops` |
+| 69 | L8 | `public.transport_evidence` | +150 | 10 | `id` | `tenants`, `cmr_documents`, `transport_stops`, `transport_events` |
+| 70 | L8 | `public.regulatory_document_artifacts` | +150 | 16 | `id` | `tenants`, `cmr_documents` |
 
 ---
 
@@ -164,12 +164,12 @@ Orden topológico estricto de inserción (0 dependencias circulares, 100% de cla
    - El archivo estático `scripts/data150/data150-rollback.sql` ha sido despojado de cualquier sentencia ejecutable con claves previstas y sustituido por un stub fail-closed que aborta inmediatamente (`RAISE EXCEPTION`) si se intenta ejecutar antes de la generación dinámica confirmada.
    - Si una fila preexistente colisionó en la inserción, fue omitida por `ON CONFLICT DO NOTHING`, no fue devuelta por `RETURNING`, no figura en el recibo y por ende es preservada al 100% durante el rollback inverso (Capa 8 a Capa 1).
 8. **Alcance y Bloqueo Fail-Closed:**
-   - El perímetro efectivo del lote cubre 67 tablas ($67 \times 150 = 10.050$ registros). Las 3 tablas regulatorias (`cmr_signatures`, `transport_evidence`, `regulatory_document_artifacts`) permanecen en cuarentena a la espera de la decisión formal de Fran. Cero escrituras en base de datos productiva hasta resolución de gates y confirmación expresa.
+   - El perímetro efectivo del lote cubre 70 tablas ($70 \times 150 = 10.500$ registros). Incorporadas las 3 tablas regulatorias (`cmr_signatures`, `transport_evidence`, `regulatory_document_artifacts`) con 150 filas sintéticas cada una según la decisión formal de Fran (Opción B). Cero escrituras en base de datos productiva hasta resolución de gates y verificación exhaustiva.
 9. **Ciclo de Vida de Transacción y Persistencia Atómica Durable:**
    - `lib/data150-loader.ts` implementa persistencia durable atómica con `fsync` (`writeJsonAtomicallyWithFsync`) escribiendo a fichero temporal, ejecutando `fsync` del buffer de disco y reemplazando atómicamente mediante `rename(2)`, previniendo truncados o lecturas parciales ante caídas.
    - Se discrimina estrictamente el ciclo transaccional: fallo pre-commit (dispara `ROLLBACK;` y marca `TRANSACTION_ABORTED_ROLLED_BACK` o `TRANSACTION_ABORT_ROLLBACK_FAILED`), fallo durante `COMMIT;` (marca `COMMIT_INDETERMINATE` preservando claves devueltas para recuperación sin asumir aborto falso) y fallo post-commit en disco (marca `COMMIT_CONFIRMED_POST_COMMIT_WRITE_FAILED` sin emitir `ROLLBACK;` espurio en transacción ya comprometida).
 10. **Estado de Ensayos y Autorización de PostgreSQL Local Temporal:**
-   - La lógica de parsing (10.050 sentencias completas sin pérdida de cabeceras), RETURNING, captura pre-commit durable, fsync atómico, tolerancia a fallos y reversión inversa se encuentra verificada mediante batería unitaria (16/16 tests en verde) y simulación unitaria en memoria (`scripts/data150/run_non_productive_trial.ts`).
+   - La lógica de parsing (10.500 sentencias completas sin pérdida de cabeceras), RETURNING, captura pre-commit durable, fsync atómico, tolerancia a fallos y reversión inversa se encuentra verificada mediante batería unitaria y simulación unitaria en memoria (`scripts/data150/run_non_productive_trial.ts`).
    - Fran ha autorizado oficialmente la preparación de un entorno PostgreSQL LOCAL temporal oficial, sin coste y SIN conexión a Supabase/producción.
 
 ---
@@ -191,7 +191,7 @@ Orden topológico estricto de inserción (0 dependencias circulares, 100% de cla
 
 3. **Inexistencia de Rollback Universal:**
    - Queda formalmente descartada cualquier promesa de rollback universal: las 150 filas sintéticas de eventos en `transport_events` y `operational_events`, junto a sus entidades padre ancladas (`cmr_documents`, `transport_stops`), permanecen de manera permanente como trazabilidad inmutable.
-   - El generador de rollback dinámico (`scripts/data150/generate_rollback_from_receipt.ts`) excluye explícitamente estas 4 tablas de cualquier sentencia `DELETE`, preservando intacta la auditoría y permitiendo la reversión limpia y atómica de las 63 tablas mutables restantes.
+   - El generador de rollback dinámico (`scripts/data150/generate_rollback_from_receipt.ts`) excluye explícitamente estas 4 tablas de cualquier sentencia `DELETE`, preservando intacta la auditoría y permitiendo la reversión limpia y atómica de las 66 tablas mutables restantes.
 
 ---
 

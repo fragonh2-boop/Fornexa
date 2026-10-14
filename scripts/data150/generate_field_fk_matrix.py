@@ -33,7 +33,7 @@ def main():
         'L5': ['pricing_run_components', 'delivery_note_lines', 'expedition_delivery_notes', 'inventory_movements', 'trips'],
         'L6': ['trip_expeditions', 'trip_stops'],
         'L7': ['trip_stop_delivery_notes', 'trip_hazmat_assessments', 'cmr_documents', 'transport_stops'],
-        'L8': ['cmr_clauses', 'cmr_attachments', 'cmr_parties', 'cmr_goods_lines', 'cmr_expeditions', 'transport_events']
+        'L8': ['cmr_clauses', 'cmr_attachments', 'cmr_parties', 'cmr_goods_lines', 'cmr_expeditions', 'transport_events', 'cmr_signatures', 'transport_evidence', 'regulatory_document_artifacts']
     }
 
     # Find outgoing FKs per table
@@ -54,19 +54,24 @@ def main():
                     'tgt_col': tgt_cols[0] if len(tgt_cols) == 1 else ', '.join(tgt_cols),
                 })
 
+    total_tables = len(dataset)
+    total_columns = sum(len(t.get('columns', [])) for t in baseline['tables'] if t['name'].replace('public.', '') in dataset)
+    total_rows = sum(len(rows) for rows in dataset.values())
+    total_fks = sum(len(fks) for fks in fks_by_table.values())
+
     md_lines = []
     md_lines.append("# FORNEXA — Matriz Detallada de Cobertura por Campo y Claves Foráneas (DATA150)")
     md_lines.append("")
     md_lines.append("Fecha: 2026-10-09 | Batch ID: `DATA150-PRODUCTION-20261009` | Tenant: `tenant titular FORNEXA`")
-    md_lines.append("Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y **187 relaciones de clave foránea** resueltas.")
+    md_lines.append(f"Cobertura: **{total_tables} tablas de negocio objetivo**, **{total_columns} columnas** inventariadas y **{total_fks} relaciones de clave foránea** resueltas.")
     md_lines.append("")
     md_lines.append("---")
     md_lines.append("")
     md_lines.append("## Resumen Estadístico de Cobertura de Campos")
-    md_lines.append("- **Total Tablas de Negocio Objetivo:** 67")
-    md_lines.append("- **Total Columnas Totales Verificadas:** 951")
-    md_lines.append("- **Total Inserciones Sintéticas:** 10.050 filas (150 filas completas y distintas por tabla)")
-    md_lines.append("- **Claves Foráneas Salientes:** 187 relaciones íntegramente referenciadas a entidades válidas del lote o catálogos existentes.")
+    md_lines.append(f"- **Total Tablas de Negocio Objetivo:** {total_tables}")
+    md_lines.append(f"- **Total Columnas Totales Verificadas:** {total_columns}")
+    md_lines.append(f"- **Total Inserciones Sintéticas:** {total_rows:,} filas (150 filas completas y distintas por tabla)")
+    md_lines.append(f"- **Claves Foráneas Salientes:** {total_fks} relaciones íntegramente referenciadas a entidades válidas del lote o catálogos existentes.")
     md_lines.append("- **Columnas Inventadas / Ajenas al Esquema:** 0 (0% desviación)")
     md_lines.append("- **Columnas Obligatorias Omitidas:** 0")
     md_lines.append("- **Mecanismo de Retorno:** `RETURNING <pk>` (captura durable y exclusiva de filas propias)")

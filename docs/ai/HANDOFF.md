@@ -8,16 +8,15 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 - **Ejecución y coordinación:** Gemini único ejecutor en rama/worktree aislados (`data150/synthetic-production-batch`, worktree dedicado `fornexa-gemini-data150`). FornexaGPT coordina y verifica evidencia.
 - **Inventario y clasificación (89 tablas):**
   - 7 excluidas por seguridad y control técnico (`fornexa_schema_migrations`, `tenants`, `tenant_members`, `audit_events`, `cmr_view_sessions`, `regulatory_document_access_tokens`, `mobile_trip_access`).
-  - 3 excluidas / en cuarentena por mandato legal y regulatorio pendientes de decisión de Fran (`cmr_signatures`, `transport_evidence`, `regulatory_document_artifacts`).
   - 2 excluidas como logs técnicos/dispatch/revisiones internas (`entity_revisions`, `device_revision_dispatches`).
   - 3 catálogos finitos estándar con cardinalidad fija legítima (`uom_definitions`: 10 unidades ISO/UNECE, `uom_conversions`: 6 factores, `hazmat_editions`: 1 tratado ADR 2025).
   - 7 normativas legales ADR globales preservadas (`hazmat_entries`, `hazmat_entry_synonyms`, `hazmat_packaging_types`, `hazmat_entry_packaging_options`, `hazmat_transport_category_rules`, `order_line_hazmat`, `product_hazmat_assignments`) para no inventar reglas de seguridad ni contaminar catálogos sin tenant.
-  - 67 tablas de negocio objetivo ordenadas topológicamente sin ciclos en 8 capas acíclicas estrictas ($67 \times 150 = 10.050$ registros).
+  - 70 tablas de negocio objetivo ordenadas topológicamente sin ciclos en 8 capas acíclicas estrictas ($70 \times 150 = 10.500$ registros), incorporando 150 firmas simuladas (`cmr_signatures`), 150 evidencias de entrega (`transport_evidence`) y 150 artefactos documentales (`regulatory_document_artifacts`) explícitamente autorizados por Fran (Opción B) como datos ficticios de testeo para validar flujos operativos reales completos en producción.
 - **Implementación y artefactos:**
-  - Manifiesto de procedencia: `docs/verification/data150-manifest-20261009.json` y `data150-dataset.json` (10.050 filas sintéticas identificadas con `[PRUEBA]` y `batch_id: 'DATA150-PRODUCTION-20261009'`).
+  - Manifiesto de procedencia: `docs/verification/data150-manifest-20261009.json` y `data150-dataset.json` (10.500 filas sintéticas identificadas con `[PRUEBA]` y `batch_id: 'DATA150-PRODUCTION-20261009'`).
   - Direcciones (`party_addresses`): 150 localizaciones logísticas sintéticas de prueba, completas y diferentes en España y Europa con calles, municipios, códigos postales, provincias, coordenadas WGS84, horarios y contactos en `@fornexatest.invalid`. Sin teléfonos asignados (fijados en `NULL`).
   - Conectores inertes (`connectors`): estado `DISABLED` con flag `inert: true, mock: true` (cero llamadas salientes ni webhooks).
-  - Artefactos regulatorios en cuarentena (`regulatory_document_artifacts`): excluido de la carga junto con `cmr_signatures` y `transport_evidence` hasta decisión de Fran.
+  - Tablas regulatorias y de firmas (`cmr_signatures`, `transport_evidence`, `regulatory_document_artifacts`): incorporadas al lote con 150 filas sintéticas cada una rotuladas como `[PRUEBA]` / mock según decisión expresa de Fran (Opción B).
   - Cargador SQL y Rollback exacto: `scripts/data150/data150-loader.sql` y `scripts/data150/data150-rollback.sql` transaccionales (`BEGIN ... COMMIT`) con serialización tipada (`jsonb` `[]` como `'[]'::jsonb`, `ARRAY` como `'{}'`), inserciones idempotentes (`WHERE NOT EXISTS`), captura estricta por `RETURNING` en `docs/verification/data150-execution-receipt.json` y rollback que solo elimina claves del recibo y preserva filas ajenas/preexistentes.
   - Verificador de lote: `lib/data150-loader.ts` con consumo directo de recibo durable (`loadReceipt`), comprobación de claves compuestas completas, validación fail-closed de metadatos de esquema (`validateReceiptEntryAgainstMeta`), validación de `RETURNING` (`validateReturnedRow`), reconciliación de cortes en vuelo (`reconcileInFlightReceipt`), serialización completa bajo lock con guardas de PID activo y fsync de directorio.
    - Endurecimiento de locking y concurrencia (13–14 oct):
@@ -43,12 +42,13 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
     * `next.config.ts` restaurado a configuración canónica estándar de producción (sin ampliación de raíz de sistema de archivos ni `turbopack.root = "/"`). Dependencias resueltas limpiamente desde el store local de pnpm fuera de volúmenes iCloud.
     * `npm run build` compila con Turbopack en 3.0s, TypeScript en 4.0s, generando 17/17 páginas estáticas con código 0.
    - Ensayos en PostgreSQL 17.11 local:
-    * `scripts/data150/run_local_pg_rehearsal.py`: 8 fases completadas al 100% (replay de 38 migraciones, reconciliación de 89 tablas sin drift, 10.048 filas de ensayo capturadas por RETURNING con colisión de PK previa, reintento de 0 filas, contención 55P03, triggers 55000, rollback dinámico y verificación post-rollback en 67 tablas). Log persistido en directorio de evidencias del ensayo local.
+    * `scripts/data150/run_local_pg_rehearsal.py`: 8 fases completadas al 100% (replay de 38 migraciones, reconciliación de 89 tablas sin drift, 10.498 filas de ensayo capturadas por RETURNING con colisión de PK previa, reintento de 0 filas, contención 55P03, triggers 55000, rollback dinámico y verificación post-rollback en 70 tablas). Log persistido en directorio de evidencias del ensayo local.
     * `scripts/data150/run_operational_loader_trial.ts`: superado íntegramente con código 0 (Ensayos 1, 2, 3, 3B, 3C con SIGKILL, reconciliación, rollback directo y retry 3C.2, 3D con 7 negativos, 4 y 5) con captura raw log en `data150-operational-loader.log`.
    - Tests automatizados: `npm test` completo (259/259 passing), `npm run typecheck` (0 errores), `npm run lint` (0 errores). Portabilidad multiplataforma de suite de tests garantizada mediante resolución dinámica `os.tmpdir()` en `tests/data150-batch-integrity.test.ts` (sustituyendo rutas fijas `/private/tmp/` para compatibilidad Linux/CI).
   - Delimitación operativa y de gobernanza:
     * La integridad técnica y el mecanismo de carga/rollback han sido completamente demostrados en entorno no productivo local sobre PostgreSQL 17.11.
-    * El alcance final y la carga productiva de 150 filas por cada tabla permanecen bloqueados a la espera de la decisión de Fran sobre excepciones regulatorias (cuarentena de firmas y artefactos CMR) y la aprobación de revisiones independientes Claude + DeepSeek (0 MUSTs) y CI exact-HEAD. Cero escrituras en Supabase productivo (proyecto fornexa), cero merge y cero deploy.
+    * Fran ha aprobado formalmente la Opción B (incorporación de las 3 tablas regulatorias/firmas como datos de prueba sintéticos para validación de flujos completos).
+    * El procedimiento productivo permanece en fail-closed a la espera de la aprobación de revisiones independientes Claude + DeepSeek (0 MUSTs) y CI exact-HEAD. Cero escrituras en Supabase productivo (proyecto fornexa), cero merge y cero deploy.
 
 ## 2026-10-09 — TRZ1: Trazabilidad de artículos
 

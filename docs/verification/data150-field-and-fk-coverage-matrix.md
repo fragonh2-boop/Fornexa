@@ -1,15 +1,15 @@
 # FORNEXA — Matriz Detallada de Cobertura por Campo y Claves Foráneas (DATA150)
 
 Fecha: 2026-10-09 | Batch ID: `DATA150-PRODUCTION-20261009` | Tenant: `tenant titular FORNEXA`
-Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y **187 relaciones de clave foránea** resueltas.
+Cobertura: **70 tablas de negocio objetivo**, **993 columnas** inventariadas y **196 relaciones de clave foránea** resueltas.
 
 ---
 
 ## Resumen Estadístico de Cobertura de Campos
-- **Total Tablas de Negocio Objetivo:** 67
-- **Total Columnas Totales Verificadas:** 951
-- **Total Inserciones Sintéticas:** 10.050 filas (150 filas completas y distintas por tabla)
-- **Claves Foráneas Salientes:** 187 relaciones íntegramente referenciadas a entidades válidas del lote o catálogos existentes.
+- **Total Tablas de Negocio Objetivo:** 70
+- **Total Columnas Totales Verificadas:** 993
+- **Total Inserciones Sintéticas:** 10,500 filas (150 filas completas y distintas por tabla)
+- **Claves Foráneas Salientes:** 196 relaciones íntegramente referenciadas a entidades válidas del lote o catálogos existentes.
 - **Columnas Inventadas / Ajenas al Esquema:** 0 (0% desviación)
 - **Columnas Obligatorias Omitidas:** 0
 - **Mecanismo de Retorno:** `RETURNING <pk>` (captura durable y exclusiva de filas propias)
@@ -33,8 +33,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `name` | `text` | NO | 150 | 150 valores sintéticos completos y distintos |
 | `country` | `character` | SÍ | 1 | Constante funcional (`ES`) |
 | `purpose` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 2. `public.operational_events`
 - **Capa:** L1
@@ -56,9 +56,9 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `event_type` | `text` | NO | 1 | Constante funcional (`SYNTHETIC_BATCH_RECORD`) |
 | `actor_user_id` | `uuid` | SÍ | 0 | FK referenciada a `auth.users.id` (0 relaciones consistentes) |
 | `source` | `text` | NO | 1 | Constante funcional (`DATA150_SYSTEM`) |
-| `occurred_at` | `timestamp with time zone` | NO | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
+| `occurred_at` | `timestamp with time zone` | NO | 150 | 150 valores sintéticos completos y distintos |
 | `data` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 3. `public.local_storage_sync_runs`
 - **Capa:** L1
@@ -80,8 +80,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `normalized_records` | `integer` | NO | 1 | Constante funcional (`1`) |
 | `summary` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
 | `error_message` | `text` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
-| `started_at` | `timestamp with time zone` | NO | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
-| `completed_at` | `timestamp with time zone` | SÍ | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
+| `started_at` | `timestamp with time zone` | NO | 150 | 150 valores sintéticos completos y distintos |
+| `completed_at` | `timestamp with time zone` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 
 ### 4. `public.external_identifiers`
 - **Capa:** L1
@@ -101,8 +101,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `canonical_id` | `uuid` | NO | 150 | 150 valores sintéticos completos y distintos |
 | `external_id` | `text` | NO | 150 | 150 valores sintéticos completos y distintos |
 | `company_scope` | `text` | SÍ | 1 | Constante funcional (`FORNEXA`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 5. `public.customs_cases`
 - **Capa:** L1
@@ -126,8 +126,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `declarant_eori` | `text` | SÍ | 1 | Constante funcional (`ESB99999999`) |
 | `representative_eori` | `text` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
 | `payload` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 6. `public.connectors`
 - **Capa:** L1
@@ -147,9 +147,9 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `provider` | `text` | NO | 1 | Constante funcional (`TEST_PROVIDER`) |
 | `status` | `text` | NO | 1 | Constante funcional (`DISABLED`) |
 | `configuration` | `jsonb` | NO | 1 | Constante funcional (`{'batch': 'DATA150-PRO...`) |
-| `last_health_at` | `timestamp with time zone` | SÍ | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `last_health_at` | `timestamp with time zone` | SÍ | 150 | 150 valores sintéticos completos y distintos |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 7. `public.parties`
 - **Capa:** L1
@@ -183,8 +183,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `adr_control` | `boolean` | NO | 1 | Constante funcional (`False`) |
 | `status` | `text` | NO | 1 | Constante funcional (`ACTIVE`) |
 | `metadata` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 | `eori` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 | `gln` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 | `cnae_code` | `text` | SÍ | 1 | Constante funcional (`5229`) |
@@ -211,8 +211,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `party_id` | `uuid` | NO | 150 | 150 valores sintéticos completos y distintos |
 | `name` | `text` | NO | 150 | 150 valores sintéticos completos y distintos |
 | `currency` | `character` | NO | 1 | Constante funcional (`EUR`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 9. `public.vehicles`
 - **Capa:** L1
@@ -238,8 +238,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `telematics_provider` | `text` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
 | `telematics_external_id` | `text` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
 | `metadata` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 10. `public.drivers`
 - **Capa:** L1
@@ -265,8 +265,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `licence_number` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 | `adr_qualified` | `boolean` | NO | 1 | Constante funcional (`False`) |
 | `status` | `text` | NO | 1 | Constante funcional (`ACTIVE`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 11. `public.products`
 - **Capa:** L1
@@ -290,8 +290,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `status` | `text` | NO | 1 | Constante funcional (`ACTIVE`) |
 | `metadata` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
 | `revision_number` | `integer` | NO | 1 | Constante funcional (`1`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 | `owner_party_id` | `uuid` | SÍ | 100 | FK referenciada a `parties.id` (100 relaciones consistentes) |
 | `description` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 | `category_code` | `text` | SÍ | 1 | Constante funcional (`GENERAL_CARGO`) |
@@ -333,8 +333,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `unit` | `text` | SÍ | 1 | Constante funcional (`SHIPMENT`) |
 | `is_active` | `boolean` | NO | 1 | Constante funcional (`True`) |
 | `metadata` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ## Capa Topológica L2 (18 tablas)
 
@@ -358,8 +358,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `payload` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
 | `normalized_entity_type` | `text` | SÍ | 1 | Constante funcional (`PARTY`) |
 | `normalized_entity_id` | `uuid` | SÍ | 150 | 150 valores sintéticos completos y distintos |
-| `first_seen_at` | `timestamp with time zone` | NO | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
-| `last_synced_at` | `timestamp with time zone` | NO | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
+| `first_seen_at` | `timestamp with time zone` | NO | 150 | 150 valores sintéticos completos y distintos |
+| `last_synced_at` | `timestamp with time zone` | NO | 150 | 150 valores sintéticos completos y distintos |
 
 ### 14. `public.tariff_zone_members`
 - **Capa:** L2
@@ -383,7 +383,7 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `postal_range_to` | `text` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
 | `postal_prefix` | `text` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
 | `excluded` | `boolean` | NO | 1 | Constante funcional (`False`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 15. `public.tariff_headers`
 - **Capa:** L2
@@ -419,8 +419,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `created_by` | `uuid` | SÍ | 0 | FK referenciada a `auth.users.id` (0 relaciones consistentes) |
 | `approved_by` | `uuid` | SÍ | 0 | FK referenciada a `auth.users.id` (0 relaciones consistentes) |
 | `approved_at` | `timestamp with time zone` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 | `kind` | `text` | NO | 1 | Constante funcional (`SELL`) |
 | `origin_zone_id` | `uuid` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 | `destination_zone_id` | `uuid` | SÍ | 150 | 150 valores sintéticos completos y distintos |
@@ -446,8 +446,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `external_reference` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 | `payload` | `jsonb` | NO | 1 | Constante funcional (`{'batch': 'DATA150-PRO...`) |
 | `error_message` | `text` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
-| `occurred_at` | `timestamp with time zone` | NO | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `occurred_at` | `timestamp with time zone` | NO | 150 | 150 valores sintéticos completos y distintos |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 17. `public.customs_messages`
 - **Capa:** L2
@@ -473,8 +473,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `xml_payload` | `text` | NO | 150 | 150 valores sintéticos completos y distintos |
 | `http_status` | `integer` | SÍ | 1 | Constante funcional (`200`) |
 | `error_codes` | `jsonb` | NO | 1 | Constante funcional (`[]`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `processed_at` | `timestamp with time zone` | SÍ | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `processed_at` | `timestamp with time zone` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 
 ### 18. `public.customs_events`
 - **Capa:** L2
@@ -495,7 +495,7 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `event_type` | `text` | NO | 1 | Constante funcional (`CASE_INITIALIZED`) |
 | `actor_id` | `uuid` | SÍ | 0 | FK referenciada a `auth.users.id` (0 relaciones consistentes) |
 | `data` | `jsonb` | NO | 1 | Constante funcional (`{'batch': 'DATA150-PRO...`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 19. `public.communications`
 - **Capa:** L2
@@ -523,8 +523,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `status` | `text` | NO | 1 | Constante funcional (`SENT`) |
 | `payload` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
 | `error_message` | `text` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
-| `sent_at` | `timestamp with time zone` | SÍ | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `sent_at` | `timestamp with time zone` | SÍ | 150 | 150 valores sintéticos completos y distintos |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 20. `public.party_contacts`
 - **Capa:** L2
@@ -547,8 +547,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `email` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 | `is_primary` | `boolean` | NO | 1 | Constante funcional (`True`) |
 | `is_active` | `boolean` | NO | 1 | Constante funcional (`True`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 | `department` | `text` | SÍ | 1 | Constante funcional (`Operaciones`) |
 | `language` | `text` | SÍ | 1 | Constante funcional (`es`) |
 | `schedule` | `jsonb` | NO | 1 | Constante funcional (`{'dias': 'L-V', 'horar...`) |
@@ -589,8 +589,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `default_window_end` | `time without time zone` | SÍ | 1 | Constante funcional (`18:00:00`) |
 | `instructions` | `text` | SÍ | 1 | Constante funcional (`Acceso por puerta prin...`) |
 | `is_active` | `boolean` | NO | 1 | Constante funcional (`True`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 | `subdivision_key` | `text` | SÍ | 34 | Distribución de 34 variantes categóricas / numéricas |
 
 ### 22. `public.party_adr_profiles`
@@ -611,7 +611,7 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `frequency` | `text` | NO | 1 | Constante funcional (`NEVER`) |
 | `validation_policy` | `text` | NO | 1 | Constante funcional (`INFO`) |
 | `preferred_classes` | `ARRAY` | NO | 1 | Constante funcional (`[]`) |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 | `updated_by` | `uuid` | SÍ | 0 | FK referenciada a `auth.users.id` (0 relaciones consistentes) |
 
 ### 23. `public.customer_billing_profiles`
@@ -638,8 +638,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `invoice_channel` | `text` | SÍ | 1 | Constante funcional (`EMAIL`) |
 | `billing_email` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 | `sales_email` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 24. `public.customer_blocks`
 - **Capa:** L2
@@ -662,7 +662,7 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `behavior` | `text` | NO | 1 | Constante funcional (`WARNING`) |
 | `reason` | `text` | NO | 150 | 150 valores sintéticos completos y distintos |
 | `blocked_by` | `uuid` | SÍ | 0 | FK referenciada a `auth.users.id` (0 relaciones consistentes) |
-| `blocked_at` | `timestamp with time zone` | NO | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
+| `blocked_at` | `timestamp with time zone` | NO | 150 | 150 valores sintéticos completos y distintos |
 | `released_by` | `uuid` | SÍ | 0 | FK referenciada a `auth.users.id` (0 relaciones consistentes) |
 | `released_at` | `timestamp with time zone` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
 | `release_reason` | `text` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
@@ -690,8 +690,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `adr_certified` | `boolean` | NO | 1 | Constante funcional (`False`) |
 | `qualification_status` | `text` | NO | 1 | Constante funcional (`APPROVED`) |
 | `qualification_notes` | `text` | SÍ | 1 | Constante funcional (`Transportista homologa...`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 26. `public.fuel_index_values`
 - **Capa:** L2
@@ -710,7 +710,7 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `period_start` | `date` | NO | 1 | Constante funcional (`2026-10-01`) |
 | `period_end` | `date` | NO | 1 | Constante funcional (`2026-10-31`) |
 | `observed_value` | `numeric` | NO | 1 | Constante funcional (`1.452`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 27. `public.fuel_index_bands`
 - **Capa:** L2
@@ -732,7 +732,7 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `surcharge_amount` | `numeric` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
 | `valid_from` | `date` | NO | 1 | Constante funcional (`2026-01-01`) |
 | `valid_to` | `date` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 28. `public.product_packagings`
 - **Capa:** L2
@@ -764,8 +764,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `hi_layers` | `integer` | SÍ | 1 | Constante funcional (`5`) |
 | `is_stackable` | `boolean` | NO | 1 | Constante funcional (`True`) |
 | `is_active` | `boolean` | NO | 1 | Constante funcional (`True`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 29. `public.warehouses`
 - **Capa:** L2
@@ -788,8 +788,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `address_id` | `uuid` | SÍ | 150 | FK referenciada a `party_addresses.id` (150 relaciones consistentes) |
 | `status` | `text` | NO | 1 | Constante funcional (`ACTIVE`) |
 | `capabilities` | `jsonb` | NO | 1 | Constante funcional (`{'cross_dock': True, '...`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 30. `public.warehouse_zones`
 - **Capa:** L2
@@ -811,8 +811,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `zone_type` | `text` | NO | 1 | Constante funcional (`STORAGE`) |
 | `temperature_regime` | `text` | NO | 1 | Constante funcional (`AMBIENT`) |
 | `is_active` | `boolean` | NO | 1 | Constante funcional (`True`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ## Capa Topológica L3 (14 tablas)
 
@@ -840,8 +840,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `timezone` | `text` | NO | 1 | Constante funcional (`Europe/Madrid`) |
 | `status` | `text` | NO | 1 | Constante funcional (`ACTIVE`) |
 | `metadata` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 32. `public.party_roles`
 - **Capa:** L3
@@ -865,8 +865,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `valid_to` | `date` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
 | `status` | `text` | NO | 1 | Constante funcional (`ACTIVE`) |
 | `metadata` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 33. `public.party_services`
 - **Capa:** L3
@@ -893,8 +893,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `valid_to` | `date` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
 | `conditions` | `jsonb` | NO | 1 | Constante funcional (`{'batch': 'DATA150-PRO...`) |
 | `is_active` | `boolean` | NO | 1 | Constante funcional (`True`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 34. `public.address_operational_profiles`
 - **Capa:** L3
@@ -925,8 +925,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `average_wait_minutes` | `integer` | SÍ | 1 | Constante funcional (`25`) |
 | `access_instructions` | `text` | SÍ | 1 | Constante funcional (`Entrada por muelle sec...`) |
 | `account_manager_user_id` | `uuid` | SÍ | 0 | FK referenciada a `auth.users.id` (0 relaciones consistentes) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 35. `public.party_address_assignments`
 - **Capa:** L3
@@ -951,8 +951,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `is_default_pickup` | `boolean` | NO | 1 | Constante funcional (`True`) |
 | `is_default_delivery` | `boolean` | NO | 1 | Constante funcional (`True`) |
 | `created_by` | `uuid` | SÍ | 0 | FK referenciada a `auth.users.id` (0 relaciones consistentes) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 36. `public.warehouse_bins`
 - **Capa:** L3
@@ -983,8 +983,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `is_blocked` | `boolean` | NO | 1 | Constante funcional (`False`) |
 | `block_reason` | `text` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
 | `is_active` | `boolean` | NO | 1 | Constante funcional (`True`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 37. `public.tariff_lines`
 - **Capa:** L3
@@ -1012,7 +1012,7 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `customs_fee` | `numeric` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
 | `fuel_surcharge_formula` | `text` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
 | `discount_percent` | `numeric` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 | `component` | `text` | NO | 1 | Constante funcional (`BASE_FREIGHT`) |
 
 ### 38. `public.tariff_assignments`
@@ -1034,7 +1034,7 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `tariff_header_id` | `uuid` | NO | 150 | FK referenciada a `tariff_headers.id` (150 relaciones consistentes) |
 | `party_id` | `uuid` | NO | 150 | FK referenciada a `parties.id` (150 relaciones consistentes) |
 | `created_by` | `uuid` | SÍ | 0 | FK referenciada a `auth.users.id` (0 relaciones consistentes) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 39. `public.tariff_rules`
 - **Capa:** L3
@@ -1060,8 +1060,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `valid_to` | `date` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
 | `priority` | `integer` | NO | 1 | Constante funcional (`1`) |
 | `is_active` | `boolean` | NO | 1 | Constante funcional (`True`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 40. `public.transit_times`
 - **Capa:** L3
@@ -1089,8 +1089,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `valid_from` | `date` | NO | 1 | Constante funcional (`2026-01-01`) |
 | `valid_to` | `date` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
 | `priority` | `integer` | NO | 1 | Constante funcional (`1`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 41. `public.external_service_mappings`
 - **Capa:** L3
@@ -1114,8 +1114,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `valid_from` | `date` | SÍ | 1 | Constante funcional (`2026-01-01`) |
 | `valid_to` | `date` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
 | `metadata` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 42. `public.pricing_runs`
 - **Capa:** L3
@@ -1145,7 +1145,7 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `trace` | `jsonb` | NO | 1 | Constante funcional (`{'rules_applied': 1}`) |
 | `breakdown` | `jsonb` | NO | 1 | Constante funcional (`{'base': 150.0}`) |
 | `engine_version` | `text` | NO | 1 | Constante funcional (`1.0.0`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 43. `public.offers`
 - **Capa:** L3
@@ -1175,8 +1175,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `valid_until` | `date` | SÍ | 1 | Constante funcional (`2026-12-31`) |
 | `conditions` | `text` | SÍ | 1 | Constante funcional (`Condiciones estándar d...`) |
 | `metadata` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 | `pricing_snapshot` | `jsonb` | NO | 1 | Constante funcional (`{'total': 181.5}`) |
 | `cost_pricing_run_id` | `uuid` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
 | `sell_pricing_run_id` | `uuid` | SÍ | 150 | 150 valores sintéticos completos y distintos |
@@ -1209,10 +1209,10 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `service_id` | `uuid` | SÍ | 150 | FK referenciada a `service_catalog.id` (150 relaciones consistentes) |
 | `pickup_address_id` | `uuid` | SÍ | 150 | FK referenciada a `party_addresses.id` (150 relaciones consistentes) |
 | `delivery_address_id` | `uuid` | SÍ | 150 | FK referenciada a `party_addresses.id` (150 relaciones consistentes) |
-| `requested_pickup_start` | `timestamp with time zone` | SÍ | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
-| `requested_pickup_end` | `timestamp with time zone` | SÍ | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
-| `requested_delivery_start` | `timestamp with time zone` | SÍ | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
-| `requested_delivery_end` | `timestamp with time zone` | SÍ | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
+| `requested_pickup_start` | `timestamp with time zone` | SÍ | 150 | 150 valores sintéticos completos y distintos |
+| `requested_pickup_end` | `timestamp with time zone` | SÍ | 150 | 150 valores sintéticos completos y distintos |
+| `requested_delivery_start` | `timestamp with time zone` | SÍ | 150 | 150 valores sintéticos completos y distintos |
+| `requested_delivery_end` | `timestamp with time zone` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 | `packages` | `integer` | SÍ | 1 | Constante funcional (`5`) |
 | `gross_weight` | `numeric` | SÍ | 1 | Constante funcional (`250.0`) |
 | `volume` | `numeric` | SÍ | 1 | Constante funcional (`1.2`) |
@@ -1221,15 +1221,15 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `adr` | `jsonb` | NO | 1 | Constante funcional (`{'is_adr': False}`) |
 | `status` | `text` | NO | 1 | Constante funcional (`COMPLETED`) |
 | `metadata` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 | `hazmat_declaration` | `text` | NO | 1 | Constante funcional (`NO`) |
 | `hazmat_edition_id` | `uuid` | SÍ | 0 | FK referenciada a `hazmat_editions.id` (0 relaciones consistentes) |
 | `hazmat_validation_status` | `text` | NO | 1 | Constante funcional (`NOT_EVALUATED`) |
 | `revision_number` | `integer` | NO | 1 | Constante funcional (`1`) |
 | `business_id` | `uuid` | NO | 150 | 150 valores sintéticos completos y distintos |
 | `supersedes_order_id` | `uuid` | SÍ | 0 | FK referenciada a `orders.id` (0 relaciones consistentes) |
-| `launched_at` | `timestamp with time zone` | SÍ | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
+| `launched_at` | `timestamp with time zone` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 | `revoked_at` | `timestamp with time zone` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
 | `pricing_snapshot` | `jsonb` | NO | 1 | Constante funcional (`{'total': 181.5}`) |
 
@@ -1283,7 +1283,7 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `volume` | `numeric` | SÍ | 1 | Constante funcional (`1.2`) |
 | `adr` | `jsonb` | NO | 1 | Constante funcional (`{'is_adr': False}`) |
 | `metadata` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 | `product_id` | `uuid` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 | `hazard_status` | `text` | NO | 1 | Constante funcional (`NON_HAZARDOUS`) |
 
@@ -1318,8 +1318,8 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `goods_description` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 | `status` | `text` | NO | 1 | Constante funcional (`DELIVERED`) |
 | `metadata` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 48. `public.expeditions`
 - **Capa:** L4
@@ -1344,12 +1344,12 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `carrier_id` | `uuid` | SÍ | 30 | FK referenciada a `parties.id` (30 relaciones consistentes) |
 | `origin_address_id` | `uuid` | SÍ | 150 | FK referenciada a `party_addresses.id` (150 relaciones consistentes) |
 | `destination_address_id` | `uuid` | SÍ | 150 | FK referenciada a `party_addresses.id` (150 relaciones consistentes) |
-| `planned_departure` | `timestamp with time zone` | SÍ | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
-| `planned_arrival` | `timestamp with time zone` | SÍ | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
+| `planned_departure` | `timestamp with time zone` | SÍ | 150 | 150 valores sintéticos completos y distintos |
+| `planned_arrival` | `timestamp with time zone` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 | `status` | `text` | NO | 1 | Constante funcional (`DELIVERED`) |
 | `metadata` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 | `order_id` | `uuid` | SÍ | 150 | FK referenciada a `orders.id` (150 relaciones consistentes) |
 
 ### 49. `public.order_hazmat_assessments`
@@ -1375,7 +1375,7 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `points_total` | `numeric` | SÍ | 1 | Constante funcional (`0.0`) |
 | `warnings` | `jsonb` | NO | 1 | Constante funcional (`[]`) |
 | `input_hash` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
-| `assessed_at` | `timestamp with time zone` | NO | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
+| `assessed_at` | `timestamp with time zone` | NO | 150 | 150 valores sintéticos completos y distintos |
 | `assessed_by` | `uuid` | SÍ | 0 | FK referenciada a `auth.users.id` (0 relaciones consistentes) |
 
 ### 50. `public.inventory_quants`
@@ -1406,9 +1406,9 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `quantity_reserved` | `numeric` | NO | 1 | Constante funcional (`0.0`) |
 | `uom` | `text` | NO | 1 | Constante funcional (`UN`) |
 | `stock_status` | `text` | NO | 1 | Constante funcional (`AVAILABLE`) |
-| `last_counted_at` | `timestamp with time zone` | SÍ | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `last_counted_at` | `timestamp with time zone` | SÍ | 150 | 150 valores sintéticos completos y distintos |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ## Capa Topológica L5 (5 tablas)
 
@@ -1436,7 +1436,7 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `rate` | `numeric` | SÍ | 1 | Constante funcional (`150.0`) |
 | `amount` | `numeric` | NO | 1 | Constante funcional (`150.0`) |
 | `metadata` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 52. `public.delivery_note_lines`
 - **Capa:** L5
@@ -1460,7 +1460,7 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `packages` | `integer` | SÍ | 1 | Constante funcional (`5`) |
 | `gross_weight` | `numeric` | SÍ | 1 | Constante funcional (`250.0`) |
 | `metadata` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 53. `public.expedition_delivery_notes`
 - **Capa:** L5
@@ -1479,7 +1479,7 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `tenant_id` | `uuid` | NO | 1 | FK referenciada a `tenants.id` (1 relaciones consistentes) |
 | `expedition_id` | `uuid` | NO | 150 | FK referenciada a `expeditions.id` (150 relaciones consistentes) |
 | `delivery_note_id` | `uuid` | NO | 150 | FK referenciada a `delivery_notes.id` (150 relaciones consistentes) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 54. `public.inventory_movements`
 - **Capa:** L5
@@ -1515,14 +1515,14 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `reference_order_id` | `uuid` | SÍ | 150 | FK referenciada a `orders.id` (150 relaciones consistentes) |
 | `reference_delivery_note_id` | `uuid` | SÍ | 150 | FK referenciada a `delivery_notes.id` (150 relaciones consistentes) |
 | `operator_id` | `text` | SÍ | 1 | Constante funcional (`DATA150_OPERATOR`) |
-| `requested_at` | `timestamp with time zone` | NO | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
-| `started_at` | `timestamp with time zone` | SÍ | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
-| `completed_at` | `timestamp with time zone` | SÍ | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
+| `requested_at` | `timestamp with time zone` | NO | 150 | 150 valores sintéticos completos y distintos |
+| `started_at` | `timestamp with time zone` | SÍ | 150 | 150 valores sintéticos completos y distintos |
+| `completed_at` | `timestamp with time zone` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 | `duration_seconds` | `integer` | SÍ | 1 | Constante funcional (`120`) |
 | `status` | `text` | NO | 1 | Constante funcional (`COMPLETED`) |
 | `notes` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 55. `public.trips`
 - **Capa:** L5
@@ -1545,14 +1545,14 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `vehicle_id` | `uuid` | SÍ | 150 | FK referenciada a `vehicles.id` (150 relaciones consistentes) |
 | `trailer_registration` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 | `driver_id` | `uuid` | SÍ | 150 | FK referenciada a `drivers.id` (150 relaciones consistentes) |
-| `planned_start` | `timestamp with time zone` | SÍ | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
-| `actual_start` | `timestamp with time zone` | SÍ | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
-| `planned_end` | `timestamp with time zone` | SÍ | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
-| `actual_end` | `timestamp with time zone` | SÍ | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
+| `planned_start` | `timestamp with time zone` | SÍ | 150 | 150 valores sintéticos completos y distintos |
+| `actual_start` | `timestamp with time zone` | SÍ | 150 | 150 valores sintéticos completos y distintos |
+| `planned_end` | `timestamp with time zone` | SÍ | 150 | 150 valores sintéticos completos y distintos |
+| `actual_end` | `timestamp with time zone` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 | `status` | `text` | NO | 1 | Constante funcional (`COMPLETED`) |
 | `metadata` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ## Capa Topológica L6 (2 tablas)
 
@@ -1574,7 +1574,7 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `trip_id` | `uuid` | NO | 150 | FK referenciada a `trips.id` (150 relaciones consistentes) |
 | `expedition_id` | `uuid` | NO | 150 | FK referenciada a `expeditions.id` (150 relaciones consistentes) |
 | `sequence` | `integer` | SÍ | 1 | Constante funcional (`1`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 57. `public.trip_stops`
 - **Capa:** L6
@@ -1605,11 +1605,11 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `contact_phone` | `text` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
 | `operational_reference` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 | `status` | `text` | NO | 1 | Constante funcional (`COMPLETED`) |
-| `arrived_at` | `timestamp with time zone` | SÍ | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
-| `completed_at` | `timestamp with time zone` | SÍ | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
+| `arrived_at` | `timestamp with time zone` | SÍ | 150 | 150 valores sintéticos completos y distintos |
+| `completed_at` | `timestamp with time zone` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 | `metadata` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ## Capa Topológica L7 (4 tablas)
 
@@ -1631,7 +1631,7 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `trip_stop_id` | `uuid` | NO | 150 | FK referenciada a `trip_stops.id` (150 relaciones consistentes) |
 | `delivery_note_id` | `uuid` | NO | 150 | FK referenciada a `delivery_notes.id` (150 relaciones consistentes) |
 | `operation` | `text` | NO | 1 | Constante funcional (`PICKUP`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 59. `public.trip_hazmat_assessments`
 - **Capa:** L7
@@ -1657,7 +1657,7 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `points_total` | `numeric` | SÍ | 1 | Constante funcional (`0.0`) |
 | `warnings` | `jsonb` | NO | 1 | Constante funcional (`[]`) |
 | `input_hash` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
-| `assessed_at` | `timestamp with time zone` | NO | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
+| `assessed_at` | `timestamp with time zone` | NO | 150 | 150 valores sintéticos completos y distintos |
 
 ### 60. `public.cmr_documents`
 - **Capa:** L7
@@ -1698,9 +1698,9 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `instructions` | `text` | SÍ | 1 | Constante funcional (`Manipulación estándar`) |
 | `adr` | `jsonb` | NO | 1 | Constante funcional (`{'is_adr': False}`) |
 | `metadata` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
-| `issued_at` | `timestamp with time zone` | NO | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
-| `updated_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `issued_at` | `timestamp with time zone` | NO | 150 | 150 valores sintéticos completos y distintos |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `updated_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 | `tenant_id` | `uuid` | NO | 1 | FK referenciada a `tenants.id` (1 relaciones consistentes) |
 | `expedition_record_id` | `uuid` | SÍ | 150 | FK referenciada a `expeditions.id` (150 relaciones consistentes) |
 | `trip_record_id` | `uuid` | SÍ | 150 | FK referenciada a `trips.id` (150 relaciones consistentes) |
@@ -1714,7 +1714,7 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `carriage_charges` | `jsonb` | NO | 1 | Constante funcional (`{'prepaid': True}`) |
 | `cash_on_delivery` | `jsonb` | NO | 1 | Constante funcional (`{'has_cod': False}`) |
 | `established_at` | `text` | SÍ | 1 | Constante funcional (`Madrid`) |
-| `established_on` | `date` | SÍ | 1 | Constante funcional (`2026-10-09`) |
+| `established_on` | `date` | SÍ | 26 | Distribución de 26 variantes categóricas / numéricas |
 | `access_key_expires_at` | `timestamp with time zone` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
 | `access_key_revoked_at` | `timestamp with time zone` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
 | `document_kind` | `text` | NO | 1 | Constante funcional (`cmr`) |
@@ -1746,16 +1746,16 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `latitude` | `numeric` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 | `longitude` | `numeric` | SÍ | 101 | Distribución de 101 variantes categóricas / numéricas |
 | `status` | `text` | NO | 1 | Constante funcional (`Completada`) |
-| `arrived_at` | `timestamp with time zone` | SÍ | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
-| `completed_at` | `timestamp with time zone` | SÍ | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `arrived_at` | `timestamp with time zone` | SÍ | 150 | 150 valores sintéticos completos y distintos |
+| `completed_at` | `timestamp with time zone` | SÍ | 150 | 150 valores sintéticos completos y distintos |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 | `tenant_id` | `uuid` | NO | 1 | FK referenciada a `tenants.id` (1 relaciones consistentes) |
 | `trip_stop_id` | `uuid` | SÍ | 150 | FK referenciada a `trip_stops.id` (150 relaciones consistentes) |
 | `address_id` | `uuid` | SÍ | 150 | FK referenciada a `party_addresses.id` (150 relaciones consistentes) |
 | `contact_name` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 | `operational_reference` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 
-## Capa Topológica L8 (6 tablas)
+## Capa Topológica L8 (9 tablas)
 
 ### 62. `public.cmr_clauses`
 - **Capa:** L8
@@ -1775,7 +1775,7 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `text_value` | `text` | NO | 150 | 150 valores sintéticos completos y distintos |
 | `source` | `text` | SÍ | 1 | Constante funcional (`TEMPLATE`) |
 | `metadata` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 63. `public.cmr_attachments`
 - **Capa:** L8
@@ -1796,7 +1796,7 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `storage_path` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 | `external_reference` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 | `metadata` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 64. `public.cmr_parties`
 - **Capa:** L8
@@ -1823,7 +1823,7 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `contact_name` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 | `contact_phone` | `text` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
 | `metadata` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 65. `public.cmr_goods_lines`
 - **Capa:** L8
@@ -1856,7 +1856,7 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `tunnel_code` | `text` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
 | `adr_description` | `text` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
 | `metadata` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 | `source_order_line_id` | `uuid` | SÍ | 150 | FK referenciada a `order_lines.id` (150 relaciones consistentes) |
 | `hazmat_snapshot` | `jsonb` | NO | 1 | Constante funcional (`{'is_adr': False}`) |
 | `hazmat_edition_code` | `text` | SÍ | 0 | Valor explícito NULL (columna opcional sin impacto) |
@@ -1878,7 +1878,7 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `expedition_id` | `uuid` | NO | 150 | PK sintética (150 identificadores únicos) |
 | `sequence` | `integer` | NO | 1 | Constante funcional (`1`) |
 | `metadata` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 
 ### 67. `public.transport_events`
 - **Capa:** L8
@@ -1897,12 +1897,97 @@ Cobertura: **67 tablas de negocio objetivo**, **951 columnas** inventariadas y *
 | `id` | `uuid` | NO | 150 | PK sintética (150 identificadores únicos) |
 | `cmr_id` | `uuid` | NO | 150 | FK referenciada a `cmr_documents.id` (150 relaciones consistentes) |
 | `stop_id` | `uuid` | SÍ | 150 | FK referenciada a `transport_stops.id` (150 relaciones consistentes) |
-| `event_type` | `text` | NO | 1 | Constante funcional (`CMR_INITIALIZED`) |
-| `occurred_at` | `timestamp with time zone` | NO | 1 | Constante funcional (`2026-10-09T11:09:57.68...`) |
+| `event_type` | `text` | NO | 4 | Distribución de 4 variantes categóricas / numéricas |
+| `occurred_at` | `timestamp with time zone` | NO | 150 | 150 valores sintéticos completos y distintos |
 | `latitude` | `numeric` | SÍ | 150 | 150 valores sintéticos completos y distintos |
 | `longitude` | `numeric` | SÍ | 101 | Distribución de 101 variantes categóricas / numéricas |
-| `payload` | `jsonb` | NO | 1 | Constante funcional (`{'batch': 'DATA150-PRO...`) |
+| `payload` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
 | `idempotency_key` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
-| `created_at` | `timestamp with time zone` | NO | 1 | Marca temporal ISO-8601 de generación de lote |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
 | `tenant_id` | `uuid` | NO | 1 | FK referenciada a `tenants.id` (1 relaciones consistentes) |
-| `actor_user_id` | `uuid` | SÍ | 0 | FK referenciada a `auth.users.id` (0 relaciones consistentes) |
+| `actor_user_id` | `uuid` | SÍ | 1 | FK referenciada a `auth.users.id` (1 relaciones consistentes) |
+
+### 68. `public.cmr_signatures`
+- **Capa:** L8
+- **Clave Primaria:** `id`
+- **Filas del Lote:** 150 filas distintas y trazables (`[PRUEBA]`)
+- **Total Columnas:** 16
+
+**Claves Foráneas Salientes (Integridad Referencial):**
+- `cmr_id` &rarr; `public.cmr_documents(id)` (Constraint: `cmr_signatures_cmr_id_fkey`)
+- `stop_id` &rarr; `public.transport_stops(id)` (Constraint: `cmr_signatures_stop_id_fkey`)
+
+| Columna | Tipo de Dato | Nulable | Valores Distintos | Estrategia de Cobertura Sintética |
+| --- | --- | :---: | :---: | --- |
+| `id` | `uuid` | NO | 150 | PK sintética (150 identificadores únicos) |
+| `cmr_id` | `uuid` | NO | 150 | FK referenciada a `cmr_documents.id` (150 relaciones consistentes) |
+| `stop_id` | `uuid` | SÍ | 150 | FK referenciada a `transport_stops.id` (150 relaciones consistentes) |
+| `role` | `text` | NO | 3 | Distribución de 3 variantes categóricas / numéricas |
+| `signer_name` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
+| `signer_document` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
+| `company_name` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
+| `signature_storage_path` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
+| `stamp_storage_path` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
+| `signature_method` | `text` | NO | 1 | Constante funcional (`electronic`) |
+| `signed_at` | `timestamp with time zone` | NO | 150 | 150 valores sintéticos completos y distintos |
+| `latitude` | `numeric` | SÍ | 150 | 150 valores sintéticos completos y distintos |
+| `longitude` | `numeric` | SÍ | 101 | Distribución de 101 variantes categóricas / numéricas |
+| `device_id` | `text` | SÍ | 150 | 150 valores sintéticos completos y distintos |
+| `metadata` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+
+### 69. `public.transport_evidence`
+- **Capa:** L8
+- **Clave Primaria:** `id`
+- **Filas del Lote:** 150 filas distintas y trazables (`[PRUEBA]`)
+- **Total Columnas:** 10
+
+**Claves Foráneas Salientes (Integridad Referencial):**
+- `cmr_id` &rarr; `public.cmr_documents(id)` (Constraint: `transport_evidence_cmr_id_fkey`)
+- `stop_id` &rarr; `public.transport_stops(id)` (Constraint: `transport_evidence_stop_id_fkey`)
+- `event_id` &rarr; `public.transport_events(id)` (Constraint: `transport_evidence_event_id_fkey`)
+- `tenant_id` &rarr; `public.tenants(id)` (Constraint: `transport_evidence_tenant_id_fkey`)
+
+| Columna | Tipo de Dato | Nulable | Valores Distintos | Estrategia de Cobertura Sintética |
+| --- | --- | :---: | :---: | --- |
+| `id` | `uuid` | NO | 150 | PK sintética (150 identificadores únicos) |
+| `cmr_id` | `uuid` | NO | 150 | FK referenciada a `cmr_documents.id` (150 relaciones consistentes) |
+| `stop_id` | `uuid` | NO | 150 | FK referenciada a `transport_stops.id` (150 relaciones consistentes) |
+| `event_id` | `uuid` | SÍ | 150 | FK referenciada a `transport_events.id` (150 relaciones consistentes) |
+| `kind` | `text` | NO | 1 | Constante funcional (`pod_photo`) |
+| `storage_path` | `text` | NO | 150 | 150 valores sintéticos completos y distintos |
+| `captured_at` | `timestamp with time zone` | NO | 150 | 150 valores sintéticos completos y distintos |
+| `metadata` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+| `tenant_id` | `uuid` | NO | 1 | FK referenciada a `tenants.id` (1 relaciones consistentes) |
+
+### 70. `public.regulatory_document_artifacts`
+- **Capa:** L8
+- **Clave Primaria:** `id`
+- **Filas del Lote:** 150 filas distintas y trazables (`[PRUEBA]`)
+- **Total Columnas:** 16
+
+**Claves Foráneas Salientes (Integridad Referencial):**
+- `supersedes_artifact_id` &rarr; `public.regulatory_document_artifacts(id)` (Constraint: `regulatory_document_artifacts_supersedes_artifact_id_fkey`)
+- `tenant_id` &rarr; `public.tenants(id)` (Constraint: `regulatory_document_artifacts_tenant_id_fkey`)
+- `cmr_id` &rarr; `public.cmr_documents(id)` (Constraint: `regulatory_document_artifacts_cmr_id_fkey`)
+
+| Columna | Tipo de Dato | Nulable | Valores Distintos | Estrategia de Cobertura Sintética |
+| --- | --- | :---: | :---: | --- |
+| `id` | `uuid` | NO | 150 | PK sintética (150 identificadores únicos) |
+| `tenant_id` | `uuid` | NO | 1 | FK referenciada a `tenants.id` (1 relaciones consistentes) |
+| `cmr_id` | `uuid` | NO | 150 | FK referenciada a `cmr_documents.id` (150 relaciones consistentes) |
+| `document_kind` | `text` | NO | 4 | Distribución de 4 variantes categóricas / numéricas |
+| `regulatory_scope` | `text` | NO | 4 | Distribución de 4 variantes categóricas / numéricas |
+| `version` | `integer` | NO | 1 | Constante funcional (`1`) |
+| `mime_type` | `text` | NO | 1 | Constante funcional (`application/pdf`) |
+| `storage_path` | `text` | NO | 150 | 150 valores sintéticos completos y distintos |
+| `sha256` | `text` | NO | 150 | 150 valores sintéticos completos y distintos |
+| `byte_size` | `bigint` | NO | 150 | 150 valores sintéticos completos y distintos |
+| `document_created_at` | `timestamp with time zone` | NO | 150 | 150 valores sintéticos completos y distintos |
+| `document_modified_at` | `timestamp with time zone` | NO | 150 | 150 valores sintéticos completos y distintos |
+| `issued_at` | `timestamp with time zone` | NO | 150 | 150 valores sintéticos completos y distintos |
+| `supersedes_artifact_id` | `uuid` | SÍ | 0 | FK referenciada a `regulatory_document_artifacts.id` (0 relaciones consistentes) |
+| `metadata` | `jsonb` | NO | 150 | 150 valores sintéticos completos y distintos |
+| `created_at` | `timestamp with time zone` | NO | 150 | Marca temporal ISO-8601 de generación de lote |
+

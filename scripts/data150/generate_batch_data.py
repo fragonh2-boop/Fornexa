@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 DATA150 Clean Generator:
-Generates 150 synthetic rows for each of the 67 applicable business tables for tenant FORNEXA.
+Generates 150 synthetic rows for each of the 70 applicable business tables for tenant FORNEXA.
 Strictly adheres to:
 - DATA150-SCHEMA-BASELINE.json (0 invented columns, 100% baseline column match).
 - Zero contact phones (NULL).
@@ -14,6 +14,7 @@ Strictly adheres to:
 import json
 import uuid
 import datetime
+import hashlib
 from pathlib import Path
 
 TENANT_ID = '00000000-0000-4000-8000-000000000001'
@@ -1562,6 +1563,70 @@ def generate_all_tables():
         } for i in range(150)
     ]
 
+    # 68. cmr_signatures
+    cmr_sig_roles = ['sender', 'carrier', 'consignee']
+    cmr_sig_role_labels = ['Remitente', 'Transportista', 'Destinatario']
+    dataset['cmr_signatures'] = [
+        {
+            'id': gen_uuid('cmr_signatures', i),
+            'cmr_id': gen_uuid('cmr_documents', i),
+            'stop_id': gen_uuid('transport_stops', i),
+            'role': cmr_sig_roles[i % 3],
+            'signer_name': f"[PRUEBA] Firmante {cmr_sig_role_labels[i % 3]} {i:03d}",
+            'signer_document': f"TEST-DNI-{i:05d}X",
+            'company_name': f"[PRUEBA] Sociedad Logística {i:03d} SL",
+            'signature_storage_path': f"mock-signatures/cmr_{i:04d}_sig_{i}.png",
+            'stamp_storage_path': f"mock-stamps/cmr_{i:04d}_stamp_{i}.png",
+            'signature_method': 'electronic',
+            'signed_at': timelines[i]['stop_completed'],
+            'latitude': unique_addresses[i]['latitude'],
+            'longitude': unique_addresses[i]['longitude'],
+            'device_id': f"mock-device-{i:04d}",
+            'metadata': {'batch': BATCH_ID, 'synthetic': True, 'test_flow': 'DATA150-MOCK-SIGNATURE', 'index': i},
+            'created_at': timelines[i]['stop_completed']
+        } for i in range(150)
+    ]
+
+    # 69. transport_evidence
+    dataset['transport_evidence'] = [
+        {
+            'id': gen_uuid('transport_evidence', i),
+            'cmr_id': gen_uuid('cmr_documents', i),
+            'stop_id': gen_uuid('transport_stops', i),
+            'event_id': gen_uuid('transport_events', i),
+            'kind': 'pod_photo',
+            'storage_path': f"mock-evidence/pod_{i:04d}_{i}.jpg",
+            'captured_at': timelines[i]['event_occurred'],
+            'metadata': {'batch': BATCH_ID, 'synthetic': True, 'test_flow': 'DATA150-MOCK-EVIDENCE', 'index': i},
+            'created_at': timelines[i]['event_created'],
+            'tenant_id': TENANT_ID
+        } for i in range(150)
+    ]
+
+    # 70. regulatory_document_artifacts
+    doc_kinds = ['cmr', 'deca', 'ecmr', 'pod']
+    reg_scopes = ['deca_es', 'cmr_convention', 'ecmr_protocol', 'efti']
+    dataset['regulatory_document_artifacts'] = [
+        {
+            'id': gen_uuid('regulatory_document_artifacts', i),
+            'tenant_id': TENANT_ID,
+            'cmr_id': gen_uuid('cmr_documents', i),
+            'document_kind': doc_kinds[i % 4],
+            'regulatory_scope': reg_scopes[i % 4],
+            'version': 1,
+            'mime_type': 'application/pdf',
+            'storage_path': f"mock-regulatory/doc_{i:04d}_{i}.pdf",
+            'sha256': hashlib.sha256(f"mock-doc-{i}".encode('utf-8')).hexdigest(),
+            'byte_size': 102400 + (i * 1024),
+            'document_created_at': timelines[i]['cmr_created'],
+            'document_modified_at': timelines[i]['cmr_created'],
+            'issued_at': timelines[i]['cmr_created'],
+            'supersedes_artifact_id': None,
+            'metadata': {'batch': BATCH_ID, 'synthetic': True, 'test_flow': 'DATA150-MOCK-ARTIFACT', 'index': i},
+            'created_at': timelines[i]['cmr_created']
+        } for i in range(150)
+    ]
+
     return dataset
 
 def sql_val(v, col_meta=None):
@@ -1596,7 +1661,7 @@ def generate_sql_loader_and_rollback(dataset, baseline_tables):
         "-- FORNEXA — DATA150 PRODUCTION LOADER: IDEMPOTENT TRANSACTIONAL SYNTHETIC TEST BATCH",
         "-- Batch ID: DATA150-PRODUCTION-20261009",
         f"-- Target Tenant: {TENANT_ID}",
-        "-- Total Tables: 67 | Rows per table: 150 | Total rows: 10,050",
+        "-- Total Tables: 70 | Rows per table: 150 | Total rows: 10,500",
         "-- Constraint: Zero invented columns, zero fabricated signatures, fail-closed",
         "-- Real Return: Statements use RETURNING to capture effectively inserted rows only",
         "-- ==========================================================================\n",
@@ -1709,7 +1774,8 @@ def generate_sql_loader_and_rollback(dataset, baseline_tables):
         'cmr_goods_lines',
         'cmr_attachments',
         'cmr_clauses',
-        'cmr_expeditions'
+        'cmr_expeditions',
+        'cmr_signatures'
     }
 
     # Build rollback SQL in exact reverse topological order
@@ -1751,7 +1817,7 @@ def main():
     import preflight_schema_validation as validator
     baseline_tables = validator.load_baseline()
 
-    print("Generating 67 business tables x 150 rows...")
+    print("Generating 70 business tables x 150 rows...")
     dataset = generate_all_tables()
     print(f"Generated {len(dataset)} tables.")
 

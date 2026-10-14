@@ -1010,7 +1010,7 @@ export async function verifyData150BatchCoverage(supabase: SupabaseClient, tenan
     tenant_id: tenantId,
     total_tables: totalTables,
     compliant_tables: compliantTables,
-    is_fully_covered: totalTables === 67 && compliantTables === 67,
+    is_fully_covered: totalTables === 70 && compliantTables === 70,
     tables: tableResults,
   };
 }
@@ -1083,6 +1083,9 @@ export const DATA150_FORWARD_TABLES: string[] = [
   "cmr_goods_lines",
   "cmr_expeditions",
   "transport_events",
+  "cmr_signatures",
+  "transport_evidence",
+  "regulatory_document_artifacts",
 ];
 
 export const DATA150_REVERSE_TABLES: string[] = [...DATA150_FORWARD_TABLES].reverse();
@@ -1093,6 +1096,7 @@ export const DATA150_TABLES_WITHOUT_TENANT = new Set<string>([
   "cmr_attachments",
   "cmr_clauses",
   "cmr_expeditions",
+  "cmr_signatures",
 ]);
 
 export const DATA150_APPEND_ONLY_TABLES = new Set<string>([

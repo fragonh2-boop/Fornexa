@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "14 oct 2026";
-export const memorandumCommitCoverage = 601;
+export const memorandumCommitCoverage = 603;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -115,7 +115,7 @@ export const memorandumReleases: MemorandumRelease[] = [
     surface: ["Web", "Plataforma"],
     title: "Carga sintética de revisión en producción (DATA150)",
     purpose: "Habilitar lote sintético autorizado de pruebas con 150 filas completas y distintas por tabla de negocio aplicable para revisión operativa, preservando datos existentes y excluyendo entidades de seguridad o auditoría.",
-    outcome: "Ensayado localmente sobre PostgreSQL 17.11: doble reconciliación independiente de contrato productivo 2026-10-09 (89 tablas públicas, RLS, 1.214 cols, 89 PKs, 235 FKs públicas) y referencia canónica completa (235 FKs con acciones/deferrability, 171 CHECKs, 61 UNIQUEs con definición, 485 DEFAULT/IDENTITY con identity_generation y contrato profundo de triggers 100% habilitados a nivel ROW con verificación de pg_proc y suites negativas), cargador transaccional con desalojo atómico de cerrojo huérfano con claim token y recuperación de claims muertos, inspección fail-closed de descriptores y asimilación recursiva de thenables diferidos, 10.048 filas de ensayo capturadas por RETURNING, retry de 0 filas, rollback dinámico directo tras reconciliación y suite negativa exhaustiva verificada en BD. Alcance productivo y carga de 150 filas por tabla permanecen en preproducción a la espera de la decisión de Fran sobre excepciones regulatorias (cuarentena de firmas y artefactos CMR) y superación de gates.",
+    outcome: "Incorporación autorizada por Fran (Opción B) de las 3 tablas regulatorias y de firmas (cmr_signatures, transport_evidence, regulatory_document_artifacts) con 150 registros sintéticos mock identificados ([PRUEBA], synthetic: true), elevando el lote a 70 tablas de negocio objetivo (10.500 filas sintéticas totales). Ensayado localmente sobre PostgreSQL 17.11 con 8 fases y 100% de integridad: doble reconciliación de catálogo (89 tablas públicas, 1.214 cols, 89 PKs, 235 FKs con acciones/deferrability, 171 CHECKs, 61 UNIQUEs, 485 DEFAULT/IDENTITY y 2 triggers append-only inmutables), cargador transaccional con exclusión mutua crash-safe, captura efectiva por RETURNING (10.498 filas devueltas preservando colisiones), retry idempotente de 0 filas y verificación de rollback en BD. Permanece en preproducción hasta superación de gates y revisiones independientes de Claude y DeepSeek.",
     status: "Preproducción",
   },
   {

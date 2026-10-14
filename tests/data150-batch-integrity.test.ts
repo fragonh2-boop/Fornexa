@@ -44,7 +44,7 @@ test("DATA150 manifest exists and declares exact table coverage", () => {
   assert.equal(manifest.tenant_id, TENANT_ID);
 
   const tables = Object.keys(manifest.tables);
-  assert.equal(tables.length, 67, "Must cover exactly 67 business tables");
+  assert.equal(tables.length, 70, "Must cover exactly 70 business tables");
 
   for (const [table, meta] of Object.entries<any>(manifest.tables)) {
     assert.equal(meta.row_count, 150, `Table ${table} must have exactly 150 rows`);
@@ -89,7 +89,7 @@ test("DATA150 loader SQL file is well-formed, transactional, idempotent, and use
   assert.ok(sql.includes("@fornexatest.invalid"), "Must use reserved .invalid test domain");
 });
 
-test("DATA150 loader parses exactly 10,050 INSERT statements across all 67 tables (0 lost statements)", () => {
+test("DATA150 loader parses exactly 10,500 INSERT statements across all 70 tables (0 lost statements)", () => {
   const sql = readFileSync(LOADER_SQL_PATH, "utf8");
   const rawLines = sql.split("\n");
   const statements: string[] = [];
@@ -107,10 +107,10 @@ test("DATA150 loader parses exactly 10,050 INSERT statements across all 67 table
     }
   }
 
-  assert.equal(statements.length, 10050, "Must extract all 10,050 statements without losing table headers");
+  assert.equal(statements.length, 10500, "Must extract all 10,500 statements without losing table headers");
   const tableMatches = statements.map((s) => s.match(/INSERT INTO public\.([a-z0-9_]+)/)?.[1]).filter(Boolean);
   const distinctTables = new Set(tableMatches);
-  assert.equal(distinctTables.size, 67, "Must cover all 67 tables");
+  assert.equal(distinctTables.size, 70, "Must cover all 70 tables");
 });
 
 test("DATA150 rollback SQL file is a fail-closed stub that prevents speculative execution", () => {
@@ -198,12 +198,12 @@ test("DATA150 classification matrix is complete and coherent", () => {
   const doc = readFileSync(MATRIX_PATH, "utf8");
 
   assert.ok(doc.includes("Total tablas inspeccionadas: 89"), "Must inspect all 89 tables");
-  assert.ok(doc.includes("Tablas de negocio objetivo (67 tablas)"), "Must document 67 business tables");
+  assert.ok(doc.includes("Tablas de negocio objetivo (70 tablas)"), "Must document 70 business tables");
   assert.ok(doc.includes("Catálogos finitos estándar legítimos < 150 (3 tablas)"), "Must document 3 finite catalogs");
   assert.ok(doc.includes("Catálogos normativos ADR preservados y asignaciones dependientes (7 tablas)"), "Must document 7 ADR tables");
   assert.ok(
-    doc.includes("Tablas Excluidas / en Cuarentena: Mandato Legal y Regulatorio — Firmas, Evidencias y Artefactos (3 tablas)"),
-    "Must document 3 legal/regulatory quarantined tables"
+    doc.includes("Decisión de Fran sobre Tablas Regulatorias y Legales (Opción B"),
+    "Must document Fran's Option B decision"
   );
   assert.ok(doc.includes("Tablas Excluidas: Logs Técnicos, Despacho y Revisiones (2 tablas)"), "Must document 2 tech logs excluded tables");
 
@@ -225,7 +225,7 @@ test("DATA150 JSONB and ARRAY columns serialize correctly with type awareness", 
   assert.ok(padrLine?.includes("'{}'"), "party_adr_profiles must serialize empty text array as '{}'");
 });
 
-test("DATA150 fixtures are inert and regulatory entities quarantined", () => {
+test("DATA150 fixtures are inert and regulatory entities included as synthetic mocks per Fran's decision (Option B)", () => {
   const dataset = JSON.parse(readFileSync(DATASET_PATH, "utf8"));
 
   // Connectors must be DISABLED and marked inert
@@ -236,10 +236,14 @@ test("DATA150 fixtures are inert and regulatory entities quarantined", () => {
     assert.equal(c.configuration.inert, true, "Connector config must declare inert fixture");
   }
 
-  // Quarantined regulatory tables must NOT be present in dataset
-  assert.equal(dataset.regulatory_document_artifacts, undefined, "regulatory_document_artifacts must be excluded from batch");
-  assert.equal(dataset.cmr_signatures, undefined, "cmr_signatures must be excluded from batch");
-  assert.equal(dataset.transport_evidence, undefined, "transport_evidence must be excluded from batch");
+  // Regulatory tables included as synthetic mocks per Fran's decision (Option B)
+  assert.equal(dataset.regulatory_document_artifacts.length, 150, "regulatory_document_artifacts must have 150 mock rows");
+  assert.equal(dataset.cmr_signatures.length, 150, "cmr_signatures must have 150 mock rows");
+  assert.equal(dataset.transport_evidence.length, 150, "transport_evidence must have 150 mock rows");
+  for (const s of dataset.cmr_signatures) {
+    assert.equal(s.metadata.synthetic, true);
+    assert.ok(s.signer_name.startsWith("[PRUEBA]"));
+  }
 });
 
 test("DATA150 durable receipt contains complete composite and correlation keys", () => {
