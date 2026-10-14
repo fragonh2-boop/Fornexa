@@ -11,3 +11,4 @@ out
 .env*
 docs/verification/data150-rehearsal-execution-receipt.json
 docs/verification/*.log
+scripts/data150/artifacts/

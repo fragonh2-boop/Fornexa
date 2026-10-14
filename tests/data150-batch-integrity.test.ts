@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync, unlinkSync, existsSync, openSync, closeSync, mkdirSync, rmSync } from "node:fs";
-import { spawn } from "node:child_process";
+import { spawn, execFileSync } from "node:child_process";
 import test from "node:test";
 import os from "node:os";
 import path from "node:path";
@@ -248,6 +248,12 @@ test("DATA150 fixtures are inert and regulatory entities included as synthetic m
 });
 
 test("DATA150 regulatory and evidence artifacts have canonical kind/scope pairs and valid synthetic payloads", () => {
+  const regDir = path.join(process.cwd(), "scripts/data150/artifacts/regulatory");
+  const evDir = path.join(process.cwd(), "scripts/data150/artifacts/evidence");
+  if (!existsSync(regDir) || !existsSync(evDir) || !existsSync(path.join(regDir, "doc_0000.pdf"))) {
+    execFileSync("python3", ["scripts/data150/generate_batch_data.py"], { stdio: "ignore" });
+  }
+
   const dataset = JSON.parse(readFileSync(DATASET_PATH, "utf8"));
 
   const validPairs: Record<string, string> = {
