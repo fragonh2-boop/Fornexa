@@ -752,8 +752,8 @@ export default function DocksWorkspace() {
                 .map((a) => (
                   <li key={a.id}>
                     {a.action} · {time(a.occurred_at)} ·{" "}
-                    {data.actorNames[a.actor_user_id] ??
-                      "Usuario de la empresa"}{" "}
+                    {a.source_channel === "PORTAL" ? "Transportista · Portal" :
+                      (a.actor_user_id && data.actorNames[a.actor_user_id]) || "Usuario de la empresa"}{" "}
                     {a.reason && `· ${a.reason}`}
                   </li>
                 ))}

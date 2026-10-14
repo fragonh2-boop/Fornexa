@@ -35,6 +35,7 @@ export default function TelemetryBridge() {
 
   useEffect(() => {
     if (isPreviewDemoPath(pathname)) { previous.current = null; return; }
+    if (pathname.startsWith("/muelles/p/")) { previous.current = null; return; }
     const sid = sessionId();
     const now = performance.now();
     const prior = previous.current;
@@ -63,9 +64,11 @@ export default function TelemetryBridge() {
 
   useEffect(() => {
     if (isPreviewDemoPath(window.location.pathname)) return;
+    if (window.location.pathname.startsWith("/muelles/p/")) return;
     const sid = sessionId();
     const onPageHide = () => {
       if (isPreviewDemoPath(window.location.pathname)) return;
+    if (window.location.pathname.startsWith("/muelles/p/")) return;
       const current = previous.current;
       if (!current) return;
       send({

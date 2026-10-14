@@ -26,7 +26,8 @@ export function normalizeTelemetryPath(value: string) {
   return normalized.replace(
     /^\/regulatory\/d\/[^/]+(?=\/|$)/,
     "/regulatory/d/[token]",
-  );
+  ).replace(/^\/muelles\/p\/[^/]+(?=\/|$)/, "/muelles/p/[token]")
+   .replace(/^\/api\/dock-portal\/[^/]+(?=\/|$)/, "/api/dock-portal/[token]");
 }
 
 export function normalizeTelemetryReferrer(value: string | null) {
