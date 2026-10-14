@@ -3,6 +3,8 @@ import { getAuthenticatedContext, getAuthenticatedOrReviewContext } from "@/lib/
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
 import { hasOperationalUse, normalizeCustomerAssignments } from "@/lib/address-master";
 
+import { CalendarValidationError, validateOpeningHours, validateHolidayExceptions, closedOpeningHours } from "@/lib/operational-calendar";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -51,7 +53,7 @@ export async function GET(request: Request) {
           operational_profile:address_operational_profiles(
             has_dock,needs_forklift,requires_appointment,pallet_exchange,adr_capable,
             temperature_controlled,temperature_min,temperature_max,geofence_radius_m,
-            average_wait_minutes,access_instructions
+            average_wait_minutes,access_instructions,opening_hours,holiday_exceptions
           )
         )
       `)
@@ -89,6 +91,19 @@ export async function GET(request: Request) {
       : assignment.address.operational_profile ?? null,
   }));
 
+  // Explicit per-address rejection of malformed calendars must not hide the rest of the master.
+  const calendarErrors = new Map<string,string>();
+  for (const address of addresses) {
+    if (!address.operationalProfile) continue;
+    try {
+      validateOpeningHours(address.operationalProfile.opening_hours);
+      validateHolidayExceptions(address.operationalProfile.holiday_exceptions);
+    } catch {
+      calendarErrors.set(address.id,"INVALID_OPERATIONAL_CALENDAR");
+      address.operationalProfile = { ...address.operationalProfile, opening_hours: null, holiday_exceptions: null };
+    }
+  }
+
   const addressIds = addresses.map(item => item.id);
   let links: any[] = [];
   if (addressIds.length) {
@@ -105,7 +120,7 @@ export async function GET(request: Request) {
   links.forEach(link => assignedByAddress.set(link.address_id, [...(assignedByAddress.get(link.address_id) ?? []), codeById.get(link.party_id)].filter(Boolean) as string[]));
 
   return NextResponse.json({
-    item: { customerCode, addresses: addresses.map(address => ({ ...address, assignedCustomerCodes: assignedByAddress.get(address.id) ?? [customerCode] })) },
+    item: { customerCode, addresses: addresses.map(address => ({ ...address, calendarError: calendarErrors.get(address.id) ?? null, assignedCustomerCodes: assignedByAddress.get(address.id) ?? [customerCode] })) },
     customers: (customersResult.data ?? []).map((item: any) => ({ code: item.code, name: item.trade_name ?? item.legal_name ?? item.code })),
     canEdit: !auth.isReview && EDIT_ROLES.has(auth.role),
   }, { headers: { "Cache-Control": "no-store" } });
@@ -146,6 +161,21 @@ async function writeAddress(request: Request, method: "POST" | "PUT") {
   if ((assignedParties ?? []).length !== assignedCodes.length) return NextResponse.json({ error: "Una de las empresas asignadas no es válida." }, { status: 400 });
 
   const addressId = text(body.addressId);
+  const operational = address.operationalProfile && typeof address.operationalProfile === "object"
+    ? address.operationalProfile as Record<string, unknown> : {};
+  if ((operational.openingHours === undefined) !== (operational.holidayExceptions === undefined)) throw new CalendarValidationError("Horario y excepciones deben enviarse juntos.");
+  let calendar: Record<string, unknown> = {};
+  if (operational.openingHours !== undefined || operational.holidayExceptions !== undefined || method === "POST") {
+    calendar = {
+      opening_hours: validateOpeningHours(operational.openingHours ?? closedOpeningHours()),
+      holiday_exceptions: validateHolidayExceptions(operational.holidayExceptions ?? []),
+    };
+  } else {
+    const existing = await supabase.from("address_operational_profiles").select("opening_hours,holiday_exceptions").eq("tenant_id", auth.tenantId).eq("address_id", addressId).maybeSingle();
+    if (existing.error) throw existing.error;
+    // Omitted calendar leaves its stored bytes unchanged, including an explicitly flagged legacy profile.
+    if (!existing.data) calendar = { opening_hours: closedOpeningHours(), holiday_exceptions: [] };
+  }
   let persisted: any;
   const values = {
     name: text(address.name),
@@ -206,9 +236,6 @@ async function writeAddress(request: Request, method: "POST" | "PUT") {
     .upsert(assignments, { onConflict: "tenant_id,address_id,party_id" });
   if (upsertError) throw upsertError;
 
-  const operational = address.operationalProfile && typeof address.operationalProfile === "object"
-    ? address.operationalProfile as Record<string, unknown>
-    : {};
   const decimalOrNull = (value: unknown) => {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : null;
@@ -217,6 +244,7 @@ async function writeAddress(request: Request, method: "POST" | "PUT") {
   const { error: operationalError } = await supabase.from("address_operational_profiles").upsert({
     address_id: persisted.id,
     tenant_id: auth.tenantId,
+    ...calendar,
     has_dock: Boolean(operational.hasDock),
     needs_forklift: Boolean(operational.needsForklift),
     requires_appointment: Boolean(operational.requiresAppointment),
@@ -238,7 +266,7 @@ async function writeAddress(request: Request, method: "POST" | "PUT") {
     .eq("tenant_id", auth.tenantId)
     .eq("address_id", persisted.id);
   const removeIds = (currentLinks ?? []).filter((link: any) => !keepPartyIds.has(link.party_id)).map((link: any) => link.id);
-  if (removeIds.length) await supabase.from("party_address_assignments").delete().in("id", removeIds);
+  if (removeIds.length) await supabase.from("party_address_assignments").delete().eq("tenant_id", auth.tenantId).in("id", removeIds);
 
   await supabase.from("audit_events").insert({
     tenant_id: auth.tenantId,
@@ -256,10 +284,10 @@ async function writeAddress(request: Request, method: "POST" | "PUT") {
 
 export async function POST(request: Request) {
   try { return await writeAddress(request, "POST"); }
-  catch (error) { console.error("Customer addresses POST", error); return NextResponse.json({ error: "No se pudo crear la dirección." }, { status: 500 }); }
+  catch (error) { if (error instanceof CalendarValidationError) return NextResponse.json({ error: error.message }, { status: 400 }); console.error("Customer addresses POST", error); return NextResponse.json({ error: "No se pudo crear la dirección." }, { status: 500 }); }
 }
 
 export async function PUT(request: Request) {
   try { return await writeAddress(request, "PUT"); }
-  catch (error) { console.error("Customer addresses PUT", error); return NextResponse.json({ error: "No se pudo actualizar la dirección." }, { status: 500 }); }
+  catch (error) { if (error instanceof CalendarValidationError) return NextResponse.json({ error: error.message }, { status: 400 }); console.error("Customer addresses PUT", error); return NextResponse.json({ error: "No se pudo actualizar la dirección." }, { status: 500 }); }
 }

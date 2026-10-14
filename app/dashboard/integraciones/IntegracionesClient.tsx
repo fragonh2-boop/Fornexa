@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import DockConfigWorkspace from "./DockConfigWorkspace";
 import EmailWorkspace, { type EmailEvent } from "./EmailWorkspace";
 import ComboConfigWorkspace from "./ComboConfigWorkspace";
 import StorageConfigWorkspace from "./StorageConfigWorkspace";
@@ -30,6 +31,7 @@ export type IntegrationsData = {
 
 export default function IntegracionesClient({ data, simulation = false, emailHistory }: { data: IntegrationsData; basePath?: DashboardBasePath; simulation?: boolean; emailHistory?: EmailEvent[] }) {
   const { queue, mappings, eventsToday } = data;
+  const [tab, setTab] = useState("Conectores");
   const [search, setSearch] = useState("");
   const [family, setFamily] = useState("Todas");
   const [connectors] = useState(data.connectors);
@@ -61,11 +63,15 @@ export default function IntegracionesClient({ data, simulation = false, emailHis
       { label: "Eventos hoy", value: eventsToday ?? "—", detail: "Entrada + salida" },
     ]} />
 
-    <ComboConfigWorkspace />
+    <nav className={styles.filters} aria-label="Pestañas de configuración">{["Conectores", "Combos", "Almacenamiento", "Correo", "Muelles"].map(name => <button type="button" key={name} className={tab === name ? screenButton.primary : screenButton.secondary} aria-pressed={tab === name} onClick={() => setTab(name)}>{name}</button>)}</nav>
+    {tab === "Muelles" && !simulation && <DockConfigWorkspace />}
+    {tab === "Muelles" && simulation && <p>Configuración de muelles disponible en el entorno autenticado.</p>}
+    <div hidden={tab !== "Combos"}><ComboConfigWorkspace /></div>
 
-    <StorageConfigWorkspace />
+    <div hidden={tab !== "Almacenamiento"}><StorageConfigWorkspace /></div>
 
-    <EmailWorkspace simulation={simulation} initialHistory={emailHistory} />
+    <div hidden={tab !== "Correo"}><EmailWorkspace simulation={simulation} initialHistory={emailHistory} /></div>
+    <div hidden={tab !== "Conectores"}>
 
     <section className={styles.split}>
       <article className={styles.panel}>
@@ -102,5 +108,6 @@ export default function IntegracionesClient({ data, simulation = false, emailHis
       </div>
       <p className={styles.note}>Todas las conexiones convergen en el modelo operativo de FORNEXA antes de crear o actualizar partidas, expediciones, viajes, documentos o eventos operativos.</p>
     </section>
+    </div>
   </main>;
 }
