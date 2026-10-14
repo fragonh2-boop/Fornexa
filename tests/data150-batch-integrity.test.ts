@@ -279,7 +279,23 @@ test("DATA150 regulatory and evidence artifacts have canonical kind/scope pairs 
     assert.equal(pdfBytes.length, art.byte_size, `byte_size must match actual file bytes for artifact ${i}`);
     const hash = crypto.createHash("sha256").update(pdfBytes).digest("hex");
     assert.equal(hash, art.sha256, `sha256 must match actual file hash for artifact ${i}`);
-    assert.ok(pdfBytes.toString("latin1").startsWith("%PDF-1.4"), `File ${pdfPath} must be valid PDF-1.4`);
+
+    // Validate exact PDF structural parsing and xref table
+    const latin = pdfBytes.toString("latin1");
+    assert.ok(latin.startsWith("%PDF-1.4"), `File ${pdfPath} must start with %PDF-1.4`);
+    assert.ok(latin.endsWith("%%EOF\n"), `File ${pdfPath} must end with %%EOF\\n`);
+    const xrefIdx = latin.indexOf("xref\n");
+    assert.ok(xrefIdx > 0, `File ${pdfPath} must contain xref table`);
+    const xrefLines = latin.substring(xrefIdx).split("\n");
+    assert.equal(xrefLines[1], "0 6", `xref must declare exactly 6 entries (objects 0 to 5)`);
+    assert.equal(xrefLines[2], "0000000000 65535 f ", `Object 0 must be standard free entry`);
+    for (let objId = 1; objId <= 5; objId++) {
+      const entry = xrefLines[2 + objId];
+      const offset = Number(entry.split(" ")[0]);
+      assert.ok(Number.isFinite(offset) && offset > 0, `Object ${objId} offset must be positive finite integer`);
+      const objPrefix = latin.substring(offset, offset + 12);
+      assert.ok(objPrefix.startsWith(`${objId} 0 obj`), `Object ${objId} at offset ${offset} must start with '${objId} 0 obj', got ${JSON.stringify(objPrefix)}`);
+    }
   }
 
   assert.ok(decaCount >= 37, "Must contain at least 37 deca/deca_es artifacts for access and issuance workflows");

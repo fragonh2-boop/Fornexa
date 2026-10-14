@@ -68,17 +68,18 @@ def make_synthetic_pdf_bytes(artifact_id: str, index: int, cmr_id: str, kind: st
         b"5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
     ]
 
-    offsets = [0]
+    obj_offsets = []
     curr = len(parts[0])
     for p in parts[1:]:
-        offsets.append(curr)
+        obj_offsets.append(curr)
         curr += len(p)
 
+    xref_offset = curr
     xref = b"xref\n0 6\n0000000000 65535 f \n"
-    for off in offsets:
+    for off in obj_offsets:
         xref += f"{off:010d} 00000 n \n".encode('latin-1')
 
-    trailer = f"trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{curr}\n%%EOF\n".encode('latin-1')
+    trailer = f"trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF\n".encode('latin-1')
     return b"".join(parts) + xref + trailer
 
 SYNTHETIC_JPEG_BYTES = (
