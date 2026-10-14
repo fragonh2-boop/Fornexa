@@ -83,9 +83,11 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
      * Trazabilidad SHOULD 2 (`docs/verification/data150-rehearsal-report.md` §1): documentación transparente y honesta de la procedencia del log del ensayo (`Git HEAD 40bb9ad` con adaptaciones en working tree `234baa17...` previo a `20d1b90`), preservando los artefactos de salida congelados generados en dicha corrida en vivo sin ejecuciones artificiales posteriores.
      * Suite global completa: 272/272 tests passing, typecheck 0 errores, lint 0 errores, Turbopack build 17/17 páginas estáticas exit 0.
    - Delimitación operativa y de gobernanza:
-     * La integridad técnica y el mecanismo de carga/rollback han sido completamente demostrados en entorno no productivo local sobre PostgreSQL 17.11.
-     * Fran ha aprobado formalmente la Opción B (incorporación de las 3 tablas regulatorias/firmas como datos de prueba sintéticos para validación de flujos completos).
-     * El procedimiento productivo permanece en fail-closed a la espera de la aprobación de revisiones independientes (0 MUSTs) y CI exact-HEAD. Cero escrituras en Supabase productivo (proyecto fornexa), cero merge y cero deploy.
+     * CÓDIGO INTEGRADO Y DESPLEGADO: PR #103 integrada en `main` mediante squash commit `d3ff677126c50b38362b898a24006b972fbc3ad3` tras doble revisión independiente HIGH favorable (Claude Desktop 0 MUSTs MERGE SÍ y DeepSeek CLI oficial headless 0 MUSTs MERGE YES) y CI en verde (run 38583601496 en PR y run 38588352990 en main).
+     * Despliegue en producción Vercel verificado en estado READY con alias público `fornexasc.com`, acreditando smoke en vivo en `/`, `/login`, `/memorandum` (HTTP 200) y `/demo` cerrado (HTTP 404).
+     * CARGA OPERATIVA PENDIENTE: La tarea DATA150 permanece en OPEN. La carga de datos sintéticos en la base de datos de producción de Supabase y la subida de binarios a Storage permanecen pendientes y bloqueadas en fail-closed (plantilla productiva en estado `PENDING_EXECUTION`).
+     * Cero SQL remoto ejecutado, cero migraciones aplicadas, cero subidas a Storage y cero buckets creados en infraestructura de nube.
+     * Muelles #104/#105 permanecen estrictamente congeladas e intactas.
 
 ## 2026-10-09 — TRZ1: Trazabilidad de artículos
 
