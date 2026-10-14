@@ -91,15 +91,17 @@ export async function GET(request: Request) {
       : assignment.address.operational_profile ?? null,
   }));
 
-  try {
-    for (const address of addresses) {
-      if (address.operationalProfile) {
-        validateOpeningHours(address.operationalProfile.opening_hours);
-        validateHolidayExceptions(address.operationalProfile.holiday_exceptions);
-      }
+  // Explicit per-address rejection of malformed calendars must not hide the rest of the master.
+  const calendarErrors = new Map<string,string>();
+  for (const address of addresses) {
+    if (!address.operationalProfile) continue;
+    try {
+      validateOpeningHours(address.operationalProfile.opening_hours);
+      validateHolidayExceptions(address.operationalProfile.holiday_exceptions);
+    } catch {
+      calendarErrors.set(address.id,"INVALID_OPERATIONAL_CALENDAR");
+      address.operationalProfile = { ...address.operationalProfile, opening_hours: null, holiday_exceptions: null };
     }
-  } catch {
-    return NextResponse.json({ error: "El perfil contiene un horario no canónico. Corrígelo en Configuración → Muelles.", code: "INVALID_OPERATIONAL_CALENDAR" }, { status: 409 });
   }
 
   const addressIds = addresses.map(item => item.id);
@@ -118,7 +120,7 @@ export async function GET(request: Request) {
   links.forEach(link => assignedByAddress.set(link.address_id, [...(assignedByAddress.get(link.address_id) ?? []), codeById.get(link.party_id)].filter(Boolean) as string[]));
 
   return NextResponse.json({
-    item: { customerCode, addresses: addresses.map(address => ({ ...address, assignedCustomerCodes: assignedByAddress.get(address.id) ?? [customerCode] })) },
+    item: { customerCode, addresses: addresses.map(address => ({ ...address, calendarError: calendarErrors.get(address.id) ?? null, assignedCustomerCodes: assignedByAddress.get(address.id) ?? [customerCode] })) },
     customers: (customersResult.data ?? []).map((item: any) => ({ code: item.code, name: item.trade_name ?? item.legal_name ?? item.code })),
     canEdit: !auth.isReview && EDIT_ROLES.has(auth.role),
   }, { headers: { "Cache-Control": "no-store" } });
@@ -171,10 +173,8 @@ async function writeAddress(request: Request, method: "POST" | "PUT") {
   } else {
     const existing = await supabase.from("address_operational_profiles").select("opening_hours,holiday_exceptions").eq("tenant_id", auth.tenantId).eq("address_id", addressId).maybeSingle();
     if (existing.error) throw existing.error;
-    if (existing.data) {
-      validateOpeningHours(existing.data.opening_hours);
-      validateHolidayExceptions(existing.data.holiday_exceptions);
-    } else calendar = { opening_hours: closedOpeningHours(), holiday_exceptions: [] };
+    // Omitted calendar leaves its stored bytes unchanged, including an explicitly flagged legacy profile.
+    if (!existing.data) calendar = { opening_hours: closedOpeningHours(), holiday_exceptions: [] };
   }
   let persisted: any;
   const values = {

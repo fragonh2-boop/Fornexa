@@ -15,6 +15,7 @@ import {
   integer,
   validatePolicy,
   CARGO_PROFILES,
+  dockRpcFailure,
   DIRECTIONS,
 } from "@/lib/docks";
 export const runtime = "nodejs";
@@ -44,7 +45,11 @@ export async function POST(request: Request) {
         p_opening: validateOpeningHours(v.opening_hours),
         p_holidays: validateHolidayExceptions(v.holiday_exceptions),
       });
-      if (result.error) throw result.error;
+      if (result.error) {
+        const failure = dockRpcFailure(result.error);
+        if (failure.status === 503) console.error("Dock calendar RPC", result.error.code);
+        return NextResponse.json({ error: failure.error, code: failure.code }, { status: failure.status });
+      }
       return NextResponse.json({ ok: true });
     }
     let values: Record<string, unknown>;
@@ -171,14 +176,15 @@ export async function POST(request: Request) {
       p_id: id,
       p_values: values,
     });
-    if (result.error)
+    if (result.error) {
+      const failure = dockRpcFailure(result.error);
+      if (failure.status === 503)
+        console.error("Dock config RPC", result.error.code);
       return NextResponse.json(
-        {
-          error:
-            "No se pudo guardar: comprueba referencias, capacidad y duplicados.",
-        },
-        { status: 409 },
+        { error: failure.error, code: failure.code },
+        { status: failure.status },
       );
+    }
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json(

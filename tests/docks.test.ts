@@ -13,6 +13,7 @@ import {
   DEFAULT_DOCK_POLICY,
   validatePolicy,
   overlaps,
+  dockRpcFailure,
   type Dock,
   type Appointment,
   type DockEvent,
@@ -219,4 +220,20 @@ test("KPIs derive from reservation events, never infer missing times as zero", (
     ),
     { punctuality: 100, wait: 20, dwell: 90, noShows: 0 },
   );
+});
+
+test("dock RPC failures distinguish denied, stale, conflict and unavailable without leaking server details", () => {
+  assert.equal(dockRpcFailure({ message: "DOCK_FORBIDDEN" }).status, 403);
+  assert.equal(dockRpcFailure({ message: "DOCK_STALE" }).status, 409);
+  assert.equal(dockRpcFailure({ code: "23P01" }).status, 409);
+  assert.equal(
+    dockRpcFailure({ message: "DOCK_FUTURE_APPOINTMENTS" }).status,
+    409,
+  );
+  const unknown = dockRpcFailure({
+    code: "XX000",
+    message: "private fixture details",
+  });
+  assert.equal(unknown.status, 503);
+  assert.doesNotMatch(unknown.error, /private/);
 });

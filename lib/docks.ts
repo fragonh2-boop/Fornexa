@@ -374,3 +374,35 @@ export function appointmentKpis(
     noShows: appointments.filter((row) => row.status === "NO_SHOW").length,
   };
 }
+
+export function dockRpcFailure(value: { code?: string; message?: string }) {
+  const code =
+    value.message?.match(/\bDOCK_[A-Z_]+\b/)?.[0] ?? value.code ?? "UNKNOWN";
+  const errors: Record<string, [number, string]> = {
+    DOCK_FORBIDDEN: [403, "No tienes permisos para esta operación."],
+    DOCK_NOT_FOUND: [404, "La cita o configuración ya no está disponible."],
+    DOCK_STALE: [409, "La cita ha cambiado. Actualiza antes de guardar."],
+    DOCK_STATE: [409, "El cambio de estado requiere el hito correspondiente."],
+    DOCK_CAPACITY: [409, "La franja no tiene capacidad. Elige otra."],
+    DOCK_COMPATIBILITY: [400, "El muelle no es compatible con esta carga."],
+    DOCK_RULE: [400, "La regla no admite esta operación."],
+    DOCK_DURATION: [400, "La duración no cumple la regla."],
+    DOCK_WAREHOUSE: [400, "Almacén no disponible."],
+    DOCK_ADDRESS: [400, "Dirección operativa no disponible."],
+    DOCK_FUTURE_APPOINTMENTS: [
+      409,
+      "Reasigna las citas activas antes de desactivar el muelle.",
+    ],
+    DOCK_FIELDS: [400, "Campos de configuración no válidos."],
+    DOCK_KIND: [400, "Configuración no válida."],
+    "23P01": [409, "La reserva solapa otra cita. Elige otra franja."],
+    "23505": [409, "Ya existe una entrada con este código."],
+    "23503": [400, "La referencia no es válida para esta empresa."],
+    "23514": [400, "Los datos no cumplen las reglas de reserva."],
+  };
+  const [status, error] = errors[code] ?? [
+    503,
+    "Servicio no disponible. Inténtalo más tarde.",
+  ];
+  return { status, error, code: errors[code] ? code : "DOCK_UNAVAILABLE" };
+}

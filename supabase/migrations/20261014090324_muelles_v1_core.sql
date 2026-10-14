@@ -72,7 +72,7 @@ create table public.dock_appointments (
 create index dock_appointments_tenant_date on public.dock_appointments(tenant_id,planned_start);
 create or replace function public.fornexa_dock_occupied_range() returns trigger language plpgsql set search_path='' as $$
 begin
- if new.dock_id is not null then
+ if new.dock_id is not null and (tg_op='INSERT' or new.status in ('CONFIRMED','CHECKED_IN','AT_DOCK','OPERATION_ENDED')) then
   select buffer_minutes into new.buffer_minutes from public.warehouse_docks where tenant_id=new.tenant_id and id=new.dock_id;
  end if;
  new.occupied_range := tstzrange(new.planned_start,new.planned_end + new.buffer_minutes * interval '1 minute','[)');
@@ -104,7 +104,7 @@ create or replace function public.fornexa_write_dock_appointment(p_tenant uuid,p
 returns public.dock_appointments language plpgsql security invoker set search_path='' as $$
 declare old_row public.dock_appointments; result public.dock_appointments; d public.warehouse_docks; r public.dock_appointment_rules; n integer;
 begin
- if not exists(select 1 from public.tenant_members where tenant_id=p_tenant and user_id=p_actor and status='ACTIVE' and role in ('OWNER','ADMIN','OPERATOR')) then raise exception 'DOCK_FORBIDDEN'; end if;
+ if not exists(select 1 from public.tenant_members where tenant_id=p_tenant and user_id=p_actor and status='ACTIVE' and role in ('OWNER','ADMIN','PLANNER','OPERATOR')) then raise exception 'DOCK_FORBIDDEN'; end if;
  -- One warehouse lock also protects rule capacity against concurrent reservations.
  perform 1 from public.warehouses where tenant_id=p_tenant and id=(p_values->>'warehouse_id')::uuid and status='ACTIVE' for update;
  if not found then raise exception 'DOCK_WAREHOUSE'; end if;
@@ -113,6 +113,7 @@ begin
   if not found then raise exception 'DOCK_NOT_FOUND'; end if;
   if old_row.updated_at is distinct from p_expected then raise exception 'DOCK_STALE'; end if;
   if old_row.status not in ('DRAFT','CONFIRMED','CHECKED_IN') then raise exception 'DOCK_STATE'; end if;
+  if old_row.status in ('DRAFT','CONFIRMED') and p_values->>'status' not in ('DRAFT','CONFIRMED') then raise exception 'DOCK_STATE'; end if;
  end if;
  select * into r from public.dock_appointment_rules where tenant_id=p_tenant and warehouse_id=(p_values->>'warehouse_id')::uuid and id=(p_values->>'rule_id')::uuid and is_active;
  if not found or (r.direction <> 'BOTH' and r.direction <> p_values->>'direction') then raise exception 'DOCK_RULE'; end if;
@@ -143,7 +144,7 @@ create or replace function public.fornexa_dock_action(p_tenant uuid,p_actor uuid
 returns public.dock_appointments language plpgsql security invoker set search_path='' as $$
 declare a public.dock_appointments; result public.dock_appointments; next_status text; event_type text; ts timestamptz:=date_trunc('milliseconds',clock_timestamp());
 begin
- if not exists(select 1 from public.tenant_members where tenant_id=p_tenant and user_id=p_actor and status='ACTIVE' and role in ('OWNER','ADMIN','OPERATOR')) then raise exception 'DOCK_FORBIDDEN'; end if;
+ if not exists(select 1 from public.tenant_members where tenant_id=p_tenant and user_id=p_actor and status='ACTIVE' and role in ('OWNER','ADMIN','PLANNER','OPERATOR')) then raise exception 'DOCK_FORBIDDEN'; end if;
  select * into a from public.dock_appointments where tenant_id=p_tenant and id=p_id for update;
  if not found then raise exception 'DOCK_NOT_FOUND'; end if;
  if a.updated_at is distinct from p_expected then raise exception 'DOCK_STALE'; end if;
@@ -191,7 +192,10 @@ begin
   execute format('select to_jsonb(x.*) from public.%I x where tenant_id=$1 and id=$2 for update',t) into old_row using p_tenant,p_id;
   if old_row is null or (old_row->>'warehouse_id')::uuid<>wid then raise exception 'DOCK_NOT_FOUND'; end if;
   execute format('update public.%I set (%s)=(select %s from jsonb_populate_record(null::public.%I,$3)),updated_at=date_trunc(''milliseconds'',clock_timestamp()) where tenant_id=$1 and id=$2 returning to_jsonb(%I.*)',t,cols,cols,t,t) into result using p_tenant,p_id,p_values;
-  if p_kind='dock' then update public.dock_appointments set buffer_minutes=(result->>'buffer_minutes')::integer where tenant_id=p_tenant and dock_id=p_id; end if;
+  if p_kind='dock' then
+   if (result->>'status'<>'ACTIVE' or (result->>'is_active')::boolean=false) and exists(select 1 from public.dock_appointments where tenant_id=p_tenant and dock_id=p_id and ((status='CONFIRMED' and planned_end>now()) or status in ('CHECKED_IN','AT_DOCK','OPERATION_ENDED'))) then raise exception 'DOCK_FUTURE_APPOINTMENTS'; end if;
+   update public.dock_appointments set buffer_minutes=(result->>'buffer_minutes')::integer where tenant_id=p_tenant and dock_id=p_id and status in ('CONFIRMED','CHECKED_IN','AT_DOCK','OPERATION_ENDED');
+  end if;
  end if;
  insert into public.audit_events(tenant_id,entity_type,entity_id,action,actor_user_id,source_channel,before_data,after_data) values(p_tenant,'DOCK_CONFIG',(result->>'id')::uuid,upper(p_kind),p_actor,'FORNEXA_WEB',old_row,result);
  return result;

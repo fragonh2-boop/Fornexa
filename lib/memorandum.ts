@@ -25,7 +25,7 @@ export const memorandumPending: MemorandumPending[] = [
   {
     area: "Funcional",
     title: "Muelles — planificación y patio",
-    summary: "Núcleo en preparación para revisión: planificación por muelle, alta y edición en ventana, patio, trazabilidad, horarios y reglas configurables e informes derivados de eventos. La integración y carga quedan condicionadas a la disponibilidad verificada de los maestros de prueba. El portal del transportista se revisará por separado.",
+    summary: "Núcleo en preparación para revisión: planificación por muelle, alta y edición en ventana, patio, trazabilidad, horarios y reglas configurables e informes derivados de eventos. La integración y carga quedan condicionadas a la disponibilidad verificada de los maestros de prueba. La revisión ha endurecido los cambios de estado y la compatibilidad de horarios antiguos. PLANNER dispone de los mismos permisos de citas que OPERATOR. El portal del transportista se revisa por separado.",
     priority: "Ahora",
     state: "En seguimiento",
   },

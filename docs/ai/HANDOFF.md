@@ -1,8 +1,17 @@
 # FORNEXA — Technical handoff
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
+## 2026-10-14 — MUELLES-V1 · corrección HIGH R2 preparada
 
-<<<<<<< HEAD
+- **Revisión:** Claude coordinador entregó HIGH completa de #104 HEAD `827fefeea71f160acb90d549eea36a89adcd4d5e` (Slack `1791973599.450889`), MERGE NO, dos MUST. Listener Claude fallido sustituido por revisión directa; DeepSeek falló BUDGET_EXCEEDED y sigue sin dictamen. No reenviar triggers idénticos; coordinador pide nuevo HEAD y re-revisión.
+- **MUST 1:** migración fuente `20261014103035_muelles_calendar_normalization.sql` convierte explícitamente los dos formatos históricos conocidos (`{}` y mon_fri 08–18) y conserva cada fila completa antes/después en audit_events, en la misma transacción. Default nuevo cerrado con siete días. Calendarios desconocidos se señalan por dirección, sin inutilizar la lista; PUT sin calendario conserva sus bytes y permite guardar otros campos. Horarios no canónicos no se reinterpretan silenciosamente.
+- **MUST 2:** escritura RPC no permite DRAFT/CONFIRMED → CHECKED_IN: entrada a patio solo mediante hitos atómicos. Regresión PostgreSQL comprueba rechazo sin auditoría/eventos extra.
+- **SHOULD atendidos:** buffer histórico terminal preservado; mantenimiento/desactivación bloqueados si hay citas confirmadas futuras o en operación; errores RPC mapeados a 400/403/404/409/503 con diagnóstico solo del código para fallos inesperados. Fran autorizó explícitamente PLANNER con los mismos permisos operativos que OPERATOR; configuración y acceso público siguen OWNER/ADMIN.
+- **SHOULD abiertos:** semántica de override interno para min_lead/change_cutoff/max_changes/cupo última hora; hoy portal aplica antelación/horizonte y planner no automatiza todos los quince parámetros. Notificaciones configuradas sin envío real. Loader de citas/paradas limitado y E2E autenticado pendientes.
+- **Portal:** PR-B #105 abierta, HEAD `bcfc9a0197157a244130515fd22ac660fdb04bd2`, CI #411/run `38549686405` SUCCESS. Rama `feat/muelles-v1-portal` apilada sobre core, sin integración. Necesita incorporar esta corrección de core, recalcular cobertura y repetir CI/revisión exact-HEAD.
+- **Seed:** coordinador fijó rollback por compensación (Slack `1791973613.584739`): guard T1 intacto; citas con eventos se cancelan y permanecen con su histórico, eliminar solo claves propias sin referencias. Calendarios legacy migran con el núcleo, no se posponen al seed. Loader aún pendiente, no se ha cargado nada.
+- **Verificación R2:** 228 tests, typecheck, lint 0 errores/13 avisos heredados, build estándar y PostgreSQL local: máquina de estados, PLANNER sin configuración, mantenimiento bloqueado, buffer terminal intacto, normalización atómica/preimágenes/default/re-ejecución idempotente, además de los checks core previos. Nuevo CI/revisiones pendientes al preparar este commit. Cero SQL remoto/merge/deploy y carril #103 intacto.
+
 ## 2026-10-12 — DATA150: Carga sintética de revisión en producción
 
 - **Petición de Fran:** Generar un lote sintético autorizado de pruebas persistido en producción con al menos 150 filas distintas y completas por tabla de negocio aplicable para el tenant titular FORNEXA, con 150 puntos de dirección completos y diferentes. Excluidas tablas de autenticación, credenciales, membresías, secretos, tokens, migraciones y auditoría.

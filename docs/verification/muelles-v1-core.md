@@ -28,3 +28,11 @@ El harness se elimina del árbol versionado. No hay cookies/JWT ni credenciales 
 NO INTEGRADO / NO DESPLEGADO / NO CARGADO. Cero SQL remoto. #103 y su carril no se han modificado. CI exact-HEAD y revisiones completas Claude Y DeepSeek con 0 MUST se solicitan tras abrir la PR; este documento no las declara concedidas.
 
 Antes de integrar: #103 fusionada → desplegada → carga verificada → rebase → seed propio/recibo/rollback → nuevos checks y revisiones exact-HEAD. El portal público va en PR-B separada, y el E2E autenticado se ejecutará cuando exista un entorno autorizado con este esquema.
+
+## Corrección HIGH R2 (14 oct)
+
+Claude identificó dos MUST en 827fefe: lista de direcciones bloqueada por horarios legacy y edición RPC que permitía entrar a patio sin eventos. La migración de normalización convierte solo formatos conocidos con imágenes completas antes/después en auditoría y cambia el default. Lectura de calendario desconocido marca esa dirección sin ocultar el resto; PUT omitiendo el calendario conserva el valor. La entrada a patio solo se admite por `fornexa_dock_action`.
+
+PostgreSQL local verifica la normalización y sus imágenes, re-ejecución sin auditoría duplicada, default de siete días, rechazo de transición sin efectos, PLANNER operativo sin configuración, mantenimiento bloqueado y buffer de histórico terminal intacto. 228 tests y checks estándar PASS. Los índices únicos nuevos en tablas existentes permiten FKs compuestas tenant/entidad; no duplican entidades. El snapshot SQL sigue siendo mínimo, no replay histórico.
+
+Fran autorizó PLANNER como OPERATOR en esta tarea. Los parámetros de antelación/corte/máximo de cambios/cupo del planner no se automatizan todos todavía: falta definir cómo permitir las excepciones operativas internas; la antelación y el horizonte del portal sí se aplican. No hay envío real de notificaciones. Seed posterior con compensación de eventos, guard T1 intacto; loader y E2E pendientes. Esta preparación no implica revisión aprobatoria ni integración.

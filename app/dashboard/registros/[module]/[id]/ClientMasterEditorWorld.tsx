@@ -9,6 +9,7 @@ import { demoCustomerAddresses, demoCustomerEditor, DEMO_EDITOR_COUNTRIES, DEMO_
 import styles from "./client-master.module.css";
 
 type Address = {
+  calendarInvalid?: boolean;
   id: string;
   code: string;
   persisted: boolean;
@@ -290,6 +291,7 @@ export default function ClientMasterEditorWorld({ id, simulation = false, basePa
           isDefaultPickup: Boolean(address.isDefaultPickup),
           isDefaultDelivery: Boolean(address.isDefaultDelivery),
           assignedCustomerCodes: address.assignedCustomerCodes ?? [code],
+          calendarInvalid: address.calendarError === "INVALID_OPERATIONAL_CALENDAR",
           hasDock: Boolean(address.operationalProfile?.has_dock),
           needsForklift: Boolean(address.operationalProfile?.needs_forklift),
           requiresAppointment: Boolean(address.operationalProfile?.requires_appointment),
@@ -635,6 +637,7 @@ export default function ClientMasterEditorWorld({ id, simulation = false, basePa
           const rules = postalRule(address.country);
           const postalValid = address.postalCode ? postalIsValid(address.country, address.postalCode) && !postalErrors[address.id] : null;
           return <article key={address.id} className={styles.address}>
+            {address.calendarInvalid && <p role="status">Horario no válido. Revisa el perfil operativo antes de reservar; puedes guardar los demás datos de la dirección.</p>}
             <div className={styles.addressTop}><div><small>CÓDIGO DE DIRECCIÓN</small><strong>{address.code || "Se asignará al guardar"}</strong></div><div className={styles.addressActions}><label className={styles.switch}><input type="checkbox" checked={address.active} onChange={event => updateAddress(index, "active", event.target.checked)} disabled={!canEdit} /> Activa</label>{canEdit && <button type="button" onClick={() => saveAddress(index)} disabled={addressSaving === address.id}>{addressSaving === address.id ? "Guardando…" : "Guardar dirección"}</button>}</div></div>
             <div className={styles.grid3}>
               <label>País<select value={address.country} onChange={event => selectCountry(index, event.target.value)} disabled={!canEdit}><option value="">Seleccionar</option>{countries.map(country => <option key={country.code} value={country.code}>{country.name}</option>)}</select><Check valid={address.country ? true : null} hint="ISO 3166-1 · catálogo mundial" /></label>

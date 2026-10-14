@@ -18,10 +18,11 @@ import {
   DIRECTIONS,
   DOCK_EVENTS,
   DEFAULT_DOCK_POLICY,
+  dockRpcFailure,
 } from "@/lib/docks";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-const EDIT_ROLES = new Set(["OWNER", "ADMIN", "OPERATOR"]);
+const EDIT_ROLES = new Set(["OWNER", "ADMIN", "PLANNER", "OPERATOR"]);
 function response(data: unknown, status = 200) {
   return NextResponse.json(data, {
     status,
@@ -86,14 +87,15 @@ export async function POST(request: Request) {
         p_action: action,
         p_reason: reason,
       });
-      if (result.error)
+      if (result.error) {
+        const failure = dockRpcFailure(result.error);
+        if (failure.status === 503)
+          console.error("Dock action RPC", result.error.code);
         return response(
-          {
-            error:
-              "No se pudo registrar el hito. Actualiza la cita y comprueba su estado.",
-          },
-          409,
+          { error: failure.error, code: failure.code },
+          failure.status,
         );
+      }
       return response({ item: result.data });
     }
     const v = object(body.values);
@@ -116,7 +118,11 @@ export async function POST(request: Request) {
     ]);
     const metadata = object(v.metadata ?? {});
     onlyKeys(metadata, ["notes", "holiday_override"]);
-    if (metadata.holiday_override !== undefined && typeof metadata.holiday_override !== "boolean") throw new CalendarValidationError("Excepción de horario no válida.");
+    if (
+      metadata.holiday_override !== undefined &&
+      typeof metadata.holiday_override !== "boolean"
+    )
+      throw new CalendarValidationError("Excepción de horario no válida.");
     const values = {
       warehouse_id: uuid(v.warehouse_id),
       dock_id: uuid(v.dock_id, true),
@@ -330,14 +336,15 @@ export async function POST(request: Request) {
       p_values: values,
       p_reason: reason,
     });
-    if (result.error)
+    if (result.error) {
+      const failure = dockRpcFailure(result.error);
+      if (failure.status === 503)
+        console.error("Dock appointment RPC", result.error.code);
       return response(
-        {
-          error:
-            "La reserva entra en conflicto con la capacidad, compatibilidad o versión actual. Elige otra franja y actualiza.",
-        },
-        409,
+        { error: failure.error, code: failure.code },
+        failure.status,
       );
+    }
     return response({ item: result.data }, id ? 200 : 201);
   } catch (e) {
     return response(

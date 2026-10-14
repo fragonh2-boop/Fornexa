@@ -105,6 +105,69 @@ try {
   );
   assert.equal(race.filter((r) => r.status === "fulfilled").length, 1);
   await Promise.all(clients.map((c) => c.end()));
+  const statesBefore = (
+    await db.query("select count(*)::int n from audit_events")
+  ).rows[0].n;
+  await assert.rejects(
+    () =>
+      db.query(
+        "select * from fornexa_write_dock_appointment($1,$2,$3,$4,$5,null)",
+        [
+          tenant,
+          actor,
+          second.id,
+          second.updated_at,
+          {
+            ...values(second.planned_start, second.planned_end),
+            status: "CHECKED_IN",
+          },
+        ],
+      ),
+    /DOCK_STATE/,
+  );
+  assert.equal(
+    (await db.query("select count(*)::int n from audit_events")).rows[0].n,
+    statesBefore,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from transport_events where dock_appointment_id=$1",
+        [second.id],
+      )
+    ).rows[0].n,
+    0,
+  );
+  await db.query(
+    "update tenant_members set role='PLANNER' where tenant_id=$1 and user_id=$2",
+    [tenant, actor],
+  );
+  const future = new Date(Date.now()+2*86400000); future.setUTCHours(14,0,0,0);
+  const planner = await reserveOnce(db, values(future.toISOString(),new Date(future.getTime()+3600000).toISOString()));
+  assert.equal(planner.status, "CONFIRMED");
+  await assert.rejects(
+    () =>
+      db.query("select fornexa_dock_config($1,$2,'policy',null,$3)", [
+        tenant,
+        actor,
+        { warehouse_id: warehouse },
+      ]),
+    /DOCK_FORBIDDEN/,
+  );
+  await db.query(
+    "update tenant_members set role='ADMIN' where tenant_id=$1 and user_id=$2",
+    [tenant, actor],
+  );
+  await assert.rejects(
+    () =>
+      db.query("select fornexa_dock_config($1,$2,'dock',$3,$4)", [
+        tenant,
+        actor,
+        dock,
+        { warehouse_id: warehouse, status: "MAINTENANCE" },
+      ]),
+    /DOCK_FUTURE_APPOINTMENTS/,
+  );
   const before = (await db.query("select count(*)::int n from audit_events"))
     .rows[0].n;
   await assert.rejects(
@@ -125,6 +188,7 @@ try {
     (await db.query("select count(*)::int n from audit_events")).rows[0].n,
     before,
   );
+  await db.query("update tenant_members set role='PLANNER' where tenant_id=$1 and user_id=$2",[tenant,actor]);
   let current = first;
   for (const action of [
     "DOCK_GATE_IN",
@@ -143,6 +207,7 @@ try {
       ])
     ).rows[0];
   }
+  await db.query("update tenant_members set role='ADMIN' where tenant_id=$1 and user_id=$2",[tenant,actor]);
   assert.equal(current.status, "COMPLETED");
   assert.equal(
     (
@@ -152,6 +217,36 @@ try {
       )
     ).rows[0].n,
     5,
+  );
+  const historical = (
+    await db.query(
+      "select occupied_range::text,buffer_minutes from dock_appointments where id=$1",
+      [first.id],
+    )
+  ).rows[0];
+  await db.query("select fornexa_dock_config($1,$2,'dock',$3,$4)", [
+    tenant,
+    actor,
+    dock,
+    { warehouse_id: warehouse, buffer_minutes: 20 },
+  ]);
+  assert.deepEqual(
+    (
+      await db.query(
+        "select occupied_range::text,buffer_minutes from dock_appointments where id=$1",
+        [first.id],
+      )
+    ).rows[0],
+    historical,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select buffer_minutes from dock_appointments where id=$1",
+        [second.id],
+      )
+    ).rows[0].buffer_minutes,
+    20,
   );
   await db.query("set role authenticated");
   await db.query(`select set_config('test.tenant','${other}',false)`);
@@ -207,8 +302,84 @@ try {
     )
   ).rows[0].n;
   assert.equal(policies, 4);
+  // Known legacy and empty profiles normalize atomically with exact before images.
+  const addressIds = [
+    "70000000-0000-4000-8000-000000000011",
+    "70000000-0000-4000-8000-000000000012",
+    "70000000-0000-4000-8000-000000000013",
+  ];
+  for (const id of addressIds)
+    await db.query("insert into party_addresses(id,tenant_id) values($1,$2)", [
+      id,
+      tenant,
+    ]);
+  const canonical = {
+    timezone: "Europe/Madrid",
+    days: Object.fromEntries(
+      ["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((d) => [d, []]),
+    ),
+  };
+  for (let i = 0; i < addressIds.length; i++)
+    await db.query(
+      "insert into address_operational_profiles(address_id,tenant_id,opening_hours,holiday_exceptions) values($1,$2,$3,'[]')",
+      [
+        addressIds[i],
+        tenant,
+        i === 0 ? { mon_fri: "08:00-18:00" } : i === 1 ? {} : canonical,
+      ],
+    );
+  const preimages = (
+    await db.query(
+      "select to_jsonb(p.*) row from address_operational_profiles p order by address_id",
+    )
+  ).rows.map((r) => r.row);
+  const normalization = await readFile(
+    new URL(
+      "../supabase/migrations/20261014103035_muelles_calendar_normalization.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  await db.query(normalization);
+  const images = (
+    await db.query(
+      "select before_data,after_data from audit_events where action='NORMALIZE_CALENDAR' order by entity_id",
+    )
+  ).rows;
+  assert.equal(images.length, 2);
+  assert.deepEqual(
+    images.map((r) => r.before_data),
+    preimages.slice(0, 2),
+  );
+  assert.equal(images[0].after_data.opening_hours.days.mon[0].from, "08:00");
+  assert.deepEqual(images[1].after_data.opening_hours.days.sun, []);
+  assert.deepEqual(
+    (
+      await db.query(
+        "select opening_hours from address_operational_profiles where address_id=$1",
+        [addressIds[2]],
+      )
+    ).rows[0].opening_hours,
+    canonical,
+  );
+  await db.query(normalization);
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from audit_events where action='NORMALIZE_CALENDAR'",
+      )
+    ).rows[0].n,
+    2,
+  );
+  const defaultHours = (
+    await db.query(
+      "select column_default from information_schema.columns where table_schema='public' and table_name='address_operational_profiles' and column_name='opening_hours'",
+    )
+  ).rows[0].column_default;
+  assert.match(defaultHours, /timezone/);
+  assert.match(defaultHours, /sun/);
   console.log(
-    "PASS: local PostgreSQL migration, buffered adjacency, concurrent capacity, exact tenant FKs/RLS, role denial, event author, audit rollback, stale write and fifteen defaults.",
+    "PASS: local PostgreSQL migration, buffered adjacency, concurrent capacity, exact tenant FKs/RLS, role denial, event author, audit rollback, stale write and fifteen defaults, immutable terminal buffer, maintenance denial, PLANNER scope, state-machine rejection and atomic legacy normalization/preimages.",
   );
 } finally {
   await db.end();

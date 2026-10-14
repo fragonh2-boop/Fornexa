@@ -11,11 +11,11 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 - **Criterio de cierre:** Inventario y matriz de esquema documentados; dataset, manifest, cargador SQL y script de rollback exacto generados; verificador de lote de procedencia exacta; tests automatizados de integridad pasando (272/272 tests con portabilidad multiplataforma `os.tmpdir()`, types OK, lint OK, build OK); resolución de dictámenes M1-M5 en ciclos cortos; revisiones independientes Claude+DeepSeek en exact-HEAD (gate HIGH); merge sin bypass, despliegue Vercel y carga verificada en base de datos sin alterar datos reales. Cero escrituras productivas hasta gates.
 
 ### 2026-10-14 — MUELLES-V1: núcleo y portal
-- **Estado:** PR-A preparada en `feat/muelles-v1-core`; implementación local y checks documentados. Sin integración, despliegue ni carga.
+- **Estado:** PR-A #104 abierta, CI #410 SUCCESS en HEAD inicial 827fefe; Claude HIGH MERGE NO con 2 MUST, corrección R2 preparada. PR-B #105 abierta, HEAD bcfc9a0, CI #411 SUCCESS; pendiente incorporar R2 y repetir exact-HEAD. Sin integración, despliegue ni carga.
 - **Aceptación:** planificación día/semana/mes y patio; ventana F4/F2; ficha 360°; Configuración/Informes; horarios canónicos, aislamiento tenant y reserva transaccional anti-solape; PR-B con token hash/caducidad/revocación, validación estricta, rate limit distribuido, reserva idempotente y datos mínimos propios del transportista.
 - **Gates:** CI exact-HEAD verde y revisión HIGH completa Claude Y DeepSeek con 0 MUST. No merge/deploy/migración/carga hasta #103 fusionada, desplegada y cargada/verificada. No tocar #103, su rama, worktree ni hilo.
-- **Datos posteriores:** loader propio con 4–12 muelles por almacén sintético, zonas propias, ventanas de citas sin reescribir paradas, eventos con miembro real, normalización de perfiles con imagen previa en recibo durable y rollback exacto. No tokens en claro versionados.
-- **Pendiente:** PR-B, loader/rollback propio, E2E autenticado y comprobación visual desplegada sobre un entorno con esquema instalado. Evidencia local: `docs/verification/muelles-v1-core.md`.
+- **Datos posteriores:** loader propio con 4–12 muelles por almacén sintético, zonas propias, ventanas de citas sin reescribir paradas, eventos con miembro real, normalización de perfiles en la migración core con before/after auditado; recibo durable de seed y rollback por claves exactas de lo borrable, compensación de citas con eventos. No tokens en claro versionados.
+- **Pendiente:** CI y revisiones exact-HEAD de R2/core y portal, loader/rollback propio por compensación con guard de eventos intacto, E2E autenticado y comprobación visual desplegada sobre un entorno con esquema instalado. Evidencia local: `docs/verification/muelles-v1-core.md`.
 
 ### 2026-10-09 — TRZ1: Trazabilidad de artículos
 - **Área:** Web / Trazabilidad
