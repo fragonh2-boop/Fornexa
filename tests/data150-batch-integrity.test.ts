@@ -2314,3 +2314,170 @@ print("HASH_INCORRECTO_REJECTED_SUCCESSFULLY")
   const result = execFileSync("python3", ["-c", pyCode], { encoding: "utf8" });
   assert.ok(result.includes("HASH_INCORRECTO_REJECTED_SUCCESSFULLY"));
 });
+
+test("DATA150 M5: sanitized rehearsal execution receipt is durable, COMMITTED, and accounts for 10,498 inserted keys with 2 collisions excluded", () => {
+  const REHEARSAL_RECEIPT_PATH = "docs/verification/data150-rehearsal-execution-receipt.json";
+  assert.ok(existsSync(REHEARSAL_RECEIPT_PATH), "Rehearsal execution receipt must exist");
+
+  const raw = readFileSync(REHEARSAL_RECEIPT_PATH, "utf8");
+  const parsed = JSON.parse(raw);
+
+  // 1. Root-level execution receipt invariants
+  assert.equal(parsed.status, "COMMITTED", "Rehearsal receipt status must be COMMITTED");
+  assert.equal(parsed.batch_id, DATA150_BATCH_ID, "Rehearsal receipt batch_id must match DATA150_BATCH_ID");
+  assert.equal(parsed.tenant_id, DATA150_TENANT_ID, "Rehearsal receipt tenant_id must match DATA150_TENANT_ID");
+
+  const expectedLoaderHash = computeSqlSha256(LOADER_SQL_PATH);
+  assert.equal(
+    parsed.dataset_hash.toLowerCase(),
+    expectedLoaderHash.toLowerCase(),
+    "Receipt dataset_hash must match current data150-loader.sql SHA-256"
+  );
+
+  // 2. Exact table coverage
+  const tables = Object.keys(parsed.tables);
+  assert.equal(tables.length, 70, "Rehearsal receipt must cover exactly 70 tables");
+
+  // 3. Row count reconciliation: 10,498 inserted rows = 68 * 150 + 149 (parties) + 149 (party_addresses)
+  let totalKeys = 0;
+  for (const [tname, entry] of Object.entries<any>(parsed.tables)) {
+    assert.equal(entry.table, tname, `Table entry name must match key '${tname}'`);
+    assert.equal(
+      entry.inserted_count,
+      entry.inserted_keys.length,
+      `Table '${tname}' inserted_count must match inserted_keys.length`
+    );
+    totalKeys += entry.inserted_count;
+
+    if (tname === "parties") {
+      assert.equal(entry.inserted_count, 149, "parties must have 149 keys due to 1 pre-existing collision fixture");
+      assert.ok(
+        !entry.inserted_keys.includes("c9f0d7f6-4453-530f-8dba-0c9ce2426a83"),
+        "Pre-existing collision party ID must be excluded from inserted_keys"
+      );
+    } else if (tname === "party_addresses") {
+      assert.equal(
+        entry.inserted_count,
+        149,
+        "party_addresses must have 149 keys due to 1 pre-existing collision fixture"
+      );
+      assert.ok(
+        !entry.inserted_keys.includes("52f69594-6c37-58e4-b677-8e2ee752764f"),
+        "Pre-existing collision address ID must be excluded from inserted_keys"
+      );
+    } else {
+      assert.equal(entry.inserted_count, 150, `Table '${tname}' must have 150 inserted keys`);
+    }
+  }
+
+  assert.equal(totalKeys, 10498, "Total inserted keys must be exactly 10,498");
+
+  // 4. Pass validation with fail-closed validator
+  const validated = validateExecutionReceiptForRollback(parsed, LOADER_SQL_PATH);
+  assert.equal(validated.status, "COMMITTED");
+});
+
+test("DATA150 M5: deterministic materialized rollback reproduces byte-for-byte with identical SHA-256 and preserves invariants", () => {
+  const REHEARSAL_RECEIPT_PATH = "docs/verification/data150-rehearsal-execution-receipt.json";
+  const REHEARSAL_ROLLBACK_PATH = "docs/verification/data150-rehearsal-rollback.sql";
+
+  assert.ok(existsSync(REHEARSAL_ROLLBACK_PATH), "Rehearsal rollback SQL must exist");
+  const onDiskRollbackSql = readFileSync(REHEARSAL_ROLLBACK_PATH, "utf8");
+
+  const receiptRaw = readFileSync(REHEARSAL_RECEIPT_PATH, "utf8");
+  const receipt = JSON.parse(receiptRaw);
+
+  // Deterministic regeneration from receipt
+  const regeneratedSql = generateRollbackSqlFromExecutionReceipt(receipt.tables, receipt.tenant_id);
+
+  // Exact character-by-character and hash match
+  assert.equal(
+    regeneratedSql,
+    onDiskRollbackSql,
+    "Regenerated rollback SQL must match on-disk data150-rehearsal-rollback.sql byte-for-byte"
+  );
+
+  const hashOnDisk = crypto.createHash("sha256").update(onDiskRollbackSql, "utf8").digest("hex");
+  const hashRegenerated = crypto.createHash("sha256").update(regeneratedSql, "utf8").digest("hex");
+  assert.equal(hashOnDisk, hashRegenerated, "Rollback SHA-256 must match deterministically");
+
+  // Invariant assertions on rollback SQL
+  assert.ok(
+    onDiskRollbackSql.startsWith("-- FORNEXA — DATA150 PRODUCTION ROLLBACK FROM REAL EXECUTION RECEIPT"),
+    "Must have header"
+  );
+  assert.ok(onDiskRollbackSql.includes("BEGIN;"), "Must begin transaction");
+  assert.ok(onDiskRollbackSql.includes("COMMIT;"), "Must commit transaction");
+
+  // Append-only exclusion
+  assert.ok(
+    !onDiskRollbackSql.includes("DELETE FROM public.transport_events"),
+    "Rollback must NOT delete transport_events"
+  );
+  assert.ok(
+    !onDiskRollbackSql.includes("DELETE FROM public.operational_events"),
+    "Rollback must NOT delete operational_events"
+  );
+  assert.ok(
+    onDiskRollbackSql.includes("[IMMUTABLE AUDIT TABLE] Table public.transport_events"),
+    "Must document immutable audit status for transport_events"
+  );
+  assert.ok(
+    onDiskRollbackSql.includes("[IMMUTABLE AUDIT TABLE] Table public.operational_events"),
+    "Must document immutable audit status for operational_events"
+  );
+
+  // Cascade protection exclusion
+  assert.ok(
+    !onDiskRollbackSql.includes("DELETE FROM public.cmr_documents"),
+    "Rollback must NOT delete cmr_documents"
+  );
+  assert.ok(
+    !onDiskRollbackSql.includes("DELETE FROM public.transport_stops"),
+    "Rollback must NOT delete transport_stops"
+  );
+  assert.ok(
+    onDiskRollbackSql.includes("[CASCADE PROTECTED TABLE] Table public.cmr_documents"),
+    "Must document cascade protection for cmr_documents"
+  );
+  assert.ok(
+    onDiskRollbackSql.includes("[CASCADE PROTECTED TABLE] Table public.transport_stops"),
+    "Must document cascade protection for transport_stops"
+  );
+
+  // Collision exclusion: pre-existing collision keys must NOT be deleted from their tables
+  const partyAddressesDelete = onDiskRollbackSql
+    .split("\n")
+    .find((l) => l.includes("DELETE FROM public.party_addresses"));
+  assert.ok(partyAddressesDelete, "Must contain DELETE FROM public.party_addresses");
+  assert.ok(
+    !partyAddressesDelete.includes("52f69594-6c37-58e4-b677-8e2ee752764f"),
+    "Collided pre-existing address ID must NOT appear in party_addresses DELETE statement"
+  );
+
+  const partiesDelete = onDiskRollbackSql
+    .split("\n")
+    .find((l) => l.includes("DELETE FROM public.parties WHERE"));
+  assert.ok(partiesDelete, "Must contain DELETE FROM public.parties");
+  assert.ok(
+    !partiesDelete.includes("c9f0d7f6-4453-530f-8dba-0c9ce2426a83"),
+    "Collided pre-existing party ID must NOT appear in parties DELETE statement"
+  );
+});
+
+test("DATA150 M5: rehearsal report markdown documents PG17 environment, exit code 0, hashes, and residual accounting", () => {
+  const REPORT_PATH = "docs/verification/data150-rehearsal-report.md";
+  assert.ok(existsSync(REPORT_PATH), "Rehearsal report markdown must exist");
+
+  const report = readFileSync(REPORT_PATH, "utf8");
+
+  assert.ok(report.includes("PostgreSQL 17.11"), "Report must document PostgreSQL 17.11");
+  assert.ok(report.includes("0 (SUCCESS"), "Report must document exit code 0 (SUCCESS)");
+  assert.ok(report.includes("28996cacc2535155669e1107f07d8b8bceebfb272d52ce893c6bcc176d9a8a77"), "Report must document loader SHA-256");
+  assert.ok(report.includes("228380fa9b7fd96b9ab6e919d2eee3a13bd3c5063713bc7ddb29eab8dc9a201d"), "Report must document Merkle root");
+  assert.ok(report.includes("10.498"), "Report must document 10,498 effective rows");
+  assert.ok(report.includes("SQLSTATE 55000"), "Report must document SQLSTATE 55000 append-only guard");
+  assert.ok(report.includes("ON DELETE SET NULL"), "Report must document ON DELETE SET NULL cascade protection");
+  assert.ok(report.includes("Cero objetos en Supabase Storage"), "Report must declare zero objects in Supabase Storage");
+});
+

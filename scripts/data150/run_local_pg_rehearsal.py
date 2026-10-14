@@ -1950,5 +1950,12 @@ def main():
         f.write("\n".join(log_lines) + "\n")
     print(f"Log written to {LOG_PATH}")
 
+    # Copy verified evidence to versioned docs/verification/ directory
+    docs_receipt_path = os.path.abspath('docs/verification/data150-rehearsal-execution-receipt.json')
+    docs_rollback_path = os.path.abspath('docs/verification/data150-rehearsal-rollback.sql')
+    shutil.copy2(REHEARSAL_RECEIPT_PATH, docs_receipt_path)
+    shutil.copy2(REHEARSAL_ROLLBACK_SQL, docs_rollback_path)
+    print(f"Sanitized rehearsal evidence copied to {docs_receipt_path} and {docs_rollback_path}")
+
 if __name__ == '__main__':
     main()
