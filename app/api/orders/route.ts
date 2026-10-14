@@ -15,11 +15,6 @@ const LEGACY_SERVICE_CODES: Record<string, string> = {
   "Directo": "DIRECT",
 };
 
-export {
-  STATUS_LABELS,
-  STATUS_FROM_LABEL,
-  ALLOWED_ORDER_TRANSITIONS,
-} from "@/lib/order-status";
 import {
   STATUS_LABELS,
   STATUS_FROM_LABEL,

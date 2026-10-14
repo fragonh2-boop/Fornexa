@@ -1,0 +1,138 @@
+================================================================================
+FORNEXA — DATA150 LIVE POSTGRESQL 17.11 REHEARSAL
+Timestamp: 2026-10-14 13:55:13 UTC
+Target Database: data150_trial on socket /private/tmp/data150-pg-CUM6hE:55439
+Git HEAD SHA: 40bb9ad20a11c5f53f5cf281f4fd4bff00f5e7aa
+Rehearsal Script Python SHA256: 234baa178759ce133553504f744d18e78c0c8cf248b5c8984eaef6909dff2102
+Loader Library TypeScript SHA256: f67aa7854512a354183f0489bc2d5d9393ac3a8aee81987fc942132356019099
+Dataset Loader SQL SHA256: 28996cacc2535155669e1107f07d8b8bceebfb272d52ce893c6bcc176d9a8a77
+Production Schema Baseline SHA256: 2e6356d0575d1adc9f1067224485ce9f80b8f3bdb8a6da4101d4a1b5a0d6b6ed
+Local Rehearsal Canonical Ref SHA256: 26d880e1592a3405e2b05c647e383fb4cc95e7ab68439b8588ade28cd4afbcd9
+PROVENANCE: Local PostgreSQL 17.11 replay fidelity verified against local canonical reference.
+PROVENANCE: Production schema contract preserved and verified separately without conflation.
+================================================================================
+[CLEANUP] Stale rehearsal receipt removed: /private/tmp/data150-rehearsal-evidence/data150-rehearsal-execution-receipt.json
+[CLEANUP] Stale rehearsal rollback SQL removed: /private/tmp/data150-rehearsal-evidence/data150-rehearsal-rollback.sql
+[DB VERSION] PostgreSQL 17.11 (Postgres.app) on aarch64-apple-darwin23.6.0, compiled by Apple clang version 15.0.0 (clang-1500.3.9.4), 64-bit
+
+[FASE 0] Preparación y Replay de Migraciones:
+  => 38 migraciones aplicadas con éxito.
+  => Stubs y modificaciones auxiliares de replay declaradas:
+     * Esquemas auth y storage inicializados con stubs de auth.users.
+     * Ordenación custom aplicada a migraciones 20260819.
+     * Paridad de catálogo customs: aplicadas columnas tenant_id y las 4 restricciones FK declaradas en 20260812_fornexa_operational_core.sql (omitidas en replay secuencial vanilla por CREATE TABLE IF NOT EXISTS sobre tabla previa de 20260807), totalizando 235 FKs en schema public coincidentes con la referencia canónica local y el subconjunto public de las 236 FKs del baseline productivo (la 236ª pertenece al esquema private).
+     * RLS habilitado en public.fornexa_schema_migrations asegurando que el 100% de las 89 tablas de public tienen relrowsecurity activado.
+
+[RECONCILIACIÓN 1/2 — PRODUCTION SCHEMA BASELINE 2026-10-09]
+Contrato productivo disponible capturado el 2026-10-09 verificado por separado sin conflación (MUST #4):
+  * Baseline productivo cargado: 89 tablas en public declaradas.
+  => Tablas públicas: 100% coincidentes con baseline productivo (89/89 presentes).
+  => Row Level Security (RLS): 100% coincidente (89 tablas públicas con estado RLS verificado contra baseline productivo).
+  => Claves primarias: 100% coincidentes (89 tablas con PK exacta contra baseline productivo).
+  => Columnas, tipos y nullability: 100% coincidentes (1214 columnas verificadas contra baseline productivo).
+  => Claves foráneas públicas: 100% coincidentes (235 de 235 FKs en public contrastadas bidireccionalmente).
+  * Declaración explícita de metadatos N/A en la captura productiva 2026-10-09:
+    - FK en esquema private: 1 restricción declarada ('review_access_tokens_tenant_id_fkey', source='private.review_access_tokens') catalogada como N/A para el schema public bajo ensayo.
+    - CHECK constraints: N/A en nivel raíz del baseline 2026-10-09 (capturadas únicamente reglas inline parciales en columnas).
+    - UNIQUE constraints: N/A en nivel raíz del baseline 2026-10-09 (capturadas únicamente flags 'unique' en opciones de columna).
+    - Triggers y funciones de trigger: N/A en la captura JSON del 2026-10-09 (sin objeto de triggers ni pg_proc).
+    - Expresiones DEFAULT / IDENTITY generation: N/A en los objetos de columna del baseline 2026-10-09.
+  => Suite negativa del comparador de baseline productivo: contraejemplo de FK rechazado con éxito.
+  => RECONCILIACIÓN 1/2 EXITOSA: Contrato productivo 2026-10-09 verificado sin drift en todos los campos disponibles.
+
+
+[RECONCILIACIÓN 2/2 — CANONICAL REFERENCE REHEARSAL]
+Reconciliación profunda de catálogo real contra referencia canónica local completa:
+  * Baseline de esquema cargado: 89 tablas públicas declaradas.
+  => Tablas públicas: 100% coincidentes (89/89 presentes en PostgreSQL vivo).
+  => Columnas, tipos de datos y nullability en public: 100% coincidentes (1214 columnas verificadas sin drift).
+  => Claves primarias: 100% coincidentes (89 tablas verificadas con PK exacta).
+  => Claves foráneas (FK constraints) en public: 235 (esperadas exactamente 235 en public).
+  => Definiciones semánticas FK coincidentes con baseline: 235 de 235 verificadas bidireccionalmente con set equality estricto (source/target tables, columnas ordenadas, confdeltype, confupdtype, confmatchtype, deferrability y validación sin drift).
+  => Suite negativa del comparador de FKs ejecutada con éxito: 7 contraejemplos reales rechazados por compare_foreign_keys (target, columnas, delete action, deferrability, match type, omisión y exceso).
+  => Triggers append-only obligatorios: 2 de 2 verificados rigurosamente (BEFORE UPDATE/DELETE en public habilitados y anclados a public.fornexa_reject_event_mutation).
+  => Invariante funcional append-only verificado en vivo en PostgreSQL 17.11: UPDATE y DELETE en operational_events y transport_events rechazados activamente con SQLSTATE 55000.
+  => CHECK constraints en public: 171 de 171 definiciones de expresión validadas exhaustivamente contra referencia canónica con contraejemplo negativo probado.
+  => UNIQUE constraints en public: 61 de 61 conjuntos ordenados de columnas y definiciones validados exhaustivamente contra referencia canónica con contraejemplos negativos probados.
+  => Columnas con DEFAULT o IDENTITY en public: 485 de 485 expresiones, identidades y generación (ALWAYS/BY DEFAULT) validadas exhaustivamente contra referencia canónica con contraejemplos negativos probados.
+  => Contrato profundo de triggers verificado: 37 triggers físicos, 41 eventos vinculados, 100% habilitados ('O'), 100% nivel ROW, 100% namespace public, definiciones exactas contrastadas contra referencia canónica y cuerpos de funciones semánticamente no-op-proof.
+  => Invariante funcional append-only verificado en vivo: UPDATE y DELETE rechazados con SQLSTATE 55000.
+  => Invariante funcional updated_at verificado en vivo: UPDATE avanza updated_at > created_at.
+  => Invariante funcional fornexa_calc_movement_duration verificado en vivo: duration_seconds calculado automáticamente a partir de epoch.
+  => Suite negativa del comparador profundo de triggers: 9 contraejemplos rechazados (disabled 'D', timing AFTER, is_delete modificado, condición WHEN(false), namespace no-public, función no-op, orientación STATEMENT, trigger faltante y trigger extra).
+  => RECONCILIACIÓN 2/2 EXITOSA: 89 tablas, 1.214 cols, 89 PKs, 235 FKs, 171 CHECKs, 61 UNIQUEs, 485 DEFAULT/IDENTITY y 37 triggers/41 eventos verificados exhaustivamente sin drift.
+
+
+[FASE 1] Inyección de Filas Preexistentes y Colisión Real de Clave Primaria:
+  => Fixtures inyectadas:
+     * FORNEXA preexistente no colisionante ('00000000-0000-4000-a000-000000000001')
+     * FORNEXA colisión real de PK preexistente ('52f69594-6c37-58e4-b677-8e2ee752764f')
+     * Tenant ajeno preexistente ('99999999-9999-4999-a999-000000000001')
+  => Snapshots completos columna por columna capturados para todas las fixtures.
+
+[FASE 2] Ejecución Transaccional del Lote y Captura Efectiva de RETURNING:
+  => Transacción atómica completada en PostgreSQL en 1.57s (código 0).
+  => Total de filas capturadas efectivamente por RETURNING de PostgreSQL: 10498
+  => Filas devueltas para party_addresses: 149 (149 esperado por colisión de PK)
+  => Filas devueltas para parties: 149 (149 esperado por colisión de PK)
+  => VERIFICADO: Filas colisionadas con PK preexistente excluidas al 100% de los retornos (INSERT 0 0).
+  => Recibo de ejecución persistido atómicamente con fsync y validado fail-closed.
+  => Snapshots completos de registros inmutables y protegidos capturados antes de rollback.
+
+[FASE 3] Ensayo de Retry / Reejecución Idempotente en PostgreSQL:
+  => Retry completado en 1.01s.
+  => Nuevas filas devueltas por RETURNING en retry: 0 (0 esperado)
+  => VERIFICADO: Retry idempotente completado con 0 duplicados y 0 mutaciones espurias.
+
+[FASE 4] Ensayo Multi-Sesión Concurrente con Aserción Estricta de 55P03:
+  => VERIFICADO: Sesión 2 detectó contención de fila de Sesión 1 con error 55P03 (NOWAIT). Aislamiento transaccional estricto.
+
+[FASE 5] Verificación Rigurosa del Trigger Append-Only (SQLSTATE 55000):
+  => VERIFICADO (6A): DELETE sobre public.transport_events BLOQUEADO con SQLSTATE 55000.
+  => VERIFICADO (6B): UPDATE sobre public.transport_events BLOQUEADO con SQLSTATE 55000.
+  => VERIFICADO (6C): DELETE sobre public.operational_events BLOQUEADO con SQLSTATE 55000.
+  => VERIFICADO (6D): DELETE sobre public.cmr_documents BLOQUEADO por trigger de eventos en cascada (55000).
+  => VERIFICADO (6E): DELETE sobre public.transport_stops BLOQUEADO por trigger de eventos en cascada (55000).
+
+[FASE 5B] Validación Exhaustiva del Contrato de Actor en transport_events (M1):
+  => VERIFICADO (5B.1): Tenant sin miembros: las 150 filas de transport_events resolvieron a NULL de forma contractualmente limpia.
+  => VERIFICADO (5B.2): Miembro real activo: resuelve a auth.users con orden de precedencia OWNER > ADMIN.
+  => VERIFICADO (5B.3): Actor inválido: rechazo estricto con SQLSTATE 23503 (FK auth.users transport_events_actor_user_id_fkey).
+  => VERIFICADO (5B.3b): Inserción directa de actor inválido rechazada taxativamente con SQLSTATE 23503 (transport_events_actor_user_id_fkey).
+
+[FASE 6] Generación de Rollback Dinámico desde Recibo de Ejecución Real:
+  => Rollback SQL generado dinámicamente desde recibo verificado.
+  => VERIFICADO: Rollback generator excluyó tablas append-only (transport_events, operational_events),
+     tablas protegidas por cascada (cmr_documents, transport_stops), y filas preexistentes colisionadas (party_addresses, parties).
+
+[FASE 7] Ejecución de Rollback Operativo sobre Tablas Mutables:
+  => Transacción de rollback ejecutada con éxito en PostgreSQL (código 0).
+
+[FASE 8] Verificación Exhaustiva del Estado Post-Rollback en 70 Tablas:
+  * Fila preexistente no colisionante ('00000000-0000-4000-a000-000000000001'): 100% COLUMNAS INTACTAS
+  * Fila colisionada con PK preexistente ('52f69594-6c37-58e4-b677-8e2ee752764f'): 100% COLUMNAS INTACTAS Y NO ALTERADAS
+  * Empresa/party colisionada con PK preexistente ('c9f0d7f6-4453-530f-8dba-0c9ce2426a83'): 100% COLUMNAS INTACTAS
+  * Empresa de tenant ajeno ('99999999-9999-4999-b999-000000000001'): 100% COLUMNAS INTACTAS
+  * Dirección de tenant ajeno ('99999999-9999-4999-a999-000000000001'): 100% COLUMNAS INTACTAS
+  * Eventos inmutables de transporte (transport_events): 150 registros 100% IDÉNTICOS preservados.
+  * Eventos inmutables operativos (operational_events): 150 registros 100% IDÉNTICOS preservados.
+  * Documentos CMR protegidos por cascada (cmr_documents): 150 registros 100% preservados (claves e identidad intactas; FKs a padres eliminados nulificadas por ON DELETE SET NULL).
+  * Paradas de transporte protegidas por cascada (transport_stops): 150 registros 100% preservados (claves e identidad intactas; FKs a paradas de viaje nulificadas por ON DELETE SET NULL).
+
+  * Verificación exhaustiva de TODAS las claves efectivas en las 70 tablas:
+  => 100% de las 70 tablas verificadas post-rollback (70/70 comprobadas contra claves efectivas del recibo).
+
+================================================================================
+✅ ENSAYO POSTGRESQL 17.11 LOCAL COMPLETADO CON 100% DE INTEGRIDAD
+   - 89 tablas creadas y reconciliadas con baseline.
+   - 10.500 INSERT ejecutados en transacción atómica con RETURNING.
+   - Colisión real de PK probada: fila humana previa 100% preservada.
+   - Reejecución idempotente verificada (0 filas duplicadas).
+   - Concurrencia de 2 sesiones verificada con bloqueo estricto 55P03.
+   - Trigger append-only 55000 verificado sobre transport_events y operational_events.
+   - Cascada sobre cmr_documents y transport_stops bloqueada por histórico inmutable (55000).
+   - Rollback dinámico ejecutado sobre tablas mutables preservando datos propios y ajenos.
+Exit Code: 0 (SUCCESS)
+Completed At: 2026-10-14 13:55:21 UTC
+================================================================================
+

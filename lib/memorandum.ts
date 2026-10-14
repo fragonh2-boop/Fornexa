@@ -18,8 +18,8 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "09 oct 2026";
-export const memorandumCommitCoverage = 598;
+export const memorandumUpdatedAt = "14 oct 2026";
+export const memorandumCommitCoverage = 609;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -109,6 +109,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.10.14-1",
+    date: "14 oct 2026",
+    surface: ["Web", "Plataforma"],
+    title: "Carga sintética de revisión en producción (DATA150)",
+    purpose: "Habilitar lote sintético autorizado de pruebas con 150 filas completas y distintas por tabla de negocio aplicable para revisión operativa, preservando datos existentes y excluyendo entidades de seguridad o auditoría.",
+    outcome: "Incorporación autorizada por Fran (Opción B) de las 3 tablas regulatorias y de firmas (cmr_signatures, transport_evidence, regulatory_document_artifacts) con 150 firmas MOCK sintéticas autorizadas sin validez legal atribuida, elevando el lote a 70 tablas de negocio objetivo (10.500 filas sintéticas totales). Resolución de observaciones de Codex Review: emparejamiento canónico estricto de tipos y ámbitos regulatorios (deca/deca_es, cmr/cmr_convention, ecmr/ecmr_protocol, pod/efti) para interoperabilidad con los endpoints de acceso (/api/regulatory/artifacts/[artifact]/access) y descarga pública (/regulatory/d/[token]); generación de artefactos sintéticos con payloads PDF y JPEG reales en disco, derivando tamaño exacto y hash SHA-256 de los bytes de prueba. Resolución Ciclo 1 M1: purga total de fallback centinela en loader SQL y dataset; resolución de actor en transport_events a miembro activo OWNER/ADMIN o NULL contractualmente seguro; validación preflight fail-closed en FK externas a auth.users; y ensayo en PostgreSQL 17.11 vivo sin pre-sembrado cubriendo tenant sin miembros, miembro real activo y actor inválido (SQLSTATE 23503) con 100% de integridad. Resolución Ciclo 2 M2/M3/M4: manifiesto canónico RFC-8785 exhaustivo con hashes SHA-256 por cada una de las 10.500 filas anclado al commit 7145665, catalogación formal y justificada de 22 tablas excepcionales sin columna metadata (3.300 filas) vs 48 tablas con marcadores físicos en fila (7.200 filas), cabecera del cargador SQL alineada con 150 firmas MOCK autorizadas sin validez legal atribuida, claves RETURNING en tablas con identidad discriminando skips de inserciones, script verificador reproducible verify_manifest.py y 4 pruebas negativas (falta, extra, duplicado, hash incorrecto). Resolución Ciclo 3 M5: versionado de evidencia local saneada del ensayo PostgreSQL 17.11 en docs/verification/data150-rehearsal-execution-receipt.json (70 tablas, 10.498 filas capturadas efectivamente por RETURNING, status COMMITTED, dataset_hash 28996cacc2535155669e1107f07d8b8bceebfb272d52ce893c6bcc176d9a8a77) con reconciliación documentada de las 2 filas de diferencia por colisión intencionada de clave preexistente en parties y party_addresses (ON CONFLICT DO NOTHING devolviendo 0 filas y excluidas del recibo y del rollback); rollback materializado y reproducible versionado en docs/verification/data150-rehearsal-rollback.sql (401 KB, 66 sentencias DELETE) generado determinísticamente por generate_rollback_from_receipt.ts (mismo input -> mismo hash 88ac89a290a4d48612d67802793c43e521ead24a34d688b25818e37bd1b12a57) en orden topológico inverso y ámbito estricto de tenant; verificación en PostgreSQL 17.11 vivo de aislamiento total de datos preexistentes y ajenos, preservación íntegra y sin debilitar del guard append-only de auditoría (SQLSTATE 55000 en transport_events y operational_events) y contabilidad exacta de residuales protegidos por cascada (cmr_documents y transport_stops con FKs a padres anuladas limpiamente por ON DELETE SET NULL); declaración explícita de binarios locales en disco vs cero objetos en Supabase Storage, cero buckets remotos y cero migraciones de esquema; y reporte formal en docs/verification/data150-rehearsal-report.md con 272/272 tests passing en suite automatizada. Resolución Ciclo 4 y Ciclo 5: derivación programática de la columna Categoría en §6 del reporte desde manifest.exceptional_tables_catalog resolviendo los 18 desajustes (exactamente 22 excepcionales, 44 mutables, 2 inmutables y 2 protegidas por cascada) con test M5 de igualdad estricta de conjuntos; métricas en matriz de inventario alineadas a 993 columnas y 196 FKs de negocio; aserción de fecha exacta 14 oct 2026; y trazabilidad transparente de la procedencia del log del ensayo en PG17. Permanece en preproducción hasta superación de gates y revisiones independientes.",
+    status: "Preproducción",
+  },
   {
     version: "2026.10.09-2",
     date: "9 oct 2026",
