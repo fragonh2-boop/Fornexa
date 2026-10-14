@@ -252,7 +252,8 @@ export function checkLiveProcessHoldingFd(
 export function safeReclaimOrphanLock(
   lockPath: string,
   holderPid: number,
-  testHookAfterClaimWon?: () => void
+  testHookAfterClaimWon?: () => void,
+  testHookBeforeClaimEviction?: () => void
 ): void {
   const reclaimLockPath = `${lockPath}.reclaim.lock`;
   const reclaimContextId = randomUUID();
@@ -343,17 +344,52 @@ export function safeReclaimOrphanLock(
 
                 if (isClaimerDead) {
                   // Previous claimer died after linkSync(claim) but before replacing mutex!
-                  // Safely unlink the dead claim token if it still belongs to that dead claimer,
-                  // then attempt atomic linkSync to acquire it.
+                  // Barrier hook for deterministic interleaving test (MUST #1 / MUST #2)
+                  if (testHookBeforeClaimEviction) {
+                    testHookBeforeClaimEviction();
+                  }
+
+                  // Coordinate contender recovery via an atomic eviction token tied to this dead claimer PID.
+                  // POSIX linkSync(evictTmp, evictTokenPath) ensures exactly ONE contender wins the right
+                  // to evict dead claimPid. Losers immediately bail out and NEVER unlink a concurrent live claim!
+                  const evictTokenPath = `${claimTokenPath}.evict.${claimPid || "unidentified"}`;
+                  const evictTmpPath = `${evictTokenPath}.${process.pid}.${Date.now()}.${randomUUID()}.tmp`;
+                  let wonEvict = false;
                   try {
-                    const recheckContent = readFileSync(claimTokenPath, "utf8");
-                    const recheckPid = parseInt(recheckContent.split("\n")[0]?.trim(), 10);
-                    if (recheckPid === claimPid || (isNaN(recheckPid) && isClaimerDead)) {
-                      unlinkSync(claimTokenPath);
-                      linkSync(claimTmpPath, claimTokenPath);
-                      wonClaim = true;
+                    writeFileSync(evictTmpPath, `${process.pid}\n${Date.now()}\n`, "utf8");
+                    try {
+                      linkSync(evictTmpPath, evictTokenPath);
+                      wonEvict = true;
+                    } catch {
+                      // Another contender won the eviction lock or claimTokenPath has already progressed
                     }
-                  } catch {}
+
+                    if (wonEvict) {
+                      // Under exclusive eviction lock: re-verify claimTokenPath STILL belongs to claimPid
+                      // and has NOT been claimed/replaced by a live process before unlinking!
+                      try {
+                        const currentClaim = readFileSync(claimTokenPath, "utf8");
+                        const currentClaimPid = parseInt(currentClaim.split("\n")[0]?.trim(), 10);
+                        if (currentClaimPid === claimPid || (isNaN(currentClaimPid) && isNaN(claimPid))) {
+                          unlinkSync(claimTokenPath);
+                          linkSync(claimTmpPath, claimTokenPath);
+                          wonClaim = true;
+                        }
+                      } catch {}
+                    }
+                  } finally {
+                    try { if (existsSync(evictTmpPath)) unlinkSync(evictTmpPath); } catch {}
+                    if (wonEvict) {
+                      try {
+                        if (existsSync(evictTokenPath)) {
+                          const evictContent = readFileSync(evictTokenPath, "utf8");
+                          if (evictContent.startsWith(`${process.pid}\n`)) {
+                            unlinkSync(evictTokenPath);
+                          }
+                        }
+                      } catch {}
+                    }
+                  }
                 }
               } catch {}
             }
@@ -409,7 +445,14 @@ export function safeReclaimOrphanLock(
               }
             }
           } finally {
-            try { unlinkSync(claimTokenPath); } catch {}
+            try {
+              if (existsSync(claimTokenPath)) {
+                const claimCheck = readFileSync(claimTokenPath, "utf8");
+                if (claimCheck.startsWith(`${process.pid}\n`)) {
+                  unlinkSync(claimTokenPath);
+                }
+              }
+            } catch {}
           }
         }
       }

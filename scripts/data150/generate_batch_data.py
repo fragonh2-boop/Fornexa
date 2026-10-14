@@ -23,6 +23,98 @@ NAMESPACE = uuid.UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')
 def gen_uuid(entity_name: str, index: int) -> str:
     return str(uuid.uuid5(NAMESPACE, f'DATA150:{entity_name}:{index}'))
 
+BASE_TIME = datetime.datetime(2026, 10, 14, 8, 0, 0, tzinfo=datetime.timezone.utc)
+
+def calc_gs1_check(prefix: str) -> int:
+    digits = [int(c) for c in prefix]
+    rev = digits[::-1]
+    s = sum(d * (3 if i % 2 == 0 else 1) for i, d in enumerate(rev))
+    return (10 - (s % 10)) % 10
+
+def gen_gs1_13(i: int, prefix7: str = '8412345') -> str:
+    pref12 = f"{prefix7}{i:05d}"
+    check = calc_gs1_check(pref12)
+    return f"{pref12}{check}"
+
+def get_cycle_timeline(i: int) -> dict:
+    days_back = (149 - i) * 0.18
+    cycle_dt = BASE_TIME - datetime.timedelta(
+        days=days_back,
+        hours=(i * 3) % 24,
+        minutes=(i * 7) % 60,
+        seconds=(i * 11) % 60
+    )
+
+    t_master_created = cycle_dt - datetime.timedelta(days=1, hours=2)
+    t_master_updated = t_master_created + datetime.timedelta(hours=1)
+
+    t_order_created = cycle_dt
+    t_order_updated = t_order_created + datetime.timedelta(minutes=15)
+
+    t_pickup_start = t_order_created + datetime.timedelta(hours=1)
+    t_pickup_end = t_pickup_start + datetime.timedelta(hours=2)
+    t_delivery_start = t_pickup_end + datetime.timedelta(hours=4)
+    t_delivery_end = t_delivery_start + datetime.timedelta(hours=2)
+
+    t_expedition_created = t_order_created + datetime.timedelta(hours=1, minutes=30)
+    t_expedition_updated = t_expedition_created + datetime.timedelta(minutes=20)
+
+    t_trip_created = t_expedition_created + datetime.timedelta(hours=1)
+    t_trip_updated = t_trip_created + datetime.timedelta(minutes=30)
+
+    t_trip_planned_start = t_trip_created + datetime.timedelta(hours=2)
+    t_trip_actual_start = t_trip_planned_start + datetime.timedelta(minutes=10)
+    t_trip_planned_end = t_trip_actual_start + datetime.timedelta(hours=6)
+    t_trip_actual_end = t_trip_planned_end + datetime.timedelta(minutes=15)
+
+    t_stop_arrived = t_trip_actual_start + datetime.timedelta(hours=2)
+    t_stop_completed = t_stop_arrived + datetime.timedelta(minutes=45)
+
+    t_cmr_issued = t_trip_actual_start + datetime.timedelta(minutes=15)
+    t_cmr_created = t_cmr_issued
+    t_cmr_updated = t_cmr_created + datetime.timedelta(minutes=10)
+
+    t_event_occurred = t_stop_arrived + datetime.timedelta(minutes=20)
+    t_event_created = t_event_occurred + datetime.timedelta(seconds=5)
+
+    t_movement_requested = t_order_created + datetime.timedelta(minutes=30)
+    t_movement_started = t_movement_requested + datetime.timedelta(minutes=10)
+    t_movement_completed = t_movement_started + datetime.timedelta(minutes=25)
+
+    t_customs_occurred = t_trip_actual_start + datetime.timedelta(hours=1)
+    t_customs_created = t_customs_occurred + datetime.timedelta(minutes=5)
+
+    return {
+        'master_created': t_master_created.isoformat(),
+        'master_updated': t_master_updated.isoformat(),
+        'order_created': t_order_created.isoformat(),
+        'order_updated': t_order_updated.isoformat(),
+        'pickup_start': t_pickup_start.isoformat(),
+        'pickup_end': t_pickup_end.isoformat(),
+        'delivery_start': t_delivery_start.isoformat(),
+        'delivery_end': t_delivery_end.isoformat(),
+        'expedition_created': t_expedition_created.isoformat(),
+        'expedition_updated': t_expedition_updated.isoformat(),
+        'trip_created': t_trip_created.isoformat(),
+        'trip_updated': t_trip_updated.isoformat(),
+        'trip_planned_start': t_trip_planned_start.isoformat(),
+        'trip_actual_start': t_trip_actual_start.isoformat(),
+        'trip_planned_end': t_trip_planned_end.isoformat(),
+        'trip_actual_end': t_trip_actual_end.isoformat(),
+        'stop_arrived': t_stop_arrived.isoformat(),
+        'stop_completed': t_stop_completed.isoformat(),
+        'cmr_issued': t_cmr_issued.isoformat(),
+        'cmr_created': t_cmr_created.isoformat(),
+        'cmr_updated': t_cmr_updated.isoformat(),
+        'event_occurred': t_event_occurred.isoformat(),
+        'event_created': t_event_created.isoformat(),
+        'movement_requested': t_movement_requested.isoformat(),
+        'movement_started': t_movement_started.isoformat(),
+        'movement_completed': t_movement_completed.isoformat(),
+        'customs_occurred': t_customs_occurred.isoformat(),
+        'customs_created': t_customs_created.isoformat(),
+    }
+
 # 50 Spanish logistics hubs used to generate 150 unique street addresses
 provinces_data = [
     ('Madrid', 'Madrid', '28053', 'Centro de Transportes de Madrid, C/ Eje 1 Nave %d', 40.3621, -3.6652),
@@ -104,8 +196,9 @@ regions_names = [
 ]
 
 def generate_all_tables():
-    dt_now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    timelines = [get_cycle_timeline(i) for i in range(150)]
     d_now = '2026-10-09'
+    event_types = ['cmr_issued', 'stop_arrived', 'stop_completed', 'work_finished']
     dataset = {}
 
     # --- LAYER 1: Independent Root Tables (12 tables) ---
@@ -118,8 +211,8 @@ def generate_all_tables():
             'name': f"[PRUEBA] Zona {regions_names[i % len(regions_names)]} {i:03d}",
             'country': 'ES',
             'purpose': f"Distribución regional {i:03d}",
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated']
         } for i in range(150)
     ]
 
@@ -133,9 +226,9 @@ def generate_all_tables():
             'event_type': 'SYNTHETIC_BATCH_RECORD',
             'actor_user_id': None,
             'source': 'DATA150_SYSTEM',
-            'occurred_at': dt_now,
+            'occurred_at': timelines[i]['order_created'],
             'data': {'batch': BATCH_ID, 'index': i, 'synthetic': True},
-            'created_at': dt_now
+            'created_at': timelines[i]['order_created']
         } for i in range(150)
     ]
 
@@ -151,8 +244,8 @@ def generate_all_tables():
             'normalized_records': 1,
             'summary': {'batch': BATCH_ID, 'run_index': i},
             'error_message': None,
-            'started_at': dt_now,
-            'completed_at': dt_now
+            'started_at': timelines[i]['master_created'],
+            'completed_at': timelines[i]['master_updated']
         } for i in range(150)
     ]
 
@@ -166,8 +259,8 @@ def generate_all_tables():
             'canonical_id': gen_uuid('parties', i),
             'external_id': f"SAP-PTY-{i:05d}",
             'company_scope': 'FORNEXA',
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated']
         } for i in range(150)
     ]
 
@@ -185,8 +278,8 @@ def generate_all_tables():
             'declarant_eori': 'ESB99999999',
             'representative_eori': None,
             'payload': {'batch': BATCH_ID, 'case_index': i},
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'created_at': timelines[i]['customs_created'],
+            'updated_at': timelines[i]['customs_created']
         } for i in range(150)
     ]
 
@@ -200,9 +293,9 @@ def generate_all_tables():
             'provider': 'TEST_PROVIDER',
             'status': 'DISABLED',
             'configuration': {'batch': BATCH_ID, 'synthetic': True, 'inert': True, 'mock': True, 'note': 'Inert test connector fixture - disabled'},
-            'last_health_at': dt_now,
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'last_health_at': timelines[i]['master_updated'],
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated']
         } for i in range(150)
     ]
 
@@ -226,10 +319,10 @@ def generate_all_tables():
             'adr_control': False,
             'status': 'ACTIVE',
             'metadata': {'batch': BATCH_ID, 'index': i},
-            'created_at': dt_now,
-            'updated_at': dt_now,
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated'],
             'eori': f"ESB99{i:06d}",
-            'gln': f"8412345{i:06d}",
+            'gln': gen_gs1_13(i, '8412345'),
             'cnae_code': '5229',
             'commercial_register': f"R.M. Madrid Tomo {i+1000} Folio 12",
             'business_group_party_id': None,
@@ -248,8 +341,8 @@ def generate_all_tables():
             'party_id': gen_uuid('parties', i),
             'name': f"[PRUEBA] Índice Gasóleo Profesional {i:03d}",
             'currency': 'EUR',
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated']
         } for i in range(150)
     ]
 
@@ -268,8 +361,8 @@ def generate_all_tables():
             'telematics_provider': None,
             'telematics_external_id': None,
             'metadata': {'batch': BATCH_ID, 'index': i},
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated']
         } for i in range(150)
     ]
 
@@ -287,8 +380,8 @@ def generate_all_tables():
             'licence_number': f"ES-B99{i:06d}",
             'adr_qualified': False,
             'status': 'ACTIVE',
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated']
         } for i in range(150)
     ]
 
@@ -304,12 +397,12 @@ def generate_all_tables():
             'status': 'ACTIVE',
             'metadata': {'batch': BATCH_ID, 'index': i},
             'revision_number': 1,
-            'created_at': dt_now,
-            'updated_at': dt_now,
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated'],
             'owner_party_id': gen_uuid('parties', i % 100),
             'description': f"Producto estándar paletizado modelo {i:03d}",
             'category_code': 'GENERAL_CARGO',
-            'gtin': f"8412345{i:06d}",
+            'gtin': gen_gs1_13(i, '8412345'),
             'hs_code': '84713000',
             'uom_base': 'UN',
             'net_weight_kg': 10.5,
@@ -341,8 +434,8 @@ def generate_all_tables():
             'unit': 'SHIPMENT',
             'is_active': True,
             'metadata': {'batch': BATCH_ID, 'index': i},
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated']
         } for i in range(150)
     ]
 
@@ -360,8 +453,8 @@ def generate_all_tables():
             'payload': {'batch': BATCH_ID, 'imported_item': i},
             'normalized_entity_type': 'PARTY',
             'normalized_entity_id': gen_uuid('parties', i),
-            'first_seen_at': dt_now,
-            'last_synced_at': dt_now
+            'first_seen_at': timelines[i]['master_created'],
+            'last_synced_at': timelines[i]['master_updated']
         } for i in range(150)
     ]
 
@@ -379,7 +472,7 @@ def generate_all_tables():
             'postal_range_to': None,
             'postal_prefix': None,
             'excluded': False,
-            'created_at': dt_now
+            'created_at': timelines[i]['master_created']
         } for i in range(150)
     ]
 
@@ -403,8 +496,8 @@ def generate_all_tables():
             'created_by': None,
             'approved_by': None,
             'approved_at': None,
-            'created_at': dt_now,
-            'updated_at': dt_now,
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated'],
             'kind': 'SELL',
             'origin_zone_id': gen_uuid('tariff_zones', i),
             'destination_zone_id': gen_uuid('tariff_zones', (i + 1) % 150)
@@ -423,8 +516,8 @@ def generate_all_tables():
             'external_reference': f"EXT-EVT-{i:05d}",
             'payload': {'batch': BATCH_ID, 'ping': True},
             'error_message': None,
-            'occurred_at': dt_now,
-            'created_at': dt_now
+            'occurred_at': timelines[i]['master_created'],
+            'created_at': timelines[i]['master_created']
         } for i in range(150)
     ]
 
@@ -443,8 +536,8 @@ def generate_all_tables():
             'xml_payload': f'<Message id="{i}"><Batch>DATA150</Batch></Message>',
             'http_status': 200,
             'error_codes': [],
-            'created_at': dt_now,
-            'processed_at': dt_now
+            'created_at': timelines[i]['customs_created'],
+            'processed_at': timelines[i]['customs_created']
         } for i in range(150)
     ]
 
@@ -456,7 +549,7 @@ def generate_all_tables():
             'event_type': 'CASE_INITIALIZED',
             'actor_id': None,
             'data': {'batch': BATCH_ID, 'status': 'PRESENTADO'},
-            'created_at': dt_now
+            'created_at': timelines[i]['customs_created']
         } for i in range(150)
     ]
 
@@ -477,8 +570,8 @@ def generate_all_tables():
             'status': 'SENT',
             'payload': {'batch': BATCH_ID, 'body': f"Mensaje sintético {i:03d}"},
             'error_message': None,
-            'sent_at': dt_now,
-            'created_at': dt_now
+            'sent_at': timelines[i]['order_updated'],
+            'created_at': timelines[i]['order_updated']
         } for i in range(150)
     ]
 
@@ -494,8 +587,8 @@ def generate_all_tables():
             'email': f"contacto_{i:03d}@fornexatest.invalid",
             'is_primary': True,
             'is_active': True,
-            'created_at': dt_now,
-            'updated_at': dt_now,
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated'],
             'department': 'Operaciones',
             'language': 'es',
             'schedule': {'dias': 'L-V', 'horario': '08:00-18:00'},
@@ -529,8 +622,8 @@ def generate_all_tables():
             'default_window_end': '18:00:00',
             'instructions': 'Acceso por puerta principal previa identificación',
             'is_active': True,
-            'created_at': dt_now,
-            'updated_at': dt_now,
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated'],
             'subdivision_key': unique_addresses[i]['postal_code'][:2]
         } for i in range(150)
     ]
@@ -543,7 +636,7 @@ def generate_all_tables():
             'frequency': 'NEVER',
             'validation_policy': 'INFO',
             'preferred_classes': [],
-            'updated_at': dt_now,
+            'updated_at': timelines[i]['master_updated'],
             'updated_by': None
         } for i in range(150)
     ]
@@ -563,8 +656,8 @@ def generate_all_tables():
             'invoice_channel': 'EMAIL',
             'billing_email': f"facturacion_{i:03d}@fornexatest.invalid",
             'sales_email': f"ventas_{i:03d}@fornexatest.invalid",
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated']
         } for i in range(150)
     ]
 
@@ -578,7 +671,7 @@ def generate_all_tables():
             'behavior': 'WARNING',
             'reason': f"[PRUEBA] Revisión documental periódica {i:03d}",
             'blocked_by': None,
-            'blocked_at': dt_now,
+            'blocked_at': timelines[i]['master_created'],
             'released_by': None,
             'released_at': None,
             'release_reason': None
@@ -599,8 +692,8 @@ def generate_all_tables():
             'adr_certified': False,
             'qualification_status': 'APPROVED',
             'qualification_notes': 'Transportista homologado en entorno de pruebas',
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated']
         } for i in range(150)
     ]
 
@@ -613,7 +706,7 @@ def generate_all_tables():
             'period_start': '2026-10-01',
             'period_end': '2026-10-31',
             'observed_value': 1.452,
-            'created_at': dt_now
+            'created_at': timelines[i]['master_created']
         } for i in range(150)
     ]
 
@@ -629,7 +722,7 @@ def generate_all_tables():
             'surcharge_amount': None,
             'valid_from': '2026-01-01',
             'valid_to': None,
-            'created_at': dt_now
+            'created_at': timelines[i]['master_created']
         } for i in range(150)
     ]
 
@@ -641,7 +734,7 @@ def generate_all_tables():
             'product_id': gen_uuid('products', i),
             'pack_code': f"BOX-PRV-{i:04d}",
             'pack_type': 'MASTER_CARTON',
-            'barcode': f"8412345{i:06d}",
+            'barcode': gen_gs1_13(i, '8412345'),
             'units_per_pack': 24.0,
             'parent_pack_id': None,
             'gross_weight_kg': 15.0,
@@ -653,8 +746,8 @@ def generate_all_tables():
             'hi_layers': 5,
             'is_stackable': True,
             'is_active': True,
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated']
         } for i in range(150)
     ]
 
@@ -669,8 +762,8 @@ def generate_all_tables():
             'address_id': gen_uuid('party_addresses', i),
             'status': 'ACTIVE',
             'capabilities': {'cross_dock': True, 'rack_storage': True},
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated']
         } for i in range(150)
     ]
 
@@ -687,8 +780,8 @@ def generate_all_tables():
             'zone_type': 'STORAGE',
             'temperature_regime': 'AMBIENT',
             'is_active': True,
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated']
         } for i in range(150)
     ]
 
@@ -707,8 +800,8 @@ def generate_all_tables():
             'timezone': 'Europe/Madrid',
             'status': 'ACTIVE',
             'metadata': {'batch': BATCH_ID, 'index': i},
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated']
         } for i in range(150)
     ]
 
@@ -724,8 +817,8 @@ def generate_all_tables():
             'valid_to': None,
             'status': 'ACTIVE',
             'metadata': {'batch': BATCH_ID, 'index': i},
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated']
         } for i in range(150)
     ]
 
@@ -744,8 +837,8 @@ def generate_all_tables():
             'valid_to': None,
             'conditions': {'batch': BATCH_ID, 'lead_time_days': 1},
             'is_active': True,
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated']
         } for i in range(150)
     ]
 
@@ -768,8 +861,8 @@ def generate_all_tables():
             'average_wait_minutes': 25,
             'access_instructions': 'Entrada por muelle secundario',
             'account_manager_user_id': None,
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated']
         } for i in range(150)
     ]
 
@@ -785,8 +878,8 @@ def generate_all_tables():
             'is_default_pickup': True,
             'is_default_delivery': True,
             'created_by': None,
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated']
         } for i in range(150)
     ]
 
@@ -809,8 +902,8 @@ def generate_all_tables():
             'is_blocked': False,
             'block_reason': None,
             'is_active': True,
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated']
         } for i in range(150)
     ]
 
@@ -831,7 +924,7 @@ def generate_all_tables():
             'customs_fee': None,
             'fuel_surcharge_formula': None,
             'discount_percent': None,
-            'created_at': dt_now,
+            'created_at': timelines[i]['master_created'],
             'component': 'BASE_FREIGHT'
         } for i in range(150)
     ]
@@ -844,7 +937,7 @@ def generate_all_tables():
             'tariff_header_id': gen_uuid('tariff_headers', i),
             'party_id': gen_uuid('parties', i),
             'created_by': None,
-            'created_at': dt_now
+            'created_at': timelines[i]['master_created']
         } for i in range(150)
     ]
 
@@ -863,8 +956,8 @@ def generate_all_tables():
             'valid_to': None,
             'priority': 1,
             'is_active': True,
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated']
         } for i in range(150)
     ]
 
@@ -883,8 +976,8 @@ def generate_all_tables():
             'valid_from': '2026-01-01',
             'valid_to': None,
             'priority': 1,
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated']
         } for i in range(150)
     ]
 
@@ -903,8 +996,8 @@ def generate_all_tables():
             'valid_from': '2026-01-01',
             'valid_to': None,
             'metadata': {'batch': BATCH_ID, 'index': i},
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated']
         } for i in range(150)
     ]
 
@@ -928,7 +1021,7 @@ def generate_all_tables():
             'trace': {'rules_applied': 1},
             'breakdown': {'base': 150.0},
             'engine_version': '1.0.0',
-            'created_at': dt_now
+            'created_at': timelines[i]['master_created']
         } for i in range(150)
     ]
 
@@ -948,8 +1041,8 @@ def generate_all_tables():
             'valid_until': '2026-12-31',
             'conditions': 'Condiciones estándar de transporte FTL',
             'metadata': {'batch': BATCH_ID, 'index': i},
-            'created_at': dt_now,
-            'updated_at': dt_now,
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated'],
             'pricing_snapshot': {'total': 181.5},
             'cost_pricing_run_id': None,
             'sell_pricing_run_id': gen_uuid('pricing_runs', i),
@@ -970,10 +1063,10 @@ def generate_all_tables():
             'service_id': gen_uuid('service_catalog', i),
             'pickup_address_id': gen_uuid('party_addresses', i),
             'delivery_address_id': gen_uuid('party_addresses', (i + 1) % 150),
-            'requested_pickup_start': dt_now,
-            'requested_pickup_end': dt_now,
-            'requested_delivery_start': dt_now,
-            'requested_delivery_end': dt_now,
+            'requested_pickup_start': timelines[i]['pickup_start'],
+            'requested_pickup_end': timelines[i]['pickup_end'],
+            'requested_delivery_start': timelines[i]['delivery_start'],
+            'requested_delivery_end': timelines[i]['delivery_end'],
             'packages': 5,
             'gross_weight': 250.0,
             'volume': 1.2,
@@ -982,15 +1075,15 @@ def generate_all_tables():
             'adr': {'is_adr': False},
             'status': 'COMPLETED',
             'metadata': {'batch': BATCH_ID, 'index': i},
-            'created_at': dt_now,
-            'updated_at': dt_now,
+            'created_at': timelines[i]['order_created'],
+            'updated_at': timelines[i]['order_updated'],
             'hazmat_declaration': 'NO',
             'hazmat_edition_id': None,
             'hazmat_validation_status': 'NOT_EVALUATED',
             'revision_number': 1,
             'business_id': gen_uuid('companies', i),
             'supersedes_order_id': None,
-            'launched_at': dt_now,
+            'launched_at': timelines[i]['order_created'],
             'revoked_at': None,
             'pricing_snapshot': {'total': 181.5}
         } for i in range(150)
@@ -1029,7 +1122,7 @@ def generate_all_tables():
             'hazard_status': 'NON_HAZARDOUS',
             'adr': {'is_adr': False},
             'metadata': {'batch': BATCH_ID, 'index': i},
-            'created_at': dt_now
+            'created_at': timelines[i]['order_created']
         } for i in range(150)
     ]
 
@@ -1052,8 +1145,8 @@ def generate_all_tables():
             'volume': 1.2,
             'status': 'DELIVERED',
             'metadata': {'batch': BATCH_ID, 'index': i},
-            'created_at': dt_now,
-            'updated_at': dt_now,
+            'created_at': timelines[i]['expedition_created'],
+            'updated_at': timelines[i]['expedition_updated'],
             'external_reference': f"EXT-ALB-{i:05d}"
         } for i in range(150)
     ]
@@ -1069,12 +1162,12 @@ def generate_all_tables():
             'code': f"EXP-PRV-{i:04d}",
             'origin_address_id': gen_uuid('party_addresses', i),
             'destination_address_id': gen_uuid('party_addresses', (i + 1) % 150),
-            'planned_departure': dt_now,
-            'planned_arrival': dt_now,
+            'planned_departure': timelines[i]['trip_planned_start'],
+            'planned_arrival': timelines[i]['trip_planned_end'],
             'status': 'DELIVERED',
             'metadata': {'batch': BATCH_ID, 'index': i},
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'created_at': timelines[i]['expedition_created'],
+            'updated_at': timelines[i]['expedition_updated']
         } for i in range(150)
     ]
 
@@ -1090,7 +1183,7 @@ def generate_all_tables():
             'points_total': 0.0,
             'warnings': [],
             'input_hash': f"hash_ord_{i:04d}",
-            'assessed_at': dt_now,
+            'assessed_at': timelines[i]['order_updated'],
             'assessed_by': None
         } for i in range(150)
     ]
@@ -1111,9 +1204,9 @@ def generate_all_tables():
             'quantity_reserved': 0.0,
             'uom': 'UN',
             'stock_status': 'AVAILABLE',
-            'last_counted_at': dt_now,
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'last_counted_at': timelines[i]['master_created'],
+            'created_at': timelines[i]['master_created'],
+            'updated_at': timelines[i]['master_updated']
         } for i in range(150)
     ]
 
@@ -1132,7 +1225,7 @@ def generate_all_tables():
             'rate': 150.0,
             'amount': 150.0,
             'metadata': {'batch': BATCH_ID, 'index': i},
-            'created_at': dt_now
+            'created_at': timelines[i]['order_created']
         } for i in range(150)
     ]
 
@@ -1148,7 +1241,7 @@ def generate_all_tables():
             'packages': 5,
             'gross_weight': 250.0,
             'metadata': {'batch': BATCH_ID, 'index': i},
-            'created_at': dt_now
+            'created_at': timelines[i]['expedition_created']
         } for i in range(150)
     ]
 
@@ -1159,7 +1252,7 @@ def generate_all_tables():
             'tenant_id': TENANT_ID,
             'expedition_id': gen_uuid('expeditions', i),
             'delivery_note_id': gen_uuid('delivery_notes', i),
-            'created_at': dt_now
+            'created_at': timelines[i]['expedition_created']
         } for i in range(150)
     ]
 
@@ -1182,14 +1275,14 @@ def generate_all_tables():
             'reference_order_id': gen_uuid('orders', i),
             'reference_delivery_note_id': gen_uuid('delivery_notes', i),
             'operator_id': 'DATA150_OPERATOR',
-            'requested_at': dt_now,
-            'started_at': dt_now,
-            'completed_at': dt_now,
+            'requested_at': timelines[i]['movement_requested'],
+            'started_at': timelines[i]['movement_started'],
+            'completed_at': timelines[i]['movement_completed'],
             'duration_seconds': 120,
             'status': 'COMPLETED',
             'notes': f"Movimiento de recepción de prueba {i:03d}",
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'created_at': timelines[i]['movement_completed'],
+            'updated_at': timelines[i]['movement_completed']
         } for i in range(150)
     ]
 
@@ -1205,14 +1298,14 @@ def generate_all_tables():
             'vehicle_id': gen_uuid('vehicles', i),
             'trailer_registration': f"99{i:02d}RRR",
             'driver_id': gen_uuid('drivers', i),
-            'planned_start': dt_now,
-            'actual_start': dt_now,
-            'planned_end': dt_now,
-            'actual_end': dt_now,
+            'planned_start': timelines[i]['trip_planned_start'],
+            'actual_start': timelines[i]['trip_actual_start'],
+            'planned_end': timelines[i]['trip_planned_end'],
+            'actual_end': timelines[i]['trip_actual_end'],
             'status': 'COMPLETED',
             'metadata': {'batch': BATCH_ID, 'index': i},
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'created_at': timelines[i]['trip_created'],
+            'updated_at': timelines[i]['trip_updated']
         } for i in range(150)
     ]
 
@@ -1224,7 +1317,7 @@ def generate_all_tables():
             'trip_id': gen_uuid('trips', i),
             'expedition_id': gen_uuid('expeditions', i),
             'sequence': 1,
-            'created_at': dt_now
+            'created_at': timelines[i]['trip_created']
         } for i in range(150)
     ]
 
@@ -1247,11 +1340,11 @@ def generate_all_tables():
             'contact_phone': None,
             'operational_reference': f"STOP-REF-{i:04d}",
             'status': 'COMPLETED',
-            'arrived_at': dt_now,
-            'completed_at': dt_now,
+            'arrived_at': timelines[i]['stop_arrived'],
+            'completed_at': timelines[i]['stop_completed'],
             'metadata': {'batch': BATCH_ID, 'index': i},
-            'created_at': dt_now,
-            'updated_at': dt_now
+            'created_at': timelines[i]['trip_created'],
+            'updated_at': timelines[i]['stop_completed']
         } for i in range(150)
     ]
 
@@ -1263,7 +1356,7 @@ def generate_all_tables():
             'trip_stop_id': gen_uuid('trip_stops', i),
             'delivery_note_id': gen_uuid('delivery_notes', i),
             'operation': 'PICKUP',
-            'created_at': dt_now
+            'created_at': timelines[i]['trip_created']
         } for i in range(150)
     ]
 
@@ -1280,7 +1373,7 @@ def generate_all_tables():
             'points_total': 0.0,
             'warnings': [],
             'input_hash': f"hash_trip_{i:04d}",
-            'assessed_at': dt_now
+            'assessed_at': timelines[i]['trip_created']
         } for i in range(150)
     ]
 
@@ -1310,9 +1403,9 @@ def generate_all_tables():
             'instructions': 'Manipulación estándar',
             'adr': {'is_adr': False},
             'metadata': {'batch': BATCH_ID, 'index': i},
-            'issued_at': dt_now,
-            'created_at': dt_now,
-            'updated_at': dt_now,
+            'issued_at': timelines[i]['cmr_issued'],
+            'created_at': timelines[i]['cmr_created'],
+            'updated_at': timelines[i]['cmr_updated'],
             'tenant_id': TENANT_ID,
             'expedition_record_id': gen_uuid('expeditions', i),
             'trip_record_id': gen_uuid('trips', i),
@@ -1326,7 +1419,7 @@ def generate_all_tables():
             'carriage_charges': {'prepaid': True},
             'cash_on_delivery': {'has_cod': False},
             'established_at': 'Madrid',
-            'established_on': d_now,
+            'established_on': timelines[i]['order_created'][:10],
             'access_key_expires_at': None,
             'access_key_revoked_at': None,
             'document_kind': 'cmr',
@@ -1349,9 +1442,9 @@ def generate_all_tables():
             'latitude': unique_addresses[i]['latitude'],
             'longitude': unique_addresses[i]['longitude'],
             'status': 'Completada',
-            'arrived_at': dt_now,
-            'completed_at': dt_now,
-            'created_at': dt_now,
+            'arrived_at': timelines[i]['stop_arrived'],
+            'completed_at': timelines[i]['stop_completed'],
+            'created_at': timelines[i]['trip_created'],
             'tenant_id': TENANT_ID,
             'trip_stop_id': gen_uuid('trip_stops', i),
             'address_id': gen_uuid('party_addresses', i),
@@ -1370,7 +1463,7 @@ def generate_all_tables():
             'text_value': f"[PRUEBA] Cláusula de transporte ficticia {i:03d}",
             'source': 'TEMPLATE',
             'metadata': {'batch': BATCH_ID, 'index': i},
-            'created_at': dt_now
+            'created_at': timelines[i]['cmr_created']
         } for i in range(150)
     ]
 
@@ -1385,7 +1478,7 @@ def generate_all_tables():
             'storage_path': f"mock/attachments/alb_{i:04d}.pdf",
             'external_reference': f"ATT-{i:05d}",
             'metadata': {'batch': BATCH_ID, 'index': i},
-            'created_at': dt_now
+            'created_at': timelines[i]['cmr_created']
         } for i in range(150)
     ]
 
@@ -1406,7 +1499,7 @@ def generate_all_tables():
             'contact_name': f"Responsable {i:03d}",
             'contact_phone': None,
             'metadata': {'batch': BATCH_ID, 'index': i},
-            'created_at': dt_now
+            'created_at': timelines[i]['cmr_created']
         } for i in range(150)
     ]
 
@@ -1432,7 +1525,7 @@ def generate_all_tables():
             'tunnel_code': None,
             'adr_description': None,
             'metadata': {'batch': BATCH_ID, 'index': i},
-            'created_at': dt_now,
+            'created_at': timelines[i]['cmr_created'],
             'source_order_line_id': gen_uuid('order_lines', i),
             'hazmat_snapshot': {'is_adr': False},
             'hazmat_edition_code': None,
@@ -1447,7 +1540,7 @@ def generate_all_tables():
             'expedition_id': gen_uuid('expeditions', i),
             'sequence': 1,
             'metadata': {'batch': BATCH_ID, 'index': i},
-            'created_at': dt_now
+            'created_at': timelines[i]['cmr_created']
         } for i in range(150)
     ]
 
@@ -1457,15 +1550,15 @@ def generate_all_tables():
             'id': gen_uuid('transport_events', i),
             'cmr_id': gen_uuid('cmr_documents', i),
             'stop_id': gen_uuid('transport_stops', i),
-            'event_type': 'CMR_INITIALIZED',
-            'occurred_at': dt_now,
+            'event_type': event_types[i % len(event_types)],
+            'occurred_at': timelines[i]['event_occurred'],
             'latitude': unique_addresses[i]['latitude'],
             'longitude': unique_addresses[i]['longitude'],
-            'payload': {'batch': BATCH_ID, 'event': 'BORRADOR_CREADO'},
+            'payload': {'batch': BATCH_ID, 'event': event_types[i % len(event_types)].upper(), 'milestone_index': i},
             'idempotency_key': f"EVT-IDEMP-{i:05d}",
-            'created_at': dt_now,
+            'created_at': timelines[i]['event_created'],
             'tenant_id': TENANT_ID,
-            'actor_user_id': None
+            'actor_user_id': '00000000-0000-4000-a000-000000000001'
         } for i in range(150)
     ]
 
@@ -1566,6 +1659,15 @@ def generate_sql_loader_and_rollback(dataset, baseline_tables):
                     f'WHERE NOT EXISTS (SELECT 1 FROM public.customs_events WHERE tenant_id = \'{TENANT_ID}\' AND case_id = \'{case_id}\' AND event_type = \'{evt_type}\') '
                     f'RETURNING id, case_id;'
                 )
+            elif tname == 'transport_events':
+                vals_list = []
+                for c in col_names:
+                    if c == 'actor_user_id':
+                        vals_list.append(f"COALESCE((SELECT user_id FROM public.tenant_members WHERE tenant_id = '{TENANT_ID}' LIMIT 1), '00000000-0000-4000-a000-000000000001'::uuid)")
+                    else:
+                        vals_list.append(sql_val(r.get(c), col_map.get(c)))
+                row_vals = ', '.join(vals_list)
+                loader_lines.append(f'INSERT INTO public.{tname} ({cols_str}) VALUES ({row_vals}) {conflict_clause}')
             else:
                 row_vals = ', '.join(sql_val(r.get(c), col_map.get(c)) for c in col_names)
                 loader_lines.append(f'INSERT INTO public.{tname} ({cols_str}) VALUES ({row_vals}) {conflict_clause}')
@@ -1709,7 +1811,7 @@ def main():
     manifest_path = Path('docs/verification/data150-manifest-20261009.json')
     manifest = {
         'batch_id': BATCH_ID,
-        'generated_at': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        'generated_at': BASE_TIME.isoformat(),
         'tenant_id': TENANT_ID,
         'tables': {
             tname: {

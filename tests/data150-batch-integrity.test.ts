@@ -330,6 +330,7 @@ test("DATA150 atomic fsync receipt writer is durable and resilient to partial wr
 });
 
 test("DATA150 operational rollback generator strictly requires COMMITTED status and fails closed on all negative cases", () => {
+  const currentSqlHash = computeSqlSha256(LOADER_SQL_PATH);
   // Negative Case 1: unexecuted receipt in repo
   assert.throws(() => {
     generateOperationalRollback();
@@ -408,7 +409,7 @@ test("DATA150 operational rollback generator strictly requires COMMITTED status 
       status: "COMMITTED",
       batch_id: BATCH_ID,
       tenant_id: TENANT_ID,
-      dataset_hash: "8bf3235474d39578cb9dd278a4b14176c3402200066f3b9a5f2fa1efc2c1e913",
+      dataset_hash: currentSqlHash,
       executed_at: "not-a-date",
       tables: { party_addresses: { inserted_count: 1, inserted_keys: ["A"] } },
     });
@@ -420,7 +421,7 @@ test("DATA150 operational rollback generator strictly requires COMMITTED status 
       status: "COMMITTED",
       batch_id: BATCH_ID,
       tenant_id: TENANT_ID,
-      dataset_hash: "8bf3235474d39578cb9dd278a4b14176c3402200066f3b9a5f2fa1efc2c1e913",
+      dataset_hash: currentSqlHash,
       executed_at: new Date().toISOString(),
       tables: {},
     });
@@ -432,7 +433,7 @@ test("DATA150 operational rollback generator strictly requires COMMITTED status 
       status: "COMMITTED",
       batch_id: BATCH_ID,
       tenant_id: TENANT_ID,
-      dataset_hash: "8bf3235474d39578cb9dd278a4b14176c3402200066f3b9a5f2fa1efc2c1e913",
+      dataset_hash: currentSqlHash,
       executed_at: new Date().toISOString(),
       tables: {
         party_addresses: {
@@ -472,7 +473,7 @@ test("DATA150 operational rollback generator strictly requires COMMITTED status 
       status: "COMMITTED",
       batch_id: BATCH_ID,
       tenant_id: TENANT_ID,
-      dataset_hash: "8bf3235474d39578cb9dd278a4b14176c3402200066f3b9a5f2fa1efc2c1e913",
+      dataset_hash: currentSqlHash,
       executed_at: new Date().toISOString(),
       tables: {
         party_addresses: {
@@ -492,7 +493,7 @@ test("DATA150 operational rollback generator strictly requires COMMITTED status 
       status: "COMMITTED",
       batch_id: BATCH_ID,
       tenant_id: TENANT_ID,
-      dataset_hash: "8bf3235474d39578cb9dd278a4b14176c3402200066f3b9a5f2fa1efc2c1e913",
+      dataset_hash: currentSqlHash,
       executed_at: new Date().toISOString(),
       tables: {
         cmr_expeditions: {
@@ -511,7 +512,7 @@ test("DATA150 operational rollback generator strictly requires COMMITTED status 
     status: "COMMITTED" as const,
     batch_id: BATCH_ID,
     tenant_id: TENANT_ID,
-    dataset_hash: "8bf3235474d39578cb9dd278a4b14176c3402200066f3b9a5f2fa1efc2c1e913",
+    dataset_hash: currentSqlHash,
     executed_at: new Date().toISOString(),
     tables: {
       party_addresses: {
@@ -526,7 +527,7 @@ test("DATA150 operational rollback generator strictly requires COMMITTED status 
   const validated = validateExecutionReceiptForRollback(validPayload);
   assert.equal(validated.status, "COMMITTED");
   assert.equal(validated.tables.party_addresses.inserted_count, 2);
-  assert.equal(validated.dataset_hash, "8bf3235474d39578cb9dd278a4b14176c3402200066f3b9a5f2fa1efc2c1e913");
+  assert.equal(validated.dataset_hash, currentSqlHash);
 });
 
 test("DATA150 loader transaction lifecycle distinguishes pre-commit abort vs indeterminate commit vs post-commit write failure", async () => {
@@ -1557,30 +1558,114 @@ run().catch((e) => {
   if (existsSync(startBarrier)) unlinkSync(startBarrier);
 });
 
-test("Point 1.1b: Forced interleaving: Dead mutex claim does NOT evict or replace newly acquired live reclaimer", async () => {
-  const testFile = path.join(os.tmpdir(), "data150-test-p1-interleaving.json");
+test("Point 1.1b: Forced interleaving: Contender A observes dead claim token D, pauses at barrier, Contender B acquires live claim, Contender A resumes and aborts eviction without displacing live B", async () => {
+  const testFile = path.join(os.tmpdir(), "data150-test-p1-interleaving-barrier.json");
   const lockFile = `${testFile}.lock`;
   const reclaimLockFile = `${lockFile}.reclaim.lock`;
+  const deadHolderToken = "dead-holder-token-interleave-123";
+  const claimTokenFile = `${reclaimLockFile}.claim.${deadHolderToken}`;
+
   if (existsSync(lockFile)) unlinkSync(lockFile);
   if (existsSync(reclaimLockFile)) unlinkSync(reclaimLockFile);
+  if (existsSync(claimTokenFile)) unlinkSync(claimTokenFile);
 
   // Setup: Primary lock has dead holder PID 999991
   writeFileSync(lockFile, "999991\n1000\nfake-primary\n");
+  // Reclaim lock has dead holder PID 999992 with deadHolderToken
+  writeFileSync(reclaimLockFile, `999992\n1000\n${deadHolderToken}\n`);
+  // Dead claim token left by dead process 999993
+  writeFileSync(claimTokenFile, "999993\n1000\ndead-claim-ctx\n");
 
-  // Reclaim lock has OUR current PID (LIVE holder!) with a unique context ID
-  const liveContextId = "live-reclaim-context-12345";
-  writeFileSync(reclaimLockFile, `${process.pid}\n${Date.now()}\n${liveContextId}\n`);
+  const liveReclaimerCtx = "live-contender-b-context-777";
+  let barrierFired = false;
 
-  // Now, call safeReclaimOrphanLock from a simulated concurrent contender
-  // Contender observes that reclaimLockFile exists and holder is process.pid (ALIVE!).
-  safeReclaimOrphanLock(lockFile, 999991);
+  // Contender A starts reclaim with barrier hook
+  safeReclaimOrphanLock(
+    lockFile,
+    999991,
+    undefined,
+    () => {
+      // Barrier hook fires after Contender A reads dead claim 999993 and before attempting eviction
+      barrierFired = true;
+      // Contender B interleaves: removes dead claim 999993 and acquires live claim with OUR live process.pid
+      unlinkSync(claimTokenFile);
+      writeFileSync(claimTokenFile, `${process.pid}\n${Date.now()}\n${liveReclaimerCtx}\n`);
+    }
+  );
 
-  // Assert that Process B's live reclaim lock was NOT deleted, moved, or altered!
-  assert.ok(existsSync(reclaimLockFile), "Live reclaimer's lock must remain on disk");
-  const contentAfter = readFileSync(reclaimLockFile, "utf8");
-  assert.ok(contentAfter.includes(liveContextId), "Live reclaimer's context MUST NOT be overwritten or evicted");
+  assert.ok(barrierFired, "Interleaving barrier hook must have fired");
+  // Assert: Contender A resumed, but detected that claimTokenFile is NO LONGER dead PID 999993!
+  // Contender A aborted eviction without unlinking Contender B's live claim token!
+  assert.ok(existsSync(claimTokenFile), "Contender B's live claim token must remain intact on disk");
+  const contentAfter = readFileSync(claimTokenFile, "utf8");
+  assert.ok(contentAfter.includes(liveReclaimerCtx), "Contender B's live claim context must NOT be overwritten or evicted");
 
   // Cleanup
+  if (existsSync(claimTokenFile)) unlinkSync(claimTokenFile);
+  if (existsSync(reclaimLockFile)) unlinkSync(reclaimLockFile);
+  if (existsSync(lockFile)) unlinkSync(lockFile);
+});
+
+test("Point 1.1b-neg1: Negative: Broken reclaimer cannot evict dead claim if eviction lock is already taken", () => {
+  const testFile = path.join(os.tmpdir(), "data150-test-p1-broken-evict.json");
+  const lockFile = `${testFile}.lock`;
+  const reclaimLockFile = `${lockFile}.reclaim.lock`;
+  const deadHolderToken = "dead-holder-token-neg1";
+  const claimTokenFile = `${reclaimLockFile}.claim.${deadHolderToken}`;
+  const evictTokenFile = `${claimTokenFile}.evict.999993`;
+
+  if (existsSync(lockFile)) unlinkSync(lockFile);
+  if (existsSync(reclaimLockFile)) unlinkSync(reclaimLockFile);
+  if (existsSync(claimTokenFile)) unlinkSync(claimTokenFile);
+  if (existsSync(evictTokenFile)) unlinkSync(evictTokenFile);
+
+  writeFileSync(lockFile, "999991\n1000\nfake-primary\n");
+  writeFileSync(reclaimLockFile, `999992\n1000\n${deadHolderToken}\n`);
+  writeFileSync(claimTokenFile, "999993\n1000\ndead-claim-ctx\n");
+  // Pre-create the eviction lock to simulate conflicting contender
+  writeFileSync(evictTokenFile, "888888\n1000\nconflicting-eviction\n");
+
+  // Reclaimer tries to run safeReclaimOrphanLock
+  safeReclaimOrphanLock(lockFile, 999991);
+
+  // Assert: Because eviction lock was taken, contender could not evict dead claim, so primary lock remains
+  assert.ok(existsSync(lockFile), "Primary lock must remain when eviction lock cannot be acquired");
+  assert.ok(existsSync(claimTokenFile), "Original claim token must remain untouched");
+
+  // Cleanup
+  if (existsSync(evictTokenFile)) unlinkSync(evictTokenFile);
+  if (existsSync(claimTokenFile)) unlinkSync(claimTokenFile);
+  if (existsSync(reclaimLockFile)) unlinkSync(reclaimLockFile);
+  if (existsSync(lockFile)) unlinkSync(lockFile);
+});
+
+test("Point 1.1b-neg2: Negative: finally block NEVER unlinks claim token belonging to a different PID", () => {
+  const testFile = path.join(os.tmpdir(), "data150-test-p1-finally-protect.json");
+  const lockFile = `${testFile}.lock`;
+  const reclaimLockFile = `${lockFile}.reclaim.lock`;
+  const deadHolderToken = "dead-holder-token-neg2";
+  const claimTokenFile = `${reclaimLockFile}.claim.${deadHolderToken}`;
+
+  if (existsSync(lockFile)) unlinkSync(lockFile);
+  if (existsSync(reclaimLockFile)) unlinkSync(reclaimLockFile);
+  if (existsSync(claimTokenFile)) unlinkSync(claimTokenFile);
+
+  writeFileSync(lockFile, "999991\n1000\nfake-primary\n");
+  writeFileSync(reclaimLockFile, `999992\n1000\n${deadHolderToken}\n`);
+
+  // Run with testHookAfterClaimWon: simulate that another process replaced claimTokenFile before finally
+  safeReclaimOrphanLock(lockFile, 999991, () => {
+    // Overwrite claimTokenFile with PID of another process
+    writeFileSync(claimTokenFile, "777777\n1000\nthird-party-live-claim\n");
+  });
+
+  // Assert: finally block checked ownership and did NOT unlink PID 777777!
+  assert.ok(existsSync(claimTokenFile), "Claim token belonging to PID 777777 must NOT be unlinked in finally block");
+  const content = readFileSync(claimTokenFile, "utf8");
+  assert.ok(content.includes("777777"), "Claim token must retain PID 777777");
+
+  // Cleanup
+  if (existsSync(claimTokenFile)) unlinkSync(claimTokenFile);
   if (existsSync(reclaimLockFile)) unlinkSync(reclaimLockFile);
   if (existsSync(lockFile)) unlinkSync(lockFile);
 });
@@ -1645,7 +1730,7 @@ test("Point 1.1d: Live claim token protection: Contender never evicts or replace
   if (existsSync(lockFile)) unlinkSync(lockFile);
 });
 
-test("Point 1.1e: Controlled crash boundary using testHookAfterClaimWon (MUST #1)", () => {
+test("Point 1.1e: Controlled crash boundary using testHookAfterClaimWon (controlled crash via throw + simulated dead PID rewrite)", () => {
   const testFile = path.join(os.tmpdir(), "data150-test-p1-crash-boundary.json");
   const lockFile = `${testFile}.lock`;
   const reclaimLockFile = `${lockFile}.reclaim.lock`;

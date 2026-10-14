@@ -39,6 +39,8 @@ const SOCKET_DIR = process.env.PGHOST || "/private/tmp/data150-pg-CUM6hE";
 const PORT = process.env.PGPORT || "55439";
 const DB_NAME = process.env.PGDATABASE || "data150_trial";
 const PG_USER = process.env.PGUSER || process.env.USER || "postgres";
+const EVIDENCE_DIR = process.env.DATA150_EVIDENCE_DIR || "/private/tmp/data150-rehearsal-evidence";
+const OPERATIONAL_LOG_PATH = resolve(EVIDENCE_DIR, "data150-operational-loader.log");
 
 export class LivePsqlSession {
   public proc: any;
@@ -192,6 +194,18 @@ async function runDirectPsqlCmd(sql: string): Promise<string> {
 }
 
 export async function runOperationalLoaderTrial() {
+  const logBuffer: string[] = [];
+  const origLog = console.log;
+  const origErr = console.error;
+  console.log = (...args: any[]) => {
+    origLog(...args);
+    logBuffer.push(args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" "));
+  };
+  console.error = (...args: any[]) => {
+    origErr(...args);
+    logBuffer.push(args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" "));
+  };
+
   const gitHead = spawnSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).stdout?.trim() || "unknown";
   const runnerScriptHash = createHash("sha256").update(readFileSync(resolve(process.cwd(), "scripts/data150/run_operational_loader_trial.ts"))).digest("hex");
   const loaderLibHash = createHash("sha256").update(readFileSync(resolve(process.cwd(), "lib/data150-loader.ts"))).digest("hex");
@@ -987,6 +1001,11 @@ runChild().catch((err) => {
   console.log("\n" + "=".repeat(80));
   console.log("✅ ENSAYO OPERATIVO COMPLETO EN POSTGRESQL 17.11 VIVO SUPERADO CON ÉXITO");
   console.log("=".repeat(80) + "\n");
+
+  if (existsSync(EVIDENCE_DIR)) {
+    writeFileSync(OPERATIONAL_LOG_PATH, logBuffer.join("\n") + "\n", "utf8");
+    origLog(`Operational trial raw log artifact written to ${OPERATIONAL_LOG_PATH}`);
+  }
 }
 
 if (

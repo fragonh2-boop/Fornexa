@@ -948,19 +948,61 @@ def reconcile_against_canonical_reference(baseline_path):
         sys.exit(1)
     live_procs = {p['function_name']: p for p in [json.loads(line) for line in proc_res.stdout.strip().splitlines() if line]}
 
-    def compare_triggers_deep(trig_list, proc_map):
+    base_trigs = {}
+    if 'triggers' in baseline_data:
+        for t in baseline_data['triggers']:
+            base_trigs[(t['table_name'], t['trigger_name'])] = t
+
+    def compare_triggers_deep(trig_list, base_map, proc_map):
         drifts = []
-        for tr in trig_list:
-            key = f"{tr['table']}.{tr['trigger_name']}"
-            if tr['enabled'] != 'O':
-                drifts.append(f"Trigger {key}: enabled status mismatch esperada 'O' (habilitado) vs '{tr['enabled']}'")
-            if tr['orientation'] != 'ROW':
-                drifts.append(f"Trigger {key}: orientation mismatch esperada 'ROW' vs '{tr['orientation']}'")
-            if tr['function_namespace'] != 'public':
-                drifts.append(f"Trigger {key}: function_namespace mismatch esperada 'public' vs '{tr['function_namespace']}'")
-            fn = tr['function_name']
+        live_map = {(tr['table'], tr['trigger_name']): tr for tr in trig_list}
+
+        # Set equality on triggers
+        if set(base_map.keys()) != set(live_map.keys()):
+            missing = set(base_map.keys()) - set(live_map.keys())
+            extra = set(live_map.keys()) - set(base_map.keys())
+            drifts.append(f"Triggers set mismatch. Faltantes: {len(missing)} ({missing}), Extras: {len(extra)} ({extra})")
+
+        for key in sorted(set(live_map.keys()) & set(base_map.keys())):
+            live = live_map[key]
+            base = base_map[key]
+
+            # 1. Enabled status ('O')
+            if live['enabled'] != base['enabled']:
+                drifts.append(f"Trigger {key}: enabled status mismatch esperada '{base['enabled']}' vs viva '{live['enabled']}'")
+
+            # 2. Timing ('BEFORE' vs 'AFTER')
+            if live['timing'] != base['timing']:
+                drifts.append(f"Trigger {key}: timing mismatch esperada '{base['timing']}' vs viva '{live['timing']}'")
+
+            # 3. Orientation ('ROW' vs 'STATEMENT')
+            if live['orientation'] != 'ROW':
+                drifts.append(f"Trigger {key}: orientation mismatch esperada 'ROW' vs viva '{live['orientation']}'")
+
+            # 4. Events (INSERT, UPDATE, DELETE)
+            if live['is_insert'] != base['is_insert']:
+                drifts.append(f"Trigger {key}: is_insert mismatch esperada {base['is_insert']} vs viva {live['is_insert']}")
+            if live['is_update'] != base['is_update']:
+                drifts.append(f"Trigger {key}: is_update mismatch esperada {base['is_update']} vs viva {live['is_update']}")
+            if live['is_delete'] != base['is_delete']:
+                drifts.append(f"Trigger {key}: is_delete mismatch esperada {base['is_delete']} vs viva {live['is_delete']}")
+
+            # 5. Function name & namespace
+            if live['function_name'] != base['function_name']:
+                drifts.append(f"Trigger {key}: function_name mismatch esperada '{base['function_name']}' vs viva '{live['function_name']}'")
+            if live['function_namespace'] != base.get('function_schema', 'public'):
+                drifts.append(f"Trigger {key}: function_namespace mismatch esperada '{base.get('function_schema', 'public')}' vs viva '{live['function_namespace']}'")
+
+            # 6. Action statement / Definition / WHEN condition
+            norm_live_def = ' '.join(live['action_statement'].split())
+            norm_base_def = ' '.join(base['definition'].split())
+            if norm_live_def != norm_base_def:
+                drifts.append(f"Trigger {key}: action_statement/definition mismatch: '{norm_base_def}' vs viva '{norm_live_def}'")
+
+            # Check function body in proc_map
+            fn = live['function_name']
             if fn not in proc_map:
-                drifts.append(f"Trigger {key}: invoca función desconocida '{fn}'")
+                drifts.append(f"Trigger {key}: función '{fn}' no encontrada en catálogo de funciones")
             else:
                 body = proc_map[fn]['body'].lower()
                 if fn == 'fornexa_set_updated_at':
@@ -975,13 +1017,14 @@ def reconcile_against_canonical_reference(baseline_path):
                 elif fn == 'fornexa_reject_event_mutation':
                     if '55000' not in body or 'append-only' not in body:
                         drifts.append(f"Función {fn}: falta SQLSTATE 55000 o mensaje append-only")
+
         return drifts
 
-    trig_drifts = compare_triggers_deep(live_trigs, live_procs)
+    trig_drifts = compare_triggers_deep(live_trigs, base_trigs, live_procs)
     if trig_drifts:
         log(f"FATAL DRIFT en contrato profundo de triggers: {trig_drifts[:5]}")
         sys.exit(1)
-    log(f"  => Contrato profundo de triggers verificado: 37 triggers físicos, 41 eventos vinculados, 100% habilitados ('O'), 100% nivel ROW, 100% namespace public y cuerpos de funciones semánticamente no-op-proof.")
+    log(f"  => Contrato profundo de triggers verificado: 37 triggers físicos, 41 eventos vinculados, 100% habilitados ('O'), 100% nivel ROW, 100% namespace public, definiciones exactas contrastadas contra referencia canónica y cuerpos de funciones semánticamente no-op-proof.")
 
     # Invariantes funcionales en vivo en PostgreSQL 17.11:
     # 1. fornexa_reject_event_mutation: UPDATE y DELETE en operational_events y transport_events rechazados con 55000
@@ -1106,32 +1149,63 @@ def reconcile_against_canonical_reference(baseline_path):
         sys.exit(1)
     log("  => Invariante funcional fornexa_calc_movement_duration verificado en vivo: duration_seconds calculado automáticamente a partir de epoch.")
 
-    # Negative test suite para el comparador profundo de triggers (MUST #5)
+    # Negative test suite para el comparador profundo de triggers (MUST #5 / MUST #3)
     # 1. Mutated enabled ('D' disabled)
     mut_trig_d = [dict(t) for t in live_trigs]
     mut_trig_d[0]['enabled'] = 'D'
-    d_en = compare_triggers_deep(mut_trig_d, live_procs)
+    d_en = compare_triggers_deep(mut_trig_d, base_trigs, live_procs)
     assert len(d_en) > 0 and any("enabled status mismatch" in d for d in d_en), f"Negative trigger enabled test failed: {d_en}"
 
-    # 2. Mutated namespace (non-public)
+    # 2. Mutated timing (BEFORE -> AFTER on orders_set_updated_at)
+    mut_trig_timing = [dict(t) for t in live_trigs]
+    idx_orders = next(i for i, t in enumerate(mut_trig_timing) if t['trigger_name'] == 'orders_set_updated_at')
+    mut_trig_timing[idx_orders]['timing'] = 'AFTER'
+    d_timing = compare_triggers_deep(mut_trig_timing, base_trigs, live_procs)
+    assert len(d_timing) > 0 and any("timing mismatch" in d for d in d_timing), f"Negative trigger timing test failed: {d_timing}"
+
+    # 3. Mutated event (is_delete = True on parties_set_updated_at)
+    mut_trig_evt = [dict(t) for t in live_trigs]
+    idx_parties = next(i for i, t in enumerate(mut_trig_evt) if t['trigger_name'] == 'parties_set_updated_at')
+    mut_trig_evt[idx_parties]['is_delete'] = True
+    d_evt = compare_triggers_deep(mut_trig_evt, base_trigs, live_procs)
+    assert len(d_evt) > 0 and any("is_delete mismatch" in d for d in d_evt), f"Negative trigger event test failed: {d_evt}"
+
+    # 4. Mutated WHEN condition / definition (injected WHEN (false) into trips_set_updated_at)
+    mut_trig_when = [dict(t) for t in live_trigs]
+    idx_trips = next(i for i, t in enumerate(mut_trig_when) if t['trigger_name'] == 'trips_set_updated_at')
+    mut_trig_when[idx_trips]['action_statement'] = mut_trig_when[idx_trips]['action_statement'].replace("FOR EACH ROW", "FOR EACH ROW WHEN (false)")
+    d_when = compare_triggers_deep(mut_trig_when, base_trigs, live_procs)
+    assert len(d_when) > 0 and any("action_statement/definition mismatch" in d for d in d_when), f"Negative trigger WHEN condition test failed: {d_when}"
+
+    # 5. Mutated namespace (non-public)
     mut_trig_ns = [dict(t) for t in live_trigs]
     mut_trig_ns[0]['function_namespace'] = 'private'
-    d_ns = compare_triggers_deep(mut_trig_ns, live_procs)
+    d_ns = compare_triggers_deep(mut_trig_ns, base_trigs, live_procs)
     assert len(d_ns) > 0 and any("function_namespace mismatch" in d for d in d_ns), f"Negative trigger namespace test failed: {d_ns}"
 
-    # 3. Mutated function body (no-op)
+    # 6. Mutated function body (no-op)
     mut_procs_noop = {k: dict(v) for k, v in live_procs.items()}
     mut_procs_noop['fornexa_set_updated_at']['body'] = "begin return new; end;"
-    d_noop = compare_triggers_deep(live_trigs, mut_procs_noop)
+    d_noop = compare_triggers_deep(live_trigs, base_trigs, mut_procs_noop)
     assert len(d_noop) > 0 and any("cuerpo no-op" in d for d in d_noop), f"Negative trigger no-op test failed: {d_noop}"
 
-    # 4. Mutated orientation (STATEMENT instead of ROW)
+    # 7. Mutated orientation (STATEMENT instead of ROW)
     mut_trig_stmt = [dict(t) for t in live_trigs]
     mut_trig_stmt[0]['orientation'] = 'STATEMENT'
-    d_stmt = compare_triggers_deep(mut_trig_stmt, live_procs)
+    d_stmt = compare_triggers_deep(mut_trig_stmt, base_trigs, live_procs)
     assert len(d_stmt) > 0 and any("orientation mismatch" in d for d in d_stmt), f"Negative trigger orientation test failed: {d_stmt}"
 
-    log("  => Suite negativa del comparador profundo de triggers: 4 contraejemplos rechazados (disabled 'D', namespace no-public, función no-op y orientación STATEMENT).")
+    # 8. Missing trigger from set
+    mut_trig_miss = [dict(t) for t in live_trigs[1:]]
+    d_miss = compare_triggers_deep(mut_trig_miss, base_trigs, live_procs)
+    assert len(d_miss) > 0 and any("Triggers set mismatch" in d for d in d_miss), f"Negative trigger missing test failed: {d_miss}"
+
+    # 9. Extra unexpected trigger in set
+    mut_trig_extra = [dict(t) for t in live_trigs] + [{'table': 'orders', 'trigger_name': 'orders_extra_trigger', 'enabled': 'O', 'timing': 'BEFORE', 'orientation': 'ROW', 'is_insert': False, 'is_update': True, 'is_delete': False, 'function_name': 'fornexa_set_updated_at', 'function_namespace': 'public', 'action_statement': 'CREATE TRIGGER orders_extra_trigger BEFORE UPDATE ON public.orders FOR EACH ROW EXECUTE FUNCTION fornexa_set_updated_at()'}]
+    d_extra = compare_triggers_deep(mut_trig_extra, base_trigs, live_procs)
+    assert len(d_extra) > 0 and any("Triggers set mismatch" in d for d in d_extra), f"Negative trigger extra test failed: {d_extra}"
+
+    log("  => Suite negativa del comparador profundo de triggers: 9 contraejemplos rechazados (disabled 'D', timing AFTER, is_delete modificado, condición WHEN(false), namespace no-public, función no-op, orientación STATEMENT, trigger faltante y trigger extra).")
     log("  => RECONCILIACIÓN 2/2 EXITOSA: 89 tablas, 1.214 cols, 89 PKs, 235 FKs, 171 CHECKs, 61 UNIQUEs, 485 DEFAULT/IDENTITY y 37 triggers/41 eventos verificados exhaustivamente sin drift.\n")
 
 def main():
@@ -1158,6 +1232,14 @@ def main():
     log(f"PROVENANCE: Local PostgreSQL 17.11 replay fidelity verified against local canonical reference.")
     log(f"PROVENANCE: Production schema contract preserved and verified separately without conflation.")
     log("=" * 80)
+
+    # Clean stale rehearsal artifacts from prior runs to ensure pristine execution
+    if os.path.exists(REHEARSAL_RECEIPT_PATH):
+        os.remove(REHEARSAL_RECEIPT_PATH)
+        log(f"[CLEANUP] Stale rehearsal receipt removed: {REHEARSAL_RECEIPT_PATH}")
+    if os.path.exists(REHEARSAL_ROLLBACK_SQL):
+        os.remove(REHEARSAL_ROLLBACK_SQL)
+        log(f"[CLEANUP] Stale rehearsal rollback SQL removed: {REHEARSAL_ROLLBACK_SQL}")
 
     # ---------------------------------------------------------
     # 0. Check connection
@@ -1263,6 +1345,15 @@ def main():
     INSERT INTO public.tenants (id, code, name, status)
     VALUES ('{TENANT_ID}', 'FORNEXA-PILOT', 'FORNEXA Pilot', 'PILOT')
     ON CONFLICT (id) DO UPDATE SET name = excluded.name;
+
+    -- Pre-seed auth.users operator and tenant_members for tenant actor resolution
+    INSERT INTO auth.users (id, email)
+    VALUES ('00000000-0000-4000-a000-000000000001', 'operador@fornexatest.invalid')
+    ON CONFLICT (id) DO NOTHING;
+
+    INSERT INTO public.tenant_members (id, tenant_id, user_id, role, status)
+    VALUES ('00000000-0000-4000-a000-000000000002', '{TENANT_ID}', '00000000-0000-4000-a000-000000000001', 'OPERATOR', 'ACTIVE')
+    ON CONFLICT (tenant_id, user_id) DO NOTHING;
 
     -- Ensure foreign tenant exists
     INSERT INTO public.tenants (id, code, name, status)

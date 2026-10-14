@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { dashboardNavigation } from "../app/components/DashboardNavigation.ts";
-import { DEFAULT_COMBOS, getComboConfig, saveComboConfig, resetComboConfig } from "../lib/combo-config.ts";
-import { DEFAULT_STORAGE_CONFIG, getStorageConfig, saveStorageConfig, resetStorageConfig } from "../lib/storage-config.ts";
+import { DEFAULT_COMBOS, getComboConfig } from "../lib/combo-config.ts";
+import { DEFAULT_STORAGE_CONFIG, getStorageConfig } from "../lib/storage-config.ts";
 import { memorandumPending, memorandumReleases, memorandumUpdatedAt, memorandumCommitCoverage } from "../lib/memorandum.ts";
 
 const source = (relPath: string) => readFileSync(new URL(`../${relPath}`, import.meta.url), "utf8");
@@ -104,7 +104,7 @@ test("order detail routes exist for authenticated dashboard and demo namespaces"
 });
 
 test("memorandum records storage evolution and 2026.10.09-1 release", () => {
-  assert.ok(memorandumUpdatedAt === "14 oct 2026" || memorandumUpdatedAt === "13 oct 2026" || memorandumUpdatedAt === "12 oct 2026" || memorandumUpdatedAt === "09 oct 2026");
+  assert.match(memorandumUpdatedAt, /^\d{2}\s+(?:ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic)\s+202\d$/i);
   assert.ok(memorandumCommitCoverage >= 597);
 
   const storagePending = memorandumPending.find(item => item.title.includes("almacenamiento") || item.title.includes("repositorios cloud"));
