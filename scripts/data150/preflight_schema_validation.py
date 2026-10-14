@@ -18,12 +18,22 @@ import uuid
 from pathlib import Path
 from datetime import datetime, date
 
-BASELINE_PATH = Path(
-    os.environ.get(
-        'DATA150_SCHEMA_BASELINE',
-        str(Path.home() / 'Documents/Codex/2026-10-09/fornexa-data150/DATA150-SCHEMA-BASELINE.json')
-    )
-)
+def resolve_baseline_path() -> Path:
+    env_path = os.environ.get('DATA150_SCHEMA_BASELINE')
+    if env_path and Path(env_path).exists():
+        return Path(env_path)
+    repo_baseline = Path(__file__).resolve().parent.parent.parent / 'docs/verification/data150-schema-baseline.json'
+    if repo_baseline.exists():
+        return repo_baseline
+    cwd_baseline = Path.cwd() / 'docs/verification/data150-schema-baseline.json'
+    if cwd_baseline.exists():
+        return cwd_baseline
+    local_fallback = Path.home() / 'Documents/Codex/2026-10-09/fornexa-data150/DATA150-SCHEMA-BASELINE.json'
+    if local_fallback.exists():
+        return local_fallback
+    return repo_baseline
+
+BASELINE_PATH = resolve_baseline_path()
 
 def load_baseline():
     if not BASELINE_PATH.exists():

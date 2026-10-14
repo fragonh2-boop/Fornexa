@@ -251,7 +251,13 @@ test("DATA150 regulatory and evidence artifacts have canonical kind/scope pairs 
   const regDir = path.join(process.cwd(), "scripts/data150/artifacts/regulatory");
   const evDir = path.join(process.cwd(), "scripts/data150/artifacts/evidence");
   if (!existsSync(regDir) || !existsSync(evDir) || !existsSync(path.join(regDir, "doc_0000.pdf"))) {
-    execFileSync("python3", ["scripts/data150/generate_batch_data.py"], { stdio: "ignore" });
+    execFileSync("python3", ["scripts/data150/generate_batch_data.py"], {
+      stdio: "ignore",
+      env: {
+        ...process.env,
+        DATA150_SCHEMA_BASELINE: path.resolve(process.cwd(), "docs/verification/data150-schema-baseline.json"),
+      },
+    });
   }
 
   const dataset = JSON.parse(readFileSync(DATASET_PATH, "utf8"));
