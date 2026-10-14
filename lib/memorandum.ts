@@ -24,6 +24,13 @@ export const memorandumCommitCoverage = 609;
 export const memorandumPending: MemorandumPending[] = [
   {
     area: "Funcional",
+    title: "Muelles — planificación y patio",
+    summary: "Núcleo en preparación para revisión: planificación por muelle, alta y edición en ventana, patio, trazabilidad, horarios y reglas configurables e informes derivados de eventos. La integración y carga quedan condicionadas a la disponibilidad verificada de los maestros de prueba. El portal del transportista se revisará por separado.",
+    priority: "Ahora",
+    state: "En seguimiento",
+  },
+  {
+    area: "Funcional",
     title: "Conectores de almacenamiento y repositorios cloud",
     summary: "Evolución planificada del subsistema de almacenamiento de adjuntos y expedientes documentales de órdenes: incorporación de conectores cloud corporativos (Microsoft OneDrive, Google Drive, Claude Workspace) y servicio nativo Fornexa Storage con cifrado en reposo, retención documental y cumplimiento eFTI.",
     priority: "Siguiente",

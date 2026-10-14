@@ -2,6 +2,7 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+<<<<<<< HEAD
 ## 2026-10-12 — DATA150: Carga sintética de revisión en producción
 
 - **Petición de Fran:** Generar un lote sintético autorizado de pruebas persistido en producción con al menos 150 filas distintas y completas por tabla de negocio aplicable para el tenant titular FORNEXA, con 150 puntos de dirección completos y diferentes. Excluidas tablas de autenticación, credenciales, membresías, secretos, tokens, migraciones y auditoría.
@@ -88,6 +89,15 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
      * CARGA OPERATIVA PENDIENTE: La tarea DATA150 permanece en OPEN. La carga de datos sintéticos en la base de datos de producción de Supabase y la subida de binarios a Storage permanecen pendientes y bloqueadas en fail-closed (plantilla productiva en estado `PENDING_EXECUTION`).
      * Cero SQL remoto ejecutado, cero migraciones aplicadas, cero subidas a Storage y cero buckets creados en infraestructura de nube.
      * Muelles #104/#105 permanecen estrictamente congeladas e intactas.
+
+## 2026-10-14 — MUELLES-V1 · PR-A preparada
+
+- **TASK_ID:** MUELLES-V1-20261014. Implementador único: Codex. Worktree nuevo `/tmp/fornexa-codex-muelles`, rama `feat/muelles-v1-core`, base `origin/main` `a51e469`. Coordinación en el hilo MUELLES-V1 de Slack con FornexaGPT.
+- **Fuente:** encargo y addendum, análisis completo con anexos, mockup v2 y propuesta funcional. El HTML citado contiene cuatro pantallas y once parámetros; el encargo prevalece. Los quince parámetros se completan con corte/máximo de cambios, cupo de última hora y compensación de la propuesta original.
+- **Cambio:** cuatro tablas nuevas (tres de núcleo y políticas), claves compuestas, RLS, permisos limitados y RPCs transaccionales; EXCLUDE incluye buffer. Los eventos reutilizan `transport_events` con autor y vínculo a cita, admitiendo reservas previas a un CMR. Horarios canónicos conectados a direcciones. Módulo interno, planificación/patio, ventana F4/F2, ficha 360°, configuración e informes derivados de eventos.
+- **Verificación local:** typecheck, lint sin errores (avisos heredados), 227 tests y build estándar. PostgreSQL local dedicado: migración, EXCLUDE directo, buffer, concurrencia, FKs/RLS, roles, eventos con autor, auditoría, stale writes y defaults. Interacción en harness local de componentes: F4/F2/Escape, foco, ventana y responsive; las respuestas HTTP son sintéticas, no prueba de Supabase autenticada. Detalle en `docs/verification/muelles-v1-core.md`.
+- **Estado:** IMPLEMENTADO localmente; NO INTEGRADO, NO DESPLEGADO, NO CARGADO. CI y revisiones HIGH exact-HEAD de Claude Y DeepSeek todavía pendientes al preparar este commit. No se ha modificado DATA150 ni ejecutado SQL remoto.
+- **Gate:** prohibidos merge/deploy/apply_migration/carga. Primero #103 fusionada, desplegada y cargada/verificada; después rebase, seed propio con recibo/rollback y revisión exact-HEAD. PR-B separará el portal público. E2E autenticado y verificación visual desplegada pendientes de un entorno con la migración instalada.
 
 ## 2026-10-09 — TRZ1: Trazabilidad de artículos
 

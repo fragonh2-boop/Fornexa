@@ -44,11 +44,12 @@ test("Control Tower uses one render view and never loads operational data from t
   assert.match(view, /const prefetch = basePath === "\/demo" \? false : undefined;/);
 });
 
-test("production and demo use the same fifteen-module navigation hierarchy (Decision Center retired)", () => {
-  assert.equal(dashboardNavigation.length, 15);
-  assert.equal(new Set(dashboardNavigation.map(([, suffix]) => suffix)).size, 15);
+test("production and demo use the same sixteen-module navigation hierarchy (Decision Center retired)", () => {
+  assert.equal(dashboardNavigation.length, 16);
+  assert.equal(new Set(dashboardNavigation.map(([, suffix]) => suffix)).size, 16);
+  assert.equal(dashboardNavigation[10][0], "Muelles");
   assert.ok(!dashboardNavigation.some(([, suffix]) => (suffix as string) === "/decision-center"));
-  assert.deepEqual(dashboardNavigation.map(([label]) => label), ["Control Tower", "Órdenes", "Expediciones", "Viajes", "Aduanas", "Ofertas y tarifas", "Clientes", "Artículos", "Colaboradores", "Almacenes", "Tracking", "Trazabilidad", "Documentos", "Configuración", "Informes"]);
+  assert.deepEqual(dashboardNavigation.map(([label]) => label), ["Control Tower", "Órdenes", "Expediciones", "Viajes", "Aduanas", "Ofertas y tarifas", "Clientes", "Artículos", "Colaboradores", "Almacenes", "Muelles", "Tracking", "Trazabilidad", "Documentos", "Configuración", "Informes"]);
   for (const [, suffix] of dashboardNavigation) {
     assert.equal(dashboardHref("/demo", suffix), dashboardHref("/dashboard", suffix).replace(/^\/dashboard/, "/demo"));
   }
