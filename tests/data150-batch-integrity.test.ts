@@ -2536,5 +2536,48 @@ test("DATA150 M5: rehearsal report markdown documents PG17 environment, exit cod
   // 5. Versioned rehearsal log
   assert.ok(logContent.includes("10498"), "Versioned rehearsal log must document 10498 rows");
   assert.ok(logContent.includes("Exit Code: 0 (SUCCESS)"), "Versioned rehearsal log must document SUCCESS exit code");
+
+  // 6. Section 6 Table Categorization and exact exceptional tables set equality (MUST 2)
+  const section6Rows = [...report.matchAll(/^\|\s*\d+\s*\|\s*`([a-z0-9_]+)`\s*\|\s*([^|]+?)\s*\|/gm)].map((m) => ({
+    table: m[1],
+    category: m[2].trim(),
+  }));
+  assert.equal(section6Rows.length, 70, "Section 6 table rows must match 70 tables");
+
+  const reportExceptionalTables = section6Rows
+    .filter((r) => r.category === "Excepcional (Sin marcador)")
+    .map((r) => r.table);
+  const manifestExceptionalTables = Object.keys(manifest.exceptional_tables_catalog);
+
+  assert.equal(reportExceptionalTables.length, 22, "Report must have exactly 22 exceptional tables");
+  assert.equal(manifestExceptionalTables.length, 22, "Manifest must have exactly 22 exceptional tables");
+  assert.deepEqual(
+    new Set(reportExceptionalTables),
+    new Set(manifestExceptionalTables),
+    "Report exceptional tables must match manifest exceptional tables catalog exactly"
+  );
+
+  const reportImmutableTables = section6Rows
+    .filter((r) => r.category === "Inmutable Append-Only")
+    .map((r) => r.table);
+  assert.deepEqual(
+    new Set(reportImmutableTables),
+    new Set(["operational_events", "transport_events"]),
+    "Report immutable tables must match exactly operational_events and transport_events"
+  );
+
+  const reportCascadeTables = section6Rows
+    .filter((r) => r.category === "Protegida por Cascada")
+    .map((r) => r.table);
+  assert.deepEqual(
+    new Set(reportCascadeTables),
+    new Set(["cmr_documents", "transport_stops"]),
+    "Report cascade tables must match exactly cmr_documents and transport_stops"
+  );
+
+  const reportMutableTables = section6Rows
+    .filter((r) => r.category === "Mutable")
+    .map((r) => r.table);
+  assert.equal(reportMutableTables.length, 44, "Report must have exactly 44 mutable tables with physical marker");
 });
 

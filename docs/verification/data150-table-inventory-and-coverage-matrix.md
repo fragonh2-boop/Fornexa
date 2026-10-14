@@ -66,7 +66,7 @@ Las 3 tablas pasan a integrarse en el lote de negocio objetivo bajo la Capa 8 de
 
 ## 6. Tablas de Negocio Objetivo (70 tablas — 150 filas sintéticas completas cada una)
 Orden topológico estricto de inserción (0 dependencias circulares, 100% de claves foráneas resueltas).
-> Para el inventario exhaustivo columna por columna (951 columnas totales) y el detalle de las 187 restricciones de clave foránea resueltas, véase [Matriz Detallada de Cobertura por Campo y Claves Foráneas](data150-field-and-fk-coverage-matrix.md).
+> Para el inventario exhaustivo columna por columna (993 columnas totales) y el detalle de las 196 restricciones de clave foránea resueltas, véase [Matriz Detallada de Cobertura por Campo y Claves Foráneas](data150-field-and-fk-coverage-matrix.md).
 
 | # | Capa | Tabla | Objetivo Batch | Columnas Totales | Clave Primaria (PK) | Dependencias Foráneas |
 | --- | --- | --- | ---: | ---: | --- | --- |

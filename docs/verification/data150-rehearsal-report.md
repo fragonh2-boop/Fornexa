@@ -15,6 +15,9 @@ El ensayo local en PostgreSQL 17.11 vivo acredita de forma reproducible y exhaus
 
 El ensayo se ejecutó de forma íntegra mediante el arnés automatizado `scripts/data150/run_local_pg_rehearsal.py`, cubriendo 8 fases secuenciales sin saltos ni dependencias externas mockeadas.
 
+> **Nota de Procedencia y Trazabilidad del Ensayo (SHOULD 2):**  
+> El archivo de log versionado `docs/verification/data150-local-pg-rehearsal.log` registra la ejecución en vivo y reproducible completada con éxito (Exit Code 0) en PostgreSQL 17.11 sobre el commit base `40bb9ad20a11c5f53f5cf281f4fd4bff00f5e7aa` con las adaptaciones de código de ensayo en working tree (`234baa178759ce133553504f744d18e78c0c8cf248b5c8984eaef6909dff2102` previo al commit `20d1b90`). Los artefactos de salida congelados (`data150-rehearsal-execution-receipt.json`, `data150-rehearsal-rollback.sql`) y las evidencias de contabilidad corresponden estrictamente a dicha ejecución viva, preservando fidelidad histórica sin ejecuciones artificiales posteriores ni repetición innecesaria del ensayo.
+
 ### Artefactos y Hashes Criptográficos Verificables (SHA-256)
 
 | Artefacto | Ruta | Hash SHA-256 |
@@ -104,7 +107,7 @@ A continuación se detalla el estado exacto de las 70 tablas involucradas en el 
 | 1 | `tariff_zones` | Mutable | 0 | 150 | 0 | Limpio (0) |
 | 2 | `operational_events` | Inmutable Append-Only | 0 | 150 | 150 | 150 (Preservada; Trigger 55000) |
 | 3 | `local_storage_sync_runs` | Mutable | 0 | 150 | 0 | Limpio (0) |
-| 4 | `external_identifiers` | Mutable | 0 | 150 | 0 | Limpio (0) |
+| 4 | `external_identifiers` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
 | 5 | `customs_cases` | Mutable | 0 | 150 | 0 | Limpio (0) |
 | 6 | `connectors` | Mutable | 0 | 150 | 0 | Limpio (0) |
 | 7 | `parties` | Mutable | 1 (colisión) + 1 (ajeno) | 151 (149 nuevas) | 2 (preexistentes intactas) | Limpio (0 sintéticas) |
@@ -114,7 +117,7 @@ A continuación se detalla el estado exacto de las 70 tablas involucradas en el 
 | 11 | `products` | Mutable | 0 | 150 | 0 | Limpio (0) |
 | 12 | `service_catalog` | Mutable | 0 | 150 | 0 | Limpio (0) |
 | 13 | `local_storage_imports` | Mutable | 0 | 150 | 0 | Limpio (0) |
-| 14 | `tariff_zone_members` | Mutable | 0 | 150 | 0 | Limpio (0) |
+| 14 | `tariff_zone_members` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
 | 15 | `tariff_headers` | Mutable | 0 | 150 | 0 | Limpio (0) |
 | 16 | `connector_events` | Mutable | 0 | 150 | 0 | Limpio (0) |
 | 17 | `customs_messages` | Mutable | 0 | 150 | 0 | Limpio (0) |
@@ -122,18 +125,18 @@ A continuación se detalla el estado exacto de las 70 tablas involucradas en el 
 | 19 | `communications` | Mutable | 0 | 150 | 0 | Limpio (0) |
 | 20 | `party_contacts` | Mutable | 0 | 150 | 0 | Limpio (0) |
 | 21 | `party_addresses` | Mutable | 2 (1 colisión, 1 no) + 1 (ajeno) | 152 (149 nuevas) | 3 (preexistentes intactas) | Limpio (0 sintéticas) |
-| 22 | `party_adr_profiles` | Mutable | 0 | 150 | 0 | Limpio (0) |
-| 23 | `customer_billing_profiles` | Mutable | 0 | 150 | 0 | Limpio (0) |
+| 22 | `party_adr_profiles` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
+| 23 | `customer_billing_profiles` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
 | 24 | `customer_blocks` | Mutable | 0 | 150 | 0 | Limpio (0) |
-| 25 | `carrier_profiles` | Mutable | 0 | 150 | 0 | Limpio (0) |
+| 25 | `carrier_profiles` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
 | 26 | `fuel_index_values` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
 | 27 | `fuel_index_bands` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
 | 28 | `product_packagings` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
 | 29 | `warehouses` | Mutable | 0 | 150 | 0 | Limpio (0) |
 | 30 | `warehouse_zones` | Mutable | 0 | 150 | 0 | Limpio (0) |
 | 31 | `companies` | Mutable | 0 | 150 | 0 | Limpio (0) |
-| 32 | `party_roles` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
-| 33 | `party_services` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
+| 32 | `party_roles` | Mutable | 0 | 150 | 0 | Limpio (0) |
+| 33 | `party_services` | Mutable | 0 | 150 | 0 | Limpio (0) |
 | 34 | `address_operational_profiles` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
 | 35 | `party_address_assignments` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
 | 36 | `warehouse_bins` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
@@ -141,8 +144,8 @@ A continuación se detalla el estado exacto de las 70 tablas involucradas en el 
 | 38 | `tariff_assignments` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
 | 39 | `tariff_rules` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
 | 40 | `transit_times` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
-| 41 | `external_service_mappings` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
-| 42 | `pricing_runs` | Mutable | 0 | 150 | 0 | Limpio (0) |
+| 41 | `external_service_mappings` | Mutable | 0 | 150 | 0 | Limpio (0) |
+| 42 | `pricing_runs` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
 | 43 | `offers` | Mutable | 0 | 150 | 0 | Limpio (0) |
 | 44 | `orders` | Mutable | 0 | 150 | 0 | Limpio (0) |
 | 45 | `offer_lines` | Mutable | 0 | 150 | 0 | Limpio (0) |
@@ -150,23 +153,23 @@ A continuación se detalla el estado exacto de las 70 tablas involucradas en el 
 | 47 | `delivery_notes` | Mutable | 0 | 150 | 0 | Limpio (0) |
 | 48 | `expeditions` | Mutable | 0 | 150 | 0 | Limpio (0) |
 | 49 | `order_hazmat_assessments` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
-| 50 | `inventory_quants` | Mutable | 0 | 150 | 0 | Limpio (0) |
-| 51 | `pricing_run_components` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
+| 50 | `inventory_quants` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
+| 51 | `pricing_run_components` | Mutable | 0 | 150 | 0 | Limpio (0) |
 | 52 | `delivery_note_lines` | Mutable | 0 | 150 | 0 | Limpio (0) |
-| 53 | `expedition_delivery_notes` | Mutable | 0 | 150 | 0 | Limpio (0) |
+| 53 | `expedition_delivery_notes` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
 | 54 | `inventory_movements` | Mutable | 0 | 150 | 0 | Limpio (0) |
 | 55 | `trips` | Mutable | 0 | 150 | 0 | Limpio (0) |
-| 56 | `trip_expeditions` | Mutable | 0 | 150 | 0 | Limpio (0) |
+| 56 | `trip_expeditions` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
 | 57 | `trip_stops` | Mutable | 0 | 150 | 0 | Limpio (0) |
 | 58 | `trip_stop_delivery_notes` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
 | 59 | `trip_hazmat_assessments` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
 | 60 | `cmr_documents` | Protegida por Cascada | 0 | 150 | 150 | 150 (Preservada; FKs nullified) |
 | 61 | `transport_stops` | Protegida por Cascada | 0 | 150 | 150 | 150 (Preservada; FKs nullified) |
-| 62 | `cmr_clauses` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
-| 63 | `cmr_attachments` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
-| 64 | `cmr_parties` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
-| 65 | `cmr_goods_lines` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
-| 66 | `cmr_expeditions` | Excepcional (Sin marcador) | 0 | 150 | 0 | Limpio (0) |
+| 62 | `cmr_clauses` | Mutable | 0 | 150 | 0 | Limpio (0) |
+| 63 | `cmr_attachments` | Mutable | 0 | 150 | 0 | Limpio (0) |
+| 64 | `cmr_parties` | Mutable | 0 | 150 | 0 | Limpio (0) |
+| 65 | `cmr_goods_lines` | Mutable | 0 | 150 | 0 | Limpio (0) |
+| 66 | `cmr_expeditions` | Mutable | 0 | 150 | 0 | Limpio (0) |
 | 67 | `transport_events` | Inmutable Append-Only | 0 | 150 | 150 | 150 (Preservada; Trigger 55000) |
 | 68 | `cmr_signatures` | Mutable | 0 | 150 | 0 | Limpio (0) |
 | 69 | `transport_evidence` | Mutable | 0 | 150 | 0 | Limpio (0) |
