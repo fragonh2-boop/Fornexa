@@ -9,6 +9,21 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 - **Navegación:** solo se enlazan superficies que responden 200 en producción. `/demo` no se enlaza: `isPreviewDemoEnabled` exige `VERCEL_ENV=preview` y `FORNEXA_PREVIEW_DEMO=1`, y en producción devuelve 404.
 - **Pendiente:** confirmar el buzón publicado (`fornexa@fornexasc.com`, tomado de `EMAIL_FROM`), páginas legales y política de cookies. Revisión independiente exact-HEAD pendiente; nada desplegado por este cambio todavía.
 
+## 2026-10-15 — MEMORÁNDUM: 8 tarjetas to-do derivadas de la comparativa TESISQUARE
+
+- **Autorización:** Autorización expresa de Fran para incorporar al Memorándum de producción las tarjetas to-do derivadas de las capacidades confirmadas de TESISQUARE (TESI TMS y Tesisquare Platform) ausentes o parciales en FORNEXA.
+- **Cambios en `lib/memorandum.ts`:** Incorporadas 8 nuevas tarjetas a `memorandumPending` (total 21 pendientes). Fecha actualizada a `15 oct 2026`, cobertura a `610`.
+  1. *Tarifas — motor de cálculo y valoración en tiempo real* (Funcional / Siguiente / Pendiente)
+  2. *Planning — optimización de rondas y pizarra interactiva* (Funcional / Siguiente / Por definir)
+  3. *e-CMR — protocolo digital transfronterizo y firma electrónica* (Funcional / Siguiente / Por definir)
+  4. *Control Tower — analítica predictiva SCOR y cálculo dinámico de ETA* (Técnico / Siguiente / Pendiente)
+  5. *Integraciones — pasarela EDI gestionada y red B2Authority* (Técnico / Siguiente / Por definir)
+  6. *Telemática — ingesta en tiempo real de flotas (CAN-Bus / FMS)* (Técnico / Siguiente / Por definir)
+  7. *Logística Inversa — trazabilidad de retornos y paletería* (Funcional / Siguiente / Por definir)
+  8. *Sostenibilidad — cálculo y reporte de emisiones CO2 (ESG)* (Funcional / Siguiente / Por definir)
+- **Verificación:** Tests unitarios de memorándum (3/3) y suite de órdenes (15/15) en PASS; sin cambios en esquemas de BD, migraciones ni variables de entorno.
+
+
 ## 2026-10-14 — MUELLES-V1 · portal #105 rebasado sobre core a3afb9a
 
 - **Base:** #104 HEAD `a3afb9a2055aa10f919fc8941af7647094311bd4`. #105 incorpora la corrección de core y memorándum 609 conservando su superficie pública separada. Nuevo CI exact-HEAD y revisión HIGH pendientes al preparar el commit.
