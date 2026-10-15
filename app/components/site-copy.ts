@@ -188,7 +188,7 @@ export const siteCopy: Record<Language, SiteCopy> = {
           summary:
             "Calcular el precio y sostener el expediente documental de la operación.",
           items: [
-            "Motor de tarifas y cálculo de precios trazable",
+            "Perfiles comerciales y baremos por cliente y servicio",
             "Expediente de aduanas y documentos regulatorios",
             "Evaluación de mercancías peligrosas (ADR)",
             "Informes derivados de eventos, no de campos inventados",
@@ -271,6 +271,7 @@ export const siteCopy: Record<Language, SiteCopy> = {
       preparing: [
         "Integraciones con proveedores de telemetría y sistemas de terceros: configurables, sin conectores activos.",
         "Conexión con la administración aduanera: el expediente y los documentos están modelados; no hay intercambio real.",
+        "Motor de tarifas: el modelo de datos existe, pero no hay motor conectado a la operación comercial.",
         "Validez jurídica de la firma y del documento electrónico: no verificada ni dictaminada.",
         "Datos de cliente reales: la plataforma se muestra con datos de prueba.",
       ],
@@ -363,7 +364,7 @@ export const siteCopy: Record<Language, SiteCopy> = {
           title: "Cost and compliance",
           summary: "Calculate the price and sustain the documentary file of the operation.",
           items: [
-            "Tariff engine and traceable price calculation",
+            "Commercial profiles and rate cards per customer and service",
             "Customs case file and regulatory documents",
             "Dangerous goods assessment (ADR)",
             "Reports derived from events, not invented fields",
@@ -446,6 +447,7 @@ export const siteCopy: Record<Language, SiteCopy> = {
       preparing: [
         "Telematics and third-party integrations: configurable, with no active connectors.",
         "Customs authority connection: the file and documents are modelled; there is no live exchange.",
+        "Tariff engine: the data model exists, but no engine is connected to commercial operations.",
         "Legal validity of the signature and the electronic document: not verified or ruled upon.",
         "Real customer data: the platform is shown with test data.",
       ],
@@ -541,7 +543,7 @@ export const siteCopy: Record<Language, SiteCopy> = {
           title: "Coût et conformité",
           summary: "Calculer le prix et tenir le dossier documentaire de l’opération.",
           items: [
-            "Moteur de tarifs et calcul de prix traçable",
+            "Profils commerciaux et grilles tarifaires par client et service",
             "Dossier douanier et documents réglementaires",
             "Évaluation des marchandises dangereuses (ADR)",
             "Rapports issus des événements, non de champs inventés",
@@ -624,6 +626,7 @@ export const siteCopy: Record<Language, SiteCopy> = {
       preparing: [
         "Intégrations télématiques et tierces : configurables, sans connecteurs actifs.",
         "Connexion à l’administration douanière : le dossier et les documents sont modélisés ; pas d’échange réel.",
+        "Moteur de tarifs : le modèle de données existe, mais aucun moteur n’est connecté à l’exploitation commerciale.",
         "Validité juridique de la signature et du document électronique : non vérifiée ni statuée.",
         "Données client réelles : la plateforme est montrée avec des données de test.",
       ],
