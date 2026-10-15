@@ -1,6 +1,13 @@
 # FORNEXA — Technical handoff
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
+## 2026-10-15 — Superficies públicas: portada, plataforma y contacto
+
+- **Rama/base:** `feat/public-landing-platform-contact` desde `main` `96b0467` (merge de #105). PR abierto, sin fusionar.
+- **Qué cambia:** portada `/` rediseñada; páginas nuevas `/plataforma` y `/contacto`; cromo público compartido (`app/components/SiteChrome.tsx`) y diccionario trilingüe (`app/components/site-copy.ts`); metadatos por página separando vista cliente de página servidor (`app/HomeView.tsx`, `app/plataforma/PlatformView.tsx`, `app/contacto/ContactView.tsx`); estilos nuevos en `app/globals.css`, donde además se corrige un `\n` literal en la línea del `::selection` que invalidaba esa regla.
+- **Decisiones de contenido:** el material es descriptivo de lo que la plataforma hace. No se publica validez jurídica del documento electrónico, ni certificación eFTI, ni conexión real con la administración aduanera, porque siguen sin verificar. No hay métricas de tracción ni nombres de empresas reales. Se retiran de la portada los nombres de producto tomados de otro proveedor y el rótulo «Live demo» sobre datos inventados; en su lugar se muestra la cadena operativa y la rejilla de módulos. `app/plataforma/PlatformView.tsx` incluye un bloque de estado real con lo que está en funcionamiento y lo que está en preparación o sin verificar.
+- **Navegación:** solo se enlazan superficies que responden 200 en producción. `/demo` no se enlaza: `isPreviewDemoEnabled` exige `VERCEL_ENV=preview` y `FORNEXA_PREVIEW_DEMO=1`, y en producción devuelve 404.
+- **Pendiente:** confirmar el buzón publicado (`fornexa@fornexasc.com`, tomado de `EMAIL_FROM`), páginas legales y política de cookies. Revisión independiente exact-HEAD pendiente; nada desplegado por este cambio todavía.
 
 ## 2026-10-15 — MEMORÁNDUM: 8 tarjetas to-do derivadas de la comparativa TESISQUARE
 
@@ -15,6 +22,7 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
   7. *Logística Inversa — trazabilidad de retornos y paletería* (Funcional / Siguiente / Por definir)
   8. *Sostenibilidad — cálculo y reporte de emisiones CO2 (ESG)* (Funcional / Siguiente / Por definir)
 - **Verificación:** Tests unitarios de memorándum (3/3) y suite de órdenes (15/15) en PASS; sin cambios en esquemas de BD, migraciones ni variables de entorno.
+
 
 ## 2026-10-14 — MUELLES-V1 · portal #105 rebasado sobre core a3afb9a
 

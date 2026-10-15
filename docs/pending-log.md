@@ -4,6 +4,12 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-15 — Superficies públicas: portada, plataforma y contacto
+- **Área:** Web / Producto
+- **Estado:** EN REVISIÓN (PR abierto, sin fusionar). Portada `/` rediseñada, página `/plataforma` nueva y página `/contacto` nueva. Sin despliegue hasta revisión independiente exact-HEAD.
+- **Alcance:** Portada con cadena operativa (orden → expedición → viaje → paradas → documento → eventos), cuatro ejes de capacidad, cuatro ventajas, rejilla de los dieciséis módulos reales y las cuatro superficies públicas. Página de plataforma con el detalle por capacidad, los módulos agrupados y un bloque de estado real (en funcionamiento frente a en preparación o sin verificar). Contacto sin formulario ni envío automático: `mailto` y explicación. Se retiran de la portada los nombres de producto tomados de otro proveedor y el panel de métricas ilustrativas sin etiquetar. Solo se enlazan superficies que responden 200 en producción: `/demo` queda fuera porque devuelve 404 salvo Preview con opt-in.
+- **Criterio de cierre:** typecheck, lint, tests y build estándar en verde; CI exact-HEAD; revisión independiente de Claude en exact-HEAD; despliegue Vercel READY con el alias y smoke de `/`, `/plataforma` y `/contacto`. Pendiente: páginas legales, política de cookies y confirmar el buzón publicado.
+
 ### 2026-10-15 — MEMORÁNDUM: 8 tarjetas to-do derivadas de la comparativa TESISQUARE
 - **Área:** Producto / Memorándum
 - **Estado:** EN PROCESO DE INTEGRACIÓN (Autorización expresa de Fran)
