@@ -6,9 +6,10 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ### 2026-10-15 — Superficies públicas: portada, plataforma y contacto
 - **Área:** Web / Producto
-- **Estado:** EN REVISIÓN (PR abierto, sin fusionar). Portada `/` rediseñada, página `/plataforma` nueva y página `/contacto` nueva. Sin despliegue hasta revisión independiente exact-HEAD.
+- **Estado:** FUSIONADO Y DESPLEGADO — PR #107 squash-merged en `main` como `979c96db1662c1b37258622fcbb04d54c34294e9` (15-oct-2026 12:46 UTC) por orden directa de Fran y **sin la revisión independiente de Claude, que no llegó a emitirse**; se deja constancia para que el gate de revisión exact-HEAD no se dé por cumplido. CI de `main` run `38737174867` SUCCESS. Producción Vercel READY con alias `fornexasc.com`; smoke propio: `/`, `/plataforma`, `/contacto`, `/tracking`, `/memorandum` y `/login` 200, `/demo` 404.
 - **Alcance:** Portada con cadena operativa (orden → expedición → viaje → paradas → documento → eventos), cuatro ejes de capacidad, cuatro ventajas, rejilla de los dieciséis módulos reales y las cuatro superficies públicas. Página de plataforma con el detalle por capacidad, los módulos agrupados y un bloque de estado real (en funcionamiento frente a en preparación o sin verificar). Contacto sin formulario ni envío automático: `mailto` y explicación. Se retiran de la portada los nombres de producto tomados de otro proveedor y el panel de métricas ilustrativas sin etiquetar. Solo se enlazan superficies que responden 200 en producción: `/demo` queda fuera porque devuelve 404 salvo Preview con opt-in.
 - **Criterio de cierre:** typecheck, lint, tests y build estándar en verde; CI exact-HEAD; revisión independiente de Claude en exact-HEAD; despliegue Vercel READY con el alias y smoke de `/`, `/plataforma` y `/contacto`. Pendiente: páginas legales, política de cookies y confirmar el buzón publicado.
+- **Residual:** páginas legales y política de cookies inexistentes; buzón publicado (`fornexa@fornexasc.com`, tomado de `EMAIL_FROM`) sin confirmar. La corrección de la afirmación del motor de tarifas se hizo antes del merge, a partir de la comparativa TESISQUARE.
 
 ### 2026-10-15 — MEMORÁNDUM: 8 tarjetas to-do derivadas de la comparativa TESISQUARE
 - **Área:** Producto / Memorándum
