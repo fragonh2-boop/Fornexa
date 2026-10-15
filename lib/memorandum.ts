@@ -18,8 +18,8 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "14 oct 2026";
-export const memorandumCommitCoverage = 609;
+export const memorandumUpdatedAt = "15 oct 2026";
+export const memorandumCommitCoverage = 610;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -112,6 +112,62 @@ export const memorandumPending: MemorandumPending[] = [
     summary: "Formalizar promoción, distribución y trazabilidad de cada build Android más allá del canal interno.",
     priority: "Siguiente",
     state: "Pendiente",
+  },
+  {
+    area: "Funcional",
+    title: "Tarifas — motor de cálculo y valoración en tiempo real",
+    summary: "Conectar el esquema existente de tariffs, tariff_lines y fuel_indices con una interfaz de administración y un motor de valoración en ejecución para órdenes y partidas, equiparando el módulo Costing de TESI TMS con disponibilidad de tarifas por zonas, volumen y carburante en tiempo real.",
+    priority: "Siguiente",
+    state: "Pendiente",
+  },
+  {
+    area: "Funcional",
+    title: "Planning — optimización de rondas y pizarra interactiva",
+    summary: "Desarrollar una interfaz visual de tráfico (timeline / Gantt interactivo) y un motor algorítmico de optimización de cargas y rutas multi-parada con restricciones de capacidad y ventanas horarias, cerrando la brecha con las funciones de Planning & Route Optimization de TESI.",
+    priority: "Siguiente",
+    state: "Por definir",
+  },
+  {
+    area: "Funcional",
+    title: "e-CMR — protocolo digital transfronterizo y firma electrónica",
+    summary: "Extender el motor documental más allá de la DeCA nacional española para soportar el ciclo e-CMR internacional completo (cargador, transportista, conductor, destinatario), incorporando firma electrónica cualificada y custodia probatoria conforme al Convenio e-CMR de Naciones Unidas.",
+    priority: "Siguiente",
+    state: "Por definir",
+  },
+  {
+    area: "Técnico",
+    title: "Control Tower — analítica predictiva SCOR y cálculo dinámico de ETA",
+    summary: "Ampliar la telemetría actual hacia una Torre de Control operativa con alertas proactivas por umbrales, cuadros de mando SCOR normalizados y algoritmos de Machine Learning para el recálculo predictivo de tiempos estimados de llegada (ETA/EDT) y detección temprana de anomalías.",
+    priority: "Siguiente",
+    state: "Pendiente",
+  },
+  {
+    area: "Técnico",
+    title: "Integraciones — pasarela EDI gestionada y red B2Authority",
+    summary: "Sustituir los conectores demo por una pasarela de integración EDI estándar (EDIFACT, XML) y enlaces hacia redes regulatorias (Peppol, B2Authority para aduanas intra/extra-UE y facturación electrónica obligatoria), equiparando TESI Extended Integration.",
+    priority: "Siguiente",
+    state: "Por definir",
+  },
+  {
+    area: "Técnico",
+    title: "Telemática — ingesta en tiempo real de flotas (CAN-Bus / FMS)",
+    summary: "Implementar endpoints y conectores de campo (On-field Integration) con proveedores telemáticos de flota para la ingesta continua de coordenadas GPS, velocidad, odómetro real y consumo vía bus CAN/FMS, superando el actual campo estático de proveedor en vehículos.",
+    priority: "Siguiente",
+    state: "Por definir",
+  },
+  {
+    area: "Funcional",
+    title: "Logística Inversa — trazabilidad de retornos y paletería",
+    summary: "Modelar en el núcleo operativo el circuito formal de logística inversa: flujos de devolución de mercancía, intercambio y regularización de palets retornables y expediciones de retorno, capacidad nativa presente en el ciclo inbound/outbound de TESI.",
+    priority: "Siguiente",
+    state: "Por definir",
+  },
+  {
+    area: "Funcional",
+    title: "Sostenibilidad — cálculo y reporte de emisiones CO2 (ESG)",
+    summary: "Incorporar en expediciones y viajes el cálculo de emisiones de gases de efecto invernadero bajo estándares reconocidos (GLEC / ISO 14083), permitiendo generar indicadores de huella de carbono y reportes de sostenibilidad corporativa (CSRD) presentes en TESI ESG Vertical.",
+    priority: "Siguiente",
+    state: "Por definir",
   },
 ];
 
