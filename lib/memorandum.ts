@@ -18,10 +18,17 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "14 oct 2026";
-export const memorandumCommitCoverage = 609;
+export const memorandumUpdatedAt = "15 oct 2026";
+export const memorandumCommitCoverage = 610;
 
 export const memorandumPending: MemorandumPending[] = [
+  {
+    area: "Funcional",
+    title: "Portada pública: contenido comercial y legal",
+    summary: "La portada y la página de plataforma describen capacidades y declaran el estado real. Faltan páginas legales (aviso, privacidad) y política de cookies, y confirmar el buzón de contacto publicado. Las afirmaciones sobre validez jurídica del documento electrónico y sobre conexión con la administración aduanera permanecen fuera de la web hasta que exista dictamen.",
+    priority: "Siguiente",
+    state: "Pendiente",
+  },
   {
     area: "Funcional",
     title: "Muelles — planificación y patio",
@@ -116,6 +123,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.10.15-1",
+    date: "15 oct 2026",
+    surface: ["Web"],
+    title: "Portada pública, página de plataforma y contacto",
+    purpose: "Explicar qué hace la plataforma y en qué estado está, con una portada navegable y páginas de plataforma y contacto dentro del dominio.",
+    outcome: "Portada rediseñada con la cadena operativa, cuatro ejes de capacidad, ventajas, los dieciséis módulos y las superficies públicas. Nueva página de plataforma con el detalle por capacidad y un bloque de estado real. Nueva página de contacto sin formulario ni envío automático. Se retiran de la portada los nombres de producto ajenos y las métricas ilustrativas sin etiquetar. Contenido descriptivo: sin validez jurídica atribuida, sin métricas de tracción y sin nombres de empresas reales.",
+    status: "Preproducción",
+  },
   {
     version: "2026.10.14-2",
     date: "14 oct 2026",
