@@ -4,6 +4,12 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-15 — MEMORÁNDUM: 8 tarjetas to-do derivadas de la comparativa TESISQUARE
+- **Área:** Producto / Memorándum
+- **Estado:** EN PROCESO DE INTEGRACIÓN (Autorización expresa de Fran)
+- **Alcance:** Incorporación de 8 tarjetas to-do en `memorandumPending` de `lib/memorandum.ts` representando las capacidades confirmadas en TESISQUARE (TESI TMS / Platform) ausentes o parciales en FORNEXA: 1) Tarifas en tiempo real, 2) Planning y optimización de rondas, 3) e-CMR internacional y firma electrónica, 4) Control Tower predictiva SCOR, 5) Pasarela EDI y B2Authority, 6) Telemática IoT CAN-Bus/FMS, 7) Logística Inversa, 8) Sostenibilidad y huella CO2 (ESG).
+- **Criterio de cierre:** `memorandumPending` actualizado (21 elementos), tests unitarios pasando, CI en verde y despliegue en producción Vercel READY con alias `fornexasc.com` verificado.
+
 ### 2026-10-13 — DATA150: Carga sintética de revisión en producción
 - **Área:** Datos / Producción / Verificación
 - **Estado:** EN EJECUCIÓN (CÓDIGO INTEGRADO Y DESPLEGADO — PR #103 squash-merged en `main` como `d3ff677126c50b38362b898a24006b972fbc3ad3` tras doble aprobación independiente HIGH con 0 MUSTs de Claude Desktop y DeepSeek CLI oficial headless y CI verde 38583601496; CI de `main` 38588352990 en SUCCESS; despliegue en producción Vercel READY con alias `fornexasc.com` verificado con smoke `/`, `/login`, `/memorandum` 200 y `/demo` 404; la tarea DATA150 permanece en OPEN dado que la carga operativa en base de datos de producción y la subida de binarios a Storage siguen PENDIENTES bajo fail-closed estricto con plantilla `PENDING_EXECUTION`; ramas/PRs de Muelles #104/#105 permanecen congeladas e intactas; sin SQL remoto, sin migraciones y sin Storage)
