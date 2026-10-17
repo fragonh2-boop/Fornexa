@@ -109,7 +109,7 @@ async function main(): Promise<void> {
         order by bin_code limit 6`,
       [tenantId],
     );
-    let bins = binsRes.rows;
+    const bins = binsRes.rows;
     if (!bins.length) {
       // Diagnóstico en vez de un «no hay huecos» a secas: los tipos que SÍ existen permiten
       // decidir sin abrir otra conexión. Un fallo que no dice qué hay obliga a adivinar.
