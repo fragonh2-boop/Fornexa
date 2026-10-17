@@ -169,6 +169,10 @@ async function main(): Promise<void> {
   const datasetPath = resolve(root, "docs/verification/wms-seed-dataset.json");
   const manifestPath = resolve(root, "docs/verification/wms-seed-manifest.json");
   const receiptPath = resolve(root, "docs/verification/wms-seed-execution-receipt.json");
+  // El ensayo y la carga NO comparten fichero de recibo: uno acredita que se deshizo todo
+  // y el otro que se escribió. Mezclarlos haría que un artefacto de ensayo pudiera leerse
+  // como prueba de una carga, que es justo lo que no queremos.
+  const rehearsalReceiptPath = resolve(root, "docs/verification/wms-seed-rehearsal-receipt.json");
 
   const dataset = JSON.parse(readFileSync(datasetPath, "utf-8")) as Dataset;
   const manifest = JSON.parse(readFileSync(manifestPath, "utf-8")) as Manifest;
@@ -247,7 +251,7 @@ async function main(): Promise<void> {
       };
       // El ensayo escribe su recibo igual que la carga: sin él, el workflow no tiene nada
       // que publicar y un ensayo correcto se queda sin evidencia.
-      writeFileSync(receiptPath, `${JSON.stringify(rehearsalReceipt, null, 2)}\n`, "utf-8");
+      writeFileSync(rehearsalReceiptPath, `${JSON.stringify(rehearsalReceipt, null, 2)}\n`, "utf-8");
       console.log(JSON.stringify(rehearsalReceipt, null, 2));
       return;
     }
