@@ -33,8 +33,6 @@ function loadPg(): { Client: new (config: unknown) => any } {
 
 const { Client } = loadPg();
 const TENANT_ID = "00000000-0000-4000-8000-000000000001";
-// Tenant que no existe: si la función devolviera su política en vez de los defaults, sería fuga.
-const OTHER_TENANT_ID = "00000000-0000-4000-8000-0000000000ff";
 
 function resolveConnectionString(): string {
   if (process.env.POSTGRES_URL_NON_POOLING) {
@@ -68,8 +66,6 @@ function resolveConnectionString(): string {
 function sha256File(filePath: string): string {
   return createHash("sha256").update(readFileSync(filePath)).digest("hex");
 }
-
-
 
 async function main() {
   const migrationPath = resolve(
@@ -1028,10 +1024,10 @@ async function main() {
       `INSERT INTO public.tenants (id, code, name, status) VALUES ($1, 'REH-TENANT-B', '[REHEARSAL] Tenant B', 'PILOT')`,
       [tenantBId],
     );
-    await client.query(
-      `INSERT INTO public.tenant_members (tenant_id, user_id, role, status) VALUES ($1, $2, 'OWNER', 'ACTIVE')`,
-      [tenantBId, actorId],
-    );
+    // Sin miembro: el ensayo conecta como servicio con bypassrls, así que ninguna RLS necesita
+    // satisfacerse, y el control negativo depende de que `auth.uid()` sea nulo. Añadir aquí a
+    // `actorId` haría que el tenant B NO fuera ajeno a ese usuario, y el fixture mentiría sobre
+    // lo que modela. Un UUID inventado rompería la FK con auth.users: se borra, no se sustituye.
     await client.query(
       `INSERT INTO public.warehouses (id, tenant_id, code, name, status) VALUES ($1, $2, 'WH-REH-B', '[REHEARSAL] Almacén B', 'ACTIVE')`,
       [whBId, tenantBId],
@@ -1069,6 +1065,11 @@ async function main() {
         [tenantBId, whBId],
       );
       politicaAjena = ajeno.rows[0].pol;
+    } catch (error: any) {
+      // Sin esto, la excepción se propaga tras el finally y el mensaje de abajo nunca se ve.
+      throw new Error(
+        `la prueba de aislamiento no pudo ejecutarse: ${String(error?.message ?? error)}`,
+      );
     } finally {
       await client.query("ROLLBACK TO SAVEPOINT wms_tenant_isolation");
       await client.query("RELEASE SAVEPOINT wms_tenant_isolation");
@@ -1141,7 +1142,6 @@ async function main() {
   } finally {
     await client.end();
   }
-
 
 }
 
