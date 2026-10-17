@@ -84,10 +84,21 @@ function checkPlanIntegrity(dataset: Dataset, manifest: Manifest): void {
   if (total !== manifest.total_rows) {
     throw new Error(`el manifiesto se contradice: suma por tabla ${total} vs total ${manifest.total_rows}`);
   }
+  // El lote admite dos formas y la comprobación debe admitirlas AMBAS:
+  //   · sólo E1 → 130 escenarios (el escenario 4 es de E2 y necesita replenishment_rules)
+  //   · E1 + E2 → 150 escenarios
+  // Exigir siempre 150 rechazaba el modo por defecto, que es precisamente el que se usa
+  // mientras E2 no exista.
   const e1 = manifest.by_delivery?.E1 ?? 0;
   const e2 = manifest.by_delivery?.E2 ?? 0;
-  if (e1 + e2 !== 150) {
-    throw new Error(`el reparto por entrega no suma 150 registros de escenario: E1=${e1} E2=${e2}`);
+  if (e2 !== 0 && e2 !== 20) {
+    throw new Error(`E2 debe ser 0 (lote E1) o 20 (lote completo); es ${e2}`);
+  }
+  const esperado = e2 === 0 ? 130 : 150;
+  if (e1 + e2 !== esperado) {
+    throw new Error(
+      `el reparto por entrega no suma los ${esperado} escenarios del modo declarado: E1=${e1} E2=${e2}`,
+    );
   }
 }
 
@@ -158,6 +169,10 @@ async function main(): Promise<void> {
   const datasetPath = resolve(root, "docs/verification/wms-seed-dataset.json");
   const manifestPath = resolve(root, "docs/verification/wms-seed-manifest.json");
   const receiptPath = resolve(root, "docs/verification/wms-seed-execution-receipt.json");
+  // El ensayo y la carga NO comparten fichero de recibo: uno acredita que se deshizo todo
+  // y el otro que se escribió. Mezclarlos haría que un artefacto de ensayo pudiera leerse
+  // como prueba de una carga, que es justo lo que no queremos.
+  const rehearsalReceiptPath = resolve(root, "docs/verification/wms-seed-rehearsal-receipt.json");
 
   const dataset = JSON.parse(readFileSync(datasetPath, "utf-8")) as Dataset;
   const manifest = JSON.parse(readFileSync(manifestPath, "utf-8")) as Manifest;
@@ -220,7 +235,24 @@ async function main(): Promise<void> {
         throw new Error("la compensación no dejó handling_units como estaba");
       }
       await client.query("ROLLBACK");
-      console.log(JSON.stringify({ mode: "REHEARSAL_ROLLED_BACK", endpoint, inserted, borrowedBefore, isolation }, null, 2));
+      const rehearsalReceipt = {
+        status: "REHEARSAL_ROLLED_BACK",
+        mode: "BEGIN_ROLLBACK_ONLY",
+        batch_id: manifest.batch_id,
+        executed_at: new Date().toISOString(),
+        endpoint,
+        dataset_sha256: sha256(datasetPath),
+        manifest_sha256: sha256(manifestPath),
+        committed_writes: 0,
+        counts_before: before,
+        inserted,
+        borrowed_fingerprints: borrowedBefore,
+        isolation,
+      };
+      // El ensayo escribe su recibo igual que la carga: sin él, el workflow no tiene nada
+      // que publicar y un ensayo correcto se queda sin evidencia.
+      writeFileSync(rehearsalReceiptPath, `${JSON.stringify(rehearsalReceipt, null, 2)}\n`, "utf-8");
+      console.log(JSON.stringify(rehearsalReceipt, null, 2));
       return;
     }
 

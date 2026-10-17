@@ -88,29 +88,42 @@ async function main(): Promise<void> {
       "almacenes",
     );
 
+    // Los muelles NO son huecos: viven en `warehouse_docks`, y `handling_units.current_dock_id`
+    // apunta allí. Buscarlos como bins de tipo DOCK_STAGE devolvía cero en producción —el lote
+    // se habría construido sin descargas en curso o, peor, con un bin cualquiera como muelle.
     const docks = require_(
       (
         await client.query(
-          `select id from public.warehouse_bins
-            where tenant_id = $1 and bin_type in ('DOCK_STAGE','CROSS_DOCK')
-            order by bin_code limit 1`,
+          `select id from public.warehouse_docks
+            where tenant_id = $1 and status = 'ACTIVE'
+            order by code limit 1`,
           [tenantId],
         )
       ).rows,
-      "huecos de muelle (DOCK_STAGE/CROSS_DOCK) para las descargas en curso",
+      "muelles activos (warehouse_docks) para las descargas en curso",
     );
 
-    const bins = require_(
-      (
-        await client.query(
-          `select id from public.warehouse_bins
-            where tenant_id = $1 and bin_type = 'PALLET_RACK' and not is_blocked
-            order by bin_code limit 6`,
-          [tenantId],
-        )
-      ).rows,
-      "huecos de almacenaje (PALLET_RACK no bloqueados)",
+    const binsRes = await client.query(
+      `select id from public.warehouse_bins
+        where tenant_id = $1 and bin_type = 'PALLET_RACK' and not is_blocked
+        order by bin_code limit 6`,
+      [tenantId],
     );
+    const bins = binsRes.rows;
+    if (!bins.length) {
+      // Diagnóstico en vez de un «no hay huecos» a secas: los tipos que SÍ existen permiten
+      // decidir sin abrir otra conexión. Un fallo que no dice qué hay obliga a adivinar.
+      const tipos = await client.query(
+        `select bin_type, count(*)::int as n from public.warehouse_bins
+          where tenant_id = $1 group by bin_type order by n desc`,
+        [tenantId],
+      );
+      throw new Error(
+        `snapshot incompleto: no hay huecos PALLET_RACK no bloqueados. Tipos disponibles: ${JSON.stringify(
+          tipos.rows,
+        )}`,
+      );
+    }
 
     const products = require_(
       (

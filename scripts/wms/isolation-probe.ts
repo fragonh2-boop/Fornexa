@@ -35,7 +35,6 @@ export type IsolationEvidence = {
 
 const TENANT_B_ID = "00000000-0000-4000-8000-0000000000bb";
 const WAREHOUSE_B_ID = "00000000-0000-4000-8000-0000000000cc";
-const FIELDS = ["putaway_strategy", "max_pallets_per_bin", "consolidation"] as const;
 
 type Client = { query: (sql: string, params?: unknown[]) => Promise<{ rows: any[] }> };
 
