@@ -216,7 +216,7 @@ jobs:
             echo ""
             # No basta con que el fichero exista: se comprueba la marca de ESTE run.
             if [ -f "$OK_MARKER" ] && [ -f .wms-artifacts/wms-e1-rehearsal-receipt.json ]; then
-              if grep -q 'postgres://' .wms-artifacts/wms-e1-rehearsal-receipt.json 2>/dev/null; then
+              if grep -qE 'postgres(ql)?://' .wms-artifacts/wms-e1-rehearsal-receipt.json 2>/dev/null; then
                 echo "**Recibo generado, pero contiene una cadena de conexión: no se imprime.** Descárgalo del artefacto y trátalo como material sensible."
               else
                 echo "**Recibo nuevo generado por este run.** Descárgalo del artefacto \`wms-e1-rehearsal-${TARGET_SHA}\`."

@@ -38,10 +38,11 @@ export async function expectRpcError(
   await client.query(`RELEASE SAVEPOINT ${spName}`);
 
   assert.ok(failed, `Expected ${expectedCode} but call succeeded`);
-  const msg = String((failure as { message?: string } | undefined)?.message ?? failure);
-  assert.ok(
-    msg.includes(expectedCode),
-    `Expected '${expectedCode}', got '${msg}'`,
+  const msg = String((failure as { message?: string } | undefined)?.message ?? failure).trim();
+  assert.equal(
+    msg,
+    expectedCode,
+    `Expected exact error code '${expectedCode}', got '${msg}'`,
   );
   return expectedCode;
 }
