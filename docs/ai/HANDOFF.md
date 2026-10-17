@@ -2,6 +2,43 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-17 — WMS E1: Despliegue en Producción Verificado (Gates 1, 2 y 3 cerrados)
+
+- **Contexto y encargo:** `TASK_ID: WMS-RESEARCH-20261017`. Cierre documental obligatorio (`AGENTS.md`) tras completar y verificar los tres gates de despliegue para el núcleo operativo de Almacenes (WMS E1) en `fragonh2-boop/Fornexa`. Coordinado por FornexaGPT con dictámenes y verificaciones independientes de Claude Desktop (`1792262153.101539`, `1792262463.368159`, `1792262700.969339`).
+- **Gate 1 — Migración atómica en producción (CERRADO Y VERIFICADO):**
+  - Aplicada mediante el workflow manual `.github/workflows/apply-wms-migration.yml` (Run [39058667435](https://github.com/fragonh2-boop/Fornexa/actions/runs/39058667435), SUCCESS, 10s) tras el merge de PR #123 (`cd37a7f`).
+  - Script ejecutado: `supabase/migrations/20261017110000_wms_e1_core.sql` (60.299 B, SHA-256 `91c25fb49f7f4df1d14dbf6c41d56c2b8771d75fc41a82296bc03ab0f7038d8a`).
+  - Ledger asentado: versión `20261017110000` (`wms_e1_core`).
+  - Verificación SQL de solo lectura de Claude: 6 tablas E1 creadas (`warehouse_zones`, `warehouse_locations`, `warehouse_resources`, `warehouse_handling_units`, `warehouse_policies`, `wms_rehearsal_receipts`), columnas `flow_state` y `hu_id` en `inventory_quants`/`inventory_movements`, función `effective_policy` con `prosecdef=false` (INVOKER) y sin EXECUTE para anon/authenticated, procedimiento `wms_action` con `prosecdef=true` (DEFINER), `search_path` vacío y EXECUTE exclusivo para `service_role`, 150 quants con `flow_state` NULL, escrituras revocadas para anon/authenticated, tenant B = 0.
+- **Gate 2 — Merge único #117 a `main` (CERRADO Y VERIFICADO):**
+  - Con Gate 1 verificado, `feat/wms-e1-core` integró `main` (`cd37a7f`) sin rebase, resolviendo colisión en `lib/memorandum.ts` (HEAD `d862a5d1019e5497d3b185788f4c62741e1a70ca`, CI `validate` Run [39059017730](https://github.com/fragonh2-boop/Fornexa/actions/runs/39059017730) SUCCESS).
+  - GO explícito de Claude emitido en Slack (`1792262463.368159`).
+  - PR #117 fusionado a `main` como merge commit con SHA `e2e2465260e8c94657d1eedc0dc71ea8cce0b8d3`.
+  - Árbol acreditado idéntico al de `d862a5d` con blobs verificados: runner `aabdfe28`, migración `728e8c2c`, guard `c9d23356`, workflows `31784d62` y `7a76ded4`.
+- **Gate 3 — Despliegue en producción y comprobaciones en vivo (CERRADO Y VERIFICADO):**
+  - CI `validate` en `main`: Run [39059197822](https://github.com/fragonh2-boop/Fornexa/actions/runs/39059197822) SUCCESS (1m 26s).
+  - Vercel Deployments:
+    - `fornexa`: `dpl_8D2Uy1UjvnPC7p2ohMNKpqmFVkjm` (READY, target: production, githubCommitSha `e2e2465260e8c94657d1eedc0dc71ea8cce0b8d3`, 45s build time).
+    - `fornexa-app`: `dpl_52fPHy4xDw4vL6UPDRyeDM36UmC3` (READY, target: production).
+  - Alias y dominio: `https://fornexasc.com` y `fornexa.vercel.app` resolviendo con `aliasError: null` al deployment exacto de `e2e24652`.
+  - Runtime Vercel: 0 errores de ejecución medidos por Claude en el proyecto `fornexa`.
+  - Comprobaciones HTTP sin sesión (Protección Fail-Closed):
+    - `/dashboard/almacenes` y `/dashboard/trazabilidad`: HTTP 307 Temporary Redirect -> `/login?next=...` con `200 OK` en pantalla de login.
+    - `/api/wms`: HTTP 401 `WMS_FORBIDDEN` sin sesión (tenant resuelto estrictamente desde `getAuthenticatedContext()`, no de la petición).
+    - `/demo/almacenes`: HTTP 404 Not Found en producción conforme a directiva (`!isPreviewDemoEnabled() -> notFound()`).
+    - `/memorandum`: HTTP 200 OK en vivo sirviendo los hitos de Almacenes y cobertura actualizada.
+  - Smoke tests autenticados en sesión legítima de Edge (FornexaGPT, `1792262813.277019` / `1792263068.910519`):
+    - `/dashboard/almacenes`: Seis pestañas operativas (Recepción y Playa, Ubicaciones y Stock, Tareas y Recursos, Picking y Reservas, Expedición y Carga, Políticas WMS) seleccionadas una por una; cada una renderiza su encabezado individual y mapa de almacén sin errores visibles en interfaz ni redirección a login.
+    - `GET /api/wms`: Servido en pestaña autenticada devolviendo JSON con `schemaReady: true` y estructuras de almacén operativas vacías, coincidente con el estado limpio de base de datos.
+    - `/dashboard/trazabilidad`: Encabezado y formulario de consulta renderizados limpiamente.
+    - Alcance factual: Cero mutaciones, movimientos ni búsquedas de negocio ejecutadas en producción; las pruebas acreditan render y conectividad de esquema, mientras que la validación funcional E2E con stock permanece reservada para la fase posterior a la carga de datos sintéticos.
+  - Estado de base de datos posdespliegue: 150 quants existentes con `flow_state` NULL, 0 filas en tablas E1, tenant B = 0, ledger con 1 fila (`20261017110000`), permisos y roles blindados.
+- **Alcances pendientes y siguientes pasos:**
+  - **F4 (Lote sintético WMS):** A cargo de DeepSeek en rama aislada; carga de 150 filas sintéticas representativas de descargas, pallets en playa/muelle, pallets almacenados, reposición a picking, picking completo y expedición con lectura de etiqueta. Exige runner con transacción reversible, comprobación de compensación en la misma sesión y revisión exact-HEAD previa de Claude antes de `workflow_dispatch`.
+  - **E2 (Reglas y propuestas):** Tablas `replenishment_rules` y `wms_proposals`, reposición min/max y consolidación en cola.
+  - **F5 (Validación funcional E2E):** Auditoría funcional punto a punto sobre los datos sintéticos de F4 en producción, verificando transiciones permitidas y los 30 rechazos tipados.
+  - **SHOULD de arquitectura (`proxy.ts`):** Claude identificó que `/api/wms` no está registrada en `protectedApiPaths` de `proxy.ts`. Se abordará en un PR separado para no mezclar código funcional en este cierre documental.
+
 ## 2026-10-17 — WMS E1: Workflow manual de migración atómica y saldado de deuda de política (PR #123)
 
 - **Contexto y encargo:** `TASK_ID: WMS-RESEARCH-20261017`. Entrega del PR aislado #123 (`ci/wms-migration-workflow`) hacia `main` (`14fa8b68`) para la aplicación transaccional en producción de la migración del núcleo de Almacenes (`supabase/migrations/20261017110000_wms_e1_core.sql`). Coordinado por FornexaGPT y revisado por Claude Desktop bajo RUTA B.

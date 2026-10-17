@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "17 oct 2026";
-export const memorandumCommitCoverage = 642;
+export const memorandumCommitCoverage = 644;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -200,7 +200,7 @@ export const memorandumReleases: MemorandumRelease[] = [
     title: "Almacenes — núcleo operativo, unidades de manipulación y control de carga (E1)",
     purpose: "Dotar al módulo de Almacenes de su flujo operativo completo de recepción, playa, ubicación, reserva, preparación, etiquetado y carga verificada, parametrizable por almacén, propietario, categoría y artículo.",
     outcome: "Pantalla operativa de Almacenes en seis vistas (Recepción y Playa, Ubicaciones y Stock, Tareas y Recursos, Picking y Reservas, Expedición y Carga, Políticas WMS) conectada a una acción transaccional única en base de datos con catálogo cerrado de treinta códigos de rechazo tipados. Incorpora unidades de manipulación (LPN/SSCC), recursos de almacén (operarios, carretillas y equipos con alturas y certificaciones), políticas de comportamiento con herencia determinista, prohibición de reservar o preparar mercancía sin chequear o sin ubicar (incluyendo aislamiento fail-closed de saldos históricos sin estado de flujo) y control obligatorio de etiqueta emitida y escaneada, estado, peso y volumen antes de autorizar la carga.",
-    status: "Preproducción",
+    status: "Producción",
   },
   {
     version: "2026.10.17-2",
