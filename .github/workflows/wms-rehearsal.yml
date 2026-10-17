@@ -2,6 +2,21 @@ name: WMS E1 rehearsal (manual)
 
 # SÓLO manual. Abre una conexión Postgres contra producción y ejecuta el ensayo de la
 # migración E1 dentro de BEGIN … ROLLBACK. No debe dispararse por push ni por pull_request.
+#
+# ── Sobre el secreto ────────────────────────────────────────────────────────────────
+# El secreto se llama POSTGRES_URL_NON_POOLING, pero lo que necesita es la cadena del
+# POOLER en modo sesión, NO el host directo. OJO: la integración de Supabase con Vercel
+# pone en esa variable el host DIRECTO (db.<ref>.supabase.co, usuario `postgres`), así que
+# NO se copia de Vercel: no es el endpoint del pooler, y el guard del proyecto exige 5432 en
+# modo sesión. Que el host directo no resuelva desde un runner es una hipótesis que NO he
+# verificado; lo que sí está acreditado es que la cadena del pooler es la que el guard pide.
+#
+# La cadena buena sale de Supabase -> Project Settings -> Database -> Connection string ->
+# pestaña «Session pooler», con la forma:
+#   postgresql://postgres.<ref>:<PASSWORD>@aws-0-<región>.pooler.supabase.com:5432/postgres
+# El password no aparece ahí (está enmascarado): hay que tenerlo o resetearlo. Puerto 5432
+# (modo sesión), no 6543 (transaccional), que rompería la atomicidad del ensayo.
+# El paso «Comprobar el secreto» verifica la forma sin imprimir el valor.
 on:
   workflow_dispatch:
     inputs:
@@ -30,10 +45,20 @@ jobs:
     timeout-minutes: 20
     env:
       # Las entradas se pasan por entorno y se comparan como texto literal. Interpolarlas
-      # directamente dentro de `run` las convertiría en código shell (script injection).
+      # directamente dentro de `run` las convertiría en código shell (script injection), y
+      # este es el único job que sostendrá una credencial de producción.
       CONFIRM: ${{ inputs.confirm }}
       TARGET_SHA: ${{ inputs.sha }}
+      RECEIPT: docs/verification/wms-e1-rehearsal-receipt.json
+      OK_MARKER: .wms-rehearsal-ok
     steps:
+      - name: Preparar el runner (sin tocar el árbol todavía)
+        run: |
+          # Aquí todavía no hay árbol: el checkout viene después. La limpieza real del recibo
+          # commiteado se hace tras el checkout, y se exige que el recibo sea posterior al
+          # inicio del ensayo. Este paso solo deja constancia de que se ejecutó.
+          echo "Runner preparado. La limpieza del recibo commiteado se hace tras el checkout."
+
       - name: Comprobar la confirmación
         run: |
           if [ "$CONFIRM" != "REHEARSAL" ]; then
@@ -52,7 +77,7 @@ jobs:
         with:
           ref: ${{ inputs.sha }}
 
-      - name: Verificar que el árbol es el SHA pedido
+      - name: Verificar el árbol y retirar cualquier recibo anterior
         run: |
           ACTUAL=$(git rev-parse HEAD)
           if [ "$ACTUAL" != "$TARGET_SHA" ]; then
@@ -64,6 +89,13 @@ jobs:
             exit 1
           fi
           echo "Árbol verificado en $ACTUAL"
+          # Limpieza REAL: el `rm` del primer paso corre antes del checkout, donde el fichero
+          # todavía no existe (runner limpio) y es un no-op; acto seguido, actions/checkout
+          # restaura el recibo COMMITEADO. Se retira aquí, ya con el árbol en su sitio.
+          rm -f "$RECEIPT"
+          rm -rf .wms-artifacts
+          rm -f "$OK_MARKER"
+          test ! -f "$RECEIPT"
 
       - uses: pnpm/action-setup@v4
         with:
@@ -77,41 +109,60 @@ jobs:
       - name: Instalar dependencias
         run: pnpm install --frozen-lockfile
 
-      - name: Comprobar que el secreto existe (sin imprimirlo)
+      - name: Comprobar el secreto (sin imprimirlo)
         env:
           PG: ${{ secrets.POSTGRES_URL_NON_POOLING }}
         run: |
           if [ -z "$PG" ]; then
-            echo "::error::Falta el secreto POSTGRES_URL_NON_POOLING en el repositorio. Sin él no hay ensayo."
+            echo "::error::Falta el secreto POSTGRES_URL_NON_POOLING. Sin él no hay ensayo."
             exit 1
           fi
-          echo "Secreto presente (no se imprime su valor)."
+          # Se PARSEA la cadena y se valida el HOST y el PUERTO por separado. Un `case` sobre
+          # la cadena entera aceptaría `…pooler.supabase.com.atacante.com` o una contraseña que
+          # contuviera ese texto: el substring no es una validación.
+          # Formato: esquema://[usuario[:clave]@]host[:puerto]/…
+          RESTO=${PG#*://}
+          AUTORIDAD=${RESTO%%/*}          # usuario@host:puerto
+          HOSTPORT=${AUTORIDAD##*@}       # host:puerto (la clave puede llevar @: se toma lo último)
+          HOST=${HOSTPORT%:*}
+          PORT=${HOSTPORT##*:}
+          if [ "$PORT" = "$HOSTPORT" ]; then PORT=""; fi
 
-      - name: Retirar cualquier recibo anterior
-        run: |
-          # Un recibo versionado de una ejecución previa no es evidencia de ésta. Si una
-          # conexión falla y el fichero sigue ahí, `upload` subiría un PASSED viejo.
-          RECEIPT=docs/verification/wms-e1-rehearsal-receipt.json
-          if [ -f "$RECEIPT" ]; then
-            echo "Había un recibo previo; se retira para no publicarlo como resultado de este run."
-            rm -f "$RECEIPT"
+          case "$HOST" in
+            *.pooler.supabase.com) : ;;
+            *)
+              echo "::error::El host de la cadena no termina en .pooler.supabase.com. Debe ser la cadena del Session pooler de Supabase, no la del host directo. No se imprime el valor."
+              exit 1
+              ;;
+          esac
+          if [ "$PORT" != "5432" ]; then
+            echo "::error::El puerto debe ser 5432 (modo sesión); se ha leído '${PORT:-ninguno}'. El 6543 es transaccional y rompe la atomicidad del ensayo. No se imprime el valor."
+            exit 1
           fi
-          test ! -f "$RECEIPT"
+          echo "Secreto presente: host de pooler y puerto 5432 (no se imprime su valor)."
 
       - name: Ensayo transaccional (BEGIN … ROLLBACK)
         env:
           POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
           FORNEXA_PRODUCTION_DB_URL: ${{ secrets.POSTGRES_URL_NON_POOLING }}
-        run: node --experimental-strip-types scripts/wms/rehearse_wms_e1.ts
+        run: |
+          # El recibo se borra INMEDIATAMENTE antes del ensayo. Así, que exista después prueba
+          # que lo escribió este run, sin depender de marcas de tiempo: un ensayo que salga con
+          # código 0 sin escribir recibo no puede heredar el fichero commiteado.
+          rm -f "$RECEIPT"
+          node --experimental-strip-types scripts/wms/rehearse_wms_e1.ts
 
       - name: Exigir un recibo NUEVO de este run
         run: |
-          RECEIPT=docs/verification/wms-e1-rehearsal-receipt.json
           if [ ! -f "$RECEIPT" ]; then
             echo "::error::El ensayo terminó sin generar recibo. No hay evidencia que publicar."
             exit 1
           fi
-          # Basta con que exista: se borró antes del ensayo, así que es de este run.
+          # Marca de éxito: sólo existe si el ensayo generó recibo en ESTE run.
+          printf 'sha=%s\nrun=%s\n' "$TARGET_SHA" "$GITHUB_RUN_ID" > "$OK_MARKER"
+          # Sólo si hubo éxito llega el recibo a este directorio, que es lo único que se sube.
+          mkdir -p .wms-artifacts
+          cp "$RECEIPT" .wms-artifacts/wms-e1-rehearsal-receipt.json
           echo "Recibo nuevo generado por este run."
 
       - name: Escribir los metadatos del run
@@ -121,7 +172,10 @@ jobs:
           RUNNER_SHA=$(sha256sum scripts/wms/rehearse_wms_e1.ts 2>/dev/null | cut -d' ' -f1 || echo "no-disponible")
           MIGRATION_SHA=$(sha256sum supabase/migrations/20261017110000_wms_e1_core.sql 2>/dev/null | cut -d' ' -f1 || echo "no-disponible")
           RECEIPT_PRESENT=false
-          [ -f docs/verification/wms-e1-rehearsal-receipt.json ] && RECEIPT_PRESENT=true
+          [ -f "$RECEIPT" ] && RECEIPT_PRESENT=true
+          OK=false
+          [ -f "$OK_MARKER" ] && OK=true
+          SHORT_SHA=$(printf '%s' "$TARGET_SHA" | cut -c1-12)
           cat > docs/verification/wms-e1-rehearsal-run-metadata.json <<JSON
           {
             "rehearsed_sha": "${TARGET_SHA}",
@@ -131,6 +185,7 @@ jobs:
             "workflow_ref": "${GITHUB_WORKFLOW_REF}",
             "runner_sha256": "${RUNNER_SHA}",
             "migration_sha256": "${MIGRATION_SHA}",
+            "rehearsal_ok": ${OK},
             "receipt_present": ${RECEIPT_PRESENT},
             "finished_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           }
@@ -141,9 +196,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: wms-e1-rehearsal-receipt
+          # El nombre lleva el SHA corto: un recibo no puede confundirse con el de otro árbol.
+          name: wms-e1-rehearsal-${{ inputs.sha }}
           path: |
-            docs/verification/wms-e1-rehearsal-receipt.json
+            .wms-artifacts/wms-e1-rehearsal-receipt.json
             docs/verification/wms-e1-rehearsal-run-metadata.json
           if-no-files-found: warn
           retention-days: 30
@@ -158,13 +214,18 @@ jobs:
             echo "- SHA ensayado: \`${TARGET_SHA}\`"
             echo "- Run: \`${GITHUB_RUN_ID}\`"
             echo ""
-            if [ -f docs/verification/wms-e1-rehearsal-receipt.json ]; then
-              echo "**Recibo nuevo generado por este run.** Descárgalo del artefacto \`wms-e1-rehearsal-receipt\`."
-              echo ""
-              echo '```json'
-              head -c 2000 docs/verification/wms-e1-rehearsal-receipt.json
-              echo '```'
+            # No basta con que el fichero exista: se comprueba la marca de ESTE run.
+            if [ -f "$OK_MARKER" ] && [ -f .wms-artifacts/wms-e1-rehearsal-receipt.json ]; then
+              if grep -q 'postgres://' .wms-artifacts/wms-e1-rehearsal-receipt.json 2>/dev/null; then
+                echo "**Recibo generado, pero contiene una cadena de conexión: no se imprime.** Descárgalo del artefacto y trátalo como material sensible."
+              else
+                echo "**Recibo nuevo generado por este run.** Descárgalo del artefacto \`wms-e1-rehearsal-${TARGET_SHA}\`."
+                echo ""
+                echo '```json'
+                head -c 2000 .wms-artifacts/wms-e1-rehearsal-receipt.json
+                echo '```'
+              fi
             else
-              echo "**FALLIDO: no se generó recibo.** El ensayo no llegó al final. No hay evidencia de este run."
+              echo "**FALLIDO: no hay recibo de este run.** No se publica ningún PASSED heredado; revisa el log del paso que falló."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
