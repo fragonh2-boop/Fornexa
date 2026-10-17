@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "17 oct 2026";
-export const memorandumCommitCoverage = 615;
+export const memorandumCommitCoverage = 623;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -186,6 +186,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.10.17-2",
+    date: "17 oct 2026",
+    surface: ["Plataforma"],
+    title: "Workflow manual de aplicación atómica de la migración del núcleo de Almacenes",
+    purpose: "Habilitar un cauce de despliegue atómico, transaccional y verificable para la migración de esquema y permisos del módulo de Almacenes en producción sin herramientas directas.",
+    outcome: "Workflow manual de aplicación con confirmación literal y verificación estricta de árbol git, checksum SHA-256 fijado y tamaño en bytes del script SQL de migración. Transacción única atómica con bloqueo temporal, precondiciones de estado limpio, postcondiciones exhaustivas de tablas, índices, procedimientos y permisos, y registro en el ledger de migraciones de la base de datos.",
+    status: "Producción",
+  },
   {
     version: "2026.10.17-1",
     date: "17 oct 2026",

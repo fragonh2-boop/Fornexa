@@ -1,6 +1,23 @@
 # FORNEXA — Technical handoff
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
+
+## 2026-10-17 — WMS E1: Workflow manual de migración atómica y saldado de deuda de política (PR #123)
+
+- **Contexto y encargo:** `TASK_ID: WMS-RESEARCH-20261017`. Entrega del PR aislado #123 (`ci/wms-migration-workflow`) hacia `main` (`14fa8b68`) para la aplicación transaccional en producción de la migración del núcleo de Almacenes (`supabase/migrations/20261017110000_wms_e1_core.sql`). Coordinado por FornexaGPT y revisado por Claude Desktop bajo RUTA B.
+- **Estado operativo de WMS E1:**
+  - **PR #117 (`feat/wms-e1-core`):** Aprobada con GO de Claude y CI verde en `HEAD: d532545dc32a364ce5c71a02fa1a403ab7e22b6d` (21 ficheros, 0 en `.github/`, sin cambios de esquema remotos aplicados aún). Permanece estrictamente bloqueada e intacta a la espera de la resolución de GATE 1.
+  - **Orden estricto de despliegue:** Migración atómica en producción (GATE 1) → Verificación SQL de solo lectura y OK explícito de Claude → Merge único de PR #117 a `main` desde su HEAD acreditado (GATE 2) → Deploy automático en Vercel con certificación READY, dominio `fornexasc.com` y smoke tests de Almacenes y Trazabilidad (GATE 3).
+- **Workflow manual de migración (`.github/workflows/apply-wms-migration.yml`):**
+  - Disparador manual `workflow_dispatch` con confirmación literal (`APPLY_WMS_E1`) y SHA exacto (`d532545dc32a364ce5c71a02fa1a403ab7e22b6d`).
+  - Fijación estricta de árbol git, checksum SHA-256 (`91c25fb49f7f4df1d14dbf6c41d56c2b8771d75fc41a82296bc03ab0f7038d8a`) y tamaño (60.299 bytes). Si los bytes difieren, aborta sin tocar la base.
+  - Parseo seguro del secreto `POSTGRES_URL_NON_POOLING`: host `*.pooler.supabase.com` y puerto 5432 (Session pooler), sin interpolación en bloques `run:`.
+  - Control de concurrencia: `concurrency: { group: wms-e1-apply, cancel-in-progress: false }`.
+  - Transacción atómica única: Ensamblado de líneas 1–1316 de la migración (iniciada con `begin;` en línea 5) + bloque `DO` de precondiciones (`ledger=0, tablas_e1=0, quants=150, tenant_b=0`) y postcondiciones exhaustivas de las 8 tablas, privilegios INVOKER/DEFINER, verificación de `service_role` y revocación a `anon`/`authenticated` + alta en los ledgers `supabase_migrations.schema_migrations` (INSERT simple fail-closed sin `DO UPDATE`) y `fornexa_schema_migrations` + `COMMIT;`. `lock_timeout = '10s'`, `ON_ERROR_STOP = 1` y flags `-X` de psql garantizan `ROLLBACK` total ante cualquier discrepancia.
+- **Saldado de deuda de política de repositorio (AGENTS.md):**
+  - Se salda la deuda acumulada de `Mandatory closeout` y `Persistent handoff` correspondiente a los PRs de infraestructura #119 (`58ce1a3`), #120 (`01c61df`) y #121 (`14fa8b6`), que ingresaron a `main` sin registro en `lib/memorandum.ts` ni en `docs/ai/HANDOFF.md`.
+  - Se actualiza `lib/memorandum.ts` con el hito public-safe `2026.10.17-2`, fecha `17 oct 2026` y cobertura de commits `623`.
+
 ## 2026-10-17 — Niveles de visualización y corrección del scroll en tablas
 
 - **Rama/base:** `feat/ui-density-and-scroll-fix` desde `main` `d308413`. Encargo `FORNEXA-UI-DENSITY-SCROLL-20261015`, solicitado por Gemini por orden de Fran. **Fusionado** por squash como `ee8758e0c4a09b142ab923964a45d35db487ac94` (PR #110, 17-oct-2026 01:21 UTC) para continuar hasta el objetivo: **la revisión independiente canónica no llegó a emitirse**, aunque se solicitó en Slack con el HEAD exacto. CI de `main` `38990522485` SUCCESS.

@@ -1,0 +1,373 @@
+name: Apply WMS Migration (Manual)
+
+concurrency:
+  group: wms-e1-apply
+  cancel-in-progress: false
+
+# WMS E1 Production Migration Workflow (RUTA B)
+# TASK_ID: WMS-RESEARCH-20261017
+# Revisor exact-HEAD: Claude (dictamen 1792260844.031019)
+# Coordinador / Auditor: FornexaGPT (1792260903.141069)
+# Autor: Gemini
+#
+# Garantías y requerimientos de Claude:
+# 1. sha256 y bytes fijados estrictamente en el YAML contra alteración de código.
+# 2. Precondición previa: ledger=0, tablas_e1=0, quants=150 (todos con flow_state NULL), tenant_b=0.
+# 3. Transacción única atómica: líneas 1–1316 de la migración (iniciada en línea 5 con begin;)
+#    -> bloque DO con postcondiciones -> alta en el ledger -> commit;. Si algo falla: abort/ROLLBACK.
+# 4. lock_timeout = '10s' y ON_ERROR_STOP = 1.
+# 5. Cero interpolación de inputs dentro de bloques run: (protección anti script injection).
+# 6. Parseo seguro de URL del Session pooler (puerto 5432, host *.pooler.supabase.com).
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 'SHA del commit que contiene la migración (debe ser d532545dc32a364ce5c71a02fa1a403ab7e22b6d)'
+        required: true
+        type: string
+      confirm:
+        description: 'Confirmación obligatoria (escribe exactamente APPLY_WMS_E1)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    name: Aplicar migración E1 en producción (transacción atómica)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CONFIRM: ${{ inputs.confirm }}
+      TARGET_SHA: ${{ inputs.sha }}
+      EXPECTED_TARGET_SHA: d532545dc32a364ce5c71a02fa1a403ab7e22b6d
+      EXPECTED_MIGRATION_SHA256: 91c25fb49f7f4df1d14dbf6c41d56c2b8771d75fc41a82296bc03ab0f7038d8a
+      EXPECTED_MIGRATION_BYTES: 60299
+      MIGRATION_FILE: supabase/migrations/20261017110000_wms_e1_core.sql
+
+    steps:
+      - name: Comprobar la confirmación literal y el SHA objetivo (sin interpolación)
+        run: |
+          if [ "$CONFIRM" != "APPLY_WMS_E1" ]; then
+            echo "::error::Falta la confirmación obligatoria. Escribe exactamente APPLY_WMS_E1 en el campo 'confirm'."
+            exit 1
+          fi
+          case "$TARGET_SHA" in
+            *[!0-9a-f]* | "") echo "::error::El SHA debe ser 40 caracteres hexadecimales en minúscula."; exit 1 ;;
+          esac
+          if [ "$TARGET_SHA" != "$EXPECTED_TARGET_SHA" ]; then
+            echo "::error::El SHA solicitado ($TARGET_SHA) no coincide con el SHA esperado y acreditado ($EXPECTED_TARGET_SHA)."
+            exit 1
+          fi
+          echo "Confirmación y SHA verificados: $TARGET_SHA."
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Verificar el árbol y el checksum SHA-256 de la migración
+        run: |
+          ACTUAL_SHA=$(git rev-parse HEAD)
+          if [ "$ACTUAL_SHA" != "$TARGET_SHA" ]; then
+            echo "::error::El checkout ($ACTUAL_SHA) no coincide con TARGET_SHA ($TARGET_SHA)."
+            exit 1
+          fi
+          if [ ! -f "$MIGRATION_FILE" ]; then
+            echo "::error::No existe el fichero de migración $MIGRATION_FILE en este commit."
+            exit 1
+          fi
+          ACTUAL_BYTES=$(wc -c < "$MIGRATION_FILE" | tr -d ' ')
+          if [ "$ACTUAL_BYTES" != "$EXPECTED_MIGRATION_BYTES" ]; then
+            echo "::error::El tamaño del fichero ($ACTUAL_BYTES bytes) no coincide con los $EXPECTED_MIGRATION_BYTES bytes fijados."
+            exit 1
+          fi
+          ACTUAL_SHA256=$(sha256sum "$MIGRATION_FILE" | cut -d' ' -f1)
+          if [ "$ACTUAL_SHA256" != "$EXPECTED_MIGRATION_SHA256" ]; then
+            echo "::error::El sha256 ($ACTUAL_SHA256) no coincide con el valor fijado en el workflow ($EXPECTED_MIGRATION_SHA256)."
+            exit 1
+          fi
+          echo "Migración validada byte a byte: $ACTUAL_BYTES bytes, sha256 $ACTUAL_SHA256."
+
+      - name: Comprobar el secreto (sin imprimirlo)
+        env:
+          PG: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+        run: |
+          if [ -z "$PG" ]; then
+            echo "::error::Falta el secreto POSTGRES_URL_NON_POOLING. Sin él no se puede aplicar la migración."
+            exit 1
+          fi
+          RESTO=${PG#*://}
+          AUTORIDAD=${RESTO%%/*}
+          HOSTPORT=${AUTORIDAD##*@}
+          HOST=${HOSTPORT%:*}
+          PORT=${HOSTPORT##*:}
+          if [ "$PORT" = "$HOSTPORT" ]; then PORT=""; fi
+
+          case "$HOST" in
+            *.pooler.supabase.com) : ;;
+            *)
+              echo "::error::El host de la cadena no termina en .pooler.supabase.com. Debe ser la cadena del Session pooler de Supabase. No se imprime el valor."
+              exit 1
+              ;;
+          esac
+          if [ "$PORT" != "5432" ]; then
+            echo "::error::El puerto debe ser 5432 (modo sesión); se ha leído '${PORT:-ninguno}'. El 6543 es transaccional y rompe la atomicidad. No se imprime el valor."
+            exit 1
+          fi
+          echo "Secreto presente: host de pooler y puerto 5432 (no se imprime su valor)."
+
+      - name: Asegurar cliente psql
+        run: |
+          if ! command -v psql &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y postgresql-client
+          fi
+          psql --version
+
+      - name: Ensamblar la transacción atómica única (Líneas 1-1316 + Postcondiciones + Ledger + COMMIT)
+        run: |
+          # 1. Cabecera con lock_timeout y precondiciones
+          cat << 'PRE_EOF' > /tmp/apply_wms_e1.sql
+          \set ON_ERROR_STOP 1
+          SET lock_timeout = '10s';
+          SET statement_timeout = '60s';
+
+          -- ── Precondiciones (fuera de la transacción de migración) ──
+          DO $$
+          BEGIN
+            IF EXISTS (SELECT 1 FROM supabase_migrations.schema_migrations WHERE version = '20261017110000') THEN
+              RAISE EXCEPTION 'PRECONDITION_FAILED: Version 20261017110000 ya registrada en schema_migrations';
+            END IF;
+
+            IF EXISTS (
+              SELECT 1 FROM information_schema.tables 
+               WHERE table_schema = 'public' 
+                 AND table_name IN ('warehouse_behavior_policies','warehouse_resources','handling_units','handling_unit_contents','stock_reservations','warehouse_tasks')
+            ) THEN
+              RAISE EXCEPTION 'PRECONDITION_FAILED: Una o mas tablas E1 ya existen en public';
+            END IF;
+
+            IF (SELECT count(*) FROM public.inventory_quants) <> 150 THEN
+              RAISE EXCEPTION 'PRECONDITION_FAILED: El recuento de inventory_quants no es 150';
+            END IF;
+
+            IF EXISTS (
+              SELECT 1 FROM public.tenants 
+               WHERE id = '00000000-0000-4000-8000-0000000000bb' OR code = 'REH-TENANT-B'
+            ) THEN
+              RAISE EXCEPTION 'PRECONDITION_FAILED: Tenant B de prueba detectado en la base';
+            END IF;
+
+            RAISE NOTICE 'PRECONDITIONS_PASSED: ledger=0, tablas_e1=0, quants=150, tenant_b=0';
+          END $$;
+          PRE_EOF
+
+          # 2. Extraer líneas 1 a 1316 de la migración (la línea 5 contiene 'begin;' y la 1316 cierra grants)
+          head -n 1316 "$MIGRATION_FILE" >> /tmp/apply_wms_e1.sql
+
+          # 3. Añadir el bloque DO de postcondiciones de Claude, alta en ledger y commit;
+          cat << 'POST_EOF' >> /tmp/apply_wms_e1.sql
+
+          -- ── Postcondiciones de Claude dentro de la misma transacción atómica ──
+          DO $$
+          DECLARE
+            v_table_count int;
+            v_quant_count int;
+            v_quant_null_flow int;
+            v_tenant_b_count int;
+            v_policy_secdef boolean;
+            v_action_secdef boolean;
+            v_action_config text[];
+            t text;
+            r_select boolean;
+            r_insert boolean;
+            r_update boolean;
+            r_delete boolean;
+          BEGIN
+            -- 1. Seis tablas E1 en public
+            SELECT count(*)::int INTO v_table_count
+              FROM information_schema.tables
+             WHERE table_schema = 'public'
+               AND table_name IN (
+                 'warehouse_behavior_policies',
+                 'warehouse_resources',
+                 'handling_units',
+                 'handling_unit_contents',
+                 'stock_reservations',
+                 'warehouse_tasks'
+               );
+            IF v_table_count <> 6 THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: Se esperaban 6 tablas E1, encontradas %', v_table_count;
+            END IF;
+
+            -- 2. flow_state y hu_id en inventory_quants
+            IF NOT EXISTS (
+              SELECT 1 FROM information_schema.columns 
+               WHERE table_schema = 'public' AND table_name = 'inventory_quants' AND column_name = 'flow_state'
+            ) OR NOT EXISTS (
+              SELECT 1 FROM information_schema.columns 
+               WHERE table_schema = 'public' AND table_name = 'inventory_quants' AND column_name = 'hu_id'
+            ) THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: Columnas flow_state o hu_id ausentes en inventory_quants';
+            END IF;
+
+            -- 3. fornexa_wms_effective_policy: INVOKER (prosecdef=false) y sin EXECUTE para anon/authenticated
+            SELECT prosecdef INTO v_policy_secdef
+              FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+             WHERE n.nspname = 'public' AND p.proname = 'fornexa_wms_effective_policy';
+            IF v_policy_secdef IS NULL OR v_policy_secdef = true THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: fornexa_wms_effective_policy debe ser SECURITY INVOKER (prosecdef=false)';
+            END IF;
+
+            IF has_function_privilege('anon', 'public.fornexa_wms_effective_policy(uuid, uuid, uuid, uuid)', 'EXECUTE') OR
+               has_function_privilege('authenticated', 'public.fornexa_wms_effective_policy(uuid, uuid, uuid, uuid)', 'EXECUTE') THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: fornexa_wms_effective_policy no debe conceder EXECUTE a anon o authenticated';
+            END IF;
+
+            IF NOT has_function_privilege('service_role', 'public.fornexa_wms_effective_policy(uuid, uuid, uuid, uuid)', 'EXECUTE') THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: fornexa_wms_effective_policy debe conceder EXECUTE a service_role';
+            END IF;
+
+            -- 4. fornexa_wms_action: DEFINER (prosecdef=true), search_path vacio, sin EXECUTE para anon/authenticated
+            SELECT prosecdef, proconfig INTO v_action_secdef, v_action_config
+              FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+             WHERE n.nspname = 'public' AND p.proname = 'fornexa_wms_action';
+            IF v_action_secdef IS NULL OR v_action_secdef = false THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: fornexa_wms_action debe ser SECURITY DEFINER (prosecdef=true)';
+            END IF;
+            IF v_action_config IS NULL OR NOT ('search_path=' = ANY(v_action_config) OR 'search_path=""' = ANY(v_action_config)) THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: fornexa_wms_action debe fijar search_path vacio';
+            END IF;
+
+            IF has_function_privilege('anon', 'public.fornexa_wms_action(uuid, uuid, text, jsonb, text)', 'EXECUTE') OR
+               has_function_privilege('authenticated', 'public.fornexa_wms_action(uuid, uuid, text, jsonb, text)', 'EXECUTE') THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: fornexa_wms_action no debe conceder EXECUTE a anon o authenticated';
+            END IF;
+
+            IF NOT has_function_privilege('service_role', 'public.fornexa_wms_action(uuid, uuid, text, jsonb, text)', 'EXECUTE') THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: fornexa_wms_action debe conceder EXECUTE a service_role';
+            END IF;
+
+            -- 5. 150 quants, todos en NULL
+            SELECT count(*)::int, count(*) FILTER (WHERE flow_state IS NULL)::int 
+              INTO v_quant_count, v_quant_null_flow
+              FROM public.inventory_quants;
+            IF v_quant_count <> 150 OR v_quant_null_flow <> 150 THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: Los 150 quants historicos deben conservar flow_state NULL (total=%, null=%)', v_quant_count, v_quant_null_flow;
+            END IF;
+
+            -- 6. Escrituras revocadas para anon y authenticated en las 8 tablas, SELECT conservado para authenticated
+            FOR t IN SELECT unnest(ARRAY[
+              'warehouse_behavior_policies',
+              'warehouse_resources',
+              'handling_units',
+              'handling_unit_contents',
+              'stock_reservations',
+              'warehouse_tasks',
+              'inventory_quants',
+              'inventory_movements'
+            ]) LOOP
+              SELECT has_table_privilege('authenticated', 'public.' || quote_ident(t), 'SELECT'),
+                     has_table_privilege('authenticated', 'public.' || quote_ident(t), 'INSERT'),
+                     has_table_privilege('authenticated', 'public.' || quote_ident(t), 'UPDATE'),
+                     has_table_privilege('authenticated', 'public.' || quote_ident(t), 'DELETE')
+                INTO r_select, r_insert, r_update, r_delete;
+
+              IF NOT r_select THEN
+                RAISE EXCEPTION 'POSTCONDITION_FAILED: authenticated debe conservar SELECT en %', t;
+              END IF;
+              IF r_insert OR r_update OR r_delete THEN
+                RAISE EXCEPTION 'POSTCONDITION_FAILED: authenticated debe tener INSERT/UPDATE/DELETE revocados en %', t;
+              END IF;
+
+              IF has_table_privilege('anon', 'public.' || quote_ident(t), 'INSERT') OR
+                 has_table_privilege('anon', 'public.' || quote_ident(t), 'UPDATE') OR
+                 has_table_privilege('anon', 'public.' || quote_ident(t), 'DELETE') THEN
+                RAISE EXCEPTION 'POSTCONDITION_FAILED: anon debe tener INSERT/UPDATE/DELETE revocados en %', t;
+              END IF;
+            END LOOP;
+
+            -- 7. tenant B = 0
+            SELECT count(*)::int INTO v_tenant_b_count
+              FROM public.tenants
+             WHERE id = '00000000-0000-4000-8000-0000000000bb' OR code = 'REH-TENANT-B';
+            IF v_tenant_b_count <> 0 THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: Tenant B detectado en produccion';
+            END IF;
+
+            RAISE NOTICE 'POSTCONDITIONS_PASSED: Todas las comprobaciones post-migracion superadas dentro de la transaccion.';
+          END $$;
+
+          -- ── Alta en ledger dentro de la misma transacción atómica ──
+          INSERT INTO supabase_migrations.schema_migrations (version, name, statements)
+          VALUES ('20261017110000', 'wms_e1_core', ARRAY['20261017110000_wms_e1_core.sql']);
+
+          INSERT INTO public.fornexa_schema_migrations (version, description)
+          VALUES ('20261017110000', 'wms_e1_core')
+          ON CONFLICT (version) DO NOTHING;
+
+          -- ── Commit de la transacción única ──
+          COMMIT;
+          POST_EOF
+
+          echo "Script SQL ensamblado en /tmp/apply_wms_e1.sql ($(wc -l < /tmp/apply_wms_e1.sql) lineas)."
+
+      - name: Ejecutar la migración atómica en producción (psql con ON_ERROR_STOP=1)
+        env:
+          PG: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+        run: |
+          psql -X -v ON_ERROR_STOP=1 "$PG" -f /tmp/apply_wms_e1.sql
+
+      - name: Escribir metadatos y recibo de aplicación
+        if: success()
+        run: |
+          mkdir -p docs/verification
+          cat > docs/verification/wms-e1-migration-receipt.json << JSON
+          {
+            "task_id": "WMS-RESEARCH-20261017",
+            "phase": "GATE_1_MIGRATION_APPLICATION",
+            "mode": "TRANSACTIONAL_APPLY",
+            "applied_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "target_sha": "${TARGET_SHA}",
+            "migration_file": "${MIGRATION_FILE}",
+            "migration_sha256": "${EXPECTED_MIGRATION_SHA256}",
+            "migration_bytes": ${EXPECTED_MIGRATION_BYTES},
+            "version": "20261017110000",
+            "name": "wms_e1_core",
+            "run_id": "${GITHUB_RUN_ID}"
+          }
+          JSON
+          cat docs/verification/wms-e1-migration-receipt.json
+
+      - name: Publicar artefacto del recibo de migración
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wms-e1-migration-receipt
+          path: docs/verification/wms-e1-migration-receipt.json
+          if-no-files-found: warn
+          retention-days: 30
+          overwrite: true
+
+      - name: Resumen en GITHUB_STEP_SUMMARY
+        if: always()
+        run: |
+          {
+            echo "### Aplicación de Migración WMS E1 en Producción"
+            echo ""
+            echo "- SHA aplicado: \`${TARGET_SHA}\`"
+            echo "- Versión en ledger: \`20261017110000\` (\`wms_e1_core\`)"
+            echo "- Run ID: \`${GITHUB_RUN_ID}\`"
+            echo "- SHA-256 verificado: \`${EXPECTED_MIGRATION_SHA256}\`"
+            echo "- Bytes verificados: \`${EXPECTED_MIGRATION_BYTES}\`"
+            echo ""
+            if [ -f docs/verification/wms-e1-migration-receipt.json ]; then
+              echo "**Recibo de migración generado:**"
+              echo '```json'
+              cat docs/verification/wms-e1-migration-receipt.json
+              echo '```'
+            else
+              echo "**FALLIDO: no se generó el recibo.** La transacción fue revertida o abortada por pre/postcondiciones."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
