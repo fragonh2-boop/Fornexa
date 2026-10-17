@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "17 oct 2026";
-export const memorandumCommitCoverage = 611;
+export const memorandumCommitCoverage = 612;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -192,7 +192,7 @@ export const memorandumReleases: MemorandumRelease[] = [
     surface: ["Web", "Plataforma"],
     title: "Niveles de visualización y corrección del scroll en tablas",
     purpose: "Permitir que cada puesto elija cuánta información quiere ver de una vez, y devolver a las tablas una cabecera y una barra de desplazamiento que no se pierdan al desplazar.",
-    outcome: "Tres niveles de densidad (Cómoda, Estándar, Compacta) aplicados por tokens CSS y recordados en el navegador, con Compacta por defecto. La pestaña Interfaz de Configuración permite cambiarlos con previsualización inmediata. Cómoda reproduce exactamente la escala anterior. Las cabeceras de tabla mantienen su posición y la barra horizontal queda dentro de la caja de la tabla, acotada a la altura de la pantalla.",
+    outcome: "Tres niveles de densidad (Cómoda, Estándar, Compacta) aplicados por tokens CSS y recordados en el navegador, con Compacta por defecto. La pestaña Interfaz de Configuración permite cambiarlos con previsualización inmediata. Cómoda reproduce exactamente la escala anterior. Las cabeceras de tabla mantienen su posición y la barra horizontal queda dentro de la caja de la tabla, acotada a la altura de la pantalla. El ancho de la rejilla se calcula con su número de columnas, de modo que las celdas nunca se desbordan de su fila y no aparece un hueco al desplazar a la derecha.",
     status: "Producción",
   },
   {

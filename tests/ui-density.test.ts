@@ -157,3 +157,25 @@ test("densidad: la clave de almacenamiento es la acordada", () => {
   assert.equal(UI_DENSITY_STORAGE_KEY, "fornexa-ui-density");
   assert.equal(UI_DENSITY_ATTRIBUTE, "data-density");
 });
+
+test("grid: el ancho de la tabla cubre la suma de sus columnas", () => {
+  const css = source("app/components/DataGrid.module.css");
+  // `ruleBody` casaría antes con `.tableWrap`, así que aquí se exige la regla exacta.
+  const matched = /(?:^|\})\.table\{([^}]*)\}/.exec(css.replace(/\/\*[\s\S]*?\*\//g, ""));
+  assert.ok(matched, "no se encontró la regla .table");
+  const table = matched[1];
+
+  // Un mínimo fijo menor que la suma de columnas desborda las celdas de su fila y,
+  // al desplazar a la derecha, el fondo y el borde de la fila dejan de cubrir lo
+  // que se ve: aparece un hueco entre columnas.
+  assert.doesNotMatch(table, /min-width:\s*\d+px/, "no debe quedar un mínimo fijo en px");
+  assert.match(table, /--grid-column-min:\s*\d+px/, "falta el mínimo por columna");
+  assert.match(
+    table,
+    /min-width:calc\(var\(--grid-column-count[^)]*\)\s*\*\s*var\(--grid-column-min\)\)/,
+    "el mínimo de la tabla debe calcularse con el número de columnas",
+  );
+
+  const grid = source("app/components/DataGrid.tsx");
+  assert.match(grid, /"--grid-column-count":\s*String\(visibleColumns\.length\)/, "la rejilla debe publicar su número de columnas");
+});
