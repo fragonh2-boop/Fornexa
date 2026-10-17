@@ -84,10 +84,21 @@ function checkPlanIntegrity(dataset: Dataset, manifest: Manifest): void {
   if (total !== manifest.total_rows) {
     throw new Error(`el manifiesto se contradice: suma por tabla ${total} vs total ${manifest.total_rows}`);
   }
+  // El lote admite dos formas y la comprobación debe admitirlas AMBAS:
+  //   · sólo E1 → 130 escenarios (el escenario 4 es de E2 y necesita replenishment_rules)
+  //   · E1 + E2 → 150 escenarios
+  // Exigir siempre 150 rechazaba el modo por defecto, que es precisamente el que se usa
+  // mientras E2 no exista.
   const e1 = manifest.by_delivery?.E1 ?? 0;
   const e2 = manifest.by_delivery?.E2 ?? 0;
-  if (e1 + e2 !== 150) {
-    throw new Error(`el reparto por entrega no suma 150 registros de escenario: E1=${e1} E2=${e2}`);
+  if (e2 !== 0 && e2 !== 20) {
+    throw new Error(`E2 debe ser 0 (lote E1) o 20 (lote completo); es ${e2}`);
+  }
+  const esperado = e2 === 0 ? 130 : 150;
+  if (e1 + e2 !== esperado) {
+    throw new Error(
+      `el reparto por entrega no suma los ${esperado} escenarios del modo declarado: E1=${e1} E2=${e2}`,
+    );
   }
 }
 
