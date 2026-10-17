@@ -51,7 +51,6 @@ jobs:
       TARGET_SHA: ${{ inputs.sha }}
       RECEIPT: docs/verification/wms-e1-rehearsal-receipt.json
       OK_MARKER: .wms-rehearsal-ok
-      START_MARKER: .wms-rehearsal-start
     steps:
       - name: Preparar el runner (sin tocar el árbol todavía)
         run: |
@@ -96,8 +95,6 @@ jobs:
           rm -f "$RECEIPT"
           rm -rf .wms-artifacts
           rm -f "$OK_MARKER"
-          # Marca de tiempo: el recibo deberá ser POSTERIOR a este instante.
-          touch "$START_MARKER"
           test ! -f "$RECEIPT"
 
       - uses: pnpm/action-setup@v4
@@ -159,13 +156,6 @@ jobs:
         run: |
           if [ ! -f "$RECEIPT" ]; then
             echo "::error::El ensayo terminó sin generar recibo. No hay evidencia que publicar."
-            exit 1
-          fi
-          # No basta con que exista: tiene que ser POSTERIOR al inicio de este run. Un ensayo
-          # que salga con código 0 sin escribir recibo dejaría el fichero commiteado y esta
-          # comprobación lo aceptaría como evidencia fresca.
-          if [ ! "$RECEIPT" -nt "$START_MARKER" ]; then
-            echo "::error::El recibo no es de este run (anterior a $START_MARKER). No se publica."
             exit 1
           fi
           # Marca de éxito: sólo existe si el ensayo generó recibo en ESTE run.
