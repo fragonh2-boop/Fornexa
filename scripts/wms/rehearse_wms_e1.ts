@@ -996,28 +996,54 @@ async function main() {
       assert.equal(fRes.rows[0].svc_exec, true, `${fn}: service_role SÍ debe poder`);
     }
 
-    // Control negativo de aislamiento, por CONTENIDO y no por «salta algún error».
-    // Con SECURITY INVOKER la RLS se aplica, así que una sesión de usuario que pida la política
-    // de OTRO tenant debe recibir los valores por defecto, no la del tenant ajeno.
-    await client.query(
-      "grant execute on function public.fornexa_wms_effective_policy(uuid, uuid, uuid, uuid) to authenticated",
-    );
-    await client.query("set local role authenticated");
+    // ── Canario de permisos ────────────────────────────────────────────────────────────
+    // Si alguien vuelve a conceder EXECUTE a `authenticated`, esto debe saltar. El error de
+    // permiso ABORTA la transacción, así que el intento se aísla en un SAVEPOINT: sin él, el
+    // `reset role` del finally fallaría en estado abortado y el ensayo no podría ni terminar.
+    await client.query("SAVEPOINT wms_execute_canary");
+    let canarioDisparado = false;
+    try {
+      await client.query("set local role authenticated");
+      await client.query(
+        `SELECT public.fornexa_wms_effective_policy($1, $2, null, $3) AS pol`,
+        [TENANT_ID, wh1, prodAmb],
+      );
+    } catch (error: any) {
+      const codigo = String(error?.code ?? "");
+      canarioDisparado = codigo === "42501" || /permission denied/i.test(String(error?.message ?? ""));
+    } finally {
+      await client.query("ROLLBACK TO SAVEPOINT wms_execute_canary");
+      await client.query("RELEASE SAVEPOINT wms_execute_canary");
+    }
+    assert.ok(canarioDisparado, "effective_policy no debe ser invocable desde una sesión authenticated (42501)");
+
+    // ── Aislamiento por CONTENIDO ──────────────────────────────────────────────────────
+    // Con SECURITY INVOKER la RLS se aplica. Se concede EXECUTE temporalmente DENTRO de un
+    // savepoint, se pide la política de un tenant inexistente y se exige que devuelva los
+    // defaults, no una política ajena. Todo se deshace al volver al savepoint, así que la
+    // concesión no sobrevive ni al error ni al éxito.
+    await client.query("SAVEPOINT wms_tenant_isolation");
     let politicaAjena: any = null;
     try {
+      await client.query(
+        "grant execute on function public.fornexa_wms_effective_policy(uuid, uuid, uuid, uuid) to authenticated",
+      );
+      await client.query("set local role authenticated");
       const ajeno = await client.query(
         `SELECT public.fornexa_wms_effective_policy($1, $2, null, $3) AS pol`,
         [OTHER_TENANT_ID, wh1, prodAmb],
       );
       politicaAjena = ajeno.rows[0].pol;
     } finally {
-      await client.query("reset role");
-      await client.query("revoke execute on function public.fornexa_wms_effective_policy(uuid, uuid, uuid, uuid) from authenticated");
+      // Vuelve al savepoint tanto si funcionó como si no: deshace el grant y el rol.
+      await client.query("ROLLBACK TO SAVEPOINT wms_tenant_isolation");
+      await client.query("RELEASE SAVEPOINT wms_tenant_isolation");
     }
+
     // Los defaults de la función, no la política del tenant ajeno. Se afirma contra los
     // valores por defecto CONCRETOS ('YES' y 2), no contra «algo distinto»: una aserción
     // del tipo notEqual(valor, 4) pasaría siempre y no probaría nada.
-    assert.ok(politicaAjena, "el aislamiento no devolvió política alguna");
+    assert.ok(politicaAjena, "la prueba de aislamiento no devolvió ninguna política");
     assert.equal(
       politicaAjena.consolidation, "YES",
       "FUGA: devolvió la consolidación del tenant ajeno (BY_BATCH) en lugar del default",
