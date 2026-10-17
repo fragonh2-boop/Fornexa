@@ -275,7 +275,7 @@ create or replace function public.fornexa_wms_effective_policy(
 ) returns jsonb
 language plpgsql
 stable
-security definer
+security invoker
 set search_path = ''
 as $$
 declare
@@ -311,9 +311,10 @@ declare
   v_category text := null;
   v_row record;
 begin
-  -- Defensa en profundidad: si quien invoca es una sesión de usuario (no service_role),
-  -- debe pertenecer al tenant que pide. Con el EXECUTE revocado a `authenticated` esto no
-  -- debería alcanzarse nunca, pero si alguien vuelve a concederlo, el agujero no reabre.
+  -- SECURITY INVOKER: la función se ejecuta con los privilegios de quien llama, así que la RLS
+  -- `tenant_read` sí se aplica y una sesión de usuario solo ve las políticas de su tenant. El
+  -- guard añade un rechazo explícito cuando hay identidad y es ajena; cuando `auth.uid()` es nulo
+  -- (service_role) la RLS es la que protege, no este if.
   if auth.uid() is not null and not exists (
     select 1 from public.tenant_members tm
      where tm.tenant_id = p_tenant and tm.user_id = auth.uid() and tm.status = 'ACTIVE'

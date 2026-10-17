@@ -33,6 +33,8 @@ function loadPg(): { Client: new (config: unknown) => any } {
 
 const { Client } = loadPg();
 const TENANT_ID = "00000000-0000-4000-8000-000000000001";
+// Tenant que no existe: si la función devolviera su política en vez de los defaults, sería fuga.
+const OTHER_TENANT_ID = "00000000-0000-4000-8000-0000000000ff";
 
 function resolveConnectionString(): string {
   if (process.env.POSTGRES_URL_NON_POOLING) {
@@ -994,22 +996,36 @@ async function main() {
       assert.equal(fRes.rows[0].svc_exec, true, `${fn}: service_role SÍ debe poder`);
     }
 
-    // Control negativo de aislamiento: con rol `authenticated` la función no debe ser
-    // invocable. Si algún día se vuelve a conceder EXECUTE, esto falla y el gate se cierra.
+    // Control negativo de aislamiento, por CONTENIDO y no por «salta algún error».
+    // Con SECURITY INVOKER la RLS se aplica, así que una sesión de usuario que pida la política
+    // de OTRO tenant debe recibir los valores por defecto, no la del tenant ajeno.
+    await client.query(
+      "grant execute on function public.fornexa_wms_effective_policy(uuid, uuid, uuid, uuid) to authenticated",
+    );
     await client.query("set local role authenticated");
-    let denegado = false;
+    let politicaAjena: any = null;
     try {
-      await client.query(
+      const ajeno = await client.query(
         `SELECT public.fornexa_wms_effective_policy($1, $2, null, $3) AS pol`,
-        [TENANT_ID, wh1, prodAmb],
+        [OTHER_TENANT_ID, wh1, prodAmb],
       );
-    } catch (error: any) {
-      const codigo = String(error?.code ?? "");
-      denegado = codigo === "42501" || /permission denied/i.test(String(error?.message ?? ""));
+      politicaAjena = ajeno.rows[0].pol;
     } finally {
       await client.query("reset role");
+      await client.query("revoke execute on function public.fornexa_wms_effective_policy(uuid, uuid, uuid, uuid) from authenticated");
     }
-    assert.ok(denegado, "effective_policy no debe ser invocable desde una sesión authenticated");
+    // Los defaults de la función, no la política del tenant ajeno. Se afirma contra los
+    // valores por defecto CONCRETOS ('YES' y 2), no contra «algo distinto»: una aserción
+    // del tipo notEqual(valor, 4) pasaría siempre y no probaría nada.
+    assert.ok(politicaAjena, "el aislamiento no devolvió política alguna");
+    assert.equal(
+      politicaAjena.consolidation, "YES",
+      "FUGA: devolvió la consolidación del tenant ajeno (BY_BATCH) en lugar del default",
+    );
+    assert.equal(
+      politicaAjena.max_pallets_per_bin, 2,
+      "FUGA: devolvió una política distinta de los defaults (se esperaba 2)",
+    );
 
     // 6. ROLLBACK everything!
     await client.query("ROLLBACK");
