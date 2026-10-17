@@ -1,0 +1,38 @@
+{
+  "batch_id": "MUELLES-SEED-PRODUCTION-20261017",
+  "tenant_id": "00000000-0000-4000-8000-000000000001",
+  "loader_sql_sha256": "bc79c5c0f7d0b95e8fd8389c5fbe674e9afd6ff10f7c8506c7862fffd321bf6e",
+  "rollback_sql_sha256": "0a1e748d84f135d7d7da4d51e90fb36fafb1b3d44e14b77504c65d2ff386d1aa",
+  "total_rows": 2031,
+  "tables": {
+    "warehouse_zones": {
+      "count": 450,
+      "table_sha256": "383dfa5a3d74f5ff26204b204032e921bba14c5d0b8cdec7ecd13f7161d9b87b"
+    },
+    "warehouse_docks": {
+      "count": 800,
+      "table_sha256": "96d2d92a76a9a1c2f633b1408ca460d1cce73954230ce7b833636cdc2f7c21a0"
+    },
+    "dock_appointment_rules": {
+      "count": 450,
+      "table_sha256": "e9fb85ea6e8f07fe6e6dd233c7663dfaaf2cc6bd910dc4c78bab1b7f658ce570"
+    },
+    "dock_policies": {
+      "count": 150,
+      "table_sha256": "9f1f97232928bf03881a46265d6bfaa4cf0b3bdd3ee278acc8d8d3a8a9760891"
+    },
+    "dock_appointments": {
+      "count": 150,
+      "table_sha256": "206c5ef3419c9a706942bbf94aa052cf32771e68e1f1cc76d109abffb50dcb19"
+    },
+    "transport_events": {
+      "count": 31,
+      "table_sha256": "5c9ee8ace72c56af51fee1f87ac25b117027ff3ede08fd2815c3af11a9a23fcb"
+    }
+  },
+  "compensation_residual_footprint": {
+    "transport_events_append_only": 31,
+    "dock_appointments_compensated_cancelled": 9,
+    "dock_appointment_rules_fk_retained": 3
+  }
+}

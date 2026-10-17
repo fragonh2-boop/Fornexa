@@ -23,11 +23,14 @@ La disponibilidad del cliente es orientativa; RPC serializa por almacén, vuelve
 
 El harness se elimina del árbol versionado. No hay cookies/JWT ni credenciales de producción en estas pruebas. No es E2E autenticado de Supabase ni aceptación visual de una Preview desplegada. El harness usa el font asset del build; la geometría se comprobó con tamaños de viewport del navegador y su zoom vigente.
 
-## Integración
+## Integración y cierre productivo (C10 — 15 oct)
 
-NO INTEGRADO / NO DESPLEGADO / NO CARGADO. Cero SQL remoto. #103 y su carril no se han modificado. CI exact-HEAD y revisiones completas Claude Y DeepSeek con 0 MUST se solicitan tras abrir la PR; este documento no las declara concedidas.
-
-Antes de integrar: #103 fusionada → desplegada → carga verificada → rebase → seed propio/recibo/rollback → nuevos checks y revisiones exact-HEAD. El portal público va en PR-B separada, y el E2E autenticado se ejecutará cuando exista un entorno autorizado con este esquema.
+INTEGRADO, MIGRADO Y DESPLEGADO EN PRODUCCIÓN:
+- **Rebase y revisiones:** Rebasado sobre `d3ff677` (DATA150) en HEAD `a3afb9a2055aa10f919fc8941af7647094311bd4`. Aprobado en exact-HEAD por Claude Desktop y DeepSeek (0 MUST, MERGE YES), CI `38632744106` SUCCESS.
+- **Merge y CI de `main`:** PR #104 squash-merged como `9fea56b59c8aae3b9a69172b2867e49d70b8fba0` (CI `38638765169` SUCCESS).
+- **Migraciones en Supabase producción (`gqkjqhpmyejmehbuombk`):** Aplicadas `20261014090324_muelles_v1_core.sql` y `20261014103035_muelles_calendar_normalization.sql` (`fornexa_schema_migrations` = 39). Los 150 `address_operational_profiles` de DATA150 quedaron normalizados al contrato canónico de 7 días con 150 eventos `NORMALIZE_CALENDAR` en `audit_events` y 0 perfiles legacy remanentes.
+- **Despliegue Vercel:** Producción `dpl_Hm8fSeaQEfinM4BojDmcFbkcKKHS` READY con alias `fornexasc.com`, verificado independientemente por Claude (`C10_MUELLES_CORE_PRODUCTION_VERIFIED: YES`).
+- **Lote sintético propio de Muelles en producción (`MUELLES-SEED-PRODUCTION-20261017` — 17 oct):** Ejecutado y confirmado en Supabase producción (`gqkjqhpmyejmehbuombk`) tras ensayo `--dry-run-rehearsal` (`BEGIN ... ROLLBACK` + prueba de compensación). Insertadas **2.031 filas** en una única transacción `COMMITTED` (`warehouse_zones`: `+450` → `600`; `warehouse_docks`: `+800` → `801`, preservando intacto el muelle manual preexistente `code='33'`; `dock_appointment_rules`: `+450`; `dock_policies`: `+150`; `dock_appointments`: `+150` vinculadas 1:1 a las 150 `trip_stops` sintéticas de DATA150 sin solapes y con 15 citas en `WH-PRV-0000` cubriendo `2026-10-16`..`2026-10-18`; `transport_events`: `+31` → `229`). Recibo durable: `docs/verification/muelles-seed-execution-receipt.json` (SHA-256 `9c6c14cdfff84808aaba72a291c0a468388c8745b0b12642e5ce6e324302300c`); rollback determinista por compensación: `scripts/muelles/muelles-seed-rollback.sql` (SHA-256 `0a1e748d84f135d7d7da4d51e90fb36fafb1b3d44e14b77504c65d2ff386d1aa`).
 
 ## Corrección HIGH R2 (14 oct)
 
@@ -35,4 +38,4 @@ Claude identificó dos MUST en 827fefe: lista de direcciones bloqueada por horar
 
 PostgreSQL local verifica la normalización y sus imágenes, re-ejecución sin auditoría duplicada, default de siete días, rechazo de transición sin efectos, PLANNER operativo sin configuración, mantenimiento bloqueado y buffer de histórico terminal intacto. 228 tests y checks estándar PASS. Los índices únicos nuevos en tablas existentes permiten FKs compuestas tenant/entidad; no duplican entidades. El snapshot SQL sigue siendo mínimo, no replay histórico.
 
-Fran autorizó PLANNER como OPERATOR en esta tarea. Los parámetros de antelación/corte/máximo de cambios/cupo del planner no se automatizan todos todavía: falta definir cómo permitir las excepciones operativas internas; la antelación y el horizonte del portal sí se aplican. No hay envío real de notificaciones. Seed posterior con compensación de eventos, guard T1 intacto; loader y E2E pendientes. Esta preparación no implica revisión aprobatoria ni integración.
+Fran autorizó PLANNER como OPERATOR en esta tarea. Los parámetros de antelación/corte/máximo de cambios/cupo del planner no se automatizan todos todavía: falta definir cómo permitir las excepciones operativas internas; la antelación y el horizonte del portal sí se aplican. No hay envío real de notificaciones. El seed propio de muelles/citas con compensación de eventos (guard T1 intacto) ya quedó cargado y verificado en producción; queda pendiente el recorrido E2E autenticado.
