@@ -1017,11 +1017,46 @@ async function main() {
     }
     assert.ok(canarioDisparado, "effective_policy no debe ser invocable desde una sesión authenticated (42501)");
 
-    // ── Aislamiento por CONTENIDO ──────────────────────────────────────────────────────
-    // Con SECURITY INVOKER la RLS se aplica. Se concede EXECUTE temporalmente DENTRO de un
-    // savepoint, se pide la política de un tenant inexistente y se exige que devuelva los
-    // defaults, no una política ajena. Todo se deshace al volver al savepoint, así que la
-    // concesión no sobrevive ni al error ni al éxito.
+    // ── Aislamiento por CONTENIDO, con un segundo tenant REAL ─────────────────────────────
+    // La versión anterior usaba un tenant INEXISTENTE: con cero filas la función devuelve
+    // defaults tanto con DEFINER como con INVOKER, así que la prueba pasaba en ambos casos y
+    // no discriminaba nada. Y en producción solo hay un tenant, así que el segundo se
+    // construye aquí dentro: todo cae en el ROLLBACK.
+    const tenantBId = "00000000-0000-4000-8000-0000000000bb";
+    const whBId = "00000000-0000-4000-8000-0000000000cc";
+    await client.query(
+      `INSERT INTO public.tenants (id, code, name, status) VALUES ($1, 'REH-TENANT-B', '[REHEARSAL] Tenant B', 'PILOT')`,
+      [tenantBId],
+    );
+    await client.query(
+      `INSERT INTO public.tenant_members (tenant_id, user_id, role, status) VALUES ($1, $2, 'OWNER', 'ACTIVE')`,
+      [tenantBId, actorId],
+    );
+    await client.query(
+      `INSERT INTO public.warehouses (id, tenant_id, code, name, status) VALUES ($1, $2, 'WH-REH-B', '[REHEARSAL] Almacén B', 'ACTIVE')`,
+      [whBId, tenantBId],
+    );
+    // Valores distintivos: distintos de los defaults (YES/2) Y de la política del tenant A (BY_BATCH).
+    await client.query(
+      `INSERT INTO public.warehouse_behavior_policies (tenant_id, warehouse_id, scope, params)
+       VALUES ($1, $2, 'WAREHOUSE', $3::jsonb)`,
+      [tenantBId, whBId, JSON.stringify({ putaway_strategy: "LIFO", max_pallets_per_bin: 99, consolidation: "NO" })],
+    );
+
+    // Control POSITIVO, y va PRIMERO: como servicio, la política de B se resuelve. Sin este
+    // paso, «devuelve defaults» no significa nada, porque no se sabe si la prueba es capaz
+    // de ver una diferencia.
+    const positivo = await client.query(
+      `SELECT public.fornexa_wms_effective_policy($1, $2, null, null) AS pol`,
+      [tenantBId, whBId],
+    );
+    assert.equal(positivo.rows[0].pol.putaway_strategy, "LIFO", "control positivo: no se ve la política del tenant B");
+    assert.equal(positivo.rows[0].pol.max_pallets_per_bin, 99, "control positivo: no se ve el valor distintivo");
+    assert.equal(positivo.rows[0].pol.consolidation, "NO", "control positivo: no se ve la consolidación de B");
+
+    // Control NEGATIVO: sin claims (`auth.uid()` nulo) y con EXECUTE concedido, la RLS debe
+    // dejar cero filas y la función caer a los defaults. Con DEFINER devolvería LIFO/99/NO y
+    // esta prueba fallaría; es lo que la convierte en la prueba de INVOKER.
     await client.query("SAVEPOINT wms_tenant_isolation");
     let politicaAjena: any = null;
     try {
@@ -1030,27 +1065,27 @@ async function main() {
       );
       await client.query("set local role authenticated");
       const ajeno = await client.query(
-        `SELECT public.fornexa_wms_effective_policy($1, $2, null, $3) AS pol`,
-        [OTHER_TENANT_ID, wh1, prodAmb],
+        `SELECT public.fornexa_wms_effective_policy($1, $2, null, null) AS pol`,
+        [tenantBId, whBId],
       );
       politicaAjena = ajeno.rows[0].pol;
     } finally {
-      // Vuelve al savepoint tanto si funcionó como si no: deshace el grant y el rol.
       await client.query("ROLLBACK TO SAVEPOINT wms_tenant_isolation");
       await client.query("RELEASE SAVEPOINT wms_tenant_isolation");
     }
 
-    // Los defaults de la función, no la política del tenant ajeno. Se afirma contra los
-    // valores por defecto CONCRETOS ('YES' y 2), no contra «algo distinto»: una aserción
-    // del tipo notEqual(valor, 4) pasaría siempre y no probaría nada.
     assert.ok(politicaAjena, "la prueba de aislamiento no devolvió ninguna política");
     assert.equal(
       politicaAjena.consolidation, "YES",
-      "FUGA: devolvió la consolidación del tenant ajeno (BY_BATCH) en lugar del default",
+      "FUGA: devolvió la consolidación del tenant B ('NO') en lugar del default",
     );
     assert.equal(
       politicaAjena.max_pallets_per_bin, 2,
-      "FUGA: devolvió una política distinta de los defaults (se esperaba 2)",
+      "FUGA: devolvió el valor del tenant B (99) en lugar del default",
+    );
+    assert.notEqual(
+      politicaAjena.putaway_strategy, "LIFO",
+      "FUGA: devolvió la estrategia de ubicación del tenant B",
     );
 
     // 6. ROLLBACK everything!
