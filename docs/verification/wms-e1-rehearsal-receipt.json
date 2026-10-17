@@ -1,0 +1,158 @@
+{
+  "task_id": "WMS-RESEARCH-20261017",
+  "phase": "F3_E1_TRANSACTIONAL_REHEARSAL",
+  "mode": "BEGIN_ROLLBACK_ONLY",
+  "committed_writes": 0,
+  "executed_at": "2026-10-17T16:53:54.201Z",
+  "endpoint_guard": {
+    "status": "PASSED",
+    "port": "5432"
+  },
+  "migration_file": "supabase/migrations/20261017110000_wms_e1_core.sql",
+  "migration_sha256": "91c25fb49f7f4df1d14dbf6c41d56c2b8771d75fc41a82296bc03ab0f7038d8a",
+  "parent_duplicate_check": {
+    "warehouses": {
+      "total_rows": 150,
+      "duplicate_groups": 0
+    },
+    "warehouse_zones": {
+      "total_rows": 600,
+      "duplicate_groups": 0
+    },
+    "warehouse_bins": {
+      "total_rows": 150,
+      "duplicate_groups": 0
+    },
+    "products": {
+      "total_rows": 151,
+      "duplicate_groups": 0
+    },
+    "parties": {
+      "total_rows": 299,
+      "duplicate_groups": 0
+    },
+    "orders": {
+      "total_rows": 151,
+      "duplicate_groups": 0
+    },
+    "order_lines": {
+      "total_rows": 150,
+      "duplicate_groups": 0
+    },
+    "inventory_quants": {
+      "total_rows": 150,
+      "duplicate_groups": 0
+    },
+    "warehouse_docks": {
+      "total_rows": 801,
+      "duplicate_groups": 0
+    }
+  },
+  "legacy_data150_quants_flow_state_null": {
+    "before_rehearsal": 150,
+    "after_e1_operations": 150
+  },
+  "rls_and_privilege_checks": {
+    "warehouse_behavior_policies": {
+      "auth_select": true,
+      "auth_insert": false,
+      "auth_update": false,
+      "auth_delete": false,
+      "anon_insert": false
+    },
+    "warehouse_resources": {
+      "auth_select": true,
+      "auth_insert": false,
+      "auth_update": false,
+      "auth_delete": false,
+      "anon_insert": false
+    },
+    "handling_units": {
+      "auth_select": true,
+      "auth_insert": false,
+      "auth_update": false,
+      "auth_delete": false,
+      "anon_insert": false
+    },
+    "handling_unit_contents": {
+      "auth_select": true,
+      "auth_insert": false,
+      "auth_update": false,
+      "auth_delete": false,
+      "anon_insert": false
+    },
+    "stock_reservations": {
+      "auth_select": true,
+      "auth_insert": false,
+      "auth_update": false,
+      "auth_delete": false,
+      "anon_insert": false
+    },
+    "warehouse_tasks": {
+      "auth_select": true,
+      "auth_insert": false,
+      "auth_update": false,
+      "auth_delete": false,
+      "anon_insert": false
+    },
+    "inventory_quants": {
+      "auth_select": true,
+      "auth_insert": false,
+      "auth_update": false,
+      "auth_delete": false,
+      "anon_insert": false
+    },
+    "inventory_movements": {
+      "auth_select": true,
+      "auth_insert": false,
+      "auth_update": false,
+      "auth_delete": false,
+      "anon_insert": false
+    }
+  },
+  "happy_path_transitions_verified": [
+    "UPSERT_POLICY",
+    "UPSERT_RESOURCE",
+    "RECEIVE_CHECK",
+    "PUTAWAY",
+    "RESERVE",
+    "PICK",
+    "LABEL",
+    "LOAD",
+    "IDEMPOTENT_REPLAY"
+  ],
+  "verified_rejection_codes_count": 30,
+  "verified_rejection_codes": [
+    "WMS_ADR_INCOMPATIBLE",
+    "WMS_BIN_BLOCKED",
+    "WMS_BIN_CAPACITY",
+    "WMS_CONSOLIDATION_CONFLICT",
+    "WMS_CONTROL_PENDING",
+    "WMS_CROSS_WAREHOUSE_INVALID",
+    "WMS_DUPLICATE",
+    "WMS_EXPIRY_REQUIRED",
+    "WMS_FORBIDDEN",
+    "WMS_HU_NOT_CHECKED",
+    "WMS_HU_NOT_UNCHECKED",
+    "WMS_INSUFFICIENT_PICK_STOCK",
+    "WMS_INSUFFICIENT_STOCK",
+    "WMS_LABEL_MISMATCH",
+    "WMS_LABEL_MISSING",
+    "WMS_LOT_MISMATCH",
+    "WMS_LOT_MIX_FORBIDDEN",
+    "WMS_LOT_REQUIRED",
+    "WMS_NOT_READY_TO_LOAD",
+    "WMS_NOT_RESERVED",
+    "WMS_NO_SOURCE_STOCK",
+    "WMS_REPLENISHMENT_PENDING",
+    "WMS_RESOURCE_INCOMPATIBLE",
+    "WMS_STOCK_BLOCKED",
+    "WMS_STOCK_NOT_LOCATED",
+    "WMS_TASK_NOT_READY",
+    "WMS_TEMP_MISMATCH",
+    "WMS_TENANT_MISMATCH",
+    "WMS_VOLUME_TOLERANCE",
+    "WMS_WEIGHT_TOLERANCE"
+  ],
+  "post_rollback_e1_tables_in_prod": 0
+}
