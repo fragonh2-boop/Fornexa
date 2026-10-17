@@ -2,6 +2,17 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-17 — WMS: Endurecimiento de seguridad en guard de ensayo, workflows y postcondiciones (A-1, A-2, D-1, D-2, D-3)
+
+- **Contexto y encargo:** `TASK_ID: WMS-RESEARCH-20261017`. Atendiendo a la auditoría independiente de E1 y los hallazgos asignados por Claude Desktop (`1792266571.453499`, `1792266786.631939`), se aplican mejoras de endurecimiento técnico en scripts y workflows de CI sin alterar esquemas ni código productivo.
+- **Cambios implementados:**
+  1. `scripts/wms/rehearsal-guard.ts` (A-1): Sustituida la comprobación por subcadena (`msg.includes(expectedCode)`) por aserción de igualdad estricta (`assert.equal(msg, expectedCode)`), impidiendo que errores con prefijos o códigos más amplios den falso positivo.
+  2. `tests/wms-rehearsal-guard.test.ts` (A-2): Actualizado el cliente mock para registrar la traza exacta de queries y asertar que `SAVEPOINT`, `ROLLBACK TO SAVEPOINT` y `RELEASE SAVEPOINT` se ejecutan en secuencia tanto en llamadas fallidas esperadas como en llamadas con éxito inesperado. Añadido test específico de caso negativo para prefijo/subcadena.
+  3. `.github/workflows/apply-wms-migration.yml` y `.github/workflows/wms-f4-rehearsal.yml` (D-1 / MUST-6): Añadido `fetch-depth: 0` en `actions/checkout@v4` y comprobación determinista `git merge-base --is-ancestor "$TARGET_SHA" origin/main` para impedir la ejecución de SHAs arbitrarios o provenientes de bifurcaciones (forks).
+  4. `.github/workflows/wms-f4-rehearsal.yml` y `.github/workflows/wms-rehearsal.yml` (D-2): Expresión regular robusta `grep -qE 'postgres(ql)?://'` para sanitizar y bloquear cualquier filtración accidental de cadenas de conexión con esquema `postgresql://`.
+  5. `.github/workflows/apply-wms-migration.yml` (D-3): Añadida aserción explícita de `c.relrowsecurity = true` (Row Level Security activo) en las postcondiciones atómicas de las 8 tablas de Almacenes, y comprobación/auditoría formal del privilegio `TRUNCATE`.
+  6. `lib/memorandum.ts`: Actualizada cobertura de commits a `memorandumCommitCoverage = 648`.
+
 ## 2026-10-17 — WMS E1: Despliegue en Producción Verificado (Gates 1, 2 y 3 cerrados)
 
 - **Contexto y encargo:** `TASK_ID: WMS-RESEARCH-20261017`. Cierre documental obligatorio (`AGENTS.md`) tras completar y verificar los tres gates de despliegue para el núcleo operativo de Almacenes (WMS E1) en `fragonh2-boop/Fornexa`. Coordinado por FornexaGPT con dictámenes y verificaciones independientes de Claude Desktop (`1792262153.101539`, `1792262463.368159`, `1792262700.969339`).
