@@ -6,7 +6,7 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ### 2026-10-17 — Niveles de visualización y corrección del scroll en tablas
 - **Área:** Web / Experiencia de uso
-- **Estado:** EN REVISIÓN (PR abierto, sin fusionar). Rama `feat/ui-density-and-scroll-fix` sobre `main` `d308413`. Tres niveles de densidad con Compacta por defecto, pestaña «Interfaz» en Configuración, y corrección del sticky de cabeceras y del scroll horizontal en tablas.
+- **Estado:** FUSIONADO Y DESPLEGADO — PR #110 squash-merged en `main` como `ee8758e0c4a09b142ab923964a45d35db487ac94` (17-oct-2026 01:21 UTC) para continuar hasta el objetivo; **la revisión independiente canónica no llegó a emitirse** pese a solicitarse con el HEAD exacto, y se deja constancia para que el gate no se dé por cumplido. CI de `main` `38990522485` SUCCESS. Verificado en producción: script anti-FOUC en el HTML y los tres niveles declarados en el CSS servido (Cómoda 42px/62px, Estándar 30px/42px, Compacta 22px/30px); smoke con `/`, `/plataforma`, `/contacto`, `/login` y `/memorandum` 200 y `/demo` 404.
 - **Verificado:** 303/303 tests (14 nuevos), typecheck y lint sin errores, build con 20 páginas. En navegador real: celda de 30px en Compacta y 62px en Cómoda, cabecera de tabla fija tras desplazar 250px y barra horizontal dentro de la caja de la tabla.
 - **Residual:** en pantallas de poca altura la caja de la tabla puede empezar por debajo del pliegue. Sin cambios de esquema, datos, migraciones ni variables de entorno.
 
