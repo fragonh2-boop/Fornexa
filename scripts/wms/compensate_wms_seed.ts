@@ -28,6 +28,7 @@ import { resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { assertSessionModeEndpoint } from "../muelles/seed-guard.ts";
+import { compensateBatch } from "./compensation.ts";
 
 const require = createRequire(import.meta.url);
 
@@ -93,15 +94,6 @@ async function countByBatch(client: any, table: string, ids: string[]): Promise<
   return res.rows[0].n;
 }
 
-async function deleteByIds(client: any, table: string, ids: string[]): Promise<number> {
-  if (!ids.length) return 0;
-  const res = await client.query(
-    `delete from public.${table} where id = any($1::uuid[]) returning id`,
-    [ids],
-  );
-  return res.rowCount ?? res.rows.length;
-}
-
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const dryRun = args.includes("--dry-run");
@@ -142,18 +134,9 @@ async function main(): Promise<void> {
     }
 
     await client.query("BEGIN");
-    const deleted: Record<string, number> = {};
-    for (const table of DELETE_ORDER) {
-      deleted[table] = await deleteByIds(client, table, idsOf(dataset, table));
-    }
-
-    // Comprobación posterior: si algo sobrevive, no se declara éxito ni se commitea.
-    const remaining: Record<string, number> = {};
-    for (const table of DELETE_ORDER) remaining[table] = await countByBatch(client, table, idsOf(dataset, table));
-    const sobra = Object.entries(remaining).filter(([, n]) => n > 0);
-    if (sobra.length) {
-      throw new Error(`la compensación dejó filas: ${JSON.stringify(sobra)}`);
-    }
+    // La MISMA implementación que ensaya el cargador (MUST-3): si el ensayo y la ejecución
+    // usaran bucles distintos, el ensayo validaría algo que no es lo que luego corre.
+    const { deleted, remaining } = await compensateBatch(client, dataset);
 
     if (dryRun) {
       await client.query("ROLLBACK");
