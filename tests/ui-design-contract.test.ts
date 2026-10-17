@@ -8,7 +8,28 @@ function source(file: string): string {
   return sources.get(file)!;
 }
 const globals = source("app/globals.css");
-const tokens = new Map([...globals.matchAll(/(--ui-[\w-]+):\s*([^;]+);/g)].map(match => [match[1], match[2].trim()]));
+
+/** Tokens efectivos de un selector: fusiona todos sus bloques en orden de cascada. */
+function tokensOf(selector: string): Map<string, string> {
+  const clean = globals.replace(/\/\*[\s\S]*?\*\//g, "");
+  const merged = new Map<string, string>();
+  let found = false;
+  for (const match of clean.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const selectors = match[1].split(",").map(value => value.trim());
+    if (!selectors.includes(selector)) continue;
+    found = true;
+    for (const declaration of match[2].split(";").filter(Boolean)) {
+      const colon = declaration.indexOf(":");
+      if (colon > 0) merged.set(declaration.slice(0, colon).trim(), declaration.slice(colon + 1).trim());
+    }
+  }
+  assert.ok(found, `globals.css: missing block ${selector}`);
+  return merged;
+}
+
+const tokens = tokensOf(":root");
+/** Cómoda reproduce la vista amplia histórica: es la escala de referencia. */
+const comfortableTokens = tokensOf('html[data-density="comfortable"]');
 
 function rule(file: string, selector: string): Map<string, string> {
   const fullCss = source(file).replace(/\/\*[\s\S]*?\*\//g, "");
@@ -42,14 +63,38 @@ function contrast(foreground: string, background: string): number {
 }
 
 test("the screen contract follows the Control Tower dimensions and palette", () => {
-  const expected = {
+  const expectedPalette = {
     "--ui-page-bg": "#eef3f9", "--ui-surface": "#ffffff", "--ui-text": "#101216",
-    "--ui-accent": "#005d8f", "--ui-title-size": "42px", "--ui-eyebrow-size": "11px",
-    "--ui-eyebrow-spacing": ".15em", "--ui-button-radius": "10px",
-    "--ui-button-padding": "14px 19px", "--ui-panel-radius": "17px",
-    "--ui-panel-padding": "24px", "--ui-avatar-size": "42px", "--ui-metric-size": "38px",
+    "--ui-accent": "#005d8f", "--ui-eyebrow-spacing": ".15em", "--ui-avatar-size": "42px",
   };
-  for (const [key, value] of Object.entries(expected)) assert.equal(tokens.get(key), value, key);
+  for (const [key, value] of Object.entries(expectedPalette)) assert.equal(tokens.get(key), value, key);
+
+  // La escala de referencia es la del nivel Cómoda, que reproduce el diseño previo.
+  const expectedScale = {
+    "--ui-title-size": "42px", "--ui-eyebrow-size": "11px", "--ui-button-radius": "10px",
+    "--ui-button-padding": "14px 19px", "--ui-panel-radius": "17px",
+    "--ui-panel-padding": "24px", "--ui-metric-size": "38px",
+  };
+  for (const [key, value] of Object.entries(expectedScale)) assert.equal(comfortableTokens.get(key), value, key);
+});
+
+test("the three density levels shrink strictly from comfortable to compact", () => {
+  const levels = ["comfortable", "standard", "compact"] as const;
+  const maps = levels.map(level => tokensOf(`html[data-density="${level}"]`));
+
+  for (const key of ["--ui-title-size", "--ui-metric-size", "--ui-grid-cell-height", "--ui-grid-header-height", "--ui-panel-radius"] as const) {
+    const values = maps.map(map => {
+      const raw = map.get(key);
+      assert.ok(raw, `missing ${key}`);
+      const numeric = Number.parseFloat(raw);
+      assert.ok(Number.isFinite(numeric), `${key} must be a length, got ${raw}`);
+      return numeric;
+    });
+    assert.ok(values[0] > values[1] && values[1] > values[2], `${key} must shrink as density rises (${values.join(" > ")})`);
+  }
+
+  const keySets = maps.map(map => [...map.keys()].sort().join("|"));
+  assert.equal(new Set(keySets).size, 1, "todos los niveles deben declarar el mismo juego de tokens");
 });
 
 test("screen text, button and status token pairs pass AA for normal text", () => {

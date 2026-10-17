@@ -18,10 +18,17 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "15 oct 2026";
-export const memorandumCommitCoverage = 610;
+export const memorandumUpdatedAt = "17 oct 2026";
+export const memorandumCommitCoverage = 611;
 
 export const memorandumPending: MemorandumPending[] = [
+  {
+    area: "Técnico",
+    title: "Tablas: caja por debajo del pliegue en pantallas bajas",
+    summary: "Las cabeceras ya se mantienen fijas y la barra horizontal vive dentro de la caja de la tabla. Aun así, cuando el módulo acumula métricas y filtros por encima, la caja puede empezar por debajo del pliegue en pantallas de poca altura y obliga a desplazar la página antes de llegar a ella. Falta decidir si conviene anclarla también en vertical.",
+    priority: "Siguiente",
+    state: "Pendiente",
+  },
   {
     area: "Funcional",
     title: "Portada pública: contenido comercial y legal",
@@ -179,6 +186,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.10.17-1",
+    date: "17 oct 2026",
+    surface: ["Web", "Plataforma"],
+    title: "Niveles de visualización y corrección del scroll en tablas",
+    purpose: "Permitir que cada puesto elija cuánta información quiere ver de una vez, y devolver a las tablas una cabecera y una barra de desplazamiento que no se pierdan al desplazar.",
+    outcome: "Tres niveles de densidad (Cómoda, Estándar, Compacta) aplicados por tokens CSS y recordados en el navegador, con Compacta por defecto. La pestaña Interfaz de Configuración permite cambiarlos con previsualización inmediata. Cómoda reproduce exactamente la escala anterior. Las cabeceras de tabla mantienen su posición y la barra horizontal queda dentro de la caja de la tabla, acotada a la altura de la pantalla.",
+    status: "Preproducción",
+  },
   {
     version: "2026.10.15-1",
     date: "15 oct 2026",

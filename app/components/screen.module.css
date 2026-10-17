@@ -10,7 +10,7 @@
 .description{margin:0;color:var(--ui-muted);font-size:15px;line-height:1.5}
 .back{display:inline-block;margin-bottom:12px;color:var(--ui-accent);font-size:13px;font-weight:800}
 .actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex:0 0 auto}
-.button{display:inline-flex;align-items:center;justify-content:center;min-height:46px;border:1px solid transparent;border-radius:var(--ui-button-radius);padding:var(--ui-button-padding);font:inherit;font-size:14px;font-weight:800;line-height:1.1;white-space:nowrap;text-decoration:none;cursor:pointer}
+.button{display:inline-flex;align-items:center;justify-content:center;min-height:calc(var(--ui-grid-cell-height,42px) - 2px);border:1px solid transparent;border-radius:var(--ui-button-radius);padding:var(--ui-button-padding);font:inherit;font-size:14px;font-weight:800;line-height:1.1;white-space:nowrap;text-decoration:none;cursor:pointer}
 .primary{color:#ffffff;background:var(--ui-accent);border-color:var(--ui-accent)}
 .primary:hover{background:#004f7a;border-color:#004f7a}
 .secondary{color:#263343;background:var(--ui-surface);border-color:rgba(18,32,52,.12)}
@@ -19,7 +19,7 @@
 .button:focus-visible,.back:focus-visible{outline:2px solid var(--ui-focus);outline-offset:3px}
 .avatar{display:grid;place-items:center;flex:0 0 auto;width:var(--ui-avatar-size);height:var(--ui-avatar-size);border-radius:50%;color:var(--ui-accent);background:#dce7f2;font-size:13px;font-weight:900}
 .metrics{display:grid;grid-template-columns:repeat(var(--metric-count,4),minmax(0,1fr));gap:14px;margin:30px 0 18px}
-.metric{min-width:0;padding:20px;border:1px solid rgba(18,32,52,.11);border-radius:16px;background:linear-gradient(180deg,#f5f7fb,#f8fafc)}
+.metric{min-width:0;padding:var(--ui-panel-padding,16px);border:1px solid rgba(18,32,52,.11);border-radius:var(--ui-panel-radius,12px);background:linear-gradient(180deg,#f5f7fb,#f8fafc)}
 .metricLink{display:block;color:inherit;text-decoration:none;transition:border-color .15s ease}
 .metricLink:hover{border-color:rgba(0,93,143,.45)}
 .metricLink:focus-visible{outline:2px solid var(--ui-focus);outline-offset:3px}
@@ -37,7 +37,7 @@
 @media(max-width:1100px){.header{flex-wrap:wrap;align-items:flex-start}.actions{justify-content:flex-start}}
 @media(max-width:760px){.metricText{font-size:22px}.header{flex-direction:column;gap:18px}.title{font-size:32px}.actions{width:100%;flex-wrap:wrap}.metrics{grid-template-columns:1fr}.panel{padding:18px}}
 .page{width:100%;min-width:0;max-width:100%;min-height:100vh;background:var(--ui-page-bg);color:var(--ui-text)}
-.pageContent{width:100%;min-width:0;max-width:100%;padding:34px 38px 50px;overflow-x:hidden}
+.pageContent{width:100%;min-width:0;max-width:100%;padding:var(--ui-page-padding,20px 26px 32px)}
 @media(max-width:760px){.pageContent{padding:25px 18px}}
 /* Phones: long identifiers may wrap rather than be cut off. */
 @media(max-width:520px){.metricText{white-space:normal;overflow-wrap:anywhere}}

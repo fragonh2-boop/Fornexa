@@ -1,6 +1,15 @@
 # FORNEXA — Technical handoff
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
+## 2026-10-17 — Niveles de visualización y corrección del scroll en tablas
+
+- **Rama/base:** `feat/ui-density-and-scroll-fix` desde `main` `d308413`. Encargo `FORNEXA-UI-DENSITY-SCROLL-20261015`, solicitado por Gemini por orden de Fran.
+- **Qué cambia:** tres niveles de densidad (Cómoda, Estándar, Compacta) declarados como tokens en `app/globals.css` y aplicados por el atributo `data-density` en `<html>`; el nivel por defecto es Compacta. `app/components/DensityInitializer.tsx` fija el atributo antes del primer pintado leyendo `localStorage["fornexa-ui-density"]` (anti-FOUC, falla cerrado a Compacta). `lib/ui-density.ts` concentra catálogo, normalización y persistencia. Nuevo panel `app/dashboard/integraciones/InterfaceConfigWorkspace.tsx`, registrado como pestaña «Interfaz» en Configuración, con previsualización en vivo y persistencia inmediata.
+- **Corrección de scroll:** `.stage` (`app/dashboard/layout.module.css`) deja de recortar con `overflow: clip`, que anulaba el anclaje al viewport de `position: sticky`; `.pageContent` (`app/components/screen.module.css`) deja de ocultar el desbordamiento horizontal; `.tableWrap` (`app/components/DataGrid.module.css`) acota su altura y asume su propio scroll, de modo que la barra horizontal vive dentro de la caja de la tabla y no al final de miles de píxeles. El título del dashboard deja de estar fijado a 42px y consume `--ui-title-size`.
+- **Cómoda reproduce la vista amplia previa:** ese nivel conserva exactamente los valores anteriores (título 42px, celda 62px, panel 24px/17px), así que el sistema no introduce regresión en el nivel equivalente al diseño existente.
+- **Verificado en navegador real:** con la interfaz servida, las celdas miden 30px en Compacta y 62px en Cómoda; la cabecera de tabla mantiene su posición tras desplazar 250px y la barra horizontal está dentro de `tableWrap`. Capturas en `entregables/ui-density-20261017/`.
+- **Residual medido:** en pantallas de poca altura la caja de la tabla puede empezar por debajo del pliegue cuando el módulo acumula métricas y filtros por encima. Queda anotado; no se resuelve en este cambio.
+
 ## 2026-10-15 — Superficies públicas: portada, plataforma y contacto
 
 - **Rama/base:** `feat/public-landing-platform-contact` desde `main` `96b0467`. **Fusionado** por squash como `979c96db1662c1b37258622fcbb04d54c34294e9` (PR #107, 15-oct-2026 12:46 UTC) por orden directa de Fran y **sin la revisión independiente de Claude**, que no llegó a emitirse. CI de `main` `38737174867` SUCCESS.
