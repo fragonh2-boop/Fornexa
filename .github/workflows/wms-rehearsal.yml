@@ -7,8 +7,9 @@ name: WMS E1 rehearsal (manual)
 # El secreto se llama POSTGRES_URL_NON_POOLING, pero lo que necesita es la cadena del
 # POOLER en modo sesión, NO el host directo. OJO: la integración de Supabase con Vercel
 # pone en esa variable el host DIRECTO (db.<ref>.supabase.co, usuario `postgres`), así que
-# NO se copia de Vercel: el host directo es sólo IPv4, no resuelve desde un runner y el
-# fallo parecería un fallo del ensayo.
+# NO se copia de Vercel: no es el endpoint del pooler, y el guard del proyecto exige 5432 en
+# modo sesión. Que el host directo no resuelva desde un runner es una hipótesis que NO he
+# verificado; lo que sí está acreditado es que la cadena del pooler es la que el guard pide.
 #
 # La cadena buena sale de Supabase -> Project Settings -> Database -> Connection string ->
 # pestaña «Session pooler», con la forma:
@@ -119,14 +120,29 @@ jobs:
             echo "::error::Falta el secreto POSTGRES_URL_NON_POOLING. Sin él no hay ensayo."
             exit 1
           fi
-          case "$PG" in
-            *pooler.supabase.com*) : ;;
+          # Se PARSEA la cadena y se valida el HOST y el PUERTO por separado. Un `case` sobre
+          # la cadena entera aceptaría `…pooler.supabase.com.atacante.com` o una contraseña que
+          # contuviera ese texto: el substring no es una validación.
+          # Formato: esquema://[usuario[:clave]@]host[:puerto]/…
+          RESTO=${PG#*://}
+          AUTORIDAD=${RESTO%%/*}          # usuario@host:puerto
+          HOSTPORT=${AUTORIDAD##*@}       # host:puerto (la clave puede llevar @: se toma lo último)
+          HOST=${HOSTPORT%:*}
+          PORT=${HOSTPORT##*:}
+          if [ "$PORT" = "$HOSTPORT" ]; then PORT=""; fi
+
+          case "$HOST" in
+            *.pooler.supabase.com) : ;;
             *)
-              echo "::error::La cadena no apunta al pooler (…pooler.supabase.com:5432). El host directo db.<ref>.supabase.co es sólo IPv4 y no resuelve desde un runner: el fallo parecería del ensayo. No se imprime el valor."
+              echo "::error::El host de la cadena no termina en .pooler.supabase.com. Debe ser la cadena del Session pooler de Supabase, no la del host directo. No se imprime el valor."
               exit 1
               ;;
           esac
-          echo "Secreto presente y con forma de pooler (no se imprime su valor)."
+          if [ "$PORT" != "5432" ]; then
+            echo "::error::El puerto debe ser 5432 (modo sesión); se ha leído '${PORT:-ninguno}'. El 6543 es transaccional y rompe la atomicidad del ensayo. No se imprime el valor."
+            exit 1
+          fi
+          echo "Secreto presente: host de pooler y puerto 5432 (no se imprime su valor)."
 
       - name: Ensayo transaccional (BEGIN … ROLLBACK)
         env:
