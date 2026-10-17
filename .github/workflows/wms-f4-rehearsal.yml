@@ -1,0 +1,213 @@
+name: WMS F4 rehearsal (manual)
+
+# SÓLO manual. NO carga datos: recoge el snapshot de producción (sólo lectura), genera el
+# lote y ejecuta el ensayo completo dentro de BEGIN … ROLLBACK, incluida la compensación.
+# La carga COMMITTED es un paso posterior y no vive en este workflow: si algún día se
+# automatiza, tendrá su propio gate y su propia confirmación.
+#
+# ── Lo que este workflow NO puede hacer, por diseño ────────────────────────────────
+# No escribe en producción. No aplica migraciones. No hace merge ni deploy. El ensayo
+# termina siempre en ROLLBACK, y el recibo lo declara.
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 'SHA completo (40 hex) del commit a ensayar — el revisado, no una rama'
+        required: true
+        type: string
+      confirm:
+        description: 'Escribe REHEARSAL para confirmar el ensayo de F4 (no carga datos)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wms-f4-rehearsal
+  cancel-in-progress: false
+
+jobs:
+  rehearsal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Entradas por entorno y comparadas como texto literal: interpolarlas dentro de `run`
+      # las convertiría en shell. Este job sostiene una credencial de producción.
+      CONFIRM: ${{ inputs.confirm }}
+      TARGET_SHA: ${{ inputs.sha }}
+      RECEIPT: docs/verification/wms-seed-rehearsal-receipt.json
+      OK_MARKER: .wms-f4-ok
+    steps:
+      - name: Comprobar la confirmación y el SHA
+        run: |
+          if [ "$CONFIRM" != "REHEARSAL" ]; then
+            echo "::error::Falta la confirmación. Escribe REHEARSAL en el campo 'confirm'."
+            exit 1
+          fi
+          case "$TARGET_SHA" in
+            *[!0-9a-f]* | "") echo "::error::El SHA debe ser 40 caracteres hex en minúscula."; exit 1 ;;
+          esac
+          if [ "${#TARGET_SHA}" -ne 40 ]; then
+            echo "::error::El SHA debe tener 40 caracteres; tiene ${#TARGET_SHA}."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Verificar el árbol y limpiar la salida anterior
+        run: |
+          ACTUAL=$(git rev-parse HEAD)
+          if [ "$ACTUAL" != "$TARGET_SHA" ]; then
+            echo "::error::El checkout no corresponde al SHA pedido: $ACTUAL ≠ $TARGET_SHA"
+            exit 1
+          fi
+          for f in scripts/wms/snapshot_wms_seed.ts scripts/wms/run_wms_seed.ts scripts/wms/isolation-probe.ts scripts/wms/generate_wms_seed.py; do
+            if [ ! -f "$f" ]; then
+              echo "::error::El SHA $TARGET_SHA no contiene $f. La preparación de F4 no está en este árbol."
+              exit 1
+            fi
+          done
+          echo "Árbol verificado en $ACTUAL con la cadena de F4 completa"
+          # Se borra la salida de cualquier ejecución previa ANTES de nada que pueda fallar.
+          # Si viviera más abajo, un fallo temprano dejaría ficheros viejos y los pasos con
+          # `if: always()` los publicarían como si fueran de este run.
+          rm -f "$RECEIPT" snap.json docs/verification/wms-seed-dataset.json docs/verification/wms-seed-manifest.json
+          rm -rf .wms-artifacts
+          rm -f "$OK_MARKER"
+          test ! -f "$RECEIPT"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Comprobar el secreto (sin imprimirlo)
+        env:
+          PG: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+        run: |
+          if [ -z "$PG" ]; then
+            echo "::error::Falta el secreto POSTGRES_URL_NON_POOLING."
+            exit 1
+          fi
+          RESTO=${PG#*://}
+          AUTORIDAD=${RESTO%%/*}
+          HOSTPORT=${AUTORIDAD##*@}
+          HOST=${HOSTPORT%:*}
+          PORT=${HOSTPORT##*:}
+          if [ "$PORT" = "$HOSTPORT" ]; then PORT=""; fi
+          case "$HOST" in
+            *.pooler.supabase.com) : ;;
+            *) echo "::error::El host no termina en .pooler.supabase.com. Debe ser el Session pooler. No se imprime el valor."; exit 1 ;;
+          esac
+          if [ "$PORT" != "5432" ]; then
+            echo "::error::El puerto debe ser 5432 (modo sesión); se ha leído '${PORT:-ninguno}'."; exit 1
+          fi
+          echo "Secreto presente: host de pooler y puerto 5432."
+
+      - name: Snapshot de producción (SÓLO LECTURA)
+        env:
+          POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+          FORNEXA_PRODUCTION_DB_URL: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+        run: |
+          # `set transaction read only` dentro del script: si algo intentara escribir, aborta.
+          node --experimental-strip-types scripts/wms/snapshot_wms_seed.ts
+
+      - name: Generar el lote (determinista, sin base de datos)
+        run: |
+          python3 scripts/wms/generate_wms_seed.py snap.json \
+            --out docs/verification/wms-seed-dataset.json \
+            --manifest docs/verification/wms-seed-manifest.json
+          python3 scripts/wms/test_generate_wms_seed.py
+
+      - name: Ensayo completo con compensación (BEGIN … ROLLBACK)
+        env:
+          POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+          FORNEXA_PRODUCTION_DB_URL: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+        run: |
+          rm -f "$RECEIPT"   # borrado inmediatamente antes, para que su existencia pruebe el origen
+          node --experimental-strip-types scripts/wms/run_wms_seed.ts --dry-run-rehearsal
+
+      - name: Exigir el resultado de este run
+        run: |
+          if [ ! -f "$RECEIPT" ]; then
+            echo "::error::El ensayo terminó sin generar recibo. No hay evidencia que publicar."
+            exit 1
+          fi
+          printf 'sha=%s\nrun=%s\n' "$TARGET_SHA" "$GITHUB_RUN_ID" > "$OK_MARKER"
+          mkdir -p .wms-artifacts
+          cp "$RECEIPT" .wms-artifacts/
+          cp docs/verification/wms-seed-dataset.json docs/verification/wms-seed-manifest.json .wms-artifacts/
+          echo "Recibo nuevo generado por este run."
+
+      - name: Escribir los metadatos del run
+        if: always()
+        run: |
+          mkdir -p docs/verification
+          H() { sha256sum "$1" 2>/dev/null | cut -d' ' -f1 || echo "no-disponible"; }
+          OK=false; [ -f "$OK_MARKER" ] && OK=true
+          PRESENT=false; [ -f "$RECEIPT" ] && PRESENT=true
+          cat > docs/verification/wms-seed-run-metadata.json <<JSON
+          {
+            "rehearsed_sha": "${TARGET_SHA}",
+            "verified_head": "$(git rev-parse HEAD 2>/dev/null || echo desconocido)",
+            "run_id": "${GITHUB_RUN_ID}",
+            "run_attempt": "${GITHUB_RUN_ATTEMPT}",
+            "workflow_ref": "${GITHUB_WORKFLOW_REF}",
+            "snapshot_sha256": "$(H snap.json)",
+            "dataset_sha256": "$(H docs/verification/wms-seed-dataset.json)",
+            "manifest_sha256": "$(H docs/verification/wms-seed-manifest.json)",
+            "runner_sha256": "$(H scripts/wms/run_wms_seed.ts)",
+            "rehearsal_ok": ${OK},
+            "receipt_present": ${PRESENT},
+            "finished_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          JSON
+          cat docs/verification/wms-seed-run-metadata.json
+
+      - name: Publicar evidencia
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wms-f4-rehearsal-${{ inputs.sha }}
+          path: |
+            .wms-artifacts/**
+            docs/verification/wms-seed-run-metadata.json
+          if-no-files-found: warn
+          retention-days: 30
+          overwrite: true
+
+      - name: Resumen
+        if: always()
+        run: |
+          {
+            echo "### Ensayo F4 (sin carga)"
+            echo ""
+            echo "- SHA ensayado: \`${TARGET_SHA}\`"
+            echo "- Run: \`${GITHUB_RUN_ID}\`"
+            echo ""
+            if [ -f "$OK_MARKER" ] && [ -f .wms-artifacts/wms-seed-rehearsal-receipt.json ]; then
+              if grep -q 'postgres://' .wms-artifacts/wms-seed-rehearsal-receipt.json 2>/dev/null; then
+                echo "**Recibo generado, pero contiene una cadena de conexión: no se imprime.**"
+              else
+                echo "**Recibo nuevo de este run.** Descárgalo del artefacto \`wms-f4-rehearsal-${TARGET_SHA}\`."
+                echo ""
+                echo '```json'
+                head -c 2000 .wms-artifacts/wms-seed-rehearsal-receipt.json
+                echo '```'
+              fi
+            else
+              echo "**FALLIDO: no hay recibo de este run.** No se publica ningún PASSED heredado."
+            fi
+            echo ""
+            echo "Este workflow **no carga datos**: el ensayo termina en \`ROLLBACK\`."
+          } >> "$GITHUB_STEP_SUMMARY"
