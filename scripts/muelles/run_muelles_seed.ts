@@ -15,9 +15,28 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
+import { assertSessionModeEndpoint } from "./seed-guard.ts";
 
 const require = createRequire(import.meta.url);
-const { Client } = require("/private/tmp/fornexa-gemini-data150/node_modules/pg");
+
+/**
+ * `pg` es una dependencia de desarrollo. Antes se cargaba por ruta absoluta desde
+ * una carpeta temporal, así que el script solo funcionaba en la máquina donde se
+ * generó el lote y dejaba de funcionar al limpiar esa carpeta.
+ */
+function loadPg(): { Client: new (config: unknown) => any } {
+  try {
+    return require("pg");
+  } catch {
+    const override = process.env.FORNEXA_PG_MODULE;
+    if (override) return require(override);
+    throw new Error(
+      "No se encontró el módulo 'pg'. Instala las dependencias (pnpm install) o define FORNEXA_PG_MODULE con la ruta al paquete.",
+    );
+  }
+}
+
+const { Client } = loadPg();
 
 const EXPECTED_TENANT_ID = "00000000-0000-4000-8000-000000000001";
 const EXPECTED_Counts: Record<string, number> = {
@@ -91,6 +110,19 @@ async function main() {
   }
 
   const connStr = resolveConnectionString();
+
+  // Guard de endpoint: se comprueba que sea el pooler en modo sesión antes de
+  // conectar, porque el pooler transaccional rompería la atomicidad en silencio.
+  const endpoint = assertSessionModeEndpoint(connStr);
+  console.log(
+    JSON.stringify({
+      endpoint_guard: "ok",
+      host: endpoint.host,
+      port: endpoint.port,
+      mode: isRehearsal ? "rehearsal" : "confirm-production",
+    }),
+  );
+
   const urlObj = new URL(connStr);
   urlObj.searchParams.delete("sslmode");
 

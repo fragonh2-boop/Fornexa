@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
+import { assertSessionModeEndpoint } from "../scripts/muelles/seed-guard.ts";
 
 const ROOT = resolve(import.meta.dirname, "..");
 
@@ -55,4 +56,30 @@ test("MUELLES-SEED manifest, loader, compensation rollback and execution receipt
   assert.ok(receipt.counts_after.warehouse_zones < 1000);
   assert.ok(receipt.counts_after.warehouse_docks < 1000);
   assert.ok(receipt.counts_after.dock_appointment_rules < 1000);
+});
+
+test("MUELLES-SEED endpoint guard rejects the transaction pooler before connecting", () => {
+  // El lote va en una transacción con sentencias múltiples: solo vale el modo sesión.
+  assert.deepEqual(assertSessionModeEndpoint("postgresql://u:p@aws-0-eu-central-1.pooler.supabase.com:5432/postgres"), {
+    host: "aws-0-eu-central-1.pooler.supabase.com",
+    port: "5432",
+  });
+  assert.equal(assertSessionModeEndpoint("postgresql://u:p@db.example.com/postgres").port, "5432");
+
+  assert.throws(
+    () => assertSessionModeEndpoint("postgresql://u:p@aws-0-eu-central-1.pooler.supabase.com:6543/postgres"),
+    /pooler transaccional/,
+  );
+  assert.throws(() => assertSessionModeEndpoint("postgresql://u:p@db.example.com:5433/postgres"), /no reconocido/);
+  assert.throws(() => assertSessionModeEndpoint("no-es-una-url"), /Endpoint inválido/);
+});
+
+test("MUELLES-SEED runner resolves pg from the project, not from a temp folder", () => {
+  const runner = readFileSync(resolve(ROOT, "scripts/muelles/run_muelles_seed.ts"), "utf8");
+  assert.doesNotMatch(runner, /\/private\/tmp\//, "el runner no puede depender de una ruta temporal absoluta");
+  assert.match(runner, /from "\.\/seed-guard\.ts"/, "el runner debe usar el guard de endpoint");
+  assert.match(runner, /require\("pg"\)/, "el runner debe resolver 'pg' como módulo del proyecto");
+
+  const pkg = JSON.parse(readFileSync(resolve(ROOT, "package.json"), "utf8"));
+  assert.ok(pkg.devDependencies?.pg, "'pg' debe estar declarado como dependencia de desarrollo");
 });
