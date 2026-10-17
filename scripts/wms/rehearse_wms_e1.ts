@@ -12,6 +12,7 @@
  */
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { expectRpcError } from "./rehearsal-guard.ts";
 import { resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
@@ -66,27 +67,7 @@ function sha256File(filePath: string): string {
   return createHash("sha256").update(readFileSync(filePath)).digest("hex");
 }
 
-async function expectRpcError(
-  client: any,
-  spName: string,
-  expectedCode: string,
-  fn: () => Promise<any>,
-): Promise<string> {
-  await client.query(`SAVEPOINT ${spName}`);
-  try {
-    await fn();
-    throw new Error(`Expected ${expectedCode} but call succeeded`);
-  } catch (err: any) {
-    await client.query(`ROLLBACK TO SAVEPOINT ${spName}`);
-    await client.query(`RELEASE SAVEPOINT ${spName}`);
-    const msg = String(err?.message || err);
-    assert.ok(
-      msg.includes(expectedCode),
-      `Expected '${expectedCode}', got '${msg}'`,
-    );
-    return expectedCode;
-  }
-}
+
 
 async function main() {
   const migrationPath = resolve(

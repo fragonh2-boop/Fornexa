@@ -349,8 +349,12 @@ begin
   return v_effective;
 end $$;
 
-revoke all on function public.fornexa_wms_effective_policy(uuid, uuid, uuid, uuid) from public, anon;
-grant execute on function public.fornexa_wms_effective_policy(uuid, uuid, uuid, uuid) to authenticated, service_role;
+-- SECURITY DEFINER no pasa por RLS: concederla a `authenticated` sin comprobar la
+-- pertenencia a p_tenant permitía leer la política efectiva de otro tenant. Su único
+-- consumidor legítimo es fornexa_wms_action (SECURITY DEFINER, puede invocarla sin grant)
+-- y el ensayo, que se conecta como servicio. Se cierra sin impacto funcional.
+revoke all on function public.fornexa_wms_effective_policy(uuid, uuid, uuid, uuid) from public, anon, authenticated;
+grant execute on function public.fornexa_wms_effective_policy(uuid, uuid, uuid, uuid) to service_role;
 
 -- ── 11. Exclusive atomic mutation RPC: fornexa_wms_action ──
 create or replace function public.fornexa_wms_action(
