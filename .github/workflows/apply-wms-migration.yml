@@ -1,5 +1,9 @@
 name: Apply WMS Migration (Manual)
 
+concurrency:
+  group: wms-e1-apply
+  cancel-in-progress: false
+
 # WMS E1 Production Migration Workflow (RUTA B)
 # TASK_ID: WMS-RESEARCH-20261017
 # Revisor exact-HEAD: Claude (dictamen 1792260844.031019)
@@ -221,6 +225,10 @@ jobs:
               RAISE EXCEPTION 'POSTCONDITION_FAILED: fornexa_wms_effective_policy no debe conceder EXECUTE a anon o authenticated';
             END IF;
 
+            IF NOT has_function_privilege('service_role', 'public.fornexa_wms_effective_policy(uuid, uuid, uuid, uuid)', 'EXECUTE') THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: fornexa_wms_effective_policy debe conceder EXECUTE a service_role';
+            END IF;
+
             -- 4. fornexa_wms_action: DEFINER (prosecdef=true), search_path vacio, sin EXECUTE para anon/authenticated
             SELECT prosecdef, proconfig INTO v_action_secdef, v_action_config
               FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
@@ -235,6 +243,10 @@ jobs:
             IF has_function_privilege('anon', 'public.fornexa_wms_action(uuid, uuid, text, jsonb, text)', 'EXECUTE') OR
                has_function_privilege('authenticated', 'public.fornexa_wms_action(uuid, uuid, text, jsonb, text)', 'EXECUTE') THEN
               RAISE EXCEPTION 'POSTCONDITION_FAILED: fornexa_wms_action no debe conceder EXECUTE a anon o authenticated';
+            END IF;
+
+            IF NOT has_function_privilege('service_role', 'public.fornexa_wms_action(uuid, uuid, text, jsonb, text)', 'EXECUTE') THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: fornexa_wms_action debe conceder EXECUTE a service_role';
             END IF;
 
             -- 5. 150 quants, todos en NULL
@@ -289,8 +301,7 @@ jobs:
 
           -- ── Alta en ledger dentro de la misma transacción atómica ──
           INSERT INTO supabase_migrations.schema_migrations (version, name, statements)
-          VALUES ('20261017110000', 'wms_e1_core', ARRAY['20261017110000_wms_e1_core.sql'])
-          ON CONFLICT (version) DO UPDATE SET name = EXCLUDED.name;
+          VALUES ('20261017110000', 'wms_e1_core', ARRAY['20261017110000_wms_e1_core.sql']);
 
           INSERT INTO public.fornexa_schema_migrations (version, description)
           VALUES ('20261017110000', 'wms_e1_core')
