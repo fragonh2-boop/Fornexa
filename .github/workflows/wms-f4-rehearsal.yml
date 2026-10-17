@@ -75,7 +75,7 @@ jobs:
           # Si viviera más abajo, un fallo temprano dejaría ficheros viejos y los pasos con
           # `if: always()` los publicarían como si fueran de este run.
           rm -f "$RECEIPT" snap.json docs/verification/wms-seed-dataset.json docs/verification/wms-seed-manifest.json
-          rm -rf .wms-artifacts
+          rm -rf wms-artifacts
           rm -f "$OK_MARKER"
           test ! -f "$RECEIPT"
 
@@ -144,9 +144,12 @@ jobs:
             exit 1
           fi
           printf 'sha=%s\nrun=%s\n' "$TARGET_SHA" "$GITHUB_RUN_ID" > "$OK_MARKER"
-          mkdir -p .wms-artifacts
-          cp "$RECEIPT" .wms-artifacts/
-          cp docs/verification/wms-seed-dataset.json docs/verification/wms-seed-manifest.json .wms-artifacts/
+          # SIN punto: `upload-artifact` excluye los ficheros y directorios ocultos por
+          # defecto, así que un staging llamado `.wms-artifacts` subía un artefacto vacío y
+          # el ensayo parecía no haber producido nada.
+          mkdir -p wms-artifacts
+          cp "$RECEIPT" wms-artifacts/
+          cp docs/verification/wms-seed-dataset.json docs/verification/wms-seed-manifest.json wms-artifacts/
           echo "Recibo nuevo generado por este run."
 
       - name: Escribir los metadatos del run
@@ -180,7 +183,7 @@ jobs:
         with:
           name: wms-f4-rehearsal-${{ inputs.sha }}
           path: |
-            .wms-artifacts/**
+            wms-artifacts/**
             docs/verification/wms-seed-run-metadata.json
           if-no-files-found: warn
           retention-days: 30
@@ -195,14 +198,14 @@ jobs:
             echo "- SHA ensayado: \`${TARGET_SHA}\`"
             echo "- Run: \`${GITHUB_RUN_ID}\`"
             echo ""
-            if [ -f "$OK_MARKER" ] && [ -f .wms-artifacts/wms-seed-rehearsal-receipt.json ]; then
-              if grep -q 'postgres://' .wms-artifacts/wms-seed-rehearsal-receipt.json 2>/dev/null; then
+            if [ -f "$OK_MARKER" ] && [ -f wms-artifacts/wms-seed-rehearsal-receipt.json ]; then
+              if grep -q 'postgres://' wms-artifacts/wms-seed-rehearsal-receipt.json 2>/dev/null; then
                 echo "**Recibo generado, pero contiene una cadena de conexión: no se imprime.**"
               else
                 echo "**Recibo nuevo de este run.** Descárgalo del artefacto \`wms-f4-rehearsal-${TARGET_SHA}\`."
                 echo ""
                 echo '```json'
-                head -c 2000 .wms-artifacts/wms-seed-rehearsal-receipt.json
+                head -c 2000 wms-artifacts/wms-seed-rehearsal-receipt.json
                 echo '```'
               fi
             else
