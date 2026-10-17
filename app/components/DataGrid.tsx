@@ -149,7 +149,7 @@ export default function DataGrid({ storageKey, columns, rows, rowHrefs, searchPl
     </div>}
 
     <div className={styles.tableWrap}>
-      <div className={styles.table} style={{ "--grid-columns": `repeat(${visibleColumns.length}, minmax(150px, 1fr))` } as React.CSSProperties}>
+      <div className={styles.table} style={{ "--grid-columns": `repeat(${visibleColumns.length}, minmax(150px, 1fr))`, "--grid-column-count": String(visibleColumns.length) } as React.CSSProperties}>
         <div className={`${styles.row} ${styles.head}`}>
           {visibleColumns.map(column => <div className={styles.headerCell} key={column.key}>
             <button type="button" className={styles.sortButton} onClick={() => toggleSort(column.key)}>
