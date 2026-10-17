@@ -26,8 +26,14 @@ const SPEC_PATH = resolve(
   "../docs/architecture/wms-fase2-20261017.md",
 );
 
+const E2E_PLAN_PATH = resolve(
+  import.meta.dirname,
+  "../docs/verification/wms-e2e-test-plan-fase5.md",
+);
+
 const sql = readFileSync(MIGRATION_PATH, "utf-8");
 const spec = readFileSync(SPEC_PATH, "utf-8");
+const e2ePlan = readFileSync(E2E_PLAN_PATH, "utf-8");
 
 test("WMS E1 — crea únicamente las 6 tablas de E1 y no incluye las de E2 (replenishment_rules, wms_proposals)", () => {
   const createdTables = [
@@ -80,7 +86,7 @@ test("WMS E1 — bloquea escritura directa en las 6 tablas nuevas y en inventory
   );
 });
 
-test("WMS E1 — paridad 1:1 de los 30 códigos WMS_* entre §3.1, migración SQL y lib/wms.ts", () => {
+test("WMS E1 — paridad 1:1 de los 30 códigos WMS_* entre §3.1, plan E2E (docs/verification/wms-e2e-test-plan-fase5.md), migración SQL y lib/wms.ts", () => {
   const section31 =
     spec.split(/^### 3\.1 /m)[1]?.split(/^## 4\./m)[0] ?? "";
   const specCodes = [
@@ -95,8 +101,16 @@ test("WMS E1 — paridad 1:1 de los 30 códigos WMS_* entre §3.1, migración SQ
     ),
   ].sort();
 
+  const e2ePlanCodes = [
+    ...new Set(
+      [...e2ePlan.matchAll(/`(WMS_[A-Z0-9_]+)`/g)].map((m) => m[1]),
+    ),
+  ].sort();
+
+  assert.equal(specCodes.length, 30);
   assert.deepEqual([...WMS_ERROR_CODES].sort(), specCodes);
   assert.deepEqual(sqlRaisedCodes, specCodes);
+  assert.deepEqual(e2ePlanCodes, specCodes);
 });
 
 test("WMS E1 — resuelve herencia WAREHOUSE -> OWNER -> CATEGORY -> PRODUCT y blinda forbid_picking_unlocated = true", () => {
