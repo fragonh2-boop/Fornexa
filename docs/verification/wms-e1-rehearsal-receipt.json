@@ -3,13 +3,13 @@
   "phase": "F3_E1_TRANSACTIONAL_REHEARSAL",
   "mode": "BEGIN_ROLLBACK_ONLY",
   "committed_writes": 0,
-  "executed_at": "2026-10-17T09:10:01.281Z",
+  "executed_at": "2026-10-17T16:53:54.201Z",
   "endpoint_guard": {
     "status": "PASSED",
     "port": "5432"
   },
   "migration_file": "supabase/migrations/20261017110000_wms_e1_core.sql",
-  "migration_sha256": "5e7150cb0df68d9550d7fa48c4c594fa190aaec140f150da0dfb050426176e39",
+  "migration_sha256": "91c25fb49f7f4df1d14dbf6c41d56c2b8771d75fc41a82296bc03ab0f7038d8a",
   "parent_duplicate_check": {
     "warehouses": {
       "total_rows": 150,
