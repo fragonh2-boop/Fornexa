@@ -1,12 +1,17 @@
 name: WMS E1 rehearsal (manual)
 
-# SÓLO manual. Este flujo abre una conexión Postgres contra producción y ejecuta el
-# ensayo de la migración E1 dentro de BEGIN … ROLLBACK. No debe dispararse nunca por
-# push ni por pull_request: si alguien lo añade, el ensayo dejaría de ser una acción
-# deliberada y pasaría a correr en cada cambio.
+# SÓLO manual. Abre una conexión Postgres contra producción y ejecuta el ensayo de la
+# migración E1 dentro de BEGIN … ROLLBACK. No debe dispararse por push ni por pull_request.
 on:
   workflow_dispatch:
     inputs:
+      sha:
+        # El ensayo NO vive en main: vive en la rama del PR de E1. Por eso se pide el SHA
+        # exacto que se quiere ensayar y se verifica tras el checkout. Ejecutar «la rama tal
+        # cual» no acreditaría el código revisado.
+        description: 'SHA completo (40 hex) del commit a ensayar — el revisado, no una rama'
+        required: true
+        type: string
       confirm:
         description: 'Escribe REHEARSAL para confirmar que quieres ejecutar el ensayo contra producción'
         required: true
@@ -16,7 +21,6 @@ permissions:
   contents: read
 
 concurrency:
-  # Un ensayo a la vez: dos ejecuciones simultáneas sobre la misma base se estorban.
   group: wms-e1-rehearsal
   cancel-in-progress: false
 
@@ -24,15 +28,42 @@ jobs:
   rehearsal:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      # Las entradas se pasan por entorno y se comparan como texto literal. Interpolarlas
+      # directamente dentro de `run` las convertiría en código shell (script injection).
+      CONFIRM: ${{ inputs.confirm }}
+      TARGET_SHA: ${{ inputs.sha }}
     steps:
       - name: Comprobar la confirmación
         run: |
-          if [ "${{ inputs.confirm }}" != "REHEARSAL" ]; then
+          if [ "$CONFIRM" != "REHEARSAL" ]; then
             echo "::error::Falta la confirmación. Escribe REHEARSAL en el campo 'confirm'."
+            exit 1
+          fi
+          case "$TARGET_SHA" in
+            *[!0-9a-f]* | "") echo "::error::El SHA debe ser 40 caracteres hex en minúscula."; exit 1 ;;
+          esac
+          if [ "${#TARGET_SHA}" -ne 40 ]; then
+            echo "::error::El SHA debe tener 40 caracteres; tiene ${#TARGET_SHA}."
             exit 1
           fi
 
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+
+      - name: Verificar que el árbol es el SHA pedido
+        run: |
+          ACTUAL=$(git rev-parse HEAD)
+          if [ "$ACTUAL" != "$TARGET_SHA" ]; then
+            echo "::error::El checkout no corresponde al SHA pedido: $ACTUAL ≠ $TARGET_SHA"
+            exit 1
+          fi
+          if [ ! -f scripts/wms/rehearse_wms_e1.ts ]; then
+            echo "::error::El SHA $TARGET_SHA no contiene scripts/wms/rehearse_wms_e1.ts. El ensayo vive en la rama de E1, no en main: indica ese SHA."
+            exit 1
+          fi
+          echo "Árbol verificado en $ACTUAL"
 
       - uses: pnpm/action-setup@v4
         with:
@@ -56,22 +87,67 @@ jobs:
           fi
           echo "Secreto presente (no se imprime su valor)."
 
+      - name: Retirar cualquier recibo anterior
+        run: |
+          # Un recibo versionado de una ejecución previa no es evidencia de ésta. Si una
+          # conexión falla y el fichero sigue ahí, `upload` subiría un PASSED viejo.
+          RECEIPT=docs/verification/wms-e1-rehearsal-receipt.json
+          if [ -f "$RECEIPT" ]; then
+            echo "Había un recibo previo; se retira para no publicarlo como resultado de este run."
+            rm -f "$RECEIPT"
+          fi
+          test ! -f "$RECEIPT"
+
       - name: Ensayo transaccional (BEGIN … ROLLBACK)
         env:
-          # Sólo se expone a este paso. El ensayo lo lee de FORNEXA_PRODUCTION_DB_URL o de
-          # POSTGRES_URL_NON_POOLING; se pasan ambos por comodidad y no se imprimen nunca.
           POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
           FORNEXA_PRODUCTION_DB_URL: ${{ secrets.POSTGRES_URL_NON_POOLING }}
         run: node --experimental-strip-types scripts/wms/rehearse_wms_e1.ts
 
-      - name: Publicar el recibo como artefacto
+      - name: Exigir un recibo NUEVO de este run
+        run: |
+          RECEIPT=docs/verification/wms-e1-rehearsal-receipt.json
+          if [ ! -f "$RECEIPT" ]; then
+            echo "::error::El ensayo terminó sin generar recibo. No hay evidencia que publicar."
+            exit 1
+          fi
+          # Basta con que exista: se borró antes del ensayo, así que es de este run.
+          echo "Recibo nuevo generado por este run."
+
+      - name: Escribir los metadatos del run
+        if: always()
+        run: |
+          mkdir -p docs/verification
+          RUNNER_SHA=$(sha256sum scripts/wms/rehearse_wms_e1.ts 2>/dev/null | cut -d' ' -f1 || echo "no-disponible")
+          MIGRATION_SHA=$(sha256sum supabase/migrations/20261017110000_wms_e1_core.sql 2>/dev/null | cut -d' ' -f1 || echo "no-disponible")
+          RECEIPT_PRESENT=false
+          [ -f docs/verification/wms-e1-rehearsal-receipt.json ] && RECEIPT_PRESENT=true
+          cat > docs/verification/wms-e1-rehearsal-run-metadata.json <<JSON
+          {
+            "rehearsed_sha": "${TARGET_SHA}",
+            "verified_head": "$(git rev-parse HEAD 2>/dev/null || echo desconocido)",
+            "run_id": "${GITHUB_RUN_ID}",
+            "run_attempt": "${GITHUB_RUN_ATTEMPT}",
+            "workflow_ref": "${GITHUB_WORKFLOW_REF}",
+            "runner_sha256": "${RUNNER_SHA}",
+            "migration_sha256": "${MIGRATION_SHA}",
+            "receipt_present": ${RECEIPT_PRESENT},
+            "finished_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          JSON
+          cat docs/verification/wms-e1-rehearsal-run-metadata.json
+
+      - name: Publicar recibo y metadatos
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: wms-e1-rehearsal-receipt
-          path: docs/verification/wms-e1-rehearsal-receipt.json
+          path: |
+            docs/verification/wms-e1-rehearsal-receipt.json
+            docs/verification/wms-e1-rehearsal-run-metadata.json
           if-no-files-found: warn
           retention-days: 30
+          overwrite: true
 
       - name: Resumen
         if: always()
@@ -79,13 +155,16 @@ jobs:
           {
             echo "### Ensayo WMS E1"
             echo ""
+            echo "- SHA ensayado: \`${TARGET_SHA}\`"
+            echo "- Run: \`${GITHUB_RUN_ID}\`"
+            echo ""
             if [ -f docs/verification/wms-e1-rehearsal-receipt.json ]; then
-              echo "El recibo se ha generado. Descárgalo del artefacto \`wms-e1-rehearsal-receipt\`."
+              echo "**Recibo nuevo generado por este run.** Descárgalo del artefacto \`wms-e1-rehearsal-receipt\`."
               echo ""
               echo '```json'
               head -c 2000 docs/verification/wms-e1-rehearsal-receipt.json
               echo '```'
             else
-              echo "**No se generó recibo.** El ensayo no llegó al final; revisa el log del paso anterior."
+              echo "**FALLIDO: no se generó recibo.** El ensayo no llegó al final. No hay evidencia de este run."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
