@@ -975,6 +975,42 @@ async function main() {
     );
     assert.equal(legacyAfterRes.rows[0].null_flow, 150);
 
+    // Privilegios de FUNCIÓN. El bucle anterior solo audita tablas; sin esto, una función
+    // SECURITY DEFINER concedida a `authenticated` pasaría desapercibida —que es exactamente
+    // cómo se coló fornexa_wms_effective_policy—. Va DENTRO de la transacción, antes del
+    // ROLLBACK, porque después el cliente ya estaría cerrado y las funciones no existirían.
+    for (const [fn, firma] of [
+      ["fornexa_wms_effective_policy", "(uuid, uuid, uuid, uuid)"],
+      ["fornexa_wms_action", "(uuid, uuid, text, jsonb, text)"],   // sin uuid extra: es (tenant, actor, action, payload, idem)
+    ] as [string, string][]) {
+      const fRes = await client.query(
+        `SELECT
+           has_function_privilege('authenticated', 'public.${fn}${firma}', 'EXECUTE') AS auth_exec,
+           has_function_privilege('anon', 'public.${fn}${firma}', 'EXECUTE') AS anon_exec,
+           has_function_privilege('service_role', 'public.${fn}${firma}', 'EXECUTE') AS svc_exec`,
+      );
+      assert.equal(fRes.rows[0].auth_exec, false, `${fn}: authenticated NO debe poder ejecutarla`);
+      assert.equal(fRes.rows[0].anon_exec, false, `${fn}: anon NO debe poder ejecutarla`);
+      assert.equal(fRes.rows[0].svc_exec, true, `${fn}: service_role SÍ debe poder`);
+    }
+
+    // Control negativo de aislamiento: con rol `authenticated` la función no debe ser
+    // invocable. Si algún día se vuelve a conceder EXECUTE, esto falla y el gate se cierra.
+    await client.query("set local role authenticated");
+    let denegado = false;
+    try {
+      await client.query(
+        `SELECT public.fornexa_wms_effective_policy($1, $2, null, $3) AS pol`,
+        [TENANT_ID, wh1, prodAmb],
+      );
+    } catch (error: any) {
+      const codigo = String(error?.code ?? "");
+      denegado = codigo === "42501" || /permission denied/i.test(String(error?.message ?? ""));
+    } finally {
+      await client.query("reset role");
+    }
+    assert.ok(denegado, "effective_policy no debe ser invocable desde una sesión authenticated");
+
     // 6. ROLLBACK everything!
     await client.query("ROLLBACK");
 
@@ -1029,26 +1065,7 @@ async function main() {
     await client.end();
   }
 
-  // Privilegios de FUNCIÓN: el bucle anterior solo audita tablas. Sin esto, una función
-  // SECURITY DEFINER concedida a `authenticated` pasaría desapercibida —que es exactamente
-  // cómo se coló fornexa_wms_effective_policy.
-  for (const [fn, firma, debeEjecutarAuthenticated] of [
-    ["fornexa_wms_effective_policy", "(uuid, uuid, uuid, uuid)", false],
-    ["fornexa_wms_action", "(uuid, uuid, uuid, text, jsonb, text)", false],
-  ] as [string, string, boolean][]) {
-    const fRes = await client.query(
-      `SELECT
-         has_function_privilege('authenticated', 'public.${fn}${firma}', 'EXECUTE') AS auth_exec,
-         has_function_privilege('anon', 'public.${fn}${firma}', 'EXECUTE') AS anon_exec,
-         has_function_privilege('service_role', 'public.${fn}${firma}', 'EXECUTE') AS svc_exec`,
-    );
-    assert.equal(
-      fRes.rows[0].auth_exec, debeEjecutarAuthenticated,
-      `${fn}: authenticated NO debe poder ejecutarla`,
-    );
-    assert.equal(fRes.rows[0].anon_exec, false, `${fn}: anon NO debe poder ejecutarla`);
-    assert.equal(fRes.rows[0].svc_exec, true, `${fn}: service_role SÍ debe poder`);
-  }
+
 }
 
 main().catch((err) => {
