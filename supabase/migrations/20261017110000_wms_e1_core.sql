@@ -311,6 +311,15 @@ declare
   v_category text := null;
   v_row record;
 begin
+  -- Defensa en profundidad: si quien invoca es una sesión de usuario (no service_role),
+  -- debe pertenecer al tenant que pide. Con el EXECUTE revocado a `authenticated` esto no
+  -- debería alcanzarse nunca, pero si alguien vuelve a concederlo, el agujero no reabre.
+  if auth.uid() is not null and not exists (
+    select 1 from public.tenant_members tm
+     where tm.tenant_id = p_tenant and tm.user_id = auth.uid() and tm.status = 'ACTIVE'
+  ) then
+    raise exception 'WMS_FORBIDDEN';
+  end if;
   if p_product is not null then
     select coalesce(v_owner, pr.owner_party_id), pr.category_code
       into v_owner, v_category

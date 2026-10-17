@@ -1028,6 +1028,27 @@ async function main() {
   } finally {
     await client.end();
   }
+
+  // Privilegios de FUNCIÓN: el bucle anterior solo audita tablas. Sin esto, una función
+  // SECURITY DEFINER concedida a `authenticated` pasaría desapercibida —que es exactamente
+  // cómo se coló fornexa_wms_effective_policy.
+  for (const [fn, firma, debeEjecutarAuthenticated] of [
+    ["fornexa_wms_effective_policy", "(uuid, uuid, uuid, uuid)", false],
+    ["fornexa_wms_action", "(uuid, uuid, uuid, text, jsonb, text)", false],
+  ] as [string, string, boolean][]) {
+    const fRes = await client.query(
+      `SELECT
+         has_function_privilege('authenticated', 'public.${fn}${firma}', 'EXECUTE') AS auth_exec,
+         has_function_privilege('anon', 'public.${fn}${firma}', 'EXECUTE') AS anon_exec,
+         has_function_privilege('service_role', 'public.${fn}${firma}', 'EXECUTE') AS svc_exec`,
+    );
+    assert.equal(
+      fRes.rows[0].auth_exec, debeEjecutarAuthenticated,
+      `${fn}: authenticated NO debe poder ejecutarla`,
+    );
+    assert.equal(fRes.rows[0].anon_exec, false, `${fn}: anon NO debe poder ejecutarla`);
+    assert.equal(fRes.rows[0].svc_exec, true, `${fn}: service_role SÍ debe poder`);
+  }
 }
 
 main().catch((err) => {
