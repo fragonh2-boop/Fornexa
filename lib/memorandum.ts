@@ -19,13 +19,13 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "17 oct 2026";
-export const memorandumCommitCoverage = 617;
+export const memorandumCommitCoverage = 618;
 
 export const memorandumPending: MemorandumPending[] = [
   {
     area: "Funcional",
     title: "Almacenes — reglas de reposición, propuestas y lote sintético (E2 / F4 / F5)",
-    summary: "El núcleo operativo de Almacenes (recepción con chequeo en playa, ubicación dirigida, reservas por línea, picking con rotación FIFO/LIFO/FEFO, recursos, políticas jerárquicas y control de etiqueta, estado, peso y volumen antes de la carga) ya está implementado en la entrega E1. Quedan pendientes la aplicación de la migración tras revisión, la entrega E2 (reglas de reposición min/max y consolidación en cola), la carga del lote sintético de escenarios de almacén y la verificación funcional punto a punto en producción.",
+    summary: "El núcleo operativo de Almacenes (recepción con chequeo en playa, ubicación dirigida, reservas por línea, picking con rotación FIFO/LIFO/FEFO, recursos, políticas jerárquicas y control de etiqueta, estado, peso y volumen antes de la carga) ya está implementado en la entrega E1. Quedan pendientes la aplicación de la migración tras revisión, la entrega E2 (reglas de reposición min/max y consolidación en cola), la carga del lote sintético de escenarios de almacén y la verificación funcional punto a punto en producción. La verificación de los rechazos debe regenerarse con el ensayo corregido: el anterior daba por buena una operación exitosa como si fuera un rechazo, así que sus resultados no acreditan que las reglas se cumplan.",
     priority: "Ahora",
     state: "En seguimiento",
   },
