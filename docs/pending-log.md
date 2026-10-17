@@ -4,6 +4,13 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-17 — Corrección de la viñeta de almacén en `/plataforma`
+- **Área:** Web / Producto
+- **Estado:** CORREGIDO en rama `fix/landing-warehouse-claim`, pendiente de revisión y despliegue.
+- **Motivo:** `LANDING-MUST1-20261017`. La viñeta de Ejecución prometía escritura de almacén («ubicaciones, inventario y movimientos») y **no existe ninguna ruta de almacén**: `app/api` no tiene ningún endpoint WMS y `inventory_movements` solo se consulta desde trazabilidad, por artículo. Corregida en los tres idiomas como «consulta […] desde trazabilidad» y declarada en el bloque «En preparación o sin verificar».
+- **Caducidad enlazada:** esta corrección **debe revertirse** cuando el módulo de Almacenes (`WMS-RESEARCH-20261017`) esté en producción con alta y registro de movimientos. Entonces la viñeta original volverá a ser cierta. Queda anotado aquí para que nadie lo corrija dos veces en sentidos opuestos.
+- **Residual:** páginas legales y política de cookies siguen sin existir; buzón publicado sin confirmar.
+
 ### 2026-10-17 — Niveles de visualización y corrección del scroll en tablas
 - **Área:** Web / Experiencia de uso
 - **Estado:** FUSIONADO Y DESPLEGADO — PR #110 squash-merged en `main` como `ee8758e0c4a09b142ab923964a45d35db487ac94` (17-oct-2026 01:21 UTC) para continuar hasta el objetivo; **la revisión independiente canónica no llegó a emitirse** pese a solicitarse con el HEAD exacto, y se deja constancia para que el gate no se dé por cumplido. CI de `main` `38990522485` SUCCESS. Verificado en producción: script anti-FOUC en el HTML y los tres niveles declarados en el CSS servido (Cómoda 42px/62px, Estándar 30px/42px, Compacta 22px/30px); smoke con `/`, `/plataforma`, `/contacto`, `/login` y `/memorandum` 200 y `/demo` 404.

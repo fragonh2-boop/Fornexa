@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "17 oct 2026";
-export const memorandumCommitCoverage = 614;
+export const memorandumCommitCoverage = 615;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -201,7 +201,7 @@ export const memorandumReleases: MemorandumRelease[] = [
     surface: ["Web"],
     title: "Portada pública, página de plataforma y contacto",
     purpose: "Explicar qué hace la plataforma y en qué estado está, con una portada navegable y páginas de plataforma y contacto dentro del dominio.",
-    outcome: "Portada rediseñada con la cadena operativa, cuatro ejes de capacidad, ventajas, los dieciséis módulos y las superficies públicas. Nueva página de plataforma con el detalle por capacidad y un bloque de estado real. Nueva página de contacto sin formulario ni envío automático. Se retiran de la portada los nombres de producto ajenos y las métricas ilustrativas sin etiquetar. Contenido descriptivo: sin validez jurídica atribuida, sin métricas de tracción y sin nombres de empresas reales.",
+    outcome: "Portada rediseñada con la cadena operativa, cuatro ejes de capacidad, ventajas, los dieciséis módulos y las superficies públicas. Nueva página de plataforma con el detalle por capacidad y un bloque de estado real. Nueva página de contacto sin formulario ni envío automático. Se retiran de la portada los nombres de producto ajenos y las métricas ilustrativas sin etiquetar. Se corrige además la viñeta de almacén, que prometía escritura inexistente: queda como consulta desde trazabilidad y declarada en preparación hasta que el módulo de Almacenes esté operativo. Contenido descriptivo: sin validez jurídica atribuida, sin métricas de tracción y sin nombres de empresas reales.",
     status: "Producción",
   },
   {
