@@ -47,5 +47,7 @@ export function stableStringify(value: unknown): string {
 }
 
 function isPresentationSetting(key: string) {
-  return key.startsWith("fornexa-grid-") || key === "fornexa-local-storage-sync";
+  // La densidad de interfaz es una preferencia del puesto, como el tamaño de
+  // rejilla: se queda en el navegador y no viaja en la sincronización.
+  return key.startsWith("fornexa-grid-") || key === "fornexa-local-storage-sync" || key === "fornexa-ui-density";
 }

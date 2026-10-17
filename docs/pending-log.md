@@ -4,6 +4,12 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-17 — Niveles de visualización y corrección del scroll en tablas
+- **Área:** Web / Experiencia de uso
+- **Estado:** EN REVISIÓN (PR abierto, sin fusionar). Rama `feat/ui-density-and-scroll-fix` sobre `main` `d308413`. Tres niveles de densidad con Compacta por defecto, pestaña «Interfaz» en Configuración, y corrección del sticky de cabeceras y del scroll horizontal en tablas.
+- **Verificado:** 303/303 tests (14 nuevos), typecheck y lint sin errores, build con 20 páginas. En navegador real: celda de 30px en Compacta y 62px en Cómoda, cabecera de tabla fija tras desplazar 250px y barra horizontal dentro de la caja de la tabla.
+- **Residual:** en pantallas de poca altura la caja de la tabla puede empezar por debajo del pliegue. Sin cambios de esquema, datos, migraciones ni variables de entorno.
+
 ### 2026-10-15 — Superficies públicas: portada, plataforma y contacto
 - **Área:** Web / Producto
 - **Estado:** FUSIONADO Y DESPLEGADO — PR #107 squash-merged en `main` como `979c96db1662c1b37258622fcbb04d54c34294e9` (15-oct-2026 12:46 UTC) por orden directa de Fran y **sin la revisión independiente de Claude, que no llegó a emitirse**; se deja constancia para que el gate de revisión exact-HEAD no se dé por cumplido. CI de `main` run `38737174867` SUCCESS. Producción Vercel READY con alias `fornexasc.com`; smoke propio: `/`, `/plataforma`, `/contacto`, `/tracking`, `/memorandum` y `/login` 200, `/demo` 404.

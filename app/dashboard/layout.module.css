@@ -142,7 +142,11 @@
 .stage {
   min-width: 0;
   min-height: 100vh;
-  overflow: clip;
+  /* `overflow: clip` creaba un contenedor de recorte que anulaba el anclaje al
+     viewport de `position: sticky`, y las cabeceras de tabla se perdían al
+     desplazar. El desbordamiento horizontal se contiene en `.tableWrap`, que ya
+     tiene su propio scroll, así que aquí no hace falta recortar. */
+  overflow: visible;
 }
 
 .demoNotice {
@@ -164,7 +168,7 @@
 .stage > :global(main) > :global(header:first-child) :global(p:first-of-type) {
   margin-top: 0 !important;
   margin-bottom: 0 !important;
-  font-size: 11px !important;
+  font-size: var(--ui-eyebrow-size) !important;
   line-height: 14px !important;
 }
 
@@ -172,7 +176,7 @@
 .stage > :global(main) > :global(header:first-child) :global(h1) {
   margin-top: 7px !important;
   margin-bottom: 10px !important;
-  font-size: 42px !important;
+  font-size: var(--ui-title-size) !important;
   line-height: 1.05 !important;
 }
 

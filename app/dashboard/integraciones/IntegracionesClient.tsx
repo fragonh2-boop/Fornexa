@@ -5,6 +5,7 @@ import DockConfigWorkspace from "./DockConfigWorkspace";
 import EmailWorkspace, { type EmailEvent } from "./EmailWorkspace";
 import ComboConfigWorkspace from "./ComboConfigWorkspace";
 import StorageConfigWorkspace from "./StorageConfigWorkspace";
+import InterfaceConfigWorkspace from "./InterfaceConfigWorkspace";
 import type { DashboardBasePath } from "../../components/DashboardNavigation";
 import { MetricGrid, ScreenHeader, screenButton } from "../../components/ScreenChrome";
 import styles from "./integraciones.module.css";
@@ -63,9 +64,10 @@ export default function IntegracionesClient({ data, simulation = false, emailHis
       { label: "Eventos hoy", value: eventsToday ?? "—", detail: "Entrada + salida" },
     ]} />
 
-    <nav className={styles.filters} aria-label="Pestañas de configuración">{["Conectores", "Combos", "Almacenamiento", "Correo", "Muelles"].map(name => <button type="button" key={name} className={tab === name ? screenButton.primary : screenButton.secondary} aria-pressed={tab === name} onClick={() => setTab(name)}>{name}</button>)}</nav>
+    <nav className={styles.filters} aria-label="Pestañas de configuración">{["Conectores", "Combos", "Almacenamiento", "Correo", "Muelles", "Interfaz"].map(name => <button type="button" key={name} className={tab === name ? screenButton.primary : screenButton.secondary} aria-pressed={tab === name} onClick={() => setTab(name)}>{name}</button>)}</nav>
     {tab === "Muelles" && !simulation && <DockConfigWorkspace />}
     {tab === "Muelles" && simulation && <p>Configuración de muelles disponible en el entorno autenticado.</p>}
+    <div hidden={tab !== "Interfaz"}><InterfaceConfigWorkspace /></div>
     <div hidden={tab !== "Combos"}><ComboConfigWorkspace /></div>
 
     <div hidden={tab !== "Almacenamiento"}><StorageConfigWorkspace /></div>

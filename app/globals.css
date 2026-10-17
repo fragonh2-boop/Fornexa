@@ -28,6 +28,68 @@
   --ui-focus: #005d8f;
 }
 
+/* ==========================================================================
+   Niveles de visualización / densidad (Cómoda · Estándar · Compacta)
+   El atributo `data-density` en <html> lo fija DensityInitializer antes del
+   primer pintado (anti-FOUC). Sin atributo se aplica el nivel estándar.
+   El nivel por defecto de la aplicación es el compacto.
+   Se documenta en Configuración -> Interfaz.
+   ========================================================================== */
+:root,
+html[data-density="standard"],
+body[data-density="standard"] {
+  --ui-density: "standard";
+  --ui-title-size: 30px;
+  --ui-eyebrow-size: 10.5px;
+  --ui-panel-padding: 16px;
+  --ui-panel-radius: 12px;
+  --ui-button-radius: 8px;
+  --ui-button-padding: 8px 14px;
+  --ui-metric-size: 28px;
+  --ui-grid-cell-height: 42px;
+  --ui-grid-cell-padding: 8px 12px;
+  --ui-grid-header-height: 38px;
+  --ui-page-padding: 20px 26px 32px;
+  --ui-input-padding: 8px 12px;
+}
+
+/* Cómoda = la vista amplia que ya existía: conserva exactamente los valores
+   previos para que el nivel no introduzca ninguna regresión visual. */
+html[data-density="comfortable"],
+body[data-density="comfortable"] {
+  --ui-density: "comfortable";
+  --ui-title-size: 42px;
+  --ui-eyebrow-size: 11px;
+  --ui-panel-padding: 24px;
+  --ui-panel-radius: 17px;
+  --ui-button-radius: 10px;
+  --ui-button-padding: 14px 19px;
+  --ui-metric-size: 38px;
+  --ui-grid-cell-height: 62px;
+  --ui-grid-cell-padding: 15px 18px;
+  --ui-grid-header-height: 58px;
+  --ui-page-padding: 34px 38px 50px;
+  --ui-input-padding: 13px 16px;
+}
+
+html[data-density="compact"],
+body[data-density="compact"] {
+  --ui-density: "compact";
+  --ui-title-size: 22px;
+  --ui-eyebrow-size: 9.5px;
+  --ui-panel-padding: 10px;
+  --ui-panel-radius: 8px;
+  --ui-button-radius: 6px;
+  --ui-button-padding: 5px 10px;
+  --ui-metric-size: 20px;
+  --ui-grid-cell-height: 30px;
+  --ui-grid-cell-padding: 4px 10px;
+  --ui-grid-header-height: 28px;
+  --ui-page-padding: 12px 18px 20px;
+  --ui-input-padding: 5px 9px;
+}
+
+
 * { box-sizing:border-box; }
 ::selection { background:#c9e5f4; color:#101216; }
 html { scroll-behavior:smooth; scrollbar-gutter:stable; overflow-y:scroll; }
