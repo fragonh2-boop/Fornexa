@@ -1,0 +1,12 @@
+{
+  "rehearsed_sha": "36aafba504d5925662e1e0ef07ef549075b8c441",
+  "verified_head": "36aafba504d5925662e1e0ef07ef549075b8c441",
+  "run_id": "39051361242",
+  "run_attempt": "1",
+  "workflow_ref": "fragonh2-boop/Fornexa/.github/workflows/wms-rehearsal.yml@refs/heads/main",
+  "runner_sha256": "3a03f434e0a0fd7e34ac09539fd1fd1a3eb0317d2d6accce2ce80c3d95bd8eae",
+  "migration_sha256": "91c25fb49f7f4df1d14dbf6c41d56c2b8771d75fc41a82296bc03ab0f7038d8a",
+  "rehearsal_ok": true,
+  "receipt_present": true,
+  "finished_at": "2026-10-17T16:53:54Z"
+}

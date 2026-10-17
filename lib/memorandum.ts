@@ -19,9 +19,16 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "17 oct 2026";
-export const memorandumCommitCoverage = 615;
+export const memorandumCommitCoverage = 618;
 
 export const memorandumPending: MemorandumPending[] = [
+  {
+    area: "Funcional",
+    title: "Almacenes — reglas de reposición, propuestas y lote sintético (E2 / F4 / F5)",
+    summary: "El núcleo operativo de Almacenes (recepción con chequeo en playa, ubicación dirigida, reservas por línea, picking con rotación FIFO/LIFO/FEFO, recursos, políticas jerárquicas y control de etiqueta, estado, peso y volumen antes de la carga) ya está implementado en la entrega E1. Quedan pendientes la aplicación de la migración tras revisión, la entrega E2 (reglas de reposición min/max y consolidación en cola), la carga del lote sintético de escenarios de almacén y la verificación funcional punto a punto en producción. La verificación de los rechazos debe regenerarse con el ensayo corregido: el anterior daba por buena una operación exitosa como si fuera un rechazo, así que sus resultados no acreditan que las reglas se cumplan.",
+    priority: "Ahora",
+    state: "En seguimiento",
+  },
   {
     area: "Técnico",
     title: "Tablas: caja por debajo del pliegue en pantallas bajas",
@@ -186,6 +193,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.10.17-2",
+    date: "17 oct 2026",
+    surface: ["Web", "Plataforma"],
+    title: "Almacenes — núcleo operativo, unidades de manipulación y control de carga (E1)",
+    purpose: "Dotar al módulo de Almacenes de su flujo operativo completo de recepción, playa, ubicación, reserva, preparación, etiquetado y carga verificada, parametrizable por almacén, propietario, categoría y artículo.",
+    outcome: "Pantalla operativa de Almacenes en seis vistas (Recepción y Playa, Ubicaciones y Stock, Tareas y Recursos, Picking y Reservas, Expedición y Carga, Políticas WMS) conectada a una acción transaccional única en base de datos con catálogo cerrado de treinta códigos de rechazo tipados. Incorpora unidades de manipulación (LPN/SSCC), recursos de almacén (operarios, carretillas y equipos con alturas y certificaciones), políticas de comportamiento con herencia determinista, prohibición de reservar o preparar mercancía sin chequear o sin ubicar (incluyendo aislamiento fail-closed de saldos históricos sin estado de flujo) y control obligatorio de etiqueta emitida y escaneada, estado, peso y volumen antes de autorizar la carga.",
+    status: "Preproducción",
+  },
   {
     version: "2026.10.17-1",
     date: "17 oct 2026",

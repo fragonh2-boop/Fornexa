@@ -20,7 +20,7 @@ const modules = {
 export type ModuleKey=keyof typeof modules;
 export function isModuleKey(value: string): value is ModuleKey { return Object.hasOwn(modules, value); }
 const createPaths:Record<ModuleKey,string>={partidas:"/dashboard/nuevo/partida",expediciones:"/dashboard/nuevo/expedicion",viajes:"/dashboard/nuevo/viaje","ofertas-tarifas":"/dashboard/registros/ofertas-tarifas/nuevo",clientes:"/dashboard/registros/clientes/nuevo",colaboradores:"/dashboard/registros/colaboradores/nuevo",almacenes:"/dashboard/registros/almacenes/nuevo",tracking:"/dashboard/tracking?vista=mapa","epod-cmr":"/dashboard/registros/epod-cmr/nuevo",informes:"/dashboard/registros/informes/nuevo"};
-const unfinishedModules = new Set<ModuleKey>(["ofertas-tarifas","almacenes","tracking","informes"]);
+const unfinishedModules = new Set<ModuleKey>(["ofertas-tarifas","tracking","informes"]);
 
 export default function ModuleView({module,demo=false,basePath="/dashboard"}:{module:ModuleKey;demo?:boolean;basePath?:"/dashboard"|"/demo"}){
  if(!isModuleKey(module))notFound();const key=module;const data=demo?modules[key]:{...modules[key],stats:[] as readonly (readonly string[])[],rows:[] as readonly (readonly string[])[]};
