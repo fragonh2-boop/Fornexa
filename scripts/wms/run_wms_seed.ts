@@ -231,7 +231,24 @@ async function main(): Promise<void> {
         throw new Error("la compensación no dejó handling_units como estaba");
       }
       await client.query("ROLLBACK");
-      console.log(JSON.stringify({ mode: "REHEARSAL_ROLLED_BACK", endpoint, inserted, borrowedBefore, isolation }, null, 2));
+      const rehearsalReceipt = {
+        status: "REHEARSAL_ROLLED_BACK",
+        mode: "BEGIN_ROLLBACK_ONLY",
+        batch_id: manifest.batch_id,
+        executed_at: new Date().toISOString(),
+        endpoint,
+        dataset_sha256: sha256(datasetPath),
+        manifest_sha256: sha256(manifestPath),
+        committed_writes: 0,
+        counts_before: before,
+        inserted,
+        borrowed_fingerprints: borrowedBefore,
+        isolation,
+      };
+      // El ensayo escribe su recibo igual que la carga: sin él, el workflow no tiene nada
+      // que publicar y un ensayo correcto se queda sin evidencia.
+      writeFileSync(receiptPath, `${JSON.stringify(rehearsalReceipt, null, 2)}\n`, "utf-8");
+      console.log(JSON.stringify(rehearsalReceipt, null, 2));
       return;
     }
 
