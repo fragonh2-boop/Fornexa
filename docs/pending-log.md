@@ -4,13 +4,27 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-19 — WMS M7: Controles de carga y políticas de almacén en servidor (C-3)
+- **Área:** Almacenes / WMS / Servidor / C-3
+- **Estado:** IMPLEMENTADO LOCALMENTE, PENDIENTE DE REVISIÓN INDEPENDIENTE (DeepSeek)
+- **Alcance y resolución:**
+  - Resolución integral de las 5 ambigüedades técnicas en `docs/architecture/wms-m7-c3-contract-resolution.md`:
+    - (a) `CONTROL_STATE` con `status: 'REJECTED'` es una inspección atómica válida que sitúa la HU y quants en `QUARANTINE` (o `DAMAGED`) sin lanzar excepción SQL. Errores tipados quedan reservados para fallos de comando.
+    - (b) Idempotencia duradera registrada en `warehouse_tasks` y concurrencia serializada con `SELECT ... FOR UPDATE` sobre la HU.
+    - (c) Frontera de API estricta: rechazo determinista con HTTP 400 (`WMS_FORBIDDEN`) ante cualquier payload con `state_controlled`, `expected_weight_kg`, `expected_volume_m3`, o `consolidation`/`conflicting_batch` en `REPLENISH`.
+    - (d) Trigger `trg_wms_invalidate_hu_control` sobre `handling_unit_contents` que resetea `state_controlled_at = null` ante cualquier mutación de contenido. Reseteo explícito en `RECEIVE_CHECK` y `PICK`.
+    - (e) Migración puramente aditiva `supabase/migrations/20261019120000_wms_c3_server_load_controls.sql` con instrucciones de rollback documentadas.
+  - Actualización atómica de `fornexa_wms_action`: cálculo relacional de pesos y volúmenes esperados desde `products` y `handling_unit_contents` con fail-closed ante falta de expectativa calculable, y consolidación derivada de política de servidor.
+  - UI interactiva (`WmsWorkspace.tsx`): adaptación para invocar `CONTROL_STATE` (`PASSED` o `REJECTED`), retirada de overrides cliente en `LABEL`/`LOAD` e inhabilitación de carga con advertencia si falta control físico.
+  - Batería de pruebas unitarias (`tests/wms-c3-server-controls.test.ts`): 10 tests de contrato pasando (339/339 tests totales en verde).
+- **Límites y gobernanza:** Cero merge a main, cero migración remota aplicada, cero ensayo F4, cero SQL productivo ni seed.
+
 ### 2026-10-19 — WMS M5: Robustez de sonda de rechazos y mutación aislada de estado
 - **Área:** Almacenes / WMS / Sonda de rechazos
-- **Estado:** IMPLEMENTADO LOCALMENTE, PENDIENTE DE REVISIÓN Y DESPLIEGUE (Conserva en OPEN conforme a AGENTS y adenda FornexaGPT 1792363348.045059).
+- **Estado:** FUSIONADO Y DESPLEGADO EN PRODUCCIÓN — PR #133 merged en `main` como `45f6c25a9f2a604b4400a9baa818d221837e896e`. CI `39177630557` SUCCESS (329/329 tests). Vercel READY con alias `fornexasc.com` verificado en smoke solo lectura.
 - **Alcance y resolución:**
-  1. `[WMS-FOLLOWUP-REJ07-FIXTURE]` (generalizado a TODOS los REJ condicionales): `scripts/wms/rejection-probe.ts` emite ahora un caso explícito fallido (`verified: false`, `obtained: null`, `post_state: "no evaluado por fixture ausente"`, `detail` descriptivo) ante fixtures o precondiciones ausentes en cualquiera de los 7 casos condicionales (REJ-01..REJ-07). Garantiza `total: 7`, `cases.length === 7` y `verdict: "INCOMPLETE"`, impidiendo omisiones silenciosas o que 'N/A' cuente como éxito.
-  2. `[WMS-FOLLOWUP-ISOLATED-STATE-MUTATION]`: Nuevas pruebas unitarias en `tests/wms-rejection-probe.test.ts` verifican que la mutación aislada de `hu_state` o de `quant_flow_state` con delta de reservas 0 falla cerrado (`verified: false`, `verdict: "INCOMPLETE"`), probando exhaustivamente la detección individual de cada invariante sin depender de discrepancias en reservas.
-- **Límite y gobernanza:** Implementación y pruebas 100% locales sin merge previo, sin conexión a base de datos de producción, sin alteración de E2 ni C-3. Permanece en OPEN hasta su revisión exact-HEAD por DeepSeek, autorización de coordinación y verificación en producción.
+  1. `[WMS-FOLLOWUP-REJ07-FIXTURE]`: Diagnóstico explícito ante fixtures/precondiciones ausentes en todos los REJ condicionales, garantizando total: 7 y veredicto INCOMPLETE sin omisiones silenciosas.
+  2. `[WMS-FOLLOWUP-ISOLATED-STATE-MUTATION]`: Tests de mutación aislada de `hu_state` y `quant_flow_state` con delta de reservas 0.
 
 ### 2026-10-17 — Corrección de la viñeta de almacén en `/plataforma`
 - **Área:** Web / Producto

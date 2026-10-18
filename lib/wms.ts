@@ -39,6 +39,7 @@ export const WMS_ACTIONS = [
   "LOAD",
   "UPSERT_POLICY",
   "UPSERT_RESOURCE",
+  "CONTROL_STATE",
 ] as const;
 
 export type WmsAction = (typeof WMS_ACTIONS)[number];
@@ -275,6 +276,8 @@ export interface WmsHandlingUnit {
   gross_weight_kg: number | null;
   volume_m3: number | null;
   label_issued_at: string | null;
+  state_controlled_at?: string | null;
+  state_controlled_by?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;

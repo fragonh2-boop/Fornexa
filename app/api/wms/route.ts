@@ -84,6 +84,36 @@ export async function POST(request: Request) {
       body.payload && typeof body.payload === "object" && !Array.isArray(body.payload)
         ? (body.payload as Record<string, unknown>)
         : {};
+
+    if (
+      "state_controlled" in payload ||
+      "expected_weight_kg" in payload ||
+      "expected_volume_m3" in payload
+    ) {
+      return response(
+        {
+          error:
+            "WMS_FORBIDDEN: Los campos de control de estado y magnitudes esperadas son de cálculo exclusivo en servidor y no pueden enviarse desde el cliente.",
+          code: "WMS_FORBIDDEN",
+        },
+        400,
+      );
+    }
+
+    if (
+      action === "REPLENISH" &&
+      ("consolidation" in payload || "conflicting_batch" in payload)
+    ) {
+      return response(
+        {
+          error:
+            "WMS_FORBIDDEN: La política de consolidación es de cálculo exclusivo en servidor y no puede ser anulada desde el cliente.",
+          code: "WMS_FORBIDDEN",
+        },
+        400,
+      );
+    }
+
     const idempotencyKey =
       typeof body.idempotency_key === "string" && body.idempotency_key.trim().length > 0
         ? body.idempotency_key.trim()

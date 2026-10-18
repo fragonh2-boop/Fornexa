@@ -2,6 +2,43 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-19 — WMS M7: Controles de carga y políticas de almacén en servidor (C-3)
+
+- **Contexto y encargo:** `TASK_ID: WMS-RESEARCH-20261017`. Tras completarse la Fase 1 (GO133: merge de PR #133 en `main 45f6c25a9f2a604b4400a9baa818d221837e896e`, CI en verde, Vercel READY con alias `fornexasc.com` y smoke tests de solo lectura verificados y publicados en Slack), FornexaGPT activa la Fase 2 (M7: C-3 server-side load controls and warehouse policies, `1792366867.769679`). Gemini implementa la solución en worktree y PR aislada resolviendo las 5 ambigüedades técnicas (a)-(e) con DeepSeek como revisor independiente.
+- **Resolución de Contrato (`docs/architecture/wms-m7-c3-contract-resolution.md`):**
+  1. *(a) Inspección física `CONTROL_STATE` con `status: 'REJECTED'`:* Operación atómica de éxito que no lanza excepción SQL. Pasa HU y quants a `QUARANTINE` o `DAMAGED`, limpia marcas de control y emite evento de auditoría `CONTROL_STATE_REJECTED`. Los errores de comando (`WMS_FORBIDDEN`, etc.) se reservan para violaciones de precondición (ej. HU inexistente o en estado `LOADED`).
+  2. *(b) Idempotencia y concurrencia:* Registro duradero en `warehouse_tasks` con `task_type = 'CONTROL_STATE'` (`unique(tenant_id, idempotency_key)`), con respuesta cacheada ante reintentos. Concurrencia serializada mediante `SELECT ... FOR UPDATE` sobre la fila de la HU.
+  3. *(c) Rechazo determinista en API:* `app/api/wms/route.ts` rechaza con HTTP 400 (`WMS_FORBIDDEN`) cualquier payload con `state_controlled`, `expected_weight_kg`, `expected_volume_m3` o `consolidation`/`conflicting_batch` en `REPLENISH`. Cero "ignorado silencioso".
+  4. *(d) Invalidación completa:* Trigger `trg_wms_invalidate_hu_control` sobre `handling_unit_contents` que limpia `state_controlled_at = null` y `state_controlled_by = null` ante cualquier mutación de contenido. Reseteo explícito en `RECEIVE_CHECK` y `PICK`.
+  5. *(e) Estrategia de rollout/rollback:* Migración aditiva independiente `supabase/migrations/20261019120000_wms_c3_server_load_controls.sql` con instrucciones de rollback documentadas sin modificar el core de E1.
+- **Cambios implementados:**
+  1. `supabase/migrations/20261019120000_wms_c3_server_load_controls.sql`:
+     - Nuevas columnas `state_controlled_at timestamptz` y `state_controlled_by uuid` en `handling_units`.
+     - Trigger de invalidación `trg_wms_invalidate_hu_control` en `handling_unit_contents`.
+     - Actualización atómica de `fornexa_wms_action`:
+       - Acción `CONTROL_STATE` con bifurcación atómica para `PASSED` y `REJECTED`.
+       - Cálculo relacional en servidor de pesos y volúmenes esperados (`products` + `handling_unit_contents`) en `LABEL` y `LOAD`.
+       - Bloqueo por falta de control físico (`WMS_CONTROL_PENDING`) gobernado por la política `require_state_control_on_load`.
+       - Derivación estricta de consolidación y verificación de conflictos de lote en `REPLENISH` desde la política del almacén.
+  2. `lib/wms.ts` & `lib/wms-loader.ts`:
+     - Añadido `CONTROL_STATE` a `WMS_ACTIONS` y campos `state_controlled_at/by` a `WmsHandlingUnit`.
+     - Carga de datos resiliente con fallback sin romper compatibilidad en bases de datos sin la migración aplicada.
+  3. `app/api/wms/route.ts`:
+     - Validación estricta y rechazo determinista HTTP 400 (`WMS_FORBIDDEN`) ante campos de autoridad cliente.
+  4. `app/dashboard/almacenes/WmsWorkspace.tsx`:
+     - Eliminación de overrides cliente en `LABEL` y `LOAD`.
+     - Exposición de acciones interactivas para superar (`PASSED`) o rechazar (`REJECTED`) el control de estado.
+     - Indicador visual de control de estado e inhabilitación de carga con tooltip informativo si falta control previo.
+  5. `tests/wms-c3-server-controls.test.ts`:
+     - Suite completa de 10 tests unitarios verificando los requisitos de contrato, validaciones de API, triggers y RPC (339/339 tests PASS en el repo).
+  6. Gobernanza:
+     - `lib/memorandum.ts`: Cobertura de commits actualizada a 665, fecha `19 oct 2026`.
+     - `docs/pending-log.md`: M5 marcado como desplegado en producción; M7 registrado en `OPEN`.
+- **Límites y garantías fail-closed:**
+  - Código y pruebas 100% locales en worktree aislado (`feat/wms-m7-c3-load-controls`).
+  - CERO merge a main, CERO aplicación remota de migración, CERO ensayos F4, CERO SQL productivo, CERO seed, CERO COMMITTED.
+  - Sometido a revisión independiente por DeepSeek.
+
 ## 2026-10-19 — WMS M5: Diagnóstico explícito de fixtures ausentes y tests de mutación aislada de estado
 
 - **Contexto y encargo:** `TASK_ID: WMS-RESEARCH-20261017`. Tras completarse la tarea M3 (merge de PR #132 en `main 9497116`, despliegue y smoke tests verificados en producción `fornexasc.com`), FornexaGPT encarga a Gemini en exclusividad la tarea M5 (`1792363214.098139` y precisión `1792363348.045059` en `#fornexa`) para cerrar los dos puntos OPEN de robustez de la sonda de rechazos antes de F5 en una PR aislada.
