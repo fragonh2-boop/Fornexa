@@ -4,13 +4,13 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
-### 2026-10-18 — WMS M2: Seguimientos de sonda de rechazos y pre/postestado medido (DeepSeek SHOULDs)
+### 2026-10-19 — WMS M5: Robustez de sonda de rechazos y mutación aislada de estado
 - **Área:** Almacenes / WMS / Sonda de rechazos
-- **Estado:** REGISTRADO EN BACKLOG TÉCNICO (No bloqueante para M2 / PR #132).
-- **Alcance / Hallazgos:** Derivados de la revisión independiente de DeepSeek (`1792359057.615559`) sobre PR #132 (cierre técnico de SHOULD-1 validado con 0 MUSTs):
-  1. `[WMS-FOLLOWUP-REJ07-FIXTURE]`: Tratamiento explícito de fixtures para el caso REJ-07 (`WMS_BIN_BLOCKED`) en `scripts/wms/rejection-probe.ts`. En la versión actual, si `fixtures.rejections.rej07` no está definido, el caso no se añade al array de casos evaluados. Debe registrarse explícitamente como fallo o alerta visible en la sonda/test en lugar de omitirse silenciosamente.
-  2. `[WMS-FOLLOWUP-ISOLATED-STATE-MUTATION]`: Ampliación de tests unitarios en `tests/wms-rejection-probe.test.ts` para verificar la detección de mutación aislada de `hu_state` o `quant_flow_state` en escenarios donde el delta de reservas sea 0 (sin depender únicamente de la discrepancia de reservas).
-- **Límite y gobernanza:** Estrictamente diferido de PR #132 para mantener el principio de cambios mínimos y no alterar la implementación técnica ya aprobada por DeepSeek. Se abordará en el ciclo de endurecimiento posterior antes de F5.
+- **Estado:** IMPLEMENTADO LOCALMENTE, PENDIENTE DE REVISIÓN Y DESPLIEGUE (Conserva en OPEN conforme a AGENTS y adenda FornexaGPT 1792363348.045059).
+- **Alcance y resolución:**
+  1. `[WMS-FOLLOWUP-REJ07-FIXTURE]` (generalizado a TODOS los REJ condicionales): `scripts/wms/rejection-probe.ts` emite ahora un caso explícito fallido (`verified: false`, `obtained: null`, `post_state: "no evaluado por fixture ausente"`, `detail` descriptivo) ante fixtures o precondiciones ausentes en cualquiera de los 7 casos condicionales (REJ-01..REJ-07). Garantiza `total: 7`, `cases.length === 7` y `verdict: "INCOMPLETE"`, impidiendo omisiones silenciosas o que 'N/A' cuente como éxito.
+  2. `[WMS-FOLLOWUP-ISOLATED-STATE-MUTATION]`: Nuevas pruebas unitarias en `tests/wms-rejection-probe.test.ts` verifican que la mutación aislada de `hu_state` o de `quant_flow_state` con delta de reservas 0 falla cerrado (`verified: false`, `verdict: "INCOMPLETE"`), probando exhaustivamente la detección individual de cada invariante sin depender de discrepancias en reservas.
+- **Límite y gobernanza:** Implementación y pruebas 100% locales sin merge previo, sin conexión a base de datos de producción, sin alteración de E2 ni C-3. Permanece en OPEN hasta su revisión exact-HEAD por DeepSeek, autorización de coordinación y verificación en producción.
 
 ### 2026-10-17 — Corrección de la viñeta de almacén en `/plataforma`
 - **Área:** Web / Producto

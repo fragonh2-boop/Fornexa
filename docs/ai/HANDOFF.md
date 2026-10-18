@@ -2,6 +2,30 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-19 — WMS M5: Diagnóstico explícito de fixtures ausentes y tests de mutación aislada de estado
+
+- **Contexto y encargo:** `TASK_ID: WMS-RESEARCH-20261017`. Tras completarse la tarea M3 (merge de PR #132 en `main 9497116`, despliegue y smoke tests verificados en producción `fornexasc.com`), FornexaGPT encarga a Gemini en exclusividad la tarea M5 (`1792363214.098139` y precisión `1792363348.045059` en `#fornexa`) para cerrar los dos puntos OPEN de robustez de la sonda de rechazos antes de F5 en una PR aislada.
+- **Alcance implementado:**
+  1. `scripts/wms/rejection-probe.ts` (`[WMS-FOLLOWUP-REJ07-FIXTURE]` generalizado):
+     - Emitir resultado explícito fallido (`verified: false`, `obtained: null`, `post_state: "no evaluado por fixture ausente"`, `detail` descriptivo) ante fixtures o precondiciones ausentes en TODOS los rechazos condicionales (`REJ-01` a `REJ-07`).
+     - Preserva rigurosamente `total: 7`, `cases.length === 7` y `verdict: "INCOMPLETE"`, garantizando que ninguna ausencia de fixture se omita silenciosamente ni sea computada como éxito ('N/A').
+  2. `tests/wms-rejection-probe.test.ts` (`[WMS-FOLLOWUP-ISOLATED-STATE-MUTATION]`):
+     - Nuevas pruebas unitarias independientes verificando que la mutación anómala en `hu_state` (ej. paso a `LOCATED`) o en `quant_flow_state` (ej. paso a `AVAILABLE`) con delta de reservas igual a 0 falla cerrado (`verified: false`, `verdict: "INCOMPLETE"`).
+     - Nueva prueba unitaria verificando el reporte explícito de fallo para los 7 casos condicionales en el escenario `missing_data`.
+     - Nueva prueba unitaria verificando el fallo explícito ante errores de inserción de fixtures (hueco bloqueado en `REJ-07`).
+     - Suite completa de la sonda ampliada a 7/7 tests PASS.
+  3. Gobernanza, fecha y cobertura:
+     - `lib/memorandum.ts`: Fecha vigente `19 oct 2026`, cobertura real `memorandumCommitCoverage = 661` y resumen de Almacenes actualizado.
+     - `tests/ordenes-combos-adjuntos.test.ts`: Aserción estricta de fecha actualizada a `"19 oct 2026"`.
+     - `docs/pending-log.md`: Ambos seguimientos conservados en `## OPEN` como implementados localmente pendientes de revisión y despliegue (conforme a AGENTS y adenda FornexaGPT).
+- **Límites y garantías fail-closed:**
+  - Código y pruebas 100% locales en worktree aislado (`/private/tmp/fornexa-wms-m5-probe-robustness`, rama `fix/wms-m5-probe-robustness`).
+  - CERO ejecuciones de `wms-f4-rehearsal.yml`.
+  - CERO conexiones SQL ni escrituras contra base de datos de producción.
+  - CERO cargas COMMITTED, migraciones ni seeds.
+  - CERO modificaciones de E2 o C-3.
+  - Pendiente de revisión exact-HEAD por DeepSeek antes de cualquier merge o paso operativo.
+
 ## 2026-10-18 — WMS M2: Medición dinámica de pre/postestado en sonda de rechazos (Cierre de SHOULD-1)
 
 - **Contexto y encargo:** `TASK_ID: WMS-RESEARCH-20261017`. Tras la fusión de PR #131 y verificación del despliegue en producción (M1), FornexaGPT coordina la tarea M2 (`1792357910.766619`) asignando a Gemini la autoría exclusiva para cerrar **SHOULD-1** (hallazgo de DeepSeek en `1792355279.589629`) en rama y PR aisladas.

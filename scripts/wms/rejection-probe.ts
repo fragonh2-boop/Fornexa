@@ -134,9 +134,28 @@ export async function probeRejections(client: Client, opts: Options): Promise<Re
     const hu2 = huChecked.rows[0]?.id;
     const hu2Warehouse = huChecked.rows[0]?.warehouse_id;
 
-    if (hu1) {
+    // REJ-01: reservar en HU en STAGING_UNCHECKED
+    if (!hu1) {
+      cases.push({
+        rej: "REJ-01",
+        code: "WMS_STOCK_NOT_LOCATED",
+        obtained: null,
+        verified: false,
+        post_state: "no evaluado por fixture ausente",
+        detail: "precondición o fixture ausente: no se encontró HU en STAGING_UNCHECKED (WMS-TEST-S01-%)",
+      });
+    } else {
       const q1 = await quantDe(hu1);
-      if (q1) {
+      if (!q1) {
+        cases.push({
+          rej: "REJ-01",
+          code: "WMS_STOCK_NOT_LOCATED",
+          obtained: null,
+          verified: false,
+          post_state: "no evaluado por fixture ausente",
+          detail: `precondición o fixture ausente: la HU '${hu1}' no tiene quant asociado`,
+        });
+      } else {
         cases.push(
           await caso(
             client,
@@ -203,9 +222,29 @@ export async function probeRejections(client: Client, opts: Options): Promise<Re
         );
       }
     }
-    if (hu2) {
+
+    // REJ-02: reservar en HU en STAGING_CHECKED
+    if (!hu2) {
+      cases.push({
+        rej: "REJ-02",
+        code: "WMS_STOCK_NOT_LOCATED",
+        obtained: null,
+        verified: false,
+        post_state: "no evaluado por fixture ausente",
+        detail: "precondición o fixture ausente: no se encontró HU en STAGING_CHECKED (WMS-TEST-S02-%)",
+      });
+    } else {
       const q2 = await quantDe(hu2);
-      if (q2) {
+      if (!q2) {
+        cases.push({
+          rej: "REJ-02",
+          code: "WMS_STOCK_NOT_LOCATED",
+          obtained: null,
+          verified: false,
+          post_state: "no evaluado por fixture ausente",
+          detail: `precondición o fixture ausente: la HU '${hu2}' no tiene quant asociado`,
+        });
+      } else {
         cases.push(
           await caso(
             client,
@@ -279,7 +318,16 @@ export async function probeRejections(client: Client, opts: Options): Promise<Re
       [opts.tenantId],
     );
     const legacyId = legacy.rows[0]?.id;
-    if (legacyId) {
+    if (!legacyId) {
+      cases.push({
+        rej: "REJ-03",
+        code: "WMS_STOCK_NOT_LOCATED",
+        obtained: null,
+        verified: false,
+        post_state: "no evaluado por fixture ausente",
+        detail: "precondición o fixture ausente: no se encontró quant histórico de DATA150 con flow_state NULL",
+      });
+    } else {
       cases.push(
         await caso(
           client,
@@ -335,13 +383,31 @@ export async function probeRejections(client: Client, opts: Options): Promise<Re
     }
 
     // REJ-04: ubicar una HU que no ha pasado el chequeo en un hueco de su MISMO almacén.
-    if (hu1 && hu1Warehouse) {
+    if (!hu1 || !hu1Warehouse) {
+      cases.push({
+        rej: "REJ-04",
+        code: "WMS_HU_NOT_CHECKED",
+        obtained: null,
+        verified: false,
+        post_state: "no evaluado por fixture ausente",
+        detail: "precondición o fixture ausente: no se encontró HU en STAGING_UNCHECKED o su warehouse_id para REJ-04",
+      });
+    } else {
       const bin = await client.query(
         `select id from public.warehouse_bins where tenant_id = $1 and warehouse_id = $2 and bin_type = 'PALLET_RACK' and not is_blocked limit 1`,
         [opts.tenantId, hu1Warehouse],
       );
       const binId = bin.rows[0]?.id;
-      if (binId) {
+      if (!binId) {
+        cases.push({
+          rej: "REJ-04",
+          code: "WMS_HU_NOT_CHECKED",
+          obtained: null,
+          verified: false,
+          post_state: "no evaluado por fixture ausente",
+          detail: `precondición o fixture ausente: no se encontró hueco PALLET_RACK desbloqueado en el almacén '${hu1Warehouse}'`,
+        });
+      } else {
         cases.push(
           await caso(
             client,
@@ -412,158 +478,232 @@ export async function probeRejections(client: Client, opts: Options): Promise<Re
     );
     const targetWarehouseId = policyRes.rows[0]?.warehouse_id ?? hu1Warehouse;
 
-    if (targetWarehouseId) {
-      const producto = await client.query(
-        `insert into public.products (tenant_id, sku, name, status, is_batch_managed, shelf_life_days)
-         values ($1, 'PROBE-REJ-LOT', '[PROBE] lote y caducidad', 'ACTIVE', true, 30)
-         returning id`,
-        [opts.tenantId],
-      );
-      const productoId = producto.rows[0].id;
+    if (!targetWarehouseId) {
+      cases.push({
+        rej: "REJ-05",
+        code: "WMS_LOT_REQUIRED",
+        obtained: null,
+        verified: false,
+        post_state: "no evaluado por fixture ausente",
+        detail: "precondición o fixture ausente: no se encontró almacén con política de captura de lote ni almacén de referencia",
+      });
+      cases.push({
+        rej: "REJ-06",
+        code: "WMS_EXPIRY_REQUIRED",
+        obtained: null,
+        verified: false,
+        post_state: "no evaluado por fixture ausente",
+        detail: "precondición o fixture ausente: no se encontró almacén con política de captura de lote ni almacén de referencia",
+      });
+    } else {
+      let productoId: string | undefined;
+      let huProbeId: string | undefined;
+      let fixtureError: string | undefined;
 
-      const muelle = await client.query(
-        `select id from public.warehouse_docks where tenant_id = $1 and warehouse_id = $2 limit 1`,
-        [opts.tenantId, targetWarehouseId],
-      );
-      const dockId =
-        muelle.rows[0]?.id ??
-        (await client.query(`select id from public.warehouse_docks where tenant_id = $1 limit 1`, [opts.tenantId])).rows[0]?.id ??
-        null;
+      try {
+        const producto = await client.query(
+          `insert into public.products (tenant_id, sku, name, status, is_batch_managed, shelf_life_days)
+           values ($1, 'PROBE-REJ-LOT', '[PROBE] lote y caducidad', 'ACTIVE', true, 30)
+           returning id`,
+          [opts.tenantId],
+        );
+        productoId = producto.rows[0]?.id;
 
-      const huProbe = await client.query(
-        `insert into public.handling_units (tenant_id, warehouse_id, code, code_type, hu_type, state, current_dock_id)
-         values ($1, $2, 'PROBE-REJ-HU', 'LPN', 'PALLET', 'STAGING_UNCHECKED', $3)
-         returning id`,
-        [opts.tenantId, targetWarehouseId, dockId],
-      );
-      const huProbeId = huProbe.rows[0].id;
-      await client.query(
-        `insert into public.handling_unit_contents (tenant_id, hu_id, product_id, quantity)
-         values ($1, $2, $3, 10)`,
-        [opts.tenantId, huProbeId, productoId],
-      );
-      cases.push(
-        await caso(
-          client,
-          opts,
-          "REJ-05",
-          "WMS_LOT_REQUIRED",
-          "RECEIVE_CHECK",
-          {
-            hu_id: huProbeId,
-            expiry_date: "2027-06-01",
-          },
-          {
-            measurePre: async () => {
-              const hu = await client.query(
-                `select state from public.handling_units where tenant_id = $1 and id = $2`,
-                [opts.tenantId, huProbeId],
-              );
-              const q = await client.query(
-                `select count(*)::int as count from public.inventory_quants where tenant_id = $1 and hu_id = $2`,
-                [opts.tenantId, huProbeId],
-              );
-              return {
-                huState: hu.rows[0]?.state ?? null,
-                quantsCount: q.rows[0]?.count ?? 0,
-              };
+        const muelle = await client.query(
+          `select id from public.warehouse_docks where tenant_id = $1 and warehouse_id = $2 limit 1`,
+          [opts.tenantId, targetWarehouseId],
+        );
+        const dockId =
+          muelle.rows[0]?.id ??
+          (await client.query(`select id from public.warehouse_docks where tenant_id = $1 limit 1`, [opts.tenantId])).rows[0]?.id ??
+          null;
+
+        const huProbe = await client.query(
+          `insert into public.handling_units (tenant_id, warehouse_id, code, code_type, hu_type, state, current_dock_id)
+           values ($1, $2, 'PROBE-REJ-HU', 'LPN', 'PALLET', 'STAGING_UNCHECKED', $3)
+           returning id`,
+          [opts.tenantId, targetWarehouseId, dockId],
+        );
+        huProbeId = huProbe.rows[0]?.id;
+
+        if (productoId && huProbeId) {
+          await client.query(
+            `insert into public.handling_unit_contents (tenant_id, hu_id, product_id, quantity)
+             values ($1, $2, $3, 10)`,
+            [opts.tenantId, huProbeId, productoId],
+          );
+        }
+      } catch (err: any) {
+        fixtureError = err?.message ?? String(err);
+      }
+
+      if (!productoId || !huProbeId) {
+        cases.push({
+          rej: "REJ-05",
+          code: "WMS_LOT_REQUIRED",
+          obtained: null,
+          verified: false,
+          post_state: "no evaluado por fixture ausente",
+          detail: `precondición o fixture ausente: fallo al crear fixture de producto/HU perecedero para REJ-05${fixtureError ? ` (${fixtureError})` : ""}`,
+        });
+        cases.push({
+          rej: "REJ-06",
+          code: "WMS_EXPIRY_REQUIRED",
+          obtained: null,
+          verified: false,
+          post_state: "no evaluado por fixture ausente",
+          detail: `precondición o fixture ausente: fallo al crear fixture de producto/HU perecedero para REJ-06${fixtureError ? ` (${fixtureError})` : ""}`,
+        });
+      } else {
+        cases.push(
+          await caso(
+            client,
+            opts,
+            "REJ-05",
+            "WMS_LOT_REQUIRED",
+            "RECEIVE_CHECK",
+            {
+              hu_id: huProbeId,
+              expiry_date: "2027-06-01",
             },
-            measurePost: async () => {
-              const hu = await client.query(
-                `select state from public.handling_units where tenant_id = $1 and id = $2`,
-                [opts.tenantId, huProbeId],
-              );
-              const q = await client.query(
-                `select count(*)::int as count from public.inventory_quants where tenant_id = $1 and hu_id = $2`,
-                [opts.tenantId, huProbeId],
-              );
-              return {
-                huState: hu.rows[0]?.state ?? null,
-                quantsCount: q.rows[0]?.count ?? 0,
-              };
+            {
+              measurePre: async () => {
+                const hu = await client.query(
+                  `select state from public.handling_units where tenant_id = $1 and id = $2`,
+                  [opts.tenantId, huProbeId],
+                );
+                const q = await client.query(
+                  `select count(*)::int as count from public.inventory_quants where tenant_id = $1 and hu_id = $2`,
+                  [opts.tenantId, huProbeId],
+                );
+                return {
+                  huState: hu.rows[0]?.state ?? null,
+                  quantsCount: q.rows[0]?.count ?? 0,
+                };
+              },
+              measurePost: async () => {
+                const hu = await client.query(
+                  `select state from public.handling_units where tenant_id = $1 and id = $2`,
+                  [opts.tenantId, huProbeId],
+                );
+                const q = await client.query(
+                  `select count(*)::int as count from public.inventory_quants where tenant_id = $1 and hu_id = $2`,
+                  [opts.tenantId, huProbeId],
+                );
+                return {
+                  huState: hu.rows[0]?.state ?? null,
+                  quantsCount: q.rows[0]?.count ?? 0,
+                };
+              },
+              verify: (pre, post) => {
+                const quantsDelta = post.quantsCount - pre.quantsCount;
+                const valid =
+                  quantsDelta === 0 &&
+                  post.huState === pre.huState &&
+                  post.huState === "STAGING_UNCHECKED";
+                const postState = `hu_state='${post.huState}' (pre='${pre.huState}'), quants_created=${quantsDelta} (total=${post.quantsCount}), lot_assigned=false`;
+                const failureReason = !valid
+                  ? `mutación inesperada: quants_delta=${quantsDelta}, hu_state=${post.huState} (pre=${pre.huState})`
+                  : undefined;
+                return { valid, postState, failureReason };
+              },
             },
-            verify: (pre, post) => {
-              const quantsDelta = post.quantsCount - pre.quantsCount;
-              const valid =
-                quantsDelta === 0 &&
-                post.huState === pre.huState &&
-                post.huState === "STAGING_UNCHECKED";
-              const postState = `hu_state='${post.huState}' (pre='${pre.huState}'), quants_created=${quantsDelta} (total=${post.quantsCount}), lot_assigned=false`;
-              const failureReason = !valid
-                ? `mutación inesperada: quants_delta=${quantsDelta}, hu_state=${post.huState} (pre=${pre.huState})`
-                : undefined;
-              return { valid, postState, failureReason };
+          ),
+        );
+        cases.push(
+          await caso(
+            client,
+            opts,
+            "REJ-06",
+            "WMS_EXPIRY_REQUIRED",
+            "RECEIVE_CHECK",
+            {
+              hu_id: huProbeId,
+              batch_number: "LOT-PROBE-001",
             },
-          },
-        ),
-      );
-      cases.push(
-        await caso(
-          client,
-          opts,
-          "REJ-06",
-          "WMS_EXPIRY_REQUIRED",
-          "RECEIVE_CHECK",
-          {
-            hu_id: huProbeId,
-            batch_number: "LOT-PROBE-001",
-          },
-          {
-            measurePre: async () => {
-              const hu = await client.query(
-                `select state from public.handling_units where tenant_id = $1 and id = $2`,
-                [opts.tenantId, huProbeId],
-              );
-              const q = await client.query(
-                `select count(*)::int as count from public.inventory_quants where tenant_id = $1 and hu_id = $2`,
-                [opts.tenantId, huProbeId],
-              );
-              return {
-                huState: hu.rows[0]?.state ?? null,
-                quantsCount: q.rows[0]?.count ?? 0,
-              };
+            {
+              measurePre: async () => {
+                const hu = await client.query(
+                  `select state from public.handling_units where tenant_id = $1 and id = $2`,
+                  [opts.tenantId, huProbeId],
+                );
+                const q = await client.query(
+                  `select count(*)::int as count from public.inventory_quants where tenant_id = $1 and hu_id = $2`,
+                  [opts.tenantId, huProbeId],
+                );
+                return {
+                  huState: hu.rows[0]?.state ?? null,
+                  quantsCount: q.rows[0]?.count ?? 0,
+                };
+              },
+              measurePost: async () => {
+                const hu = await client.query(
+                  `select state from public.handling_units where tenant_id = $1 and id = $2`,
+                  [opts.tenantId, huProbeId],
+                );
+                const q = await client.query(
+                  `select count(*)::int as count from public.inventory_quants where tenant_id = $1 and hu_id = $2`,
+                  [opts.tenantId, huProbeId],
+                );
+                return {
+                  huState: hu.rows[0]?.state ?? null,
+                  quantsCount: q.rows[0]?.count ?? 0,
+                };
+              },
+              verify: (pre, post) => {
+                const quantsDelta = post.quantsCount - pre.quantsCount;
+                const valid =
+                  quantsDelta === 0 &&
+                  post.huState === pre.huState &&
+                  post.huState === "STAGING_UNCHECKED";
+                const postState = `hu_state='${post.huState}' (pre='${pre.huState}'), quants_created=${quantsDelta} (total=${post.quantsCount}), expiry_assigned=false`;
+                const failureReason = !valid
+                  ? `mutación inesperada: quants_delta=${quantsDelta}, hu_state=${post.huState} (pre=${pre.huState})`
+                  : undefined;
+                return { valid, postState, failureReason };
+              },
             },
-            measurePost: async () => {
-              const hu = await client.query(
-                `select state from public.handling_units where tenant_id = $1 and id = $2`,
-                [opts.tenantId, huProbeId],
-              );
-              const q = await client.query(
-                `select count(*)::int as count from public.inventory_quants where tenant_id = $1 and hu_id = $2`,
-                [opts.tenantId, huProbeId],
-              );
-              return {
-                huState: hu.rows[0]?.state ?? null,
-                quantsCount: q.rows[0]?.count ?? 0,
-              };
-            },
-            verify: (pre, post) => {
-              const quantsDelta = post.quantsCount - pre.quantsCount;
-              const valid =
-                quantsDelta === 0 &&
-                post.huState === pre.huState &&
-                post.huState === "STAGING_UNCHECKED";
-              const postState = `hu_state='${post.huState}' (pre='${pre.huState}'), quants_created=${quantsDelta} (total=${post.quantsCount}), expiry_assigned=false`;
-              const failureReason = !valid
-                ? `mutación inesperada: quants_delta=${quantsDelta}, hu_state=${post.huState} (pre=${pre.huState})`
-                : undefined;
-              return { valid, postState, failureReason };
-            },
-          },
-        ),
-      );
+          ),
+        );
+      }
     }
 
     // REJ-07: ubicar en un hueco bloqueado en el MISMO almacén de hu2.
-    if (hu2 && hu2Warehouse) {
-      const binBloqueado = await client.query(
-        `insert into public.warehouse_bins (tenant_id, warehouse_id, bin_code, bin_type, max_pallets, is_blocked)
-         values ($1, $2, 'PROBE-REJ-BIN-BLOCKED', 'PALLET_RACK', 1, true)
-         returning id`,
-        [opts.tenantId, hu2Warehouse],
-      );
-      const binBloqueadoId = binBloqueado.rows[0]?.id;
-      if (binBloqueadoId) {
+    if (!hu2 || !hu2Warehouse) {
+      cases.push({
+        rej: "REJ-07",
+        code: "WMS_BIN_BLOCKED",
+        obtained: null,
+        verified: false,
+        post_state: "no evaluado por fixture ausente",
+        detail: "precondición o fixture ausente: no se encontró HU en STAGING_CHECKED o su warehouse_id para REJ-07",
+      });
+    } else {
+      let binBloqueadoId: string | undefined;
+      let binError: string | undefined;
+
+      try {
+        const binBloqueado = await client.query(
+          `insert into public.warehouse_bins (tenant_id, warehouse_id, bin_code, bin_type, max_pallets, is_blocked)
+           values ($1, $2, 'PROBE-REJ-BIN-BLOCKED', 'PALLET_RACK', 1, true)
+           returning id`,
+          [opts.tenantId, hu2Warehouse],
+        );
+        binBloqueadoId = binBloqueado.rows[0]?.id;
+      } catch (err: any) {
+        binError = err?.message ?? String(err);
+      }
+
+      if (!binBloqueadoId) {
+        cases.push({
+          rej: "REJ-07",
+          code: "WMS_BIN_BLOCKED",
+          obtained: null,
+          verified: false,
+          post_state: "no evaluado por fixture ausente",
+          detail: `precondición o fixture ausente: no se pudo crear el hueco bloqueado en el almacén '${hu2Warehouse}'${binError ? ` (${binError})` : ""}`,
+        });
+      } else {
         cases.push(
           await caso(
             client,
