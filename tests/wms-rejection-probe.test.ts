@@ -2,7 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { probeRejections } from "../scripts/wms/rejection-probe.ts";
 
-function createRejectionMockClient(scenario: "all_pass" | "one_fails" | "missing_data" | "post_state_mutation") {
+function createRejectionMockClient(
+  scenario:
+    | "all_pass"
+    | "one_fails"
+    | "missing_data"
+    | "post_state_mutation"
+    | "hu_state_mutation"
+    | "quant_flow_state_mutation"
+    | "bin_fixture_failure",
+) {
   const executedQueries: string[] = [];
   let actionExecuted = false;
 
@@ -29,7 +38,7 @@ function createRejectionMockClient(scenario: "all_pass" | "one_fails" | "missing
       }
       // Query legacy
       if (sql.includes("from public.inventory_quants where tenant_id = $1 and flow_state is null")) {
-        return { rows: [{ id: "legacy-quant-uuid" }] };
+        return scenario === "missing_data" ? { rows: [] } : { rows: [{ id: "legacy-quant-uuid" }] };
       }
       // Query bin in same warehouse
       if (sql.includes("from public.warehouse_bins where tenant_id = $1 and warehouse_id = $2 and bin_type = 'PALLET_RACK'")) {
@@ -37,7 +46,7 @@ function createRejectionMockClient(scenario: "all_pass" | "one_fails" | "missing
       }
       // Query policy warehouse
       if (sql.includes("from public.warehouse_behavior_policies")) {
-        return { rows: [{ warehouse_id: "wh-uuid-1" }] };
+        return scenario === "missing_data" ? { rows: [] } : { rows: [{ warehouse_id: "wh-uuid-1" }] };
       }
       // Insert product probe
       if (sql.includes("insert into public.products")) {
@@ -57,6 +66,9 @@ function createRejectionMockClient(scenario: "all_pass" | "one_fails" | "missing
       }
       // Insert bin blocked
       if (sql.includes("insert into public.warehouse_bins")) {
+        if (scenario === "bin_fixture_failure") {
+          throw new Error("violates unique constraint 'bin_code_unique'");
+        }
         return { rows: [{ id: "bin-blocked-uuid" }] };
       }
 
@@ -74,7 +86,11 @@ function createRejectionMockClient(scenario: "all_pass" | "one_fails" | "missing
       if (sql.includes("from public.handling_units where tenant_id = $1 and id = $2")) {
         const huId = params[1];
         if (huId === "hu-s01-uuid") {
-          return { rows: [{ state: "STAGING_UNCHECKED", current_bin_id: null, current_dock_id: "dock-wh1-uuid" }] };
+          const state =
+            scenario === "hu_state_mutation" && actionExecuted
+              ? "LOCATED"
+              : "STAGING_UNCHECKED";
+          return { rows: [{ state, current_bin_id: null, current_dock_id: "dock-wh1-uuid" }] };
         }
         if (huId === "hu-s02-uuid") {
           return { rows: [{ state: "STAGING_CHECKED", current_bin_id: null, current_dock_id: "dock-wh1-uuid" }] };
@@ -93,7 +109,11 @@ function createRejectionMockClient(scenario: "all_pass" | "one_fails" | "missing
       if (sql.includes("select flow_state from public.inventory_quants where tenant_id = $1 and id = $2")) {
         const quantId = params[1];
         if (quantId === "quant-de-hu-s01-uuid") {
-          return { rows: [{ flow_state: "STAGING_UNCHECKED" }] };
+          const flowState =
+            scenario === "quant_flow_state_mutation" && actionExecuted
+              ? "AVAILABLE"
+              : "STAGING_UNCHECKED";
+          return { rows: [{ flow_state: flowState }] };
         }
         if (quantId === "quant-de-hu-s02-uuid") {
           return { rows: [{ flow_state: "STAGING_CHECKED" }] };
@@ -221,13 +241,85 @@ test("probeRejections devuelve verdict INCOMPLETE si un caso falla y registra el
   assert.match(failedCase.detail, /falló/);
 });
 
-test("probeRejections devuelve verdict INCOMPLETE si faltan fixtures", async () => {
+test("probeRejections detecta mutación aislada de hu_state con delta de reservas 0 y marca veredicto INCOMPLETE (M5 / [WMS-FOLLOWUP-ISOLATED-STATE-MUTATION])", async () => {
+  const { client } = createRejectionMockClient("hu_state_mutation");
+  const evidence = await probeRejections(client, {
+    tenantId: "00000000-0000-4000-8000-000000000001",
+    actorId: "actor-uuid",
+  });
+
+  assert.equal(evidence.total, 7);
+  assert.equal(evidence.verdict, "INCOMPLETE");
+  assert.equal(evidence.cases.length, 7);
+
+  const r1 = evidence.cases.find((c) => c.rej === "REJ-01");
+  assert.ok(r1, "REJ-01 debe estar presente");
+  assert.equal(r1.verified, false);
+  assert.match(r1.detail, /mutación inesperada/);
+  assert.match(r1.detail, /delta_reservas=0/);
+  assert.match(r1.detail, /hu_state=LOCATED/);
+});
+
+test("probeRejections detecta mutación aislada de quant_flow_state con delta de reservas 0 y marca veredicto INCOMPLETE (M5 / [WMS-FOLLOWUP-ISOLATED-STATE-MUTATION])", async () => {
+  const { client } = createRejectionMockClient("quant_flow_state_mutation");
+  const evidence = await probeRejections(client, {
+    tenantId: "00000000-0000-4000-8000-000000000001",
+    actorId: "actor-uuid",
+  });
+
+  assert.equal(evidence.total, 7);
+  assert.equal(evidence.verdict, "INCOMPLETE");
+  assert.equal(evidence.cases.length, 7);
+
+  const r1 = evidence.cases.find((c) => c.rej === "REJ-01");
+  assert.ok(r1, "REJ-01 debe estar presente");
+  assert.equal(r1.verified, false);
+  assert.match(r1.detail, /mutación inesperada/);
+  assert.match(r1.detail, /delta_reservas=0/);
+  assert.match(r1.detail, /quant_flow_state=AVAILABLE/);
+});
+
+test("probeRejections emite resultado fallido explícito por cada REJ condicional ante fixtures/precondiciones ausentes (M5 / [WMS-FOLLOWUP-REJ07-FIXTURE])", async () => {
   const { client } = createRejectionMockClient("missing_data");
   const evidence = await probeRejections(client, {
     tenantId: "00000000-0000-4000-8000-000000000001",
     actorId: "actor-uuid",
   });
 
+  assert.equal(evidence.total, 7);
+  assert.equal(evidence.cases.length, 7);
+  assert.equal(evidence.verified, 0);
   assert.equal(evidence.verdict, "INCOMPLETE");
-  assert.ok(evidence.verified < 7);
+
+  // Cada uno de los 7 casos condicionales debe tener resultado explícito fallido, obtenido null y post_state explicativo
+  const expectedRejs = ["REJ-01", "REJ-02", "REJ-03", "REJ-04", "REJ-05", "REJ-06", "REJ-07"];
+  for (const code of expectedRejs) {
+    const c = evidence.cases.find((item) => item.rej === code);
+    assert.ok(c, `El caso ${code} debe existir en cases aún con fixtures ausentes`);
+    assert.equal(c.verified, false);
+    assert.equal(c.obtained, null);
+    assert.equal(c.post_state, "no evaluado por fixture ausente");
+    assert.match(c.detail, /precondición o fixture ausente/);
+  }
+});
+
+test("probeRejections emite fallo explícito en REJ-07 si la creación del hueco bloqueado falla (M5)", async () => {
+  const { client } = createRejectionMockClient("bin_fixture_failure");
+  const evidence = await probeRejections(client, {
+    tenantId: "00000000-0000-4000-8000-000000000001",
+    actorId: "actor-uuid",
+  });
+
+  assert.equal(evidence.total, 7);
+  assert.equal(evidence.cases.length, 7);
+  assert.equal(evidence.verified, 6);
+  assert.equal(evidence.verdict, "INCOMPLETE");
+
+  const r7 = evidence.cases.find((c) => c.rej === "REJ-07");
+  assert.ok(r7, "REJ-07 debe estar presente en cases");
+  assert.equal(r7.verified, false);
+  assert.equal(r7.obtained, null);
+  assert.equal(r7.post_state, "no evaluado por fixture ausente");
+  assert.match(r7.detail, /no se pudo crear el hueco bloqueado/);
+  assert.match(r7.detail, /bin_code_unique/);
 });
