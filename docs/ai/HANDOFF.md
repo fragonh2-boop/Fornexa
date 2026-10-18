@@ -15,9 +15,11 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
      - Nueva prueba unitaria verificando el fallo explícito ante errores de inserción de fixtures (hueco bloqueado en `REJ-07`).
      - Suite completa de la sonda ampliada a 7/7 tests PASS.
   3. Gobernanza, fecha y cobertura:
-     - `lib/memorandum.ts`: Fecha vigente `19 oct 2026`, cobertura real `memorandumCommitCoverage = 661` y resumen de Almacenes actualizado.
+     - `lib/memorandum.ts`: Fecha vigente `19 oct 2026`, cobertura real `memorandumCommitCoverage = 663` y resumen de Almacenes actualizado.
      - `tests/ordenes-combos-adjuntos.test.ts`: Aserción estricta de fecha actualizada a `"19 oct 2026"`.
      - `docs/pending-log.md`: Ambos seguimientos conservados en `## OPEN` como implementados localmente pendientes de revisión y despliegue (conforme a AGENTS y adenda FornexaGPT).
+   4. Subsanación documental (cobertura real de commits):
+      - Actualizado `memorandumCommitCoverage = 663` en `lib/memorandum.ts` para cubrir el exact-HEAD de PR #133 (base `9497116` = 661 commits + 2 commits en PR), subsanando la discrepancia señalada por FornexaGPT (`1792365020.176789`). Lógica técnica M5 (0 MUSTs ratificados por DeepSeek) se mantiene 100% intacta.
 - **Límites y garantías fail-closed:**
   - Código y pruebas 100% locales en worktree aislado (`/private/tmp/fornexa-wms-m5-probe-robustness`, rama `fix/wms-m5-probe-robustness`).
   - CERO ejecuciones de `wms-f4-rehearsal.yml`.
