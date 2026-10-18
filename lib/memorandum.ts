@@ -18,14 +18,14 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "17 oct 2026";
-export const memorandumCommitCoverage = 657;
+export const memorandumUpdatedAt = "18 oct 2026";
+export const memorandumCommitCoverage = 660;
 
 export const memorandumPending: MemorandumPending[] = [
   {
     area: "Funcional",
     title: "Almacenes — reglas de reposición, propuestas y lote sintético (E2 / F4 / F5)",
-    summary: "El núcleo operativo de Almacenes (recepción con chequeo en playa, ubicación dirigida, reservas por línea, picking con rotación FIFO/LIFO/FEFO, recursos, políticas jerárquicas y control de etiqueta, estado, peso y volumen antes de la carga) ya está implementado y su migración E1 aplicada y verificada en producción, con los 30 códigos de rechazo acreditados mediante ensayo transaccional. Quedan pendientes la entrega E2 (reglas de reposición min/max y consolidación en cola), la carga del lote sintético de escenarios de almacén y la verificación funcional punto a punto en producción.",
+    summary: "El núcleo operativo de Almacenes (recepción con chequeo en playa, ubicación dirigida, reservas por línea, picking con rotación FIFO/LIFO/FEFO, recursos, políticas jerárquicas y control de etiqueta, estado, peso y volumen antes de la carga) ya está implementado y su migración E1 aplicada y verificada en producción, con los 30 códigos de rechazo acreditados mediante ensayo transaccional y sonda con pre/postestado medido (SHOULD-1 cerrado). Quedan pendientes la entrega E2 (reglas de reposición min/max y consolidación en cola), la carga del lote sintético de escenarios de almacén y la verificación funcional punto a punto en producción.",
     priority: "Ahora",
     state: "En seguimiento",
   },

@@ -2,6 +2,22 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-18 — WMS M2: Medición dinámica de pre/postestado en sonda de rechazos (Cierre de SHOULD-1)
+
+- **Contexto y encargo:** `TASK_ID: WMS-RESEARCH-20261017`. Tras la fusión de PR #131 y verificación del despliegue en producción (M1), FornexaGPT coordina la tarea M2 (`1792357910.766619`) asignando a Gemini la autoría exclusiva para cerrar **SHOULD-1** (hallazgo de DeepSeek en `1792355279.589629`) en rama y PR aisladas.
+- **Problema resuelto (SHOULD-1):** En la versión previa, `RejectionCase.post_state` era una cadena estática/literal que afirmaba la invariancia de estado sin consultar activamente la base de datos tras el rechazo.
+- **Cambios implementados:**
+  1. `scripts/wms/rejection-probe.ts`:
+     - Sustituido el string literal por medición transaccional dinámica (`measurePre` y `measurePost`) en los 7 casos de rechazo (`REJ-01` a `REJ-07`).
+     - Verificación estricta de invariantes post-rechazo: delta de reservas igual a 0, invariancia de estado en HUs (`STAGING_UNCHECKED`, `STAGING_CHECKED`), quants intactos (`flow_state` idéntico y quants históricos con `flow_state` NULL), huecos bloqueados con ocupación 0 y no asignación de bins de destino en rechazos de ubicación.
+     - Registro explícito de los valores observados en `post_state` (ej. `reservations_count=0 (delta=0), hu_state='STAGING_UNCHECKED' (pre='STAGING_UNCHECKED')...`).
+     - Fallo cerrado: si cualquier medición detecta una mutación inesperada, se marca `verified = false`, se documenta la anomalía en `detail` y la sonda emite `verdict: "INCOMPLETE"`, activando el `assert` de fallo en el runner.
+  2. `tests/wms-rejection-probe.test.ts`:
+     - Actualizado el cliente mock para responder a todas las consultas de pre/postestado.
+     - Añadido test específico que simula una mutación inesperada de estado tras el rechazo y verifica que la sonda detecta el fallo, marca `verified = false` y emite `verdict: "INCOMPLETE"`. 4/4 tests PASS.
+  3. `lib/memorandum.ts` y tests: Fecha del memorándum alineada a `18 oct 2026`, cobertura de commits actualizada a `memorandumCommitCoverage = 660` y aserción estricta en `tests/ordenes-combos-adjuntos.test.ts` (18 oct 2026) preservada sin debilitar.
+  4. Revisión independiente DeepSeek (`1792359057.615559`): 0 MUSTs, cierre técnico de SHOULD-1 ratificado. Registrados 2 seguimientos no bloqueantes en `docs/pending-log.md` (`[WMS-FOLLOWUP-REJ07-FIXTURE]` para fallo visible ante ausencia de fixture en REJ-07 y `[WMS-FOLLOWUP-ISOLATED-STATE-MUTATION]` para test de mutación aislada de hu_state/quant_flow_state con delta de reservas 0); ambos diferidos formalmente sin modificación de código funcional en este PR.
+
 ## 2026-10-18 — WMS F4: Cierre de MUST 1, 2, 3 y 4 de ensayo y preparación de seed (PR #131)
 
 - **Contexto y encargo:** `TASK_ID: WMS-RESEARCH-20261017`. Tras la reasignación emitida por Claude Desktop (`1792283639.265699`) en la rama `fix/wms-f4-musts-345`, Gemini asume la autoría en PR #131 y subsana los 4 MUSTs y SHOULDs técnicos requeridos para desbloquear el ensayo de F4 bajo estricta congelación de producción.

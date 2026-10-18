@@ -40,20 +40,31 @@ type Client = { query: (sql: string, params?: unknown[]) => Promise<{ rows: any[
 
 type Options = { tenantId: string; actorId: string };
 
-async function caso(
+type StateVerification<TPre, TPost> = {
+  measurePre: () => Promise<TPre>;
+  measurePost: () => Promise<TPost>;
+  verify: (pre: TPre, post: TPost) => { valid: boolean; postState: string; failureReason?: string };
+};
+
+async function caso<TPre, TPost>(
   client: Client,
   opts: Options,
   rej: string,
   code: string,
   accion: string,
   payload: unknown,
-  postStateDescription: string,
+  stateCheck: StateVerification<TPre, TPost>,
 ): Promise<RejectionCase> {
   const spName = `sp_${rej.replace("-", "_")}`;
   let obtenido: string | null = null;
   let verified = false;
   let detail = "";
+  let postStateDescription = "no medido";
+
+  let pre: TPre | undefined;
   try {
+    pre = await stateCheck.measurePre();
+
     obtenido = await expectRpcError(client, spName, code, async () => {
       await client.query(`select public.fornexa_wms_action($1, $2, $3, $4::jsonb)`, [
         opts.tenantId,
@@ -62,12 +73,31 @@ async function caso(
         JSON.stringify(payload),
       ]);
     });
-    verified = true;
-    detail = `rechazado con el código exacto esperado '${code}'`;
+
+    const post = await stateCheck.measurePost();
+    const check = stateCheck.verify(pre, post);
+    postStateDescription = check.postState;
+
+    if (!check.valid) {
+      verified = false;
+      detail = `rechazado con '${code}' pero el postestado falló: ${check.failureReason ?? "mutación inesperada"}`;
+    } else {
+      verified = true;
+      detail = `rechazado con el código exacto esperado '${code}' y postestado verificado`;
+    }
   } catch (err: any) {
     verified = false;
     obtenido = err?.message ?? String(err);
     detail = `se esperaba '${code}' y falló: ${obtenido}`;
+    if (pre !== undefined) {
+      try {
+        const post = await stateCheck.measurePost();
+        const check = stateCheck.verify(pre, post);
+        postStateDescription = check.postState;
+      } catch {
+        // Ignorar fallo de medición secundaria
+      }
+    }
   }
 
   return {
@@ -115,7 +145,60 @@ export async function probeRejections(client: Client, opts: Options): Promise<Re
             "WMS_STOCK_NOT_LOCATED",
             "RESERVE",
             { quant_id: q1, quantity: 1 },
-            "0 reservas creadas, quant y HU permanecen en STAGING_UNCHECKED",
+            {
+              measurePre: async () => {
+                const res = await client.query(
+                  `select count(*)::int as count from public.stock_reservations where tenant_id = $1 and quant_id = $2`,
+                  [opts.tenantId, q1],
+                );
+                const hu = await client.query(
+                  `select state from public.handling_units where tenant_id = $1 and id = $2`,
+                  [opts.tenantId, hu1],
+                );
+                const q = await client.query(
+                  `select flow_state from public.inventory_quants where tenant_id = $1 and id = $2`,
+                  [opts.tenantId, q1],
+                );
+                return {
+                  reservations: res.rows[0]?.count ?? 0,
+                  huState: hu.rows[0]?.state ?? null,
+                  quantFlowState: q.rows[0]?.flow_state ?? null,
+                };
+              },
+              measurePost: async () => {
+                const res = await client.query(
+                  `select count(*)::int as count from public.stock_reservations where tenant_id = $1 and quant_id = $2`,
+                  [opts.tenantId, q1],
+                );
+                const hu = await client.query(
+                  `select state from public.handling_units where tenant_id = $1 and id = $2`,
+                  [opts.tenantId, hu1],
+                );
+                const q = await client.query(
+                  `select flow_state from public.inventory_quants where tenant_id = $1 and id = $2`,
+                  [opts.tenantId, q1],
+                );
+                return {
+                  reservations: res.rows[0]?.count ?? 0,
+                  huState: hu.rows[0]?.state ?? null,
+                  quantFlowState: q.rows[0]?.flow_state ?? null,
+                };
+              },
+              verify: (pre, post) => {
+                const delta = post.reservations - pre.reservations;
+                const valid =
+                  delta === 0 &&
+                  post.huState === pre.huState &&
+                  post.huState === "STAGING_UNCHECKED" &&
+                  post.quantFlowState === pre.quantFlowState &&
+                  post.quantFlowState === "STAGING_UNCHECKED";
+                const postState = `reservations_count=${post.reservations} (delta=${delta}), hu_state='${post.huState}' (pre='${pre.huState}'), quant_flow_state='${post.quantFlowState}' (pre='${pre.quantFlowState}')`;
+                const failureReason = !valid
+                  ? `mutación inesperada: delta_reservas=${delta}, hu_state=${post.huState} (pre=${pre.huState}), quant_flow_state=${post.quantFlowState} (pre=${pre.quantFlowState})`
+                  : undefined;
+                return { valid, postState, failureReason };
+              },
+            },
           ),
         );
       }
@@ -131,7 +214,60 @@ export async function probeRejections(client: Client, opts: Options): Promise<Re
             "WMS_STOCK_NOT_LOCATED",
             "RESERVE",
             { quant_id: q2, quantity: 1 },
-            "0 reservas creadas, quant y HU permanecen en STAGING_CHECKED",
+            {
+              measurePre: async () => {
+                const res = await client.query(
+                  `select count(*)::int as count from public.stock_reservations where tenant_id = $1 and quant_id = $2`,
+                  [opts.tenantId, q2],
+                );
+                const hu = await client.query(
+                  `select state from public.handling_units where tenant_id = $1 and id = $2`,
+                  [opts.tenantId, hu2],
+                );
+                const q = await client.query(
+                  `select flow_state from public.inventory_quants where tenant_id = $1 and id = $2`,
+                  [opts.tenantId, q2],
+                );
+                return {
+                  reservations: res.rows[0]?.count ?? 0,
+                  huState: hu.rows[0]?.state ?? null,
+                  quantFlowState: q.rows[0]?.flow_state ?? null,
+                };
+              },
+              measurePost: async () => {
+                const res = await client.query(
+                  `select count(*)::int as count from public.stock_reservations where tenant_id = $1 and quant_id = $2`,
+                  [opts.tenantId, q2],
+                );
+                const hu = await client.query(
+                  `select state from public.handling_units where tenant_id = $1 and id = $2`,
+                  [opts.tenantId, hu2],
+                );
+                const q = await client.query(
+                  `select flow_state from public.inventory_quants where tenant_id = $1 and id = $2`,
+                  [opts.tenantId, q2],
+                );
+                return {
+                  reservations: res.rows[0]?.count ?? 0,
+                  huState: hu.rows[0]?.state ?? null,
+                  quantFlowState: q.rows[0]?.flow_state ?? null,
+                };
+              },
+              verify: (pre, post) => {
+                const delta = post.reservations - pre.reservations;
+                const valid =
+                  delta === 0 &&
+                  post.huState === pre.huState &&
+                  post.huState === "STAGING_CHECKED" &&
+                  post.quantFlowState === pre.quantFlowState &&
+                  post.quantFlowState === "STAGING_CHECKED";
+                const postState = `reservations_count=${post.reservations} (delta=${delta}), hu_state='${post.huState}' (pre='${pre.huState}'), quant_flow_state='${post.quantFlowState}' (pre='${pre.quantFlowState}')`;
+                const failureReason = !valid
+                  ? `mutación inesperada: delta_reservas=${delta}, hu_state=${post.huState} (pre=${pre.huState}), quant_flow_state=${post.quantFlowState} (pre=${pre.quantFlowState})`
+                  : undefined;
+                return { valid, postState, failureReason };
+              },
+            },
           ),
         );
       }
@@ -142,7 +278,8 @@ export async function probeRejections(client: Client, opts: Options): Promise<Re
       `select id from public.inventory_quants where tenant_id = $1 and flow_state is null limit 1`,
       [opts.tenantId],
     );
-    if (legacy.rows[0]?.id) {
+    const legacyId = legacy.rows[0]?.id;
+    if (legacyId) {
       cases.push(
         await caso(
           client,
@@ -151,10 +288,48 @@ export async function probeRejections(client: Client, opts: Options): Promise<Re
           "WMS_STOCK_NOT_LOCATED",
           "RESERVE",
           {
-            quant_id: legacy.rows[0].id,
+            quant_id: legacyId,
             quantity: 1,
           },
-          "0 reservas creadas, quant histórico conserva flow_state NULL",
+          {
+            measurePre: async () => {
+              const res = await client.query(
+                `select count(*)::int as count from public.stock_reservations where tenant_id = $1 and quant_id = $2`,
+                [opts.tenantId, legacyId],
+              );
+              const q = await client.query(
+                `select flow_state from public.inventory_quants where tenant_id = $1 and id = $2`,
+                [opts.tenantId, legacyId],
+              );
+              return {
+                reservations: res.rows[0]?.count ?? 0,
+                quantFlowState: q.rows[0]?.flow_state ?? null,
+              };
+            },
+            measurePost: async () => {
+              const res = await client.query(
+                `select count(*)::int as count from public.stock_reservations where tenant_id = $1 and quant_id = $2`,
+                [opts.tenantId, legacyId],
+              );
+              const q = await client.query(
+                `select flow_state from public.inventory_quants where tenant_id = $1 and id = $2`,
+                [opts.tenantId, legacyId],
+              );
+              return {
+                reservations: res.rows[0]?.count ?? 0,
+                quantFlowState: q.rows[0]?.flow_state ?? null,
+              };
+            },
+            verify: (pre, post) => {
+              const delta = post.reservations - pre.reservations;
+              const valid = delta === 0 && post.quantFlowState === null && pre.quantFlowState === null;
+              const postState = `reservations_count=${post.reservations} (delta=${delta}), quant_flow_state=${post.quantFlowState ?? "null"} (pre=${pre.quantFlowState ?? "null"})`;
+              const failureReason = !valid
+                ? `mutación inesperada: delta_reservas=${delta}, quant_flow_state=${post.quantFlowState} (pre=${pre.quantFlowState})`
+                : undefined;
+              return { valid, postState, failureReason };
+            },
+          },
         ),
       );
     }
@@ -165,7 +340,8 @@ export async function probeRejections(client: Client, opts: Options): Promise<Re
         `select id from public.warehouse_bins where tenant_id = $1 and warehouse_id = $2 and bin_type = 'PALLET_RACK' and not is_blocked limit 1`,
         [opts.tenantId, hu1Warehouse],
       );
-      if (bin.rows[0]?.id) {
+      const binId = bin.rows[0]?.id;
+      if (binId) {
         cases.push(
           await caso(
             client,
@@ -175,9 +351,52 @@ export async function probeRejections(client: Client, opts: Options): Promise<Re
             "PUTAWAY",
             {
               hu_id: hu1,
-              destination_bin_id: bin.rows[0].id,
+              destination_bin_id: binId,
             },
-            "HU permanece en STAGING_UNCHECKED, sin movimientos ni reservas",
+            {
+              measurePre: async () => {
+                const hu = await client.query(
+                  `select state, current_bin_id, current_dock_id from public.handling_units where tenant_id = $1 and id = $2`,
+                  [opts.tenantId, hu1],
+                );
+                const res = await client.query(
+                  `select count(*)::int as count from public.stock_reservations where tenant_id = $1 and hu_id = $2`,
+                  [opts.tenantId, hu1],
+                );
+                return {
+                  hu: hu.rows[0] ?? {},
+                  reservations: res.rows[0]?.count ?? 0,
+                };
+              },
+              measurePost: async () => {
+                const hu = await client.query(
+                  `select state, current_bin_id, current_dock_id from public.handling_units where tenant_id = $1 and id = $2`,
+                  [opts.tenantId, hu1],
+                );
+                const res = await client.query(
+                  `select count(*)::int as count from public.stock_reservations where tenant_id = $1 and hu_id = $2`,
+                  [opts.tenantId, hu1],
+                );
+                return {
+                  hu: hu.rows[0] ?? {},
+                  reservations: res.rows[0]?.count ?? 0,
+                };
+              },
+              verify: (pre, post) => {
+                const delta = post.reservations - pre.reservations;
+                const valid =
+                  delta === 0 &&
+                  post.hu.state === pre.hu.state &&
+                  post.hu.state === "STAGING_UNCHECKED" &&
+                  post.hu.current_bin_id === pre.hu.current_bin_id &&
+                  post.hu.current_bin_id !== binId;
+                const postState = `hu_state='${post.hu.state}' (pre='${pre.hu.state}'), current_bin_id=${post.hu.current_bin_id ?? "null"} (destination_assigned=false), reservations_count=${post.reservations} (delta=${delta})`;
+                const failureReason = !valid
+                  ? `mutación inesperada: delta_reservas=${delta}, hu_state=${post.hu.state} (pre=${pre.hu.state}), current_bin_id=${post.hu.current_bin_id} (pre=${pre.hu.current_bin_id})`
+                  : undefined;
+                return { valid, postState, failureReason };
+              },
+            },
           ),
         );
       }
@@ -234,7 +453,48 @@ export async function probeRejections(client: Client, opts: Options): Promise<Re
             hu_id: huProbeId,
             expiry_date: "2027-06-01",
           },
-          "HU permanece en STAGING_UNCHECKED, sin lote asignado ni quants actualizados",
+          {
+            measurePre: async () => {
+              const hu = await client.query(
+                `select state from public.handling_units where tenant_id = $1 and id = $2`,
+                [opts.tenantId, huProbeId],
+              );
+              const q = await client.query(
+                `select count(*)::int as count from public.inventory_quants where tenant_id = $1 and hu_id = $2`,
+                [opts.tenantId, huProbeId],
+              );
+              return {
+                huState: hu.rows[0]?.state ?? null,
+                quantsCount: q.rows[0]?.count ?? 0,
+              };
+            },
+            measurePost: async () => {
+              const hu = await client.query(
+                `select state from public.handling_units where tenant_id = $1 and id = $2`,
+                [opts.tenantId, huProbeId],
+              );
+              const q = await client.query(
+                `select count(*)::int as count from public.inventory_quants where tenant_id = $1 and hu_id = $2`,
+                [opts.tenantId, huProbeId],
+              );
+              return {
+                huState: hu.rows[0]?.state ?? null,
+                quantsCount: q.rows[0]?.count ?? 0,
+              };
+            },
+            verify: (pre, post) => {
+              const quantsDelta = post.quantsCount - pre.quantsCount;
+              const valid =
+                quantsDelta === 0 &&
+                post.huState === pre.huState &&
+                post.huState === "STAGING_UNCHECKED";
+              const postState = `hu_state='${post.huState}' (pre='${pre.huState}'), quants_created=${quantsDelta} (total=${post.quantsCount}), lot_assigned=false`;
+              const failureReason = !valid
+                ? `mutación inesperada: quants_delta=${quantsDelta}, hu_state=${post.huState} (pre=${pre.huState})`
+                : undefined;
+              return { valid, postState, failureReason };
+            },
+          },
         ),
       );
       cases.push(
@@ -248,7 +508,48 @@ export async function probeRejections(client: Client, opts: Options): Promise<Re
             hu_id: huProbeId,
             batch_number: "LOT-PROBE-001",
           },
-          "HU permanece en STAGING_UNCHECKED, sin caducidad asignada ni quants actualizados",
+          {
+            measurePre: async () => {
+              const hu = await client.query(
+                `select state from public.handling_units where tenant_id = $1 and id = $2`,
+                [opts.tenantId, huProbeId],
+              );
+              const q = await client.query(
+                `select count(*)::int as count from public.inventory_quants where tenant_id = $1 and hu_id = $2`,
+                [opts.tenantId, huProbeId],
+              );
+              return {
+                huState: hu.rows[0]?.state ?? null,
+                quantsCount: q.rows[0]?.count ?? 0,
+              };
+            },
+            measurePost: async () => {
+              const hu = await client.query(
+                `select state from public.handling_units where tenant_id = $1 and id = $2`,
+                [opts.tenantId, huProbeId],
+              );
+              const q = await client.query(
+                `select count(*)::int as count from public.inventory_quants where tenant_id = $1 and hu_id = $2`,
+                [opts.tenantId, huProbeId],
+              );
+              return {
+                huState: hu.rows[0]?.state ?? null,
+                quantsCount: q.rows[0]?.count ?? 0,
+              };
+            },
+            verify: (pre, post) => {
+              const quantsDelta = post.quantsCount - pre.quantsCount;
+              const valid =
+                quantsDelta === 0 &&
+                post.huState === pre.huState &&
+                post.huState === "STAGING_UNCHECKED";
+              const postState = `hu_state='${post.huState}' (pre='${pre.huState}'), quants_created=${quantsDelta} (total=${post.quantsCount}), expiry_assigned=false`;
+              const failureReason = !valid
+                ? `mutación inesperada: quants_delta=${quantsDelta}, hu_state=${post.huState} (pre=${pre.huState})`
+                : undefined;
+              return { valid, postState, failureReason };
+            },
+          },
         ),
       );
     }
@@ -261,20 +562,66 @@ export async function probeRejections(client: Client, opts: Options): Promise<Re
          returning id`,
         [opts.tenantId, hu2Warehouse],
       );
-      cases.push(
-        await caso(
-          client,
-          opts,
-          "REJ-07",
-          "WMS_BIN_BLOCKED",
-          "PUTAWAY",
-          {
-            hu_id: hu2,
-            destination_bin_id: binBloqueado.rows[0].id,
-          },
-          "HU permanece en STAGING_CHECKED en su ubicación previa, bin bloqueado sin ocupación",
-        ),
-      );
+      const binBloqueadoId = binBloqueado.rows[0]?.id;
+      if (binBloqueadoId) {
+        cases.push(
+          await caso(
+            client,
+            opts,
+            "REJ-07",
+            "WMS_BIN_BLOCKED",
+            "PUTAWAY",
+            {
+              hu_id: hu2,
+              destination_bin_id: binBloqueadoId,
+            },
+            {
+              measurePre: async () => {
+                const hu = await client.query(
+                  `select state, current_bin_id from public.handling_units where tenant_id = $1 and id = $2`,
+                  [opts.tenantId, hu2],
+                );
+                const occ = await client.query(
+                  `select count(*)::int as count from public.handling_units where tenant_id = $1 and current_bin_id = $2`,
+                  [opts.tenantId, binBloqueadoId],
+                );
+                return {
+                  hu: hu.rows[0] ?? {},
+                  binOccupancy: occ.rows[0]?.count ?? 0,
+                };
+              },
+              measurePost: async () => {
+                const hu = await client.query(
+                  `select state, current_bin_id from public.handling_units where tenant_id = $1 and id = $2`,
+                  [opts.tenantId, hu2],
+                );
+                const occ = await client.query(
+                  `select count(*)::int as count from public.handling_units where tenant_id = $1 and current_bin_id = $2`,
+                  [opts.tenantId, binBloqueadoId],
+                );
+                return {
+                  hu: hu.rows[0] ?? {},
+                  binOccupancy: occ.rows[0]?.count ?? 0,
+                };
+              },
+              verify: (pre, post) => {
+                const valid =
+                  post.hu.state === pre.hu.state &&
+                  post.hu.state === "STAGING_CHECKED" &&
+                  post.hu.current_bin_id === pre.hu.current_bin_id &&
+                  post.hu.current_bin_id !== binBloqueadoId &&
+                  post.binOccupancy === pre.binOccupancy &&
+                  post.binOccupancy === 0;
+                const postState = `hu_state='${post.hu.state}' (pre='${pre.hu.state}'), current_bin_id=${post.hu.current_bin_id ?? "null"}, blocked_bin_occupancy=${post.binOccupancy} (delta=${post.binOccupancy - pre.binOccupancy})`;
+                const failureReason = !valid
+                  ? `mutación inesperada: hu_state=${post.hu.state} (pre=${pre.hu.state}), current_bin_id=${post.hu.current_bin_id} (pre=${pre.hu.current_bin_id}), blocked_bin_occupancy=${post.binOccupancy}`
+                  : undefined;
+                return { valid, postState, failureReason };
+              },
+            },
+          ),
+        );
+      }
     }
 
     const verified = cases.filter((c) => c.verified).length;

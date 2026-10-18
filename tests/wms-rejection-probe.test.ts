@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { probeRejections } from "../scripts/wms/rejection-probe.ts";
 
-function createRejectionMockClient(scenario: "all_pass" | "one_fails" | "missing_data") {
+function createRejectionMockClient(scenario: "all_pass" | "one_fails" | "missing_data" | "post_state_mutation") {
   const executedQueries: string[] = [];
+  let actionExecuted = false;
+
   const client = {
     query: async (sql: string, params: unknown[] = []) => {
       executedQueries.push(sql);
@@ -58,8 +60,57 @@ function createRejectionMockClient(scenario: "all_pass" | "one_fails" | "missing
         return { rows: [{ id: "bin-blocked-uuid" }] };
       }
 
+      // Queries de medición de estado (pre/postestado):
+      // 1. stock_reservations count (por quant_id o hu_id)
+      if (sql.includes("from public.stock_reservations")) {
+        if (scenario === "post_state_mutation" && actionExecuted) {
+          // Simular que tras el rechazo de la acción se detecta una reserva mutada inesperadamente
+          return { rows: [{ count: 1 }] };
+        }
+        return { rows: [{ count: 0 }] };
+      }
+
+      // 2. handling_units (state, current_bin_id, current_dock_id)
+      if (sql.includes("from public.handling_units where tenant_id = $1 and id = $2")) {
+        const huId = params[1];
+        if (huId === "hu-s01-uuid") {
+          return { rows: [{ state: "STAGING_UNCHECKED", current_bin_id: null, current_dock_id: "dock-wh1-uuid" }] };
+        }
+        if (huId === "hu-s02-uuid") {
+          return { rows: [{ state: "STAGING_CHECKED", current_bin_id: null, current_dock_id: "dock-wh1-uuid" }] };
+        }
+        if (huId === "hu-probe-uuid") {
+          return { rows: [{ state: "STAGING_UNCHECKED", current_bin_id: null, current_dock_id: "dock-wh1-uuid" }] };
+        }
+      }
+
+      // 3. handling_units count en bin bloqueado (binOccupancy)
+      if (sql.includes("from public.handling_units where tenant_id = $1 and current_bin_id = $2")) {
+        return { rows: [{ count: 0 }] };
+      }
+
+      // 4. inventory_quants flow_state
+      if (sql.includes("select flow_state from public.inventory_quants where tenant_id = $1 and id = $2")) {
+        const quantId = params[1];
+        if (quantId === "quant-de-hu-s01-uuid") {
+          return { rows: [{ flow_state: "STAGING_UNCHECKED" }] };
+        }
+        if (quantId === "quant-de-hu-s02-uuid") {
+          return { rows: [{ flow_state: "STAGING_CHECKED" }] };
+        }
+        if (quantId === "legacy-quant-uuid") {
+          return { rows: [{ flow_state: null }] };
+        }
+      }
+
+      // 5. inventory_quants count por hu_id
+      if (sql.includes("from public.inventory_quants where tenant_id = $1 and hu_id = $2")) {
+        return { rows: [{ count: 0 }] };
+      }
+
       // Simulación de fornexa_wms_action
       if (sql.includes("fornexa_wms_action")) {
+        actionExecuted = true;
         const action = params[2];
         const payload = JSON.parse(params[3] as string);
 
@@ -100,7 +151,7 @@ function createRejectionMockClient(scenario: "all_pass" | "one_fails" | "missing
   return { client: client as never, executedQueries };
 }
 
-test("probeRejections envuelve todo en SAVEPOINT wms_probe_rejections_scope y valida los 7 casos con igualdad estricta (MUST-2/4/5)", async () => {
+test("probeRejections envuelve todo en SAVEPOINT wms_probe_rejections_scope y valida los 7 casos con igualdad estricta y postestado medido (MUST-2/4/5 + SHOULD-1)", async () => {
   const { client, executedQueries } = createRejectionMockClient("all_pass");
   const evidence = await probeRejections(client, {
     tenantId: "00000000-0000-4000-8000-000000000001",
@@ -112,17 +163,45 @@ test("probeRejections envuelve todo en SAVEPOINT wms_probe_rejections_scope y va
   assert.equal(evidence.verdict, "ALL_VERIFIED");
   assert.equal(evidence.cases.length, 7);
 
-  // Comprobar que todos los casos tienen postestado registrado y código obtenido
+  // Comprobar que todos los casos tienen postestado medido dinámicamente y código obtenido exacto
   for (const c of evidence.cases) {
     assert.equal(c.verified, true);
     assert.equal(c.obtained, c.code);
-    assert.ok(c.post_state.length > 5, `El caso ${c.rej} debe registrar descripción de postestado`);
+    assert.ok(c.post_state.includes("pre="), `El caso ${c.rej} debe incluir contraste pre= en post_state medido`);
+    assert.match(c.detail, /postestado verificado/);
   }
+
+  // Comprobar detalles específicos de postestado medido
+  const r1 = evidence.cases.find((c) => c.rej === "REJ-01");
+  assert.ok(r1?.post_state.includes("reservations_count=0 (delta=0)"));
+  assert.ok(r1?.post_state.includes("hu_state='STAGING_UNCHECKED'"));
+
+  const r7 = evidence.cases.find((c) => c.rej === "REJ-07");
+  assert.ok(r7?.post_state.includes("blocked_bin_occupancy=0 (delta=0)"));
 
   // Comprobar que el savepoint maestro wms_probe_rejections_scope se creó al inicio y se revirtió al final
   assert.equal(executedQueries[0], "SAVEPOINT wms_probe_rejections_scope");
   assert.equal(executedQueries[executedQueries.length - 2], "ROLLBACK TO SAVEPOINT wms_probe_rejections_scope");
   assert.equal(executedQueries[executedQueries.length - 1], "RELEASE SAVEPOINT wms_probe_rejections_scope");
+});
+
+test("probeRejections detecta mutación inesperada en postestado y marca veredicto INCOMPLETE (SHOULD-1)", async () => {
+  const { client } = createRejectionMockClient("post_state_mutation");
+  const evidence = await probeRejections(client, {
+    tenantId: "00000000-0000-4000-8000-000000000001",
+    actorId: "actor-uuid",
+  });
+
+  assert.equal(evidence.total, 7);
+  assert.equal(evidence.verdict, "INCOMPLETE");
+  assert.ok(evidence.verified < 7);
+
+  // El caso REJ-01 debe haber detectado la mutación de reservas y fallar cerrado
+  const mutatedCase = evidence.cases.find((c) => c.rej === "REJ-01");
+  assert.ok(mutatedCase);
+  assert.equal(mutatedCase.verified, false);
+  assert.match(mutatedCase.detail, /postestado falló/);
+  assert.match(mutatedCase.detail, /delta_reservas=1/);
 });
 
 test("probeRejections devuelve verdict INCOMPLETE si un caso falla y registra el detalle", async () => {
