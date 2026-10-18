@@ -23,6 +23,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
+import assert from "node:assert/strict";
 import { assertSessionModeEndpoint } from "../muelles/seed-guard.ts";
 import { probeTenantIsolation, assertEvidenceComplete } from "./isolation-probe.ts";
 import { compensateBatch, countBatch } from "./compensation.ts";
@@ -245,6 +246,13 @@ async function main(): Promise<void> {
       // MUST-5: los siete rechazos se ejercitan con el lote ya dentro.
       const rejections = await probeRejections(client, { tenantId: TENANT, actorId: await actorIdOf(client) });
 
+      // MUST-1 de Claude: detener el ensayo si no están todos los rechazos verificados.
+      assert.equal(
+        rejections.verdict,
+        "ALL_VERIFIED",
+        `Rechazos WMS incompletos en ensayo: ${rejections.verified}/${rejections.total} verificados`,
+      );
+
       // MUST-3: se ensaya la MISMA compensación que se ejecutaría de verdad, no un bucle
       // paralelo. Y se comprueban TODAS las tablas por id, no solo handling_units: una
       // tabla con filas supervivientes es una compensación fallida aunque la principal esté vacía.
@@ -260,6 +268,27 @@ async function main(): Promise<void> {
           throw new Error(`${table}: había ${n} filas del lote y se borraron ${(deleted as Record<string, number>)[table]}`);
         }
       }
+
+      // MUST-3 de Claude: comprobar no injerencia tras compensar en modo ensayo
+      const borrowedAfterCompensation = await hashBorrowed(client, manifest.borrowed_ids ?? {});
+      if (JSON.stringify(borrowedBefore) !== JSON.stringify(borrowedAfterCompensation)) {
+        throw new Error("INJERENCIA: cambió el hash de filas prestadas de DATA150 tras la compensación en ensayo");
+      }
+      const legacyAfterCompensation = legacyIds.length
+        ? (
+            await client.query(
+              `select count(*)::int as n from public.inventory_quants
+                where id = any($1::uuid[]) and flow_state is null`,
+              [legacyIds],
+            )
+          ).rows[0].n
+        : 0;
+      if (legacyIds.length && legacyAfterCompensation !== legacyIds.length) {
+        throw new Error(
+          `INJERENCIA: ${legacyAfterCompensation}/${legacyIds.length} quants históricos conservan NULL tras la compensación en ensayo`,
+        );
+      }
+
       await client.query("ROLLBACK");
       const rehearsalReceipt = {
         status: "REHEARSAL_ROLLED_BACK",
@@ -273,6 +302,8 @@ async function main(): Promise<void> {
         counts_before: before,
         inserted,
         borrowed_fingerprints: borrowedBefore,
+        borrowed_fingerprints_after: borrowedAfterCompensation,
+        legacy_quants_null: { before: legacyBefore, after: legacyAfterCompensation },
         isolation,
         rejections,
         compensation: { before: antesDeCompensar, deleted, remaining: despuesDeCompensar },
