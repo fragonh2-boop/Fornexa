@@ -15,7 +15,8 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
   2. `tests/wms-rejection-probe.test.ts`:
      - Actualizado el cliente mock para responder a todas las consultas de pre/postestado.
      - Añadido test específico que simula una mutación inesperada de estado tras el rechazo y verifica que la sonda detecta el fallo, marca `verified = false` y emite `verdict: "INCOMPLETE"`. 4/4 tests PASS.
-  3. `lib/memorandum.ts`: Actualizada cobertura a `memorandumCommitCoverage = 659` y actualizado el resumen del hito de Almacenes con la sonda y medición activa de postestado.
+  3. `lib/memorandum.ts` y tests: Fecha del memorándum alineada a `18 oct 2026`, cobertura de commits actualizada a `memorandumCommitCoverage = 660` y aserción estricta en `tests/ordenes-combos-adjuntos.test.ts` (18 oct 2026) preservada sin debilitar.
+  4. Revisión independiente DeepSeek (`1792359057.615559`): 0 MUSTs, cierre técnico de SHOULD-1 ratificado. Registrados 2 seguimientos no bloqueantes en `docs/pending-log.md` (`[WMS-FOLLOWUP-REJ07-FIXTURE]` para fallo visible ante ausencia de fixture en REJ-07 y `[WMS-FOLLOWUP-ISOLATED-STATE-MUTATION]` para test de mutación aislada de hu_state/quant_flow_state con delta de reservas 0); ambos diferidos formalmente sin modificación de código funcional en este PR.
 
 ## 2026-10-18 — WMS F4: Cierre de MUST 1, 2, 3 y 4 de ensayo y preparación de seed (PR #131)
 
