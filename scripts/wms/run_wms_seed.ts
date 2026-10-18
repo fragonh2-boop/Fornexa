@@ -23,8 +23,11 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
+import assert from "node:assert/strict";
 import { assertSessionModeEndpoint } from "../muelles/seed-guard.ts";
-import { probeTenantIsolation } from "./isolation-probe.ts";
+import { probeTenantIsolation, assertEvidenceComplete } from "./isolation-probe.ts";
+import { compensateBatch, countBatch } from "./compensation.ts";
+import { probeRejections } from "./rejection-probe.ts";
 
 const require = createRequire(import.meta.url);
 
@@ -134,6 +137,19 @@ async function runIsolationProbe(client: any): Promise<unknown> {
   return evidence;
 }
 
+/** Actor con permisos para ejecutar las acciones del ensayo. */
+async function actorIdOf(client: any): Promise<string> {
+  const res = await client.query(
+    `select user_id from public.tenant_members
+      where tenant_id = $1 and status = 'ACTIVE' and role in ('OWNER','ADMIN') limit 1`,
+    [TENANT],
+  );
+  if (!res.rows[0]?.user_id) {
+    throw new Error("no hay ningún actor OWNER/ADMIN en el tenant: los rechazos no se pueden ejercitar");
+  }
+  return res.rows[0].user_id;
+}
+
 async function countBy(client: any, table: string): Promise<number> {
   const res = await client.query(`select count(*)::int as n from public.${table} where tenant_id = $1`, [TENANT]);
   return res.rows[0].n;
@@ -222,18 +238,57 @@ async function main(): Promise<void> {
 
     // La evidencia de aislamiento va en el recibo, no en la cabeza de quien lo lee.
     const isolation = await runIsolationProbe(client);
+    // La evidencia no solo se produce: se comprueba que está completa antes de seguir.
+    // Si faltara una pieza, el recibo sería un objeto a medias que parece válido.
+    assertEvidenceComplete(isolation as any);
 
     if (rehearsal) {
-      // Se prueba la compensación dentro de la misma transacción antes de deshacerlo todo.
-      for (const table of [...TABLES].reverse()) {
-        for (const row of dataset.tables[table] ?? []) {
-          await client.query(`delete from public.${table} where id = $1`, [row.id]);
+      // MUST-5: los siete rechazos se ejercitan con el lote ya dentro.
+      const rejections = await probeRejections(client, { tenantId: TENANT, actorId: await actorIdOf(client) });
+
+      // MUST-1 de Claude: detener el ensayo si no están todos los rechazos verificados.
+      assert.equal(
+        rejections.verdict,
+        "ALL_VERIFIED",
+        `Rechazos WMS incompletos en ensayo: ${rejections.verified}/${rejections.total} verificados`,
+      );
+
+      // MUST-3: se ensaya la MISMA compensación que se ejecutaría de verdad, no un bucle
+      // paralelo. Y se comprueban TODAS las tablas por id, no solo handling_units: una
+      // tabla con filas supervivientes es una compensación fallida aunque la principal esté vacía.
+      const antesDeCompensar = await countBatch(client, dataset);
+      const { deleted } = await compensateBatch(client, dataset);
+      const despuesDeCompensar = await countBatch(client, dataset);
+      const supervivientes = Object.entries(despuesDeCompensar).filter(([, n]) => n > 0);
+      if (supervivientes.length) {
+        throw new Error(`la compensación dejó filas: ${JSON.stringify(supervivientes)}`);
+      }
+      for (const [table, n] of Object.entries(antesDeCompensar)) {
+        if (n !== (deleted as Record<string, number>)[table]) {
+          throw new Error(`${table}: había ${n} filas del lote y se borraron ${(deleted as Record<string, number>)[table]}`);
         }
       }
-      const afterRollback = await countBy(client, "handling_units");
-      if (afterRollback !== before.handling_units) {
-        throw new Error("la compensación no dejó handling_units como estaba");
+
+      // MUST-3 de Claude: comprobar no injerencia tras compensar en modo ensayo
+      const borrowedAfterCompensation = await hashBorrowed(client, manifest.borrowed_ids ?? {});
+      if (JSON.stringify(borrowedBefore) !== JSON.stringify(borrowedAfterCompensation)) {
+        throw new Error("INJERENCIA: cambió el hash de filas prestadas de DATA150 tras la compensación en ensayo");
       }
+      const legacyAfterCompensation = legacyIds.length
+        ? (
+            await client.query(
+              `select count(*)::int as n from public.inventory_quants
+                where id = any($1::uuid[]) and flow_state is null`,
+              [legacyIds],
+            )
+          ).rows[0].n
+        : 0;
+      if (legacyIds.length && legacyAfterCompensation !== legacyIds.length) {
+        throw new Error(
+          `INJERENCIA: ${legacyAfterCompensation}/${legacyIds.length} quants históricos conservan NULL tras la compensación en ensayo`,
+        );
+      }
+
       await client.query("ROLLBACK");
       const rehearsalReceipt = {
         status: "REHEARSAL_ROLLED_BACK",
@@ -247,7 +302,11 @@ async function main(): Promise<void> {
         counts_before: before,
         inserted,
         borrowed_fingerprints: borrowedBefore,
+        borrowed_fingerprints_after: borrowedAfterCompensation,
+        legacy_quants_null: { before: legacyBefore, after: legacyAfterCompensation },
         isolation,
+        rejections,
+        compensation: { before: antesDeCompensar, deleted, remaining: despuesDeCompensar },
       };
       // El ensayo escribe su recibo igual que la carga: sin él, el workflow no tiene nada
       // que publicar y un ensayo correcto se queda sin evidencia.
@@ -256,16 +315,11 @@ async function main(): Promise<void> {
       return;
     }
 
-    await client.query("COMMIT");
-
-    const after: Record<string, number> = {};
-    for (const table of TABLES) after[table] = await countBy(client, table);
+    // MUST-4: la no injerencia se comprueba ANTES de confirmar. Comprobarla después del
+    // COMMIT es comprobar un daño ya escrito: el error llega cuando ya no se puede deshacer.
     const borrowedAfter = await hashBorrowed(client, manifest.borrowed_ids ?? {});
-
-    // No injerencia: si cambió una fila prestada o un histórico salió de NULL, el lote es fallido
-    // aunque sus propios recuentos cuadren.
     if (JSON.stringify(borrowedBefore) !== JSON.stringify(borrowedAfter)) {
-      throw new Error("INJERENCIA: cambió el hash de filas prestadas de DATA150");
+      throw new Error("INJERENCIA: cambió el hash de filas prestadas de DATA150 (no se confirma nada)");
     }
     const legacyAfter = legacyIds.length
       ? (
@@ -277,8 +331,15 @@ async function main(): Promise<void> {
         ).rows[0].n
       : 0;
     if (legacyIds.length && legacyAfter !== legacyIds.length) {
-      throw new Error(`INJERENCIA: ${legacyAfter}/${legacyIds.length} quants históricos conservan NULL`);
+      throw new Error(
+        `INJERENCIA: ${legacyAfter}/${legacyIds.length} quants históricos conservan NULL (no se confirma nada)`,
+      );
     }
+
+    await client.query("COMMIT");
+
+    const after: Record<string, number> = {};
+    for (const table of TABLES) after[table] = await countBy(client, table);
 
     writeFileSync(
       receiptPath,

@@ -2,6 +2,18 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-18 — WMS F4: Cierre de MUST 1, 2, 3 y 4 de ensayo y preparación de seed (PR #131)
+
+- **Contexto y encargo:** `TASK_ID: WMS-RESEARCH-20261017`. Tras la reasignación emitida por Claude Desktop (`1792283639.265699`) en la rama `fix/wms-f4-musts-345`, Gemini asume la autoría en PR #131 y subsana los 4 MUSTs y SHOULDs técnicos requeridos para desbloquear el ensayo de F4 bajo estricta congelación de producción.
+- **Cambios implementados:**
+  1. `scripts/wms/run_wms_seed.ts` (MUST-1): Aserción estricta `assert.equal(rejections.verdict, "ALL_VERIFIED")` antes de la compensación en modo ensayo, impidiendo que ensayos con rechazos incompletos o fallidos terminen en verde.
+  2. `scripts/wms/rejection-probe.ts` (MUST-2): Integrado `expectRpcError` de `scripts/wms/rehearsal-guard.ts` con igualdad exacta por código WMS y savepoint por caso, descartando la regex `/WMS_[A-Z_]+/` y `catch` genérico. Registrados código esperado, código obtenido y postestado explícito.
+  3. `scripts/wms/run_wms_seed.ts` (MUST-3): Añadida verificación post-compensación en modo ensayo (`--dry-run-rehearsal`), comprobando mediante `hashBorrowed` que las huellas de las filas prestadas de DATA150 son idénticas a las iniciales y que los 150 quants históricos conservan `flow_state` NULL tras `compensateBatch`.
+  4. `scripts/wms/rejection-probe.ts` (MUST-4): La sonda completa `probeRejections` queda encapsulada en `SAVEPOINT wms_probe_rejections_scope` con `ROLLBACK TO SAVEPOINT` y `RELEASE SAVEPOINT` incondicionales en el bloque `finally`, garantizando 0 residuos en base de datos independientemente del modo de invocación.
+  5. `scripts/wms/rejection-probe.ts` (SHOULDs): Coherencia de almacén y muelles para REJ-04 (`hu1Warehouse`), REJ-05/REJ-06 (almacén con política de lote del dataset `targetWarehouseId`) y REJ-07 (`hu2Warehouse` con bin bloqueado). Postestado documentado en cada caso de `RejectionCase`.
+  6. `tests/wms-rejection-probe.test.ts`: Suite de tests unitarios (3/3 PASS) validando savepoint maestro, igualdad estricta y detección de veredictos incompletos.
+  7. `lib/memorandum.ts`: Actualizada cobertura de commits a `memorandumCommitCoverage = 657` y fecha a `18 oct 2026`.
+
 ## 2026-10-17 — WMS: Endurecimiento de seguridad en guard de ensayo, workflows y postcondiciones (A-1, A-2, D-1, D-2, D-3)
 
 - **Contexto y encargo:** `TASK_ID: WMS-RESEARCH-20261017`. Atendiendo a la auditoría independiente de E1 y los hallazgos asignados por Claude Desktop (`1792266571.453499`, `1792266786.631939`), se aplican mejoras de endurecimiento técnico en scripts y workflows de CI sin alterar esquemas ni código productivo.
