@@ -586,5 +586,101 @@ test("M7 C-3 SHOULD-1 — API Request execution rejects client-provided authorit
   assert.equal(rpcCalled, true);
 });
 
+test("M7 C-3 SHOULD-1 — documento de contrato no cita códigos inexistentes como WMS_MEASUREMENT_REQUIRED y documenta WMS_WEIGHT_TOLERANCE", () => {
+  const currentContractDoc = readFileSync(C3_RESOLUTION_PATH, "utf-8");
+  assert.ok(
+    !currentContractDoc.includes("WMS_MEASUREMENT_REQUIRED"),
+    "El documento de contrato no debe citar el código inexistente WMS_MEASUREMENT_REQUIRED",
+  );
+  assert.ok(
+    currentContractDoc.includes("WMS_WEIGHT_TOLERANCE"),
+    "El documento de contrato debe documentar el código real WMS_WEIGHT_TOLERANCE",
+  );
+});
+
+test("M7 C-3 SHOULD-2 — validateDisposableDatabase rechaza base con tablas sin marcador sintético y autoriza con marcador o vacía (MUST-5 guard)", async () => {
+  // @ts-expect-error - import dynamic from local .mjs harness script
+  const { validateDisposableDatabase, validateIsolation } = await import("../scripts/wms/verify-c3-postgres.mjs");
+
+  // 1. Base externa con tablas ajenas en 'public' SIN marcador sintético -> DEBE LANZAR [SECURITY_FATAL MUST-5]
+  const mockAlienDb = {
+    query: async () => ({
+      rows: [{ table_name: "users" }, { table_name: "orders" }, { table_name: "wms_bins" }],
+    }),
+  };
+  await assert.rejects(
+    async () => {
+      await validateDisposableDatabase(mockAlienDb, "pg-socket");
+    },
+    (err: Error) => {
+      assert.ok(
+        err.message.includes("[SECURITY_FATAL MUST-5]"),
+        `Error debe contener [SECURITY_FATAL MUST-5], obtenido: ${err.message}`,
+      );
+      assert.ok(
+        err.message.includes("without synthetic test marker 'fornexa_synthetic_test_marker'"),
+        "Error debe especificar la ausencia del marcador sintético",
+      );
+      return true;
+    },
+  );
+
+  // 2. Base externa con tablas que CONTIENEN el marcador sintético 'fornexa_synthetic_test_marker' -> AUTORIZADO
+  const mockReusableTestDb = {
+    query: async () => ({
+      rows: [{ table_name: "fornexa_synthetic_test_marker" }, { table_name: "handling_units" }],
+    }),
+  };
+  await assert.doesNotReject(async () => {
+    await validateDisposableDatabase(mockReusableTestDb, "pg-socket");
+  });
+
+  // 3. Base externa completamente vacía (0 tablas) -> AUTORIZADO
+  const mockEmptyDb = {
+    query: async () => ({ rows: [] }),
+  };
+  await assert.doesNotReject(async () => {
+    await validateDisposableDatabase(mockEmptyDb, "pg-socket");
+  });
+
+  // 4. Sandbox en memoria PGlite WASM -> AUTORIZADO inmediatamente sin consulta
+  const mockPgliteDb = {
+    query: async () => {
+      throw new Error("No debe ejecutarse query para sandbox efímero");
+    },
+  };
+  await assert.doesNotReject(async () => {
+    await validateDisposableDatabase(mockPgliteDb, "pglite-wasm");
+  });
+
+  // 5. Host y DB isolation validator
+  assert.throws(
+    () => validateIsolation({ host: "192.168.1.100", database: "fornexa_test" }),
+    /\[SECURITY_FATAL MUST-5\] Target host '192.168.1.100' is NOT a local loopback address/,
+  );
+  assert.throws(
+    () => validateIsolation({ host: "127.0.0.1", database: "production" }),
+    /\[SECURITY_FATAL MUST-5\] Target database 'production' is a forbidden production or system database/,
+  );
+  assert.throws(
+    () => validateIsolation({ host: "127.0.0.1", database: "postgres" }),
+    /\[SECURITY_FATAL MUST-5\] Target database 'postgres' is a forbidden production or system database/,
+  );
+  assert.doesNotThrow(() => validateIsolation({ host: "127.0.0.1", database: "fornexa_test" }));
+  assert.doesNotThrow(() => validateIsolation({ host: "localhost", database: "fornexa_test" }));
+
+  // 6. Comprobación estática: validateDisposableDatabase se invoca antes de drop schema public cascade
+  const harnessScript = readFileSync(resolve(import.meta.dirname, "../scripts/wms/verify-c3-postgres.mjs"), "utf-8");
+  const idxValidate = harnessScript.indexOf("validateDisposableDatabase(db, clientType)");
+  const idxDropSchema = harnessScript.indexOf("drop schema if exists public cascade");
+  assert.ok(idxValidate !== -1, "validateDisposableDatabase debe estar presente en el arnés");
+  assert.ok(idxDropSchema !== -1, "drop schema debe estar presente en el arnés");
+  assert.ok(
+    idxValidate < idxDropSchema,
+    "validateDisposableDatabase DEBE llamarse estrictamente antes de drop schema public cascade",
+  );
+});
+
+
 
 
