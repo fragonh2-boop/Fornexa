@@ -6,7 +6,7 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ### 2026-10-19 — WMS M7: Controles de carga y políticas de almacén en servidor (C-3)
 - **Área:** Almacenes / WMS / Servidor / C-3
-- **Estado:** SUBSANACIÓN 5 (MUST-1, MUST-5, SHOULD-1, SHOULD-2) APLICADA LOCALMENTE CON RECIBO VINCULADO, AISLAMIENTO PRE-DDL, CONCURRENCIA REAL Y API EJECUTADA (16/16 PASS), PENDIENTE RE-REVISIÓN INDEPENDIENTE (DeepSeek)
+- **Estado:** SUBSANACIÓN 6 (MUST-1 residual artifact CI, MUST-5 prueba pre-DDL destino desechable, y Captura UI) APLICADA LOCALMENTE CON RECIBO VINCULADO, AISLAMIENTO PRE-DDL, CONCURRENCIA REAL Y API EJECUTADA (16/16 PASS), PENDIENTE RE-REVISIÓN INDEPENDIENTE (DeepSeek)
 - **Alcance y resolución:**
   - Resolución integral de las 5 ambigüedades técnicas en `docs/architecture/wms-m7-c3-contract-resolution.md`:
     - (a) `CONTROL_STATE` con `status: 'REJECTED'` es una inspección atómica válida que sitúa la HU y quants en `QUARANTINE` (o `DAMAGED`) sin lanzar excepción SQL. Errores tipados quedan reservados para fallos de comando.

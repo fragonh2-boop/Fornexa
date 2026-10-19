@@ -4,10 +4,10 @@
   "base_sha": "45f6c25a9f2a604b4400a9baa818d221837e896e",
   "migration_sha256": "b8d7673be55d3c698c2b79babaea6b7a6a8d2ec8d6a5ac8ad4d357bd733c629d",
   "rollback_sha256": "5be722c81d25b729ce7c17a6d7878ff520b6aa08004796369cca6e8557e76108",
-  "harness_sha256": "b79e91841a4276cff42eca5d5268b73db859f5bbf92700d0fe2493552a86b04a",
-  "pg_version": "PostgreSQL 18.6 (PGlite 0.5.10) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.5 (1db513782be24469589d7cb8a1f1834e9a33f271), 32-bit",
-  "engine": "pglite-wasm",
-  "database": "PGlite (in-process synthetic sandbox)",
+  "harness_sha256": "f2f5249330877a704c6db30afeb0f0d39645a6ad6880b36c26fc495d3f07e5ac",
+  "pg_version": "PostgreSQL 16.4 on x86_64-pc-linux-musl, compiled by gcc (Alpine 13.2.1 20240309) 13.2.1 20240309, 64-bit",
+  "engine": "pg-socket",
+  "database": "fornexa_test",
   "migration": "20261019120000_wms_c3_server_load_controls.sql",
   "cases": [
     {
@@ -565,68 +565,18 @@
     },
     {
       "case": 10,
-      "title": "Dos sesiones concurrentes se serializan con FOR UPDATE y contención real",
+      "title": "Dos sesiones TCP concurrentes se serializan con FOR UPDATE y contención real",
       "status": "PASS",
-      "model": "event_loop_concurrent_dispatch",
-      "res1": {
-        "hu": {
-          "id": "70000000-0000-4000-8000-000000000010",
-          "code": "HU-010",
-          "state": "PICKED_STAGED",
-          "hu_type": "PALLET",
-          "code_type": "SSCC",
-          "is_active": true,
-          "tenant_id": "10000000-0000-4000-8000-000000000001",
-          "volume_m3": null,
-          "created_at": "2026-10-19T06:14:14.25+01:00",
-          "updated_at": "2026-10-19T06:14:14.252+01:00",
-          "measured_at": null,
-          "measured_by": null,
-          "parent_hu_id": null,
-          "warehouse_id": "30000000-0000-4000-8000-000000000001",
-          "current_bin_id": null,
-          "owner_party_id": null,
-          "current_dock_id": null,
-          "gross_weight_kg": null,
-          "label_issued_at": null,
-          "state_controlled_at": "2026-10-19T06:14:14.252+01:00",
-          "state_controlled_by": "20000000-0000-4000-8000-000000000001"
-        },
+      "model": "real_two_tcp_sessions_row_lock_barrier",
+      "concurrency_certified": true,
+      "session1_locked_and_released": true,
+      "session2_blocked_and_unblocked": true,
+      "session2_result": {
         "ok": true,
         "action": "CONTROL_STATE",
         "status": "PASSED",
         "task_id": "0d232881-1f32-4f63-9be8-401803711376"
-      },
-      "res2": {
-        "hu": {
-          "id": "70000000-0000-4000-8000-000000000010",
-          "code": "HU-010",
-          "state": "PICKED_STAGED",
-          "hu_type": "PALLET",
-          "code_type": "SSCC",
-          "is_active": true,
-          "tenant_id": "10000000-0000-4000-8000-000000000001",
-          "volume_m3": null,
-          "created_at": "2026-10-19T06:14:14.25+01:00",
-          "updated_at": "2026-10-19T06:14:14.254+01:00",
-          "measured_at": null,
-          "measured_by": null,
-          "parent_hu_id": null,
-          "warehouse_id": "30000000-0000-4000-8000-000000000001",
-          "current_bin_id": null,
-          "owner_party_id": null,
-          "current_dock_id": null,
-          "gross_weight_kg": null,
-          "label_issued_at": null,
-          "state_controlled_at": "2026-10-19T06:14:14.254+01:00",
-          "state_controlled_by": "20000000-0000-4000-8000-000000000001"
-        },
-        "ok": true,
-        "action": "CONTROL_STATE",
-        "status": "PASSED",
-        "task_id": "40a3b109-0bbe-431a-abef-d9dfbf823ccd"
-      },
-      "tasks_count": 2
+      }
     },
     {
       "case": 11,
@@ -795,18 +745,20 @@
   "musts": [
     {
       "must": "MUST-5",
-      "title": "Validación de aislamiento previo a DDL (host local y base de datos desechable)",
+      "title": "Validación de aislamiento previo a DDL (host local y base de datos desechable comprobada)",
       "status": "PASS",
       "evidence": {
-        "engine": "pglite-wasm",
-        "host": "in-process-wasm",
-        "database": "in-process-sandbox",
+        "engine": "pg-socket",
+        "host": "127.0.0.1",
+        "database": "fornexa_test",
         "allowed_hosts": [
           "127.0.0.1",
           "localhost",
           "::1"
         ],
-        "ddl_isolation": "VALIDATED_BEFORE_SQL"
+        "ddl_isolation": "VALIDATED_BEFORE_SQL",
+        "disposable_validation": "EMPTY_OR_SYNTHETIC_MARKER_VERIFIED",
+        "synthetic_marker_table": "public.fornexa_synthetic_test_marker"
       }
     },
     {

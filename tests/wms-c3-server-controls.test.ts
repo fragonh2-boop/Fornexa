@@ -578,7 +578,7 @@ test("M7 C-3 SHOULD-1 — API Request execution rejects client-provided authorit
   assert.equal(validateWmsActionPayloadSecurity("LOAD", { state_controlled: true })?.code, "WMS_FORBIDDEN");
   assert.equal(validateWmsActionPayloadSecurity("LOAD", { scanned_code: "OK" }), null);
 
-  const res6 = await executeWmsActionApi(req6, authContext, async (action, _payload) => {
+  const res6 = await executeWmsActionApi(req6, authContext, async (action) => {
     rpcCalled = true;
     return { ok: true, action };
   });

@@ -12,3 +12,4 @@ out
 docs/verification/*.log
 !docs/verification/data150-local-pg-rehearsal.log
 scripts/data150/artifacts/
+docs/verification/receipt-m7-c3-pglite.json

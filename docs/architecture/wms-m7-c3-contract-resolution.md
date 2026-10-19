@@ -286,5 +286,35 @@ Tras la revisión independiente de DeepSeek del commit `9d63d5c9887e1f8a485eafcc
    - Se documenta con claridad que la ejecución del script SQL de rollback protegido (`supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql`) funciona de forma deliberada como un **interruptor de apagado operativo fail-closed (`WMS_ROLLBACK_ACTIVE`)**.
    - Ante una emergencia donde deba anularse la versión C-3 sin reabrir el vector de usurpación de autoridad cliente de E1, el rollback rechaza con excepción toda operativa de almacén hasta el despliegue del parche correctivo, preservando intactas las columnas y el histórico de auditoría sin corrupción de datos.
 
+---
+
+## 7. Subsanación 6 (6ª Revisión DeepSeek tras dictamen `d8a0ec2` — MUST-1 residual, MUST-5 pre-DDL, y Captura UI)
+
+Tras la revisión de DeepSeek en `review-134-9d63d5c/REVIEW-DEEPSEEK-d8a0ec2.md` y su adenda correspondiente:
+
+1. **MUST-1 residual (Publicación Durable del Recibo en CI y Coherencia de Modelo)**:
+   - **Artefacto CI Automatizado**: Se añade el paso `actions/upload-artifact@v4` en `.github/workflows/ci.yml` inmediatamente tras la ejecución relacional de PostgreSQL, publicando duraderamente `docs/verification/receipt-m7-c3-postgres.json` en los artefactos de la ejecución de GitHub Actions (`name: receipt-m7-c3-postgres`).
+   - **Coherencia Título-Modelo en Caso 10**: En `scripts/wms/verify-c3-postgres.mjs`, se discrimina de forma explícita el título y los metadatos devueltos por el caso 10:
+     - En ejecución con conexión de socket TCP a PostgreSQL (`pg-socket` en CI): `title = "Dos sesiones TCP concurrentes se serializan con FOR UPDATE y contención real"`, `model = "real_two_tcp_sessions_row_lock_barrier"`, `concurrency_certified: true`.
+     - En ejecución con PGlite en memoria (`pglite-wasm` local): `title = "Dos llamadas concurrentes en bucle de eventos (simulación en PGlite WASM; contención real certificada en CI PostgreSQL 16)"`, `model = "event_loop_concurrent_dispatch"`, `concurrency_certified: false`.
+   - **Aislamiento de Recibo Local**: Las ejecuciones locales en modo WASM escriben en `docs/verification/receipt-m7-c3-pglite.json` (ignorado en `.gitignore`), protegiendo el archivo de recibo relacional acreditante `docs/verification/receipt-m7-c3-postgres.json` generado por PostgreSQL 16.
+
+2. **MUST-5 (Prueba de Destino Desechable Previa a DDL Destructivo)**:
+   - Se incorpora `validateDisposableDatabase(dbClient, type)` en `scripts/wms/verify-c3-postgres.mjs`, ejecutada **antes** de emitir cualquier sentencia `DROP SCHEMA public CASCADE`.
+   - Para conexiones de base de datos relacional externa, la función consulta `information_schema.tables` en el esquema `public`.
+   - Si existen tablas de usuario preexistentes y **no** contienen la tabla de marca sintética (`public.fornexa_synthetic_test_marker`), la ejecución aborta inmediatamente con `[SECURITY_FATAL MUST-5] Target database contains non-disposable existing tables...`, impidiendo el borrado inadvertido de bases de datos de desarrollo o locales no desechables.
+   - Tras inicializar el esquema de pruebas, se crea la tabla de marcado `public.fornexa_synthetic_test_marker` para autorizar de forma segura y reproducible ejecuciones subsiguientes en el entorno de pruebas.
+
+3. **Captura UI de Mediciones en `app/dashboard/almacenes/WmsWorkspace.tsx`**:
+   - Se suprimen los fallbacks silenciosos `|| hu.gross_weight_kg` y `|| hu.volume_m3` que transformaban la omisión de medición por parte del operario en una supuesta confirmación idéntica al valor esperado de la HU.
+   - Los campos de entrada interactiva inician con valor vacío (`""`).
+   - Se incorpora un campo visible e interactivo para volumen medido (`measured_volume_m3`), complementando al de peso medido (`measured_weight_kg`).
+   - Si el operario deja ambos campos vacíos, la UI no envía valores ficticios, garantizando que el servidor aplique la política de almacén correspondiente (`WMS_MEASUREMENT_REQUIRED` o rechazo de tolerancia calculada en servidor).
+
+4. **Declaración de Alcance de Stubs Sintéticos y Gates**:
+   - Se declara formalmente que el arnés relacional `verify-c3-postgres.mjs` aísla y certifica la lógica transaccional del RPC `fornexa_wms_action`, triggers relacionales, cálculo de tolerancias, atomicidad y serialización de concurrencia bajo PostgreSQL 16.
+   - Las definiciones simplificadas de `auth.users`, roles `anon`/`authenticated`/`service_role` y `tenants` en el arnés actúan como stubs sintéticos para las pruebas unitarias y de integración del RPC en entorno aislado, sin suplantar el conjunto completo de políticas RLS y restricciones del esquema maestro del proyecto, cuya validación global se efectúa en los entornos integrados de preproducción.
+
+
 
 

@@ -74,6 +74,14 @@ jobs:
           USE_REAL_POSTGRES: "true"
         run: node scripts/wms/verify-c3-postgres.mjs
 
+      - name: Upload WMS C-3 Verification Receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: receipt-m7-c3-postgres
+          path: docs/verification/receipt-m7-c3-postgres.json
+          if-no-files-found: error
+
       - name: Build web
         run: pnpm build
 

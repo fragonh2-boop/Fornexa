@@ -47,6 +47,39 @@ function validateIsolation({ host, database }) {
   }
 }
 
+// MUST-5: Pre-DDL Disposable Target Database Verification
+// Ensures the database is either empty or contains ONLY prior runs of this synthetic harness
+async function validateDisposableDatabase(dbClient, type) {
+  if (type === "pglite-wasm") {
+    console.log("[MUST-5] In-process ephemeral sandbox verified (PGlite WASM memory-backed).");
+    return;
+  }
+
+  const res = await dbClient.query(`
+    select table_name
+    from information_schema.tables
+    where table_schema = 'public'
+      and table_type = 'BASE TABLE';
+  `);
+
+  const tables = res.rows.map((r) => r.table_name);
+  if (tables.length > 0) {
+    const isSyntheticMarkerPresent = tables.includes("fornexa_synthetic_test_marker");
+    if (!isSyntheticMarkerPresent) {
+      throw new Error(
+        `[SECURITY_FATAL MUST-5] Target database contains non-disposable existing tables in schema 'public' (${tables
+          .slice(0, 5)
+          .join(", ")}${tables.length > 5 ? "..." : ""}) without synthetic test marker 'fornexa_synthetic_test_marker'. Aborting before DDL execution to prevent data loss.`,
+      );
+    }
+    console.log(
+      `[MUST-5] Target database contains synthetic marker 'fornexa_synthetic_test_marker' from prior test run (${tables.length} tables found). Safe to refresh schema.`,
+    );
+  } else {
+    console.log("[MUST-5] Target database 'public' schema is completely empty (0 tables). Safe to initialize.");
+  }
+}
+
 // Support both PGlite (in-process WASM Postgres) and external pg Client (e.g. 127.0.0.1:5432)
 let db;
 let clientType = "pglite-wasm";
@@ -84,10 +117,18 @@ const versionRes = await db.query("select version() as ver;");
 const pgVersion = versionRes.rows[0].ver;
 console.log(`[WMS M7 C-3] Engine initialized (${clientType}). Version: ${pgVersion}`);
 
+// MUST-5: Pre-DDL Check: abort if target DB contains existing non-disposable tables
+await validateDisposableDatabase(db, clientType);
+
 // 1. Setup isolated base schemas and tables matching WMS core
 await runSql(`
   drop schema if exists public cascade;
   create schema public;
+  create table public.fornexa_synthetic_test_marker (
+    created_at timestamptz default now(),
+    harness text default 'verify-c3-postgres.mjs',
+    test_suite text default 'wms_c3_load_controls'
+  );
   create schema if not exists auth;
 
   do $$ begin create role anon; exception when duplicate_object then null; end $$;
@@ -398,7 +439,7 @@ const receipt = {
   musts: [
     {
       must: "MUST-5",
-      title: "Validación de aislamiento previo a DDL (host local y base de datos desechable)",
+      title: "Validación de aislamiento previo a DDL (host local y base de datos desechable comprobada)",
       status: "PASS",
       evidence: {
         engine: clientType,
@@ -406,6 +447,11 @@ const receipt = {
         database: config?.database ?? "in-process-sandbox",
         allowed_hosts: ["127.0.0.1", "localhost", "::1"],
         ddl_isolation: "VALIDATED_BEFORE_SQL",
+        disposable_validation:
+          clientType === "pglite-wasm"
+            ? "IN_PROCESS_MEMORY_SANDBOX"
+            : "EMPTY_OR_SYNTHETIC_MARKER_VERIFIED",
+        synthetic_marker_table: "public.fornexa_synthetic_test_marker",
       },
     },
   ],
@@ -632,7 +678,12 @@ await recordCase(9, "Replay idempotente de CONTROL_STATE con misma key devuelve 
 });
 
 // ── CASE 10: Real concurrent sessions with row lock barrier contention and commit unblocking ──
-await recordCase(10, "Dos sesiones concurrentes se serializan con FOR UPDATE y contención real", async () => {
+const case10Title =
+  clientType === "pg-socket"
+    ? "Dos sesiones TCP concurrentes se serializan con FOR UPDATE y contención real"
+    : "Dos llamadas concurrentes en bucle de eventos (simulación en PGlite WASM; contención real certificada en CI PostgreSQL 16)";
+
+await recordCase(10, case10Title, async () => {
   const huId = "70000000-0000-4000-8000-000000000010";
   await runSql(`
     insert into handling_units (id, tenant_id, warehouse_id, code, state)
@@ -672,6 +723,7 @@ await recordCase(10, "Dos sesiones concurrentes se serializan con FOR UPDATE y c
 
       return {
         model: "real_two_tcp_sessions_row_lock_barrier",
+        concurrency_certified: true,
         session1_locked_and_released: true,
         session2_blocked_and_unblocked: true,
         session2_result: session2Result,
@@ -689,7 +741,15 @@ await recordCase(10, "Dos sesiones concurrentes se serializan con FOR UPDATE y c
     assert.equal(res2.ok, true);
     const tasks = (await db.query(`select count(*)::int as c from warehouse_tasks where hu_id = '${huId}'`)).rows[0].c;
     assert.equal(tasks, 2);
-    return { model: "event_loop_concurrent_dispatch", res1, res2, tasks_count: tasks };
+    return {
+      model: "event_loop_concurrent_dispatch",
+      concurrency_certified: false,
+      certification_note:
+        "In-process PGlite WASM execution; TCP socket row-lock barrier contention certified in CI PostgreSQL 16 run",
+      res1,
+      res2,
+      tasks_count: tasks,
+    };
   }
 });
 
@@ -935,13 +995,24 @@ console.log("[WMS M7 C-3] Verifying MUST-2: Protected rollback execution...");
 const receiptDir = resolve(ROOT, "docs/verification");
 await mkdir(receiptDir, { recursive: true });
 const receiptPath = resolve(receiptDir, "receipt-m7-c3-postgres.json");
-await writeFile(receiptPath, JSON.stringify(receipt, null, 2), "utf8");
 
-console.log(`\n============================================================`);
-console.log(`[WMS M7 C-3] SUCCESS: All 16 cases + MUST-1..4 + SHOULD-1 verified in real PostgreSQL!`);
-console.log(`Durable receipt written to: docs/verification/receipt-m7-c3-postgres.json`);
-console.log(`Total: ${receipt.summary.total} | Passed: ${receipt.summary.passed} | Failed: ${receipt.summary.failed}`);
-console.log(`============================================================\n`);
+if (clientType === "pg-socket") {
+  await writeFile(receiptPath, JSON.stringify(receipt, null, 2), "utf8");
+  console.log(`\n============================================================`);
+  console.log(`[WMS M7 C-3] SUCCESS: All 16 cases + MUST-1..5 + SHOULD-1 verified in real PostgreSQL 16!`);
+  console.log(`Authoritative receipt written to: docs/verification/receipt-m7-c3-postgres.json`);
+  console.log(`Total: ${receipt.summary.total} | Passed: ${receipt.summary.passed} | Failed: ${receipt.summary.failed}`);
+  console.log(`============================================================\n`);
+} else {
+  const pgliteReceiptPath = resolve(receiptDir, "receipt-m7-c3-pglite.json");
+  await writeFile(pgliteReceiptPath, JSON.stringify(receipt, null, 2), "utf8");
+  console.log(`\n============================================================`);
+  console.log(`[WMS M7 C-3] SUCCESS: All 16 cases + MUST-1..5 + SHOULD-1 verified in PGlite WASM sandbox!`);
+  console.log(`Local PGlite receipt written to: docs/verification/receipt-m7-c3-pglite.json`);
+  console.log(`(Authoritative PostgreSQL 16 receipt preserved in receipt-m7-c3-postgres.json)`);
+  console.log(`Total: ${receipt.summary.total} | Passed: ${receipt.summary.passed} | Failed: ${receipt.summary.failed}`);
+  console.log(`============================================================\n`);
+}
 
 if (db.end) {
   try {

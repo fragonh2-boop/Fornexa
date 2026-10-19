@@ -863,8 +863,8 @@ export default function WmsWorkspace() {
                     .map((hu) => {
                       const inp = loadInputs[hu.id] ?? {
                         scannedCode: "",
-                        weight: String(hu.gross_weight_kg ?? 500),
-                        volume: String(hu.volume_m3 ?? 1.2),
+                        weight: "",
+                        volume: "",
                         stateOk: true,
                       };
                       const codeMatches =
@@ -950,13 +950,27 @@ export default function WmsWorkspace() {
                                   <div className={styles.inlineForm}>
                                     <input
                                       type="number"
+                                      step="any"
                                       aria-label={`Peso medido para ${hu.code}`}
-                                      placeholder="Peso kg"
+                                      placeholder="Peso medido (kg)"
                                       value={inp.weight}
                                       onChange={(e) =>
                                         setLoadInputs((prev) => ({
                                           ...prev,
                                           [hu.id]: { ...inp, weight: e.target.value },
+                                        }))
+                                      }
+                                    />
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      aria-label={`Volumen medido para ${hu.code}`}
+                                      placeholder="Volumen medido (m³)"
+                                      value={inp.volume}
+                                      onChange={(e) =>
+                                        setLoadInputs((prev) => ({
+                                          ...prev,
+                                          [hu.id]: { ...inp, volume: e.target.value },
                                         }))
                                       }
                                     />
@@ -967,8 +981,12 @@ export default function WmsWorkspace() {
                                       onClick={() =>
                                         void runAction("LABEL", {
                                           hu_id: hu.id,
-                                          measured_weight_kg: Number(inp.weight) || hu.gross_weight_kg,
-                                          measured_volume_m3: Number(inp.volume) || hu.volume_m3,
+                                          ...(inp.weight !== undefined && inp.weight !== "" && !isNaN(Number(inp.weight))
+                                            ? { measured_weight_kg: Number(inp.weight) }
+                                            : {}),
+                                          ...(inp.volume !== undefined && inp.volume !== "" && !isNaN(Number(inp.volume))
+                                            ? { measured_volume_m3: Number(inp.volume) }
+                                            : {}),
                                         })
                                       }
                                     >
