@@ -9,12 +9,24 @@
 -- 2. DROP FUNCTION IF EXISTS public.fornexa_wms_invalidate_hu_control();
 -- 3. ALTER TABLE public.handling_units DROP COLUMN IF EXISTS state_controlled_at;
 -- 4. ALTER TABLE public.handling_units DROP COLUMN IF EXISTS state_controlled_by;
--- 5. Re-apply fornexa_wms_action definition from 20261017110000_wms_e1_core.sql if needed.
--- 6. Note on inventory state integrity:
+-- 5. DROP FUNCTION IF EXISTS public.fornexa_wms_policy_bool(jsonb, text, boolean);
+-- 6. Re-apply fornexa_wms_action definition from 20261017110000_wms_e1_core.sql if needed.
+--    CONDICIÓN VINCULANTE (SHOULD-I): Solo válido si no hay migraciones posteriores a
+--    20261019120000_wms_c3_server_load_controls.sql que modifiquen fornexa_wms_action.
+-- 7. Note on inventory state integrity:
 --    handling_units.state values 'QUARANTINE' and 'DAMAGED' and inventory_quants.stock_status
 --    values 'QUARANTINE' and 'DAMAGED' are already defined in the core E1 domain
 --    (20261017110000_wms_e1_core.sql and 20261002233000_master_data_foundation.sql).
 --    Any handling units transitioned to QUARANTINE/DAMAGED remain fully valid and consistent in E1.
+-- 8. NOTA OPERATIVA DE DESPLIEGUE (ROLLOUT SAFETY - MUST-A):
+--    handling_units.state_controlled_at es una columna nueva inicializada en NULL para el inventario existente.
+--    Cualquier HU en estado 'PICKED_STAGED' existente previa a esta migración tendrá state_controlled_at = NULL.
+--    Con la política require_state_control_on_load = true, el primer intento de LOAD fallará cerrado con
+--    WMS_CONTROL_PENDING.
+--    PLAN OPERATIVO DE ROLLOUT:
+--    a) Los operarios deben ejecutar CONTROL_STATE PASSED sobre las HUs preparadas antes de LOAD, o
+--    b) Para almacenes con stock legado en tránsito, fijar explícitamente require_state_control_on_load = false
+--       en la política de almacén correspondiente antes de la carga.
 -- ============================================================================
 
 -- ── 1. Schema Alterations: Add State Control Columns to Handling Units ────────
@@ -68,6 +80,35 @@ update public.warehouse_behavior_policies
    set params = jsonb_set(params, '{require_state_control_on_load}', 'true'::jsonb, true)
  where params is not null
    and (params->>'require_state_control_on_load' is null or params->>'require_state_control_on_load' = '');
+
+-- ── 2c. Robust Policy Boolean Parser (MUST-A / Fail-Closed) ───────────────────
+create or replace function public.fornexa_wms_policy_bool(
+  p_policy jsonb,
+  p_key text,
+  p_default boolean default true
+) returns boolean
+language plpgsql
+immutable
+as $$
+declare
+  v_raw text;
+begin
+  if p_policy is null or not (p_policy ? p_key) then
+    return p_default;
+  end if;
+  v_raw := lower(trim(coalesce(p_policy->>p_key, '')));
+  if v_raw = '' then
+    return p_default;
+  elsif v_raw in ('true', '1', 't', 'yes', 'si', 'on') then
+    return true;
+  elsif v_raw in ('false', '0', 'f', 'no', 'off') then
+    return false;
+  else
+    -- Fail-closed default on invalid / non-parseable syntax (avoids PostgreSQL 22P02)
+    return p_default;
+  end if;
+end;
+$$;
 
 -- ── 3. Updated Atomic Mutation RPC: fornexa_wms_action ───────────────────────
 create or replace function public.fornexa_wms_action(
@@ -124,6 +165,8 @@ declare
   v_scanned_code text;
   v_scanned_batch text;
   v_consolidation text;
+  v_disposition text;
+  v_rej_state text;
   v_before jsonb;
   v_after jsonb;
   v_result jsonb;
@@ -231,11 +274,11 @@ begin
       (select huc.expiry_date from public.handling_unit_contents huc where huc.tenant_id = p_tenant and huc.handling_unit_id = v_hu.id limit 1)
     );
 
-    if (coalesce((v_policy->>'capture_lot_on_receipt')::boolean, true) or v_product.is_batch_managed) and v_batch is null then
+    if (public.fornexa_wms_policy_bool(v_policy, 'capture_lot_on_receipt', true) or v_product.is_batch_managed) and v_batch is null then
       raise exception 'WMS_LOT_REQUIRED';
     end if;
 
-    if (coalesce((v_policy->>'capture_expiry_on_receipt')::boolean, true) or v_product.shelf_life_days is not null) and v_expiry is null then
+    if (public.fornexa_wms_policy_bool(v_policy, 'capture_expiry_on_receipt', true) or v_product.shelf_life_days is not null) and v_expiry is null then
       raise exception 'WMS_EXPIRY_REQUIRED';
     end if;
 
@@ -382,7 +425,7 @@ begin
       if v_resource.max_weight_kg is not null and coalesce(v_hu.gross_weight_kg, 0) > v_resource.max_weight_kg then
         raise exception 'WMS_RESOURCE_INCOMPATIBLE';
       end if;
-      if coalesce((v_policy->>'require_resource_certification')::boolean, true) and v_product.is_hazardous
+      if public.fornexa_wms_policy_bool(v_policy, 'require_resource_certification', true) and v_product.is_hazardous
          and not ('ADR' = any(v_resource.certifications)) then
         raise exception 'WMS_RESOURCE_INCOMPATIBLE';
       end if;
@@ -433,7 +476,7 @@ begin
     end if;
 
     -- Lot mixing policy check
-    if not coalesce((v_policy->>'allow_mixed_lots_in_bin')::boolean, false) then
+    if not public.fornexa_wms_policy_bool(v_policy, 'allow_mixed_lots_in_bin', false) then
       if exists (
         select 1 from public.inventory_quants iq
          where iq.tenant_id = p_tenant
@@ -632,7 +675,7 @@ begin
     v_policy := public.fornexa_wms_effective_policy(p_tenant, v_quant.warehouse_id, v_quant.owner_party_id, v_quant.product_id);
 
     v_scanned_batch := nullif(trim(coalesce(p_payload->>'scanned_batch', p_payload->>'batch_number', '')), '');
-    if coalesce((v_policy->>'capture_lot_on_pick')::boolean, true) and v_res.batch_number is not null then
+    if public.fornexa_wms_policy_bool(v_policy, 'capture_lot_on_pick', true) and v_res.batch_number is not null then
       if v_scanned_batch is distinct from v_res.batch_number then
         raise exception 'WMS_LOT_MISMATCH';
       end if;
@@ -830,46 +873,42 @@ begin
     if upper(coalesce(p_payload->>'status', 'PASSED')) = 'REJECTED' then
       -- Ambiguity (a): Atomic REJECTED inspection does NOT throw SQL exception.
       -- Atomically updates HU and linked quants to QUARANTINE or DAMAGED.
-      declare
-        v_disposition text := upper(trim(coalesce(p_payload->>'disposition', '')));
-        v_rej_state text := case
-          when v_disposition in ('QUARANTINE', 'DAMAGED') then v_disposition
-          when lower(coalesce(p_payload->>'reason', '')) like '%dañ%'
-            or lower(coalesce(p_payload->>'reason', '')) like '%damag%'
-            or upper(coalesce(p_payload->>'reject_code', '')) = 'DAMAGED'
-          then 'DAMAGED'
-          else 'QUARANTINE'
-        end;
-      begin
-        update public.handling_units
-           set state = v_rej_state,
-               state_controlled_at = null,
-               state_controlled_by = null,
-               updated_at = v_ts
-         where tenant_id = p_tenant and id = v_hu.id
-         returning * into v_hu;
+      -- SHOULD-B: Variables hoisted to top-level DECLARE.
+      -- SHOULD-C: Strict disposition derivation (QUARANTINE default, DAMAGED if explicit) without text sniffing.
+      v_disposition := upper(trim(coalesce(p_payload->>'disposition', '')));
+      if v_disposition not in ('QUARANTINE', 'DAMAGED') then
+        v_disposition := 'QUARANTINE';
+      end if;
+      v_rej_state := v_disposition;
 
-        update public.inventory_quants
-           set flow_state = v_rej_state,
-               stock_status = case when v_rej_state = 'DAMAGED' then 'DAMAGED' else 'QUARANTINE' end,
-               updated_at = v_ts
-         where tenant_id = p_tenant and hu_id = v_hu.id;
+      update public.handling_units
+         set state = v_rej_state,
+             state_controlled_at = null,
+             state_controlled_by = null,
+             updated_at = v_ts
+       where tenant_id = p_tenant and id = v_hu.id
+       returning * into v_hu;
 
-        insert into public.warehouse_tasks (
-          tenant_id, warehouse_id, task_type, state, hu_id, idempotency_key,
-          reject_code, reject_detail, started_at, completed_at
-        ) values (
-          p_tenant, v_hu.warehouse_id, 'CONTROL_STATE', 'FAILED', v_hu.id, v_idem,
-          coalesce(nullif(p_payload->>'reject_code', ''), 'PHYSICAL_CHECK_FAILED'),
-          v_fingerprint,
-          v_ts, v_ts
-        ) returning * into v_task;
+      update public.inventory_quants
+         set flow_state = v_rej_state,
+             stock_status = case when v_rej_state = 'DAMAGED' then 'DAMAGED' else 'QUARANTINE' end,
+             updated_at = v_ts
+       where tenant_id = p_tenant and hu_id = v_hu.id;
 
-        insert into public.audit_events (tenant_id, entity_type, entity_id, action, actor_user_id, source_channel, before_data, after_data)
-        values (p_tenant, 'HANDLING_UNIT', v_hu.id, 'CONTROL_STATE_REJECTED', p_actor, 'FORNEXA_WMS', v_before, to_jsonb(v_hu));
+      insert into public.warehouse_tasks (
+        tenant_id, warehouse_id, task_type, state, hu_id, idempotency_key,
+        reject_code, reject_detail, started_at, completed_at
+      ) values (
+        p_tenant, v_hu.warehouse_id, 'CONTROL_STATE', 'FAILED', v_hu.id, v_idem,
+        coalesce(nullif(p_payload->>'reject_code', ''), 'PHYSICAL_CHECK_FAILED'),
+        v_fingerprint,
+        v_ts, v_ts
+      ) returning * into v_task;
 
-        return jsonb_build_object('ok', true, 'action', 'CONTROL_STATE', 'status', 'REJECTED', 'hu', to_jsonb(v_hu), 'task_id', v_task.id);
-      end;
+      insert into public.audit_events (tenant_id, entity_type, entity_id, action, actor_user_id, source_channel, before_data, after_data)
+      values (p_tenant, 'HANDLING_UNIT', v_hu.id, 'CONTROL_STATE_REJECTED', p_actor, 'FORNEXA_WMS', v_before, to_jsonb(v_hu));
+
+      return jsonb_build_object('ok', true, 'action', 'CONTROL_STATE', 'status', 'REJECTED', 'hu', to_jsonb(v_hu), 'task_id', v_task.id);
     else
       -- PASSED: set marks and leave state intact (allows authorized re-control with full audit trail)
       update public.handling_units
@@ -916,7 +955,7 @@ begin
     v_policy := public.fornexa_wms_effective_policy(p_tenant, v_hu.warehouse_id, v_hu.owner_party_id, null);
 
     -- C-3: Server-side physical state control check
-    if coalesce((v_policy->>'require_state_control_on_load')::boolean, true) then
+    if public.fornexa_wms_policy_bool(v_policy, 'require_state_control_on_load', true) then
       if v_hu.state_controlled_at is null then
         raise exception 'WMS_CONTROL_PENDING';
       end if;
@@ -994,7 +1033,7 @@ begin
     v_policy := public.fornexa_wms_effective_policy(p_tenant, v_hu.warehouse_id, v_hu.owner_party_id, null);
 
     if v_hu.state <> 'PICKED_STAGED' then
-      if coalesce((v_policy->>'allow_cross_dock')::boolean, false) and v_hu.state = 'STAGING_CHECKED' then
+      if public.fornexa_wms_policy_bool(v_policy, 'allow_cross_dock', false) and v_hu.state = 'STAGING_CHECKED' then
         -- authorized cross dock allowed
       else
         raise exception 'WMS_NOT_READY_TO_LOAD';
@@ -1006,14 +1045,14 @@ begin
     end if;
 
     v_scanned_code := nullif(trim(coalesce(p_payload->>'scanned_code', p_payload->>'label_code', '')), '');
-    if coalesce((v_policy->>'require_label_scan_on_load')::boolean, true) then
+    if public.fornexa_wms_policy_bool(v_policy, 'require_label_scan_on_load', true) then
       if v_scanned_code is null or v_scanned_code <> v_hu.code then
         raise exception 'WMS_LABEL_MISMATCH';
       end if;
     end if;
 
     -- C-3: Server-side physical state control check
-    if coalesce((v_policy->>'require_state_control_on_load')::boolean, true) then
+    if public.fornexa_wms_policy_bool(v_policy, 'require_state_control_on_load', true) then
       if v_hu.state_controlled_at is null then
         raise exception 'WMS_CONTROL_PENDING';
       end if;

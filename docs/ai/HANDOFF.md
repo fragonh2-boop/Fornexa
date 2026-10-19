@@ -11,20 +11,30 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
   3. *(c) Rechazo determinista en API:* `app/api/wms/route.ts` rechaza con HTTP 400 (`WMS_FORBIDDEN`) cualquier payload con `state_controlled`, `expected_weight_kg`, `expected_volume_m3` o `consolidation`/`conflicting_batch` en `REPLENISH`. Cero "ignorado silencioso".
   4. *(d) Invalidación completa:* Trigger `trg_wms_invalidate_hu_control` sobre `handling_unit_contents` que limpia `state_controlled_at = null` y `state_controlled_by = null` ante cualquier mutación de contenido. Reseteo explícito en `RECEIVE_CHECK` y `PICK`.
   5. *(e) Estrategia de rollout/rollback:* Migración aditiva independiente `supabase/migrations/20261019120000_wms_c3_server_load_controls.sql` con instrucciones de rollback documentadas sin modificar el core de E1.
-- **Subsanación de Revisión Independiente (DeepSeek `1792368288.673279` - `1792368289.867729`):**
+- **Subsanación de Revisión Independiente (DeepSeek `1792368288.673279` y `1792379683.273659`):**
   - **MUST-1 (`p_payload` NULL safety):** `v_idem` protegido en declaración (`case when p_payload is not null then p_payload->>'idempotency_key' else null end`) y normalización fail-closed al inicio de la RPC (`if p_payload is null then p_payload := '{}'::jsonb; end if;`).
-  - **MUST-2 (Rollout safety):** Backfill idempotente de `require_state_control_on_load = true` para políticas activas en la migración e instrucciones de rollback cerradas.
+  - **MUST-A (Parsing seguro de booleanos y rollout safety, reabierto de MUST-2):**
+    - Helper seguro `public.fornexa_wms_policy_bool(p_policy, p_key, p_default)`: parsing robusto sin error PostgreSQL `22P02` ante valores heredados inválidos (`"si"`, `"0"`), con fallback fail-closed a `p_default`.
+    - Nota de rollout: HUs preexistentes en `PICKED_STAGED` nacen con `state_controlled_at = NULL`; el primer `LOAD` exigirá `CONTROL_STATE PASSED` o desactivar temporalmente la obligatoriedad en almacenes con stock legado.
+    - Desacoplamiento de autoridad UI: la UI deshabilitada asiste al operario, pero el enforcement radica únicamente en la base de datos.
   - **MUST-3 (Guardas de estado de HU):** `CONTROL_STATE` restringe la inspección a estados de playa aptos (`STAGING_UNCHECKED`, `STAGING_CHECKED`, `PICKED_STAGED`), rechazando con `WMS_NOT_READY_TO_LOAD` estados `STORED`, `QUARANTINE` o `DAMAGED`, y con `WMS_FORBIDDEN` sobre `LOADED`.
   - **MUST-4 (Integridad de inventario):** Reconciliación semántica de `inventory_quants.stock_status = 'DAMAGED'` ante rechazos físicos por deterioro.
   - **MUST-5 (Aislamiento multitenant en trigger):** Filtrado explícito por `tenant_id = old.tenant_id` y `tenant_id = new.tenant_id` en `fornexa_wms_invalidate_hu_control`.
+  - **SHOULD-B (Ámbito de variables):** Extracción de variables `v_disposition` y `v_rej_state` al `declare` superior de `fornexa_wms_action`, eliminando bloques anidados.
+  - **SHOULD-C (Derivación determinista):** Erradicación de heurísticas `LIKE '%dañ%'`; `v_rej_state` derivado estrictamente de `disposition`.
+  - **SHOULD-I (Condición vinculante de rollback):** Documentado que restaurar E1 solo es válido si no existen migraciones posteriores a `20261019120000` que toquen `fornexa_wms_action`.
+  - **SHOULD-J (Control operativo preceptivo):** `PICK` resetea control, haciendo obligatoria la inspección entre picking y carga.
+  - **SHOULD-F (Columna dedicada de idempotencia):** Registrado seguimiento para migración futura de `payload_fingerprint text` en `warehouse_tasks`.
   - **SHOULD-1 / SHOULD-10 (Fingerprint de idempotencia):** `v_fingerprint` exhaustivo (acción, hu, status, reason, disposition, etc.) persistido en `reject_detail` tanto para `DONE` (PASSED) como para `FAILED` (REJECTED), garantizando replay idéntico y evitando replays con cambio de estado.
   - **SHOULD-4 (Diff textual `fornexa_wms_action` contra E1):** Verificado que únicamente se introducen las ramas de C-3 (`CONTROL_STATE`, cálculo relacional y tolerancias en `LABEL`/`LOAD`, consolidación por política en `REPLENISH`, e invalidación en `RECEIVE_CHECK`/`PICK`).
+  - **NICE-1:** Clases CSS `.controlOk` y `.controlPending` sin estilos inline en `WmsWorkspace.tsx`.
 - **Cambios implementados:**
   1. `supabase/migrations/20261019120000_wms_c3_server_load_controls.sql`:
      - Nuevas columnas `state_controlled_at timestamptz` y `state_controlled_by uuid` en `handling_units`.
+     - Helper `fornexa_wms_policy_bool` para parsing robusto de políticas.
      - Trigger de invalidación `trg_wms_invalidate_hu_control` en `handling_unit_contents` con aislamiento de tenant.
      - Backfill preventivo de políticas activas para `require_state_control_on_load`.
-     - Actualización atómica de `fornexa_wms_action` con todas las guardas y replay idempotente.
+     - Actualización atómica de `fornexa_wms_action` con todas las guardas, parsing seguro y replay idempotente.
   2. `lib/wms.ts` & `lib/wms-loader.ts`:
      - Añadido `CONTROL_STATE` a `WMS_ACTIONS` y campos `state_controlled_at/by` a `WmsHandlingUnit`.
      - Carga de datos resiliente con fallback sin romper compatibilidad en bases de datos sin la migración aplicada.
@@ -33,12 +43,12 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
   4. `app/dashboard/almacenes/WmsWorkspace.tsx`:
      - Eliminación de overrides cliente en `LABEL` y `LOAD`.
      - Exposición de acciones interactivas para superar (`PASSED`) o rechazar (`REJECTED`) el control de estado, con soporte de `disposition: 'QUARANTINE'`.
-     - Extracción de estilos a clase CSS `.controlStack`.
+     - Extracción de estilos a clases CSS `.controlStack`, `.controlOk` y `.controlPending`.
      - Ocultación de etiqueta "Control Pendiente" en unidades con estado `LOADED`.
   5. `tests/wms-c3-server-controls.test.ts`:
-     - Suite completa de 14 tests unitarios verificando los requisitos de contrato, validaciones de API, triggers y RPC, incluyendo tests específicos para MUST-1..5 y SHOULD-1/10 (343/343 tests PASS en el repo).
+     - Suite completa de 18 tests unitarios verificando los requisitos de contrato, validaciones de API, triggers y RPC, incluyendo tests específicos para MUST-1..5, MUST-A, y SHOULD-B/C/I (347/347 tests PASS en el repo).
   6. Gobernanza:
-     - `lib/memorandum.ts`: Cobertura de commits actualizada a 666, fecha `19 oct 2026`.
+     - `lib/memorandum.ts`: Cobertura de commits actualizada a 667, fecha `19 oct 2026`.
      - `docs/pending-log.md`: M5 marcado como desplegado en producción; M7 registrado en `OPEN` con subsanaciones.
 - **Límites y garantías fail-closed:**
   - Código y pruebas 100% locales en worktree aislado (`feat/wms-m7-c3-load-controls`).

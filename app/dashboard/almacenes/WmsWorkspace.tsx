@@ -895,24 +895,11 @@ export default function WmsWorkspace() {
                               {FLOW_STATE_LABEL[hu.state]}
                             </span>
                             {hu.state_controlled_at ? (
-                              <small
-                                style={{
-                                  display: "block",
-                                  marginTop: 4,
-                                  color: "var(--color-status-success-fg, #15803d)",
-                                  fontWeight: 500,
-                                }}
-                              >
+                              <small className={styles.controlOk}>
                                 Control OK ({hu.state_controlled_at.slice(11, 19)})
                               </small>
                             ) : effectivePolicy.require_state_control_on_load && hu.state !== "LOADED" ? (
-                              <small
-                                style={{
-                                  display: "block",
-                                  marginTop: 4,
-                                  color: "var(--color-status-warning-fg, #b45309)",
-                                }}
-                              >
+                              <small className={styles.controlPending}>
                                 Control Pendiente
                               </small>
                             ) : null}

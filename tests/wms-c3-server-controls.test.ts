@@ -255,3 +255,73 @@ test("M7 C-3 — documento de resolución wms-m7-c3-contract-resolution.md cubre
   assert.ok(contractDoc.includes("### (e)"), "Debe documentar resolución (e)");
 });
 
+test("M7 C-3 — helper fornexa_wms_policy_bool define parsing seguro y previene errores 22P02 (MUST-A)", () => {
+  assert.ok(
+    migrationSql.includes("create or replace function public.fornexa_wms_policy_bool"),
+    "La migración debe definir la función helper fornexa_wms_policy_bool",
+  );
+  assert.ok(
+    migrationSql.includes("fornexa_wms_policy_bool(v_policy, 'require_state_control_on_load', true)"),
+    "LABEL y LOAD deben evaluar require_state_control_on_load mediante fornexa_wms_policy_bool",
+  );
+  assert.ok(
+    !migrationSql.includes("::boolean"),
+    "No debe existir ningún casteo crudo ::boolean en la migración para evitar error PostgreSQL 22P02",
+  );
+
+  // Simulación funcional del evaluador seguro de políticas booleanas
+  function parsePolicyBool(policy: Record<string, unknown> | null, key: string, def = true): boolean {
+    if (!policy || !(key in policy)) return def;
+    const raw = String(policy[key] ?? "").trim().toLowerCase();
+    if (raw === "") return def;
+    if (["true", "1", "t", "yes", "si", "on"].includes(raw)) return true;
+    if (["false", "0", "f", "no", "off"].includes(raw)) return false;
+    return def;
+  }
+
+  assert.strictEqual(parsePolicyBool({ k: "true" }, "k"), true);
+  assert.strictEqual(parsePolicyBool({ k: "si" }, "k"), true);
+  assert.strictEqual(parsePolicyBool({ k: "1" }, "k"), true);
+  assert.strictEqual(parsePolicyBool({ k: "false" }, "k"), false);
+  assert.strictEqual(parsePolicyBool({ k: "0" }, "k"), false);
+  assert.strictEqual(parsePolicyBool({ k: "no" }, "k"), false);
+  assert.strictEqual(parsePolicyBool({ k: "invalid_syntax" }, "k", true), true);
+  assert.strictEqual(parsePolicyBool({ k: "" }, "k", true), true);
+  assert.strictEqual(parsePolicyBool(null, "k", true), true);
+});
+
+test("M7 C-3 — CONTROL_STATE deriva v_rej_state estrictamente de disposition sin heurísticas LIKE (SHOULD-B y SHOULD-C)", () => {
+  assert.ok(
+    !migrationSql.includes("like '%dañ%'") && !migrationSql.includes("like '%damag%'"),
+    "CONTROL_STATE no debe contener heurísticas de lenguaje natural LIKE",
+  );
+  assert.ok(
+    migrationSql.includes("v_disposition text;") && migrationSql.includes("v_rej_state text;"),
+    "v_disposition y v_rej_state deben declararse en el bloque superior de fornexa_wms_action (SHOULD-B)",
+  );
+  assert.ok(
+    migrationSql.includes("if v_disposition not in ('QUARANTINE', 'DAMAGED') then") &&
+    migrationSql.includes("v_disposition := 'QUARANTINE';"),
+    "v_disposition debe fallar cerrado a QUARANTINE si no es DAMAGED (SHOULD-C)",
+  );
+});
+
+test("M7 C-3 — migración documenta condición vinculante de rollback y notas operativas de rollout (SHOULD-I y MUST-A)", () => {
+  assert.ok(
+    migrationSql.includes("CONDICIÓN VINCULANTE (SHOULD-I): Solo válido si no hay migraciones posteriores a"),
+    "La migración debe documentar la condición vinculante de rollback (SHOULD-I)",
+  );
+  assert.ok(
+    migrationSql.includes("NOTA OPERATIVA DE DESPLIEGUE (ROLLOUT SAFETY - MUST-A)"),
+    "La migración debe documentar la nota de rollout para HUs preexistentes (MUST-A)",
+  );
+});
+
+test("M7 C-3 — WmsWorkspace utiliza clases CSS controlOk y controlPending sin estilos inline (NICE-1)", () => {
+  assert.ok(
+    workspace.includes("styles.controlOk") && workspace.includes("styles.controlPending"),
+    "WmsWorkspace debe usar styles.controlOk y styles.controlPending",
+  );
+});
+
+

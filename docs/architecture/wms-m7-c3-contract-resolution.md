@@ -58,9 +58,11 @@
     ```sql
     update public.handling_units
        set state_controlled_at = null,
-           state_controlled_by = null
-     where id = coalesce(new.hu_id, old.hu_id)
-       and state_controlled_at is not null;
+           state_controlled_by = null,
+           updated_at = clock_timestamp()
+     where tenant_id = coalesce(new.tenant_id, old.tenant_id)
+       and id = coalesce(new.handling_unit_id, old.handling_unit_id)
+       and (state_controlled_at is not null or state_controlled_by is not null);
     ```
   - Falla cerrado por diseño: cualquier alteración de la carga física anula inmediatamente la vigencia del control previo.
 - **Acciones operativas que invalidan**:
@@ -169,4 +171,31 @@ Tras la revisión independiente canónica emitida por DeepSeek (`U0BV95NCT89`, m
      - Resolución de consolidación en servidor mediante política en `REPLENISH`.
      - Reseteo explícito de `state_controlled_at/by` en `RECEIVE_CHECK` y `PICK`.
      - Cero alteraciones en las demás acciones del núcleo E1 (`PUTAWAY`, `CONFIRM_TASK`, etc.).
+
+---
+
+## 4. Subsanación y Cierre de la 2ª Revisión DeepSeek (MUST-A y SHOULD-B/C/I/J)
+
+Tras la segunda revisión independiente de DeepSeek (`U0BV95NCT89`, mensajes `1792379683.273659` a `1792379684.013799`), se subsana de forma estricta:
+
+1. **MUST-A (Parsing Seguro de Políticas Booleano y Despliegue de Rollout)**:
+   - **Helper Seguro `fornexa_wms_policy_bool`**: Se erradica el casteo directo `::boolean` que provocaba excepción PostgreSQL `22P02` (`invalid input syntax for type boolean`) ante valores string heredados (ej. `"si"`, `"0"`). La función `public.fornexa_wms_policy_bool(p_policy, p_key, p_default)` captura valores vacíos o malformados y retorna el valor fail-closed `p_default` sin fallar. Se utiliza en todas las comprobaciones de políticas de `fornexa_wms_action` (`require_state_control_on_load`, `allow_cross_dock`, `require_label_scan_on_load`, `capture_lot_on_receipt`, `capture_expiry_on_receipt`, `require_resource_certification`, `allow_mixed_lots_in_bin`, `capture_lot_on_pick`).
+   - **Nota Operativa de Rollout**: Pre-existentes HUs en `PICKED_STAGED` tendrán `state_controlled_at = NULL`. La primera carga (`LOAD`) fallará cerrado con `WMS_CONTROL_PENDING` a menos que los operarios registren `CONTROL_STATE PASSED` o la política de almacén establezca explícitamente `require_state_control_on_load = false`.
+   - **Desacoplamiento de Autoridad UI**: Se documenta y garantiza que el botón deshabilitado en frontend es asistencia de UX; el enforcement normativo y la fuente de verdad única radica en la RPC `fornexa_wms_action`.
+
+2. **SHOULD-B (Ámbito de Variables en `fornexa_wms_action`)**:
+   - Se eliminan bloques anidados `declare` dentro de `CONTROL_STATE`. Las variables `v_disposition text;` y `v_rej_state text;` se declaran en el bloque superior de la función.
+
+3. **SHOULD-C (Derivación Determinista sin Heurística Natural de Lenguaje)**:
+   - Se elimina por completo `LIKE '%dañ%'` o cualquier sniffing sobre el texto libre de `reason`. La derivación de `v_rej_state` es estricta: si `p_payload->>'disposition'` es `DAMAGED` se asigna `DAMAGED`, en cualquier otro caso `QUARANTINE`.
+
+4. **SHOULD-I (Condición Vinculante de Reversibilidad)**:
+   - Se incorpora en la cabecera de la migración la condición explícita de rollback: la re-aplicación de la función desde E1 es válida únicamente si no existen migraciones posteriores a `20261019120000` que hayan mutado `fornexa_wms_action`.
+
+5. **SHOULD-J (Control Obligatorio entre Picking y Carga)**:
+   - Se documenta que `PICK` resetea `state_controlled_at = null`, convirtiendo a `CONTROL_STATE` en un paso operativo preceptivo antes de `LOAD`.
+
+6. **SHOULD-F (Seguimiento de Columna Dedicada de Idempotencia)**:
+   - Registrado como mejora técnica para el siguiente ciclo la creación de `payload_fingerprint text` en `warehouse_tasks` para independizar el fingerprint de repetición del campo `reject_detail`.
+
 
