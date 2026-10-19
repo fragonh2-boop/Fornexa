@@ -16,7 +16,7 @@ const ROOT = resolve(__dirname, "../..");
 const BASE_SHA = "45f6c25a9f2a604b4400a9baa818d221837e896e";
 
 // ── MUST-5: Pre-flight Host and Database Isolation Validator ──
-function validateIsolation({ host, database }) {
+export function validateIsolation({ host, database }) {
   const allowedHosts = ["127.0.0.1", "localhost", "::1"];
   const forbiddenDatabases = [
     "postgres",
@@ -49,7 +49,7 @@ function validateIsolation({ host, database }) {
 
 // MUST-5: Pre-DDL Disposable Target Database Verification
 // Ensures the database is either empty or contains ONLY prior runs of this synthetic harness
-async function validateDisposableDatabase(dbClient, type) {
+export async function validateDisposableDatabase(dbClient, type) {
   if (type === "pglite-wasm") {
     console.log("[MUST-5] In-process ephemeral sandbox verified (PGlite WASM memory-backed).");
     return;
@@ -80,6 +80,8 @@ async function validateDisposableDatabase(dbClient, type) {
   }
 }
 
+// Main harness execution
+export async function runHarness() {
 // Support both PGlite (in-process WASM Postgres) and external pg Client (e.g. 127.0.0.1:5432)
 let db;
 let clientType = "pglite-wasm";
@@ -1014,9 +1016,26 @@ if (clientType === "pg-socket") {
   console.log(`============================================================\n`);
 }
 
-if (db.end) {
-  try {
-    await db.end();
-  } catch {}
+  if (db && db.end) {
+    try {
+      await db.end();
+    } catch {}
+  }
+  return receipt;
 }
-process.exit(0);
+
+const isDirectExecution =
+  Boolean(process.argv[1]) &&
+  (resolve(process.argv[1]) === fileURLToPath(import.meta.url) ||
+    fileURLToPath(import.meta.url).endsWith(process.argv[1].replace(/^\.\//, "")));
+
+if (isDirectExecution) {
+  runHarness()
+    .then(() => {
+      process.exit(0);
+    })
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
+}

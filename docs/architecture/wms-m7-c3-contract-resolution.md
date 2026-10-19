@@ -309,11 +309,31 @@ Tras la revisión de DeepSeek en `review-134-9d63d5c/REVIEW-DEEPSEEK-d8a0ec2.md`
    - Se suprimen los fallbacks silenciosos `|| hu.gross_weight_kg` y `|| hu.volume_m3` que transformaban la omisión de medición por parte del operario en una supuesta confirmación idéntica al valor esperado de la HU.
    - Los campos de entrada interactiva inician con valor vacío (`""`).
    - Se incorpora un campo visible e interactivo para volumen medido (`measured_volume_m3`), complementando al de peso medido (`measured_weight_kg`).
-   - Si el operario deja ambos campos vacíos, la UI no envía valores ficticios, garantizando que el servidor aplique la política de almacén correspondiente (`WMS_MEASUREMENT_REQUIRED` o rechazo de tolerancia calculada en servidor).
+   - Si el operario deja ambos campos vacíos, la UI no envía valores ficticios, garantizando que el servidor aplique la política de almacén correspondiente: cuando la política de almacén exige medición obligatoria (`require_weight_measurement` o tolerancia configurada) y la medición no se suministra, el servidor rechaza la operación fail-closed con `WMS_WEIGHT_TOLERANCE` (reutilizando el código de tolerancia del catálogo cerrado de la migración para rechazar cargas sin medición acreditada sin introducir códigos no tipados).
 
 4. **Declaración de Alcance de Stubs Sintéticos y Gates**:
    - Se declara formalmente que el arnés relacional `verify-c3-postgres.mjs` aísla y certifica la lógica transaccional del RPC `fornexa_wms_action`, triggers relacionales, cálculo de tolerancias, atomicidad y serialización de concurrencia bajo PostgreSQL 16.
    - Las definiciones simplificadas de `auth.users`, roles `anon`/`authenticated`/`service_role` y `tenants` en el arnés actúan como stubs sintéticos para las pruebas unitarias y de integración del RPC en entorno aislado, sin suplantar el conjunto completo de políticas RLS y restricciones del esquema maestro del proyecto, cuya validación global se efectúa en los entornos integrados de preproducción.
+
+---
+
+## 8. Subsanación 7 (Seguimiento de SHOULDs tras dictamen MERGE YES `16832da` y Merge de PR #134)
+
+Tras la 6ª revisión independiente de DeepSeek (`review-134-16832da/REVIEW-DEEPSEEK-16832da.md`), el dictamen MERGE YES con 2 MUST cerrados y la fusión de PR #134 en commit `8600ce03bc80f734866136dd2998c85155af592a`, se resuelven los dos SHOULD de seguimiento identificados por la coordinación:
+
+1. **SHOULD-1 (Corrección Documental del Código de Rechazo en Tolerancia)**:
+   - Se elimina la cita errónea a un código de medición inexistente en la Sección 7.3.
+   - Se documenta el comportamiento real de la migración: cuando la política de almacén exige medición física y no se suministra, el servidor aplica fail-closed levantando la excepción `WMS_WEIGHT_TOLERANCE` (reutilizando el código cerrado de tolerancia para no introducir tipos ni códigos no catalogados en el cliente).
+
+2. **SHOULD-2 (Prueba Unitaria de la Guardia de Base de Datos Desechable `validateDisposableDatabase`)**:
+   - Se exportan `validateDisposableDatabase` y `validateIsolation` desde `scripts/wms/verify-c3-postgres.mjs`, condicionando la ejecución directa del arnés relacional a su invocación por CLI.
+   - En `tests/wms-c3-server-controls.test.ts` se añade una suite de pruebas automatizadas con clientes simulados que comprueban:
+     - Rechazo estricto con `[SECURITY_FATAL MUST-5]` ante bases de datos relacionales con tablas existentes en `public` que carezcan de la marca sintética `fornexa_synthetic_test_marker`.
+     - Autorización segura ante bases de datos con el marcador sintético presente (reutilización del entorno de pruebas).
+     - Autorización segura ante bases de datos vacías (0 tablas).
+     - Autorización inmediata del sandbox en memoria PGlite WASM sin consultar metadatos.
+     - Rechazo estricto en `validateIsolation` ante hosts ajenos al bucle local (`127.0.0.1`, `localhost`, `::1`) o nombres de base de datos de producción/sistema (`postgres`, `production`, `supabase`).
+     - Comprobación estática de orden de invocación: `validateDisposableDatabase` se ejecuta estrictamente antes de cualquier instrucción destructiva `DROP SCHEMA public CASCADE`.
 
 
 
