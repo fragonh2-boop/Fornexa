@@ -11,6 +11,20 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: fornexa_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: testpassword123
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -49,6 +63,16 @@ jobs:
 
       - name: Test web
         run: pnpm test
+
+      - name: Verify WMS C-3 Server Controls (PostgreSQL Relational Execution)
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGDATABASE: fornexa_test
+          PGUSER: postgres
+          PGPASSWORD: testpassword123
+          USE_REAL_POSTGRES: "true"
+        run: node scripts/wms/verify-c3-postgres.mjs
 
       - name: Build web
         run: pnpm build

@@ -744,3 +744,114 @@ export function wmsRpcFailure(error: { code?: string; message?: string } | null 
     error: "No se pudo completar la operación de almacén.",
   };
 }
+
+export function validateWmsActionPayloadSecurity(
+  action: string,
+  payload: unknown,
+): { error: string; code: string; status: number } | null {
+  if (!WMS_ACTIONS.includes(action as WmsAction)) {
+    return {
+      error: "WMS_FORBIDDEN: Acción de almacén no reconocida.",
+      code: "WMS_FORBIDDEN",
+      status: 400,
+    };
+  }
+
+  const p =
+    payload && typeof payload === "object" && !Array.isArray(payload)
+      ? (payload as Record<string, unknown>)
+      : {};
+
+  if (
+    "state_controlled" in p ||
+    "expected_weight_kg" in p ||
+    "expected_volume_m3" in p
+  ) {
+    return {
+      error:
+        "WMS_FORBIDDEN: Los campos de control de estado y magnitudes esperadas son de cálculo exclusivo en servidor y no pueden enviarse desde el cliente.",
+      code: "WMS_FORBIDDEN",
+      status: 400,
+    };
+  }
+
+  if (
+    action === "REPLENISH" &&
+    ("consolidation" in p || "conflicting_batch" in p)
+  ) {
+    return {
+      error:
+        "WMS_FORBIDDEN: La política de consolidación es de cálculo exclusivo en servidor y no puede ser anulada desde el cliente.",
+      code: "WMS_FORBIDDEN",
+      status: 400,
+    };
+  }
+
+  return null;
+}
+
+export interface WmsAuthContextLike {
+  userId: string;
+  tenantId: string;
+  role: string;
+}
+
+export async function executeWmsActionApi(
+  request: Request,
+  authContext: WmsAuthContextLike | null,
+  rpcExecutor?: (action: WmsAction, payload: unknown, idemKey: string | null) => Promise<unknown>,
+): Promise<Response> {
+  if (!authContext) {
+    return Response.json({ error: "No autorizado.", code: "WMS_FORBIDDEN" }, { status: 401 });
+  }
+
+  const EDIT_ROLES = new Set(["OWNER", "ADMIN", "PLANNER", "OPERATOR"]);
+  const CONFIG_ROLES = new Set(["OWNER", "ADMIN", "PLANNER"]);
+
+  if (!EDIT_ROLES.has(authContext.role)) {
+    return Response.json(
+      {
+        error: "WMS_FORBIDDEN: No tienes permisos operativos en este almacén.",
+        code: "WMS_FORBIDDEN",
+      },
+      { status: 403 },
+    );
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return Response.json({ error: "JSON no válido.", code: "WMS_FORBIDDEN" }, { status: 400 });
+  }
+
+  const rawAction = String(body.action ?? "");
+  const securityViolation = validateWmsActionPayloadSecurity(rawAction, body.payload);
+  if (securityViolation) {
+    return Response.json(
+      { error: securityViolation.error, code: securityViolation.code },
+      { status: securityViolation.status },
+    );
+  }
+
+  const action = rawAction as WmsAction;
+  if ((action === "UPSERT_POLICY" || action === "UPSERT_RESOURCE") && !CONFIG_ROLES.has(authContext.role)) {
+    return Response.json(
+      {
+        error: "WMS_FORBIDDEN: Se requiere rol de planificación o administración.",
+        code: "WMS_FORBIDDEN",
+      },
+      { status: 403 },
+    );
+  }
+
+  if (rpcExecutor) {
+    const payload = body.payload && typeof body.payload === "object" ? body.payload : {};
+    const idemKey = typeof body.idempotency_key === "string" ? body.idempotency_key.trim() : null;
+    const result = await rpcExecutor(action, payload, idemKey);
+    return Response.json(result, { status: 200 });
+  }
+
+  return Response.json({ ok: true, action }, { status: 200 });
+}
+

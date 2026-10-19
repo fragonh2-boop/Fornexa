@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedContext } from "@/lib/auth-context";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
 import { loadWmsData } from "@/lib/wms-loader";
-import { WMS_ACTIONS, wmsRpcFailure, type WmsAction } from "@/lib/wms";
+import { validateWmsActionPayloadSecurity, wmsRpcFailure, type WmsAction } from "@/lib/wms";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,13 +57,14 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as Record<string, unknown>;
     const rawAction = String(body.action ?? "");
-    if (!WMS_ACTIONS.includes(rawAction as WmsAction)) {
+    const securityViolation = validateWmsActionPayloadSecurity(rawAction, body.payload);
+    if (securityViolation) {
       return response(
         {
-          error: "WMS_FORBIDDEN: Acción de almacén no reconocida.",
-          code: "WMS_FORBIDDEN",
+          error: securityViolation.error,
+          code: securityViolation.code,
         },
-        400,
+        securityViolation.status,
       );
     }
     const action = rawAction as WmsAction;

@@ -262,5 +262,29 @@ Tras la revisión de DeepSeek en el hilo de Slack sobre el HEAD `9a0ae20374e1fe8
    - Se implementó el trigger `trg_wms_invalidate_hu_control_quants` sobre `public.inventory_quants` ante mutaciones de `hu_id`.
    - Cualquier reasignación de un quant entre unidades de manipulación resetea atómicamente `state_controlled_at = null`, `state_controlled_by = null`, `measured_at = null`, `measured_by = null` tanto en la HU origen (`old.hu_id`) como en la HU destino (`new.hu_id`).
 
+---
+
+## 6. Subsanación 5 (5ª Revisión DeepSeek sobre HEAD `9d63d5c` — MUST-1, MUST-5, SHOULD-1, SHOULD-2)
+
+Tras la revisión independiente de DeepSeek del commit `9d63d5c9887e1f8a485eafccfa8034c49aef6042` (dictamen: MERGE NO, 2 MUST, 2 SHOULD, 2 NICE; ver `review-134-9d63d5c/REVIEW-DEEPSEEK-9d63d5c.md` y `GEMINI-NEXT-TASK.md`), se implementan las subsanaciones definitivas:
+
+1. **MUST-1 (Reproducibilidad, Hashes Criptográficos, Concurrencia Real de 2 Sesiones y CI)**:
+   - **Dependencia Reproducible**: `@electric-sql/pglite` se integra en `package.json` (`devDependencies`) y queda registrado en `pnpm-lock.yaml`, asegurando compilación y ejecución idéntica sin rutas locales temporales.
+   - **Trazabilidad Criptográfica del Recibo**: `docs/verification/receipt-m7-c3-postgres.json` registra `base_sha` (`45f6c25a...`), `migration_sha256`, `rollback_sha256`, `harness_sha256` y la versión exacta de PostgreSQL obtenida vía `SELECT version();`.
+   - **Concurrencia Real de 2 Sesiones**: El caso 10 ejecuta una prueba de contención real con dos clientes concurrentes en PostgreSQL; la sesión 1 adquiere un bloqueo exclusivo de fila mediante `SELECT ... FOR UPDATE` en transacción abierta, la sesión 2 queda físicamente bloqueada en la barrera del motor relacional, y se desbloquea atómicamente tras el `COMMIT` de la sesión 1, serializando la auditoría.
+   - **Automatización CI**: Se añade en `.github/workflows/ci.yml` el servicio de base de datos `postgres:16-alpine` y la ejecución automatizada del arnés de verificación relacional en GitHub Actions.
+
+2. **MUST-5 (Aislamiento de Host Local y Base de Datos Desechable)**:
+   - Se incorpora la función `validateIsolation({ host, database })` en `scripts/wms/verify-c3-postgres.mjs`.
+   - Valida antes de cualquier conexión DDL que el host sea estrictamente loopback (`127.0.0.1`, `localhost`, `::1`) y prohíbe de forma tajante bases de datos de producción o del sistema (`postgres`, `production`, `prod`, `defaultdb`, `fornexa`, `supabase`). Requiere el uso de una base de datos desechable dedicada (`fornexa_test`), abortando la ejecución con `[SECURITY_FATAL MUST-5]` en caso contrario.
+
+3. **SHOULD-1 (Ejecución Real de API Web con Request y Verificación de HTTP 400)**:
+   - Se modulariza la validación en `lib/wms.ts` mediante `validateWmsActionPayloadSecurity` y `executeWmsActionApi(request, authContext, rpcExecutor)` consumiendo el estándar Web `Request` / `Response`.
+   - En `tests/wms-c3-server-controls.test.ts` se añaden pruebas dinámicas ejecutando llamadas HTTP reales contra `executeWmsActionApi`, verificando la emisión de HTTP 400 (`WMS_FORBIDDEN`) y la ausencia total de efectos secundarios ante intentos de inyectar `state_controlled`, `expected_weight_kg`, `expected_volume_m3`, o anular la consolidación de `REPLENISH`.
+
+4. **SHOULD-2 (Definición del Rollback Nivel 2 como Apagado Operativo Fail-Closed)**:
+   - Se documenta con claridad que la ejecución del script SQL de rollback protegido (`supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql`) funciona de forma deliberada como un **interruptor de apagado operativo fail-closed (`WMS_ROLLBACK_ACTIVE`)**.
+   - Ante una emergencia donde deba anularse la versión C-3 sin reabrir el vector de usurpación de autoridad cliente de E1, el rollback rechaza con excepción toda operativa de almacén hasta el despliegue del parche correctivo, preservando intactas las columnas y el histórico de auditoría sin corrupción de datos.
+
 
 

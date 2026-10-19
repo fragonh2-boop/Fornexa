@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
-import { WMS_ACTIONS, isHuColumnMissingError, type WmsAction } from "../lib/wms.ts";
+import { WMS_ACTIONS, isHuColumnMissingError, executeWmsActionApi, validateWmsActionPayloadSecurity, type WmsAction } from "../lib/wms.ts";
 
 const C3_MIGRATION_PATH = resolve(
   import.meta.dirname,
@@ -466,6 +466,124 @@ test("M7 C-3 — Mutación de quant.hu_id invalida control de estado y medicione
     migrationSql.includes("tg_table_name = 'inventory_quants'"),
     "Función fornexa_wms_invalidate_hu_control debe manejar mutaciones de inventory_quants",
   );
+});
+
+test("M7 C-3 SHOULD-1 — API Request execution rejects client-provided authority fields with HTTP 400 WMS_FORBIDDEN", async () => {
+  const authContext = {
+    userId: "00000000-0000-4000-8000-000000000001",
+    tenantId: "10000000-0000-4000-8000-000000000001",
+    role: "OPERATOR",
+  };
+
+  // Test 1: state_controlled in payload -> 400
+  const req1 = new Request("https://localhost/api/wms", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "LOAD",
+      payload: {
+        hu_id: "70000000-0000-4000-8000-000000000001",
+        state_controlled: true,
+      },
+    }),
+  });
+  const res1 = await executeWmsActionApi(req1, authContext);
+  assert.equal(res1.status, 400);
+  const data1 = (await res1.json()) as { code: string; error: string };
+  assert.equal(data1.code, "WMS_FORBIDDEN");
+  assert.ok(data1.error.includes("cálculo exclusivo en servidor"));
+
+  // Test 2: expected_weight_kg in payload -> 400
+  const req2 = new Request("https://localhost/api/wms", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "LOAD",
+      payload: {
+        hu_id: "70000000-0000-4000-8000-000000000001",
+        expected_weight_kg: 50.0,
+      },
+    }),
+  });
+  const res2 = await executeWmsActionApi(req2, authContext);
+  assert.equal(res2.status, 400);
+  const data2 = (await res2.json()) as { code: string; error: string };
+  assert.equal(data2.code, "WMS_FORBIDDEN");
+
+  // Test 3: expected_volume_m3 in payload -> 400
+  const req3 = new Request("https://localhost/api/wms", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "LABEL",
+      payload: {
+        hu_id: "70000000-0000-4000-8000-000000000001",
+        expected_volume_m3: 1.2,
+      },
+    }),
+  });
+  const res3 = await executeWmsActionApi(req3, authContext);
+  assert.equal(res3.status, 400);
+  const data3 = (await res3.json()) as { code: string; error: string };
+  assert.equal(data3.code, "WMS_FORBIDDEN");
+
+  // Test 4: REPLENISH with consolidation in payload -> 400
+  const req4 = new Request("https://localhost/api/wms", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "REPLENISH",
+      payload: {
+        source_bin_id: "20000000-0000-4000-8000-000000000001",
+        target_bin_id: "20000000-0000-4000-8000-000000000002",
+        consolidation: "OVERRIDE_ALLOW",
+      },
+    }),
+  });
+  const res4 = await executeWmsActionApi(req4, authContext);
+  assert.equal(res4.status, 400);
+  const data4 = (await res4.json()) as { code: string; error: string };
+  assert.equal(data4.code, "WMS_FORBIDDEN");
+  assert.ok(data4.error.includes("consolidación es de cálculo exclusivo en servidor"));
+
+  // Test 5: Unrecognized action -> 400
+  const req5 = new Request("https://localhost/api/wms", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "INVALID_HACK_ACTION",
+      payload: {},
+    }),
+  });
+  const res5 = await executeWmsActionApi(req5, authContext);
+  assert.equal(res5.status, 400);
+  const data5 = (await res5.json()) as { code: string; error: string };
+  assert.equal(data5.code, "WMS_FORBIDDEN");
+
+  // Test 6: Valid action without client authority fields passes through to RPC executor cleanly
+  let rpcCalled = false;
+  const req6 = new Request("https://localhost/api/wms", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "LOAD",
+      payload: {
+        hu_id: "70000000-0000-4000-8000-000000000001",
+        scanned_code: "HU-VALID",
+        measured_weight_kg: 25.5,
+      },
+    }),
+  });
+  // Direct test of validateWmsActionPayloadSecurity helper
+  assert.equal(validateWmsActionPayloadSecurity("LOAD", { state_controlled: true })?.code, "WMS_FORBIDDEN");
+  assert.equal(validateWmsActionPayloadSecurity("LOAD", { scanned_code: "OK" }), null);
+
+  const res6 = await executeWmsActionApi(req6, authContext, async (action, _payload) => {
+    rpcCalled = true;
+    return { ok: true, action };
+  });
+  assert.equal(res6.status, 200);
+  assert.equal(rpcCalled, true);
 });
 
 

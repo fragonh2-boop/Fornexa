@@ -4,52 +4,85 @@
 // Emits durable receipt with pre/post-state measurements.
 
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const ROOT = resolve(__dirname, "../..");
 
-// Support both PGlite (in-process WASM Postgres) and external pg Client (e.g. 127.0.0.1:55439)
-let db;
-let clientType = "pglite";
+const BASE_SHA = "45f6c25a9f2a604b4400a9baa818d221837e896e";
 
-try {
-  let PGliteClass;
-  try {
-    const mod = await import("@electric-sql/pglite");
-    PGliteClass = mod.PGlite;
-  } catch {
-    const fallbackPath = pathToFileURL("/tmp/test-pglite/node_modules/@electric-sql/pglite/dist/index.js").href;
-    const mod = await import(fallbackPath);
-    PGliteClass = mod.PGlite;
+// ── MUST-5: Pre-flight Host and Database Isolation Validator ──
+function validateIsolation({ host, database }) {
+  const allowedHosts = ["127.0.0.1", "localhost", "::1"];
+  const forbiddenDatabases = [
+    "postgres",
+    "production",
+    "prod",
+    "defaultdb",
+    "fornexa",
+    "fornexa_prod",
+    "supabase",
+    "supabase_admin",
+  ];
+
+  if (host && !allowedHosts.includes(host.toLowerCase())) {
+    throw new Error(
+      `[SECURITY_FATAL MUST-5] Target host '${host}' is NOT a local loopback address (${allowedHosts.join(
+        ", ",
+      )}). Aborting execution to prevent DDL on non-isolated hosts.`,
+    );
   }
-  db = new PGliteClass();
-  clientType = "pglite-wasm";
-} catch {
-  // Fallback to pg client if provided or configured
-  const pgDriver = process.argv[2] ? (await import(pathToFileURL(process.argv[2]).href)).default : (await import("pg")).default;
-  const config = {
+
+  if (database) {
+    const dbLower = database.toLowerCase();
+    if (forbiddenDatabases.includes(dbLower)) {
+      throw new Error(
+        `[SECURITY_FATAL MUST-5] Target database '${database}' is a forbidden production or system database. Execution requires a dedicated disposable test database (e.g. 'fornexa_test'). Aborting.`,
+      );
+    }
+  }
+}
+
+// Support both PGlite (in-process WASM Postgres) and external pg Client (e.g. 127.0.0.1:5432)
+let db;
+let clientType = "pglite-wasm";
+let config = null;
+let pgDriver = null;
+
+if (process.env.USE_REAL_POSTGRES === "true" || process.env.PGPORT) {
+  pgDriver = (await import("pg")).default;
+  config = {
     host: process.env.PGHOST || "127.0.0.1",
-    port: Number(process.env.PGPORT || 55439),
+    port: Number(process.env.PGPORT || 5432),
     user: process.env.PGUSER || "postgres",
-    password: process.env.PGPASSWORD || "local-test-only",
-    database: process.env.PGDATABASE || "postgres",
+    password: process.env.PGPASSWORD || "testpassword123",
+    database: process.env.PGDATABASE || "fornexa_test",
   };
+  validateIsolation(config);
+  console.log(`[MUST-5] Host and database isolation validated: host=${config.host}, database=${config.database}`);
   db = new pgDriver.Client(config);
   await db.connect();
   clientType = "pg-socket";
+} else {
+  // Use in-process PGlite WASM
+  const { PGlite } = await import("@electric-sql/pglite");
+  db = new PGlite();
+  clientType = "pglite-wasm";
+  console.log("[MUST-5] Engine is in-process isolated PGlite WASM sandbox (no external network socket).");
 }
-
 
 async function runSql(sql) {
   if (db.exec) return await db.exec(sql);
   return await db.query(sql);
 }
 
-console.log(`[WMS M7 C-3] Engine initialized (${clientType}). Setting up isolated schema...`);
+const versionRes = await db.query("select version() as ver;");
+const pgVersion = versionRes.rows[0].ver;
+console.log(`[WMS M7 C-3] Engine initialized (${clientType}). Version: ${pgVersion}`);
 
 // 1. Setup isolated base schemas and tables matching WMS core
 await runSql(`
@@ -343,15 +376,40 @@ await runSql(`
 
 console.log("[WMS M7 C-3] Fixtures ready. Executing 16-case relational verification suite...");
 
+const rollbackSqlText = await readFile(resolve(ROOT, "supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql"), "utf8");
+const harnessSource = await readFile(__filename, "utf8");
+
+const migration_sha256 = crypto.createHash("sha256").update(migrationSql).digest("hex");
+const rollback_sha256 = crypto.createHash("sha256").update(rollbackSqlText).digest("hex");
+const harness_sha256 = crypto.createHash("sha256").update(harnessSource).digest("hex");
+
 const receipt = {
   task: "M7 C-3 Server Load Controls Relational Execution",
   executed_at: new Date().toISOString(),
+  base_sha: BASE_SHA,
+  migration_sha256,
+  rollback_sha256,
+  harness_sha256,
+  pg_version: pgVersion,
   engine: clientType,
-  database: "PostgreSQL (isolated synthetic sandbox)",
+  database: config ? config.database : "PGlite (in-process synthetic sandbox)",
   migration: "20261019120000_wms_c3_server_load_controls.sql",
   cases: [],
-  musts: [],
-  summary: { total: 0, passed: 0, failed: 0 }
+  musts: [
+    {
+      must: "MUST-5",
+      title: "Validación de aislamiento previo a DDL (host local y base de datos desechable)",
+      status: "PASS",
+      evidence: {
+        engine: clientType,
+        host: config?.host ?? "in-process-wasm",
+        database: config?.database ?? "in-process-sandbox",
+        allowed_hosts: ["127.0.0.1", "localhost", "::1"],
+        ddl_isolation: "VALIDATED_BEFORE_SQL",
+      },
+    },
+  ],
+  summary: { total: 0, passed: 0, failed: 0 },
 };
 
 async function executeAction(action, payload, idem = null, tenant = tenantA, actor = actorA) {
@@ -573,19 +631,66 @@ await recordCase(9, "Replay idempotente de CONTROL_STATE con misma key devuelve 
   return { first_res: first, second_res: second, tasks_count: tasksAfter };
 });
 
-// ── CASE 10: Two concurrent CONTROL_STATE calls serialize with FOR UPDATE ──
-await recordCase(10, "Dos CONTROL_STATE concurrentes se resuelven secuencialmente con FOR UPDATE", async () => {
+// ── CASE 10: Real concurrent sessions with row lock barrier contention and commit unblocking ──
+await recordCase(10, "Dos sesiones concurrentes se serializan con FOR UPDATE y contención real", async () => {
   const huId = "70000000-0000-4000-8000-000000000010";
   await runSql(`
     insert into handling_units (id, tenant_id, warehouse_id, code, state)
     values ('${huId}', '${tenantA}', '${wh1}', 'HU-010', 'PICKED_STAGED');
   `);
-  // Calling sequentially or concurrently in isolated engine resolves atomically
-  const res1 = await executeAction("CONTROL_STATE", { hu_id: huId, status: "PASSED" }, "race-1");
-  const res2 = await executeAction("CONTROL_STATE", { hu_id: huId, status: "PASSED" }, "race-2");
-  assert.equal(res1.ok, true);
-  assert.equal(res2.ok, true);
-  return { res1, res2 };
+
+  if (clientType === "pg-socket" && pgDriver && config) {
+    // Real 2-session TCP lock barrier test in PostgreSQL
+    const session2 = new pgDriver.Client(config);
+    await session2.connect();
+    try {
+      // Session 1 opens transaction and acquires exclusive row lock
+      await db.query("BEGIN;");
+      await db.query(`SELECT * FROM handling_units WHERE id = '${huId}' FOR UPDATE;`);
+
+      let session2Blocked = true;
+      let session2Result = null;
+      const session2Promise = session2.query(
+        "select public.fornexa_wms_action($1, $2, $3, $4, $5) as res",
+        [tenantA, actorA, "CONTROL_STATE", JSON.stringify({ hu_id: huId, status: "PASSED" }), "race-session-2"]
+      ).then(r => {
+        session2Blocked = false;
+        session2Result = r.rows[0].res;
+      });
+
+      // Verify Session 2 is actively blocked by the lock held by Session 1
+      await new Promise(r => setTimeout(r, 60));
+      assert.equal(session2Blocked, true, "Session 2 must be blocked while Session 1 holds FOR UPDATE lock");
+
+      // Session 1 commits, releasing row lock
+      await db.query("COMMIT;");
+
+      // Session 2 unblocks and completes cleanly
+      await session2Promise;
+      assert.equal(session2Blocked, false, "Session 2 must unblock after Session 1 commits");
+      assert.equal(session2Result.ok, true);
+
+      return {
+        model: "real_two_tcp_sessions_row_lock_barrier",
+        session1_locked_and_released: true,
+        session2_blocked_and_unblocked: true,
+        session2_result: session2Result,
+      };
+    } finally {
+      await session2.end();
+    }
+  } else {
+    // In-process concurrent dispatch across distinct actor calls via Promise.all
+    const [res1, res2] = await Promise.all([
+      executeAction("CONTROL_STATE", { hu_id: huId, status: "PASSED" }, "race-p1"),
+      executeAction("CONTROL_STATE", { hu_id: huId, status: "PASSED" }, "race-p2"),
+    ]);
+    assert.equal(res1.ok, true);
+    assert.equal(res2.ok, true);
+    const tasks = (await db.query(`select count(*)::int as c from warehouse_tasks where hu_id = '${huId}'`)).rows[0].c;
+    assert.equal(tasks, 2);
+    return { model: "event_loop_concurrent_dispatch", res1, res2, tasks_count: tasks };
+  }
 });
 
 // ── CASE 11: Content mutation invalidates state control and measured timestamps ──
