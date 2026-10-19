@@ -27,6 +27,10 @@
 --    a) Los operarios deben ejecutar CONTROL_STATE PASSED sobre las HUs preparadas antes de LOAD, o
 --    b) Para almacenes con stock legado en tránsito, fijar explícitamente require_state_control_on_load = false
 --       en la política de almacén correspondiente antes de la carga.
+-- 9. NOTA DE ORDEN DE EJECUCIÓN Y ATOMICIDAD (MUST-1):
+--    El backfill de require_state_control_on_load se ubica al final de la migración (sección 4),
+--    tras definir fornexa_wms_action con soporte de CONTROL_STATE, y debe ejecutarse en un único
+--    bloque transaccional atómico (BEGIN ... COMMIT).
 -- ============================================================================
 
 -- ── 1. Schema Alterations: Add State Control Columns to Handling Units ────────
@@ -75,13 +79,7 @@ create trigger trg_wms_invalidate_hu_control
   for each row
   execute function public.fornexa_wms_invalidate_hu_control();
 
--- ── 2b. Rollout Safety: Default Active Warehouse Policies to Require State Control ──
-update public.warehouse_behavior_policies
-   set params = jsonb_set(params, '{require_state_control_on_load}', 'true'::jsonb, true)
- where params is not null
-   and (params->>'require_state_control_on_load' is null or params->>'require_state_control_on_load' = '');
-
--- ── 2c. Robust Policy Boolean Parser (MUST-A / Fail-Closed) ───────────────────
+-- ── 2b. Robust Policy Boolean Parser (MUST-A / Fail-Closed) ───────────────────
 create or replace function public.fornexa_wms_policy_bool(
   p_policy jsonb,
   p_key text,
@@ -868,7 +866,10 @@ begin
       raise exception 'WMS_NOT_READY_TO_LOAD';
     end if;
 
-    v_before := to_jsonb(v_hu);
+    -- SHOULD-2: Fail-closed validation of status. Only PASSED or REJECTED allowed.
+    if upper(coalesce(p_payload->>'status', 'PASSED')) not in ('PASSED', 'REJECTED') then
+      raise exception 'WMS_FORBIDDEN';
+    end if;
 
     if upper(coalesce(p_payload->>'status', 'PASSED')) = 'REJECTED' then
       -- Ambiguity (a): Atomic REJECTED inspection does NOT throw SQL exception.
@@ -1175,3 +1176,15 @@ begin
   end if;
 end;
 $$;
+
+-- ── 4. Rollout Safety: Default Active Warehouse Policies to Require State Control (MUST-1) ──
+-- NOTA DE SEGURIDAD OPERATIVA Y TRANSACCIONAL:
+-- Esta migración debe ejecutarse dentro de un bloque transaccional atómico único (BEGIN ... COMMIT).
+-- El backfill de require_state_control_on_load se ubica al final de la migración para asegurar que
+-- la función fornexa_wms_action ya incorpore el soporte de CONTROL_STATE y validación de carga antes
+-- de activar el requisito en las políticas activas preexistentes.
+update public.warehouse_behavior_policies
+   set params = jsonb_set(params, '{require_state_control_on_load}', 'true'::jsonb, true)
+ where params is not null
+   and (params->>'require_state_control_on_load' is null or params->>'require_state_control_on_load' = '');
+

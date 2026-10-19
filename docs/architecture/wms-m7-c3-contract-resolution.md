@@ -198,4 +198,25 @@ Tras la segunda revisión independiente de DeepSeek (`U0BV95NCT89`, mensajes `17
 6. **SHOULD-F (Seguimiento de Columna Dedicada de Idempotencia)**:
    - Registrado como mejora técnica para el siguiente ciclo la creación de `payload_fingerprint text` en `warehouse_tasks` para independizar el fingerprint de repetición del campo `reject_detail`.
 
+---
+
+## Subsanación 3 (3ª Revisión DeepSeek `1792380433.924419`)
+
+1. **MUST-1 (Orden de Despliegue de Backfill 2b vs RPC y Atomicidad)**:
+   - La sentencia de backfill de políticas preexistentes (`require_state_control_on_load = true`) se reubica al final de `supabase/migrations/20261019120000_wms_c3_server_load_controls.sql` (sección 4), tras la definición de la función `fornexa_wms_action`.
+   - Se añade nota vinculante indicando que la migración debe ejecutarse dentro de un único bloque transaccional atómico (`BEGIN ... COMMIT`), garantizando que la versión del RPC con soporte de `CONTROL_STATE` y validación de carga ya esté activa cuando las políticas empiecen a exigir el control.
+
+2. **MUST-2 (Fallback Discriminativo en `lib/wms-loader.ts`)**:
+   - En `loadWmsData`, la consulta secundaria de fallback de `handling_units` se condiciona estrictamente mediante `isHuColumnMissingError(err)` al código PostgreSQL `42703` (`undefined_column`) o a mensajes descriptivos que mencionen `state_controlled`.
+   - Errores de red, de RLS (PostgreSQL `42501`) o de autenticación no activan el fallback y fallan de forma transparente sin enmascarar la causa raíz.
+
+3. **SHOULD-2 (Validación Fail-Closed de Estado en `CONTROL_STATE`)**:
+   - Se incorpora validación previa en `fornexa_wms_action`: si `upper(coalesce(p_payload->>'status', 'PASSED')) not in ('PASSED', 'REJECTED')`, la RPC lanza de inmediato la excepción tipada `WMS_FORBIDDEN`.
+   - Se eliminan fallbacks tácitos a `PASSED` ante valores malformados o no reconocidos.
+
+4. **SHOULD-7 (Gobernanza de Memorándum y Terminología)**:
+   - Resumen en `lib/memorandum.ts` ajustado a "En revisión independiente de M7 (C-3)..." para reflejar con precisión que los cambios están en fase de revisión de PR y no fusionados en `main`.
+   - Límites operativos redactados sin ambigüedad en `docs/ai/HANDOFF.md` y `docs/pending-log.md` ("CERO commits en main, CERO merge a main, CERO aplicación remota de migración, CERO cargas COMMITTED en producción").
+
+
 

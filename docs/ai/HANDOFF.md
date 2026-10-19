@@ -27,17 +27,21 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
   - **SHOULD-F (Columna dedicada de idempotencia):** Registrado seguimiento para migración futura de `payload_fingerprint text` en `warehouse_tasks`.
   - **SHOULD-1 / SHOULD-10 (Fingerprint de idempotencia):** `v_fingerprint` exhaustivo (acción, hu, status, reason, disposition, etc.) persistido en `reject_detail` tanto para `DONE` (PASSED) como para `FAILED` (REJECTED), garantizando replay idéntico y evitando replays con cambio de estado.
   - **SHOULD-4 (Diff textual `fornexa_wms_action` contra E1):** Verificado que únicamente se introducen las ramas de C-3 (`CONTROL_STATE`, cálculo relacional y tolerancias en `LABEL`/`LOAD`, consolidación por política en `REPLENISH`, e invalidación en `RECEIVE_CHECK`/`PICK`).
-  - **NICE-1:** Clases CSS `.controlOk` y `.controlPending` sin estilos inline en `WmsWorkspace.tsx`.
+  - **Subsanación de la 3ª revisión de DeepSeek (`1792380433.924419`):**
+    - **MUST-1 (Orden de despliegue de backfill vs RPC):** Reubicación de la sentencia de backfill de políticas (`require_state_control_on_load = true`) al final de la migración (sección 4) tras la definición de `fornexa_wms_action`, garantizando que la función con soporte de `CONTROL_STATE` esté disponible antes de exigir el control, con nota obligatoria de bloque transaccional atómico único (`BEGIN ... COMMIT`).
+    - **MUST-2 (Fallback discriminativo en loader):** En `lib/wms-loader.ts`, el fallback de `handling_units` se restringe estrictamente a fallos por columnas ausentes (`code === '42703'` o `message` con `state_controlled`), evitando enmascarar errores de red, RLS o permisos.
+    - **SHOULD-2 (`CONTROL_STATE` fail-closed):** Validación explícita de `status` en la RPC: si no es `PASSED` ni `REJECTED`, la función aborta con `WMS_FORBIDDEN`.
+    - **SHOULD-7 (Gobernanza y terminología):** Texto del memorándum ajustado a "En revisión independiente de M7 (C-3)..." y límites operativos redactados con máxima precisión.
 - **Cambios implementados:**
   1. `supabase/migrations/20261019120000_wms_c3_server_load_controls.sql`:
      - Nuevas columnas `state_controlled_at timestamptz` y `state_controlled_by uuid` en `handling_units`.
      - Helper `fornexa_wms_policy_bool` para parsing robusto de políticas.
      - Trigger de invalidación `trg_wms_invalidate_hu_control` en `handling_unit_contents` con aislamiento de tenant.
-     - Backfill preventivo de políticas activas para `require_state_control_on_load`.
-     - Actualización atómica de `fornexa_wms_action` con todas las guardas, parsing seguro y replay idempotente.
+     - Actualización atómica de `fornexa_wms_action` con todas las guardas, parsing seguro, replay idempotente y validación fail-closed de status.
+     - Backfill preventivo de políticas activas para `require_state_control_on_load` al final de la migración (MUST-1).
   2. `lib/wms.ts` & `lib/wms-loader.ts`:
      - Añadido `CONTROL_STATE` a `WMS_ACTIONS` y campos `state_controlled_at/by` a `WmsHandlingUnit`.
-     - Carga de datos resiliente con fallback sin romper compatibilidad en bases de datos sin la migración aplicada.
+     - Helper exportado `isHuColumnMissingError` y fallback discriminativo sin enmascaramiento de errores (MUST-2).
   3. `app/api/wms/route.ts`:
      - Validación estricta y rechazo determinista HTTP 400 (`WMS_FORBIDDEN`) ante campos de autoridad cliente.
   4. `app/dashboard/almacenes/WmsWorkspace.tsx`:
@@ -46,13 +50,13 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
      - Extracción de estilos a clases CSS `.controlStack`, `.controlOk` y `.controlPending`.
      - Ocultación de etiqueta "Control Pendiente" en unidades con estado `LOADED`.
   5. `tests/wms-c3-server-controls.test.ts`:
-     - Suite completa de 18 tests unitarios verificando los requisitos de contrato, validaciones de API, triggers y RPC, incluyendo tests específicos para MUST-1..5, MUST-A, y SHOULD-B/C/I (347/347 tests PASS en el repo).
+     - Suite completa de 20 tests unitarios verificando los requisitos de contrato, validaciones de API, triggers, orden de migración y fallbacks discriminativos (347/347 tests PASS en el repo).
   6. Gobernanza:
-     - `lib/memorandum.ts`: Cobertura de commits actualizada a 667, fecha `19 oct 2026`.
-     - `docs/pending-log.md`: M5 marcado como desplegado en producción; M7 registrado en `OPEN` con subsanaciones.
+     - `lib/memorandum.ts`: Cobertura de commits actualizada a 668, fecha `19 oct 2026`, redacción atenuada en pending summary.
+     - `docs/pending-log.md`: M7 registrado en `OPEN` con Subsanación 3 aplicada.
 - **Límites y garantías fail-closed:**
   - Código y pruebas 100% locales en worktree aislado (`feat/wms-m7-c3-load-controls`).
-  - CERO merge a main, CERO aplicación remota de migración, CERO ensayos F4, CERO SQL productivo, CERO seed, CERO COMMITTED.
+  - CERO commits en main, CERO merge a main, CERO aplicación remota de migración, CERO ensayos F4, CERO SQL productivo, CERO seed, CERO cargas COMMITTED en producción.
   - Sometido a revisión independiente por DeepSeek.
 
 ## 2026-10-19 — WMS M5: Diagnóstico explícito de fixtures ausentes y tests de mutación aislada de estado

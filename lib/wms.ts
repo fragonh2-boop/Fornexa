@@ -283,6 +283,19 @@ export interface WmsHandlingUnit {
   updated_at: string;
 }
 
+/**
+ * Checks whether an error from querying handling_units is strictly due to
+ * missing C-3 columns (PostgreSQL error 42703 undefined_column or matching message).
+ * Prevents masking network, RLS or authorization errors (MUST-2).
+ */
+export function isHuColumnMissingError(err: any): boolean {
+  return Boolean(
+    err &&
+      (err.code === "42703" ||
+        (typeof err.message === "string" && err.message.includes("state_controlled"))),
+  );
+}
+
 export interface WmsHandlingUnitContent {
   id: string;
   handling_unit_id: string;

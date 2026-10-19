@@ -6,7 +6,7 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ### 2026-10-19 — WMS M7: Controles de carga y políticas de almacén en servidor (C-3)
 - **Área:** Almacenes / WMS / Servidor / C-3
-- **Estado:** SUBSANACIÓN MUST-A Y SHOULDS APLICADA LOCALMENTE, PENDIENTE RATIFICACIÓN TERMINAL (DeepSeek)
+- **Estado:** SUBSANACIÓN 3 (MUST-1, MUST-2, SHOULD-2, SHOULD-7) APLICADA LOCALMENTE, PENDIENTE RATIFICACIÓN TERMINAL (DeepSeek)
 - **Alcance y resolución:**
   - Resolución integral de las 5 ambigüedades técnicas en `docs/architecture/wms-m7-c3-contract-resolution.md`:
     - (a) `CONTROL_STATE` con `status: 'REJECTED'` es una inspección atómica válida que sitúa la HU y quants en `QUARANTINE` (o `DAMAGED`) sin lanzar excepción SQL. Errores tipados quedan reservados para fallos de comando.
@@ -30,10 +30,15 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
     - SHOULD-F: Registrado seguimiento para migración futura de columna dedicada `payload_fingerprint text` en `warehouse_tasks`.
     - SHOULD-1 / SHOULD-10: `v_fingerprint` exhaustivo persistido en `reject_detail` para replay idempotente de `PASSED` y `REJECTED`.
     - NICE-1: Clases CSS `.controlOk` y `.controlPending` sin estilos inline en `WmsWorkspace.tsx`.
+  - Subsanación de la 3ª revisión de DeepSeek:
+    - MUST-1: Reubicación del backfill de políticas (`require_state_control_on_load = true`) al final de la migración (sección 4) tras `fornexa_wms_action` y documentación de requerimiento de bloque transaccional atómico único (`BEGIN ... COMMIT`).
+    - MUST-2: Fallback discriminativo en `lib/wms-loader.ts` para `handling_units`, activo únicamente ante error PostgreSQL `42703` (`undefined_column`) o mensaje conteniendo `state_controlled`, sin enmascarar errores de red, RLS o autenticación.
+    - SHOULD-2: Validación fail-closed en `CONTROL_STATE`: aborto inmediato con excepción `WMS_FORBIDDEN` si `status` no es ni `PASSED` ni `REJECTED`.
+    - SHOULD-7: Ajuste de formulación de gobernanza en `memorandum.ts` ("En revisión independiente de M7 (C-3)...") y precisión terminológica de límites.
   - Actualización atómica de `fornexa_wms_action`: cálculo relacional de pesos y volúmenes esperados desde `products` y `handling_unit_contents` con fail-closed ante falta de expectativa calculable, y consolidación derivada de política de servidor.
   - UI interactiva (`WmsWorkspace.tsx`): adaptación para invocar `CONTROL_STATE` (`PASSED` o `REJECTED`), retirada de overrides cliente en `LABEL`/`LOAD` e inhabilitación de carga con advertencia si falta control físico.
-  - Batería de pruebas unitarias (`tests/wms-c3-server-controls.test.ts`): 18 tests de contrato pasando (347/347 tests totales en verde).
-- **Límites y gobernanza:** Cero merge a main, cero migración remota aplicada, cero ensayo F4, cero SQL productivo ni seed.
+  - Batería de pruebas unitarias (`tests/wms-c3-server-controls.test.ts`): tests de contrato pasando (347/347 tests totales en verde).
+- **Límites y gobernanza:** CERO commits en main, CERO merge a main, CERO aplicación remota de migración, CERO ensayos F4, CERO SQL productivo, CERO seed, CERO cargas COMMITTED en producción.
 
 ### 2026-10-19 — WMS M5: Robustez de sonda de rechazos y mutación aislada de estado
 - **Área:** Almacenes / WMS / Sonda de rechazos

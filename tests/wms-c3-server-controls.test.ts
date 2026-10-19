@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
-import { WMS_ACTIONS, type WmsAction } from "../lib/wms.ts";
+import { WMS_ACTIONS, isHuColumnMissingError, type WmsAction } from "../lib/wms.ts";
 
 const C3_MIGRATION_PATH = resolve(
   import.meta.dirname,
@@ -323,5 +323,75 @@ test("M7 C-3 — WmsWorkspace utiliza clases CSS controlOk y controlPending sin 
     "WmsWorkspace debe usar styles.controlOk y styles.controlPending",
   );
 });
+
+test("M7 C-3 — backfill de políticas se ubica al final de la migración tras fornexa_wms_action y exige bloque atómico (MUST-1)", () => {
+  const rpcIndex = migrationSql.indexOf("create or replace function public.fornexa_wms_action");
+  assert.ok(rpcIndex > 0, "Debe existir fornexa_wms_action en la migración");
+
+  const backfillIndex = migrationSql.indexOf("update public.warehouse_behavior_policies");
+  assert.ok(backfillIndex > 0, "Debe existir la sentencia de backfill de políticas");
+
+  assert.ok(
+    backfillIndex > rpcIndex,
+    "El backfill de require_state_control_on_load debe ejecutarse después de fornexa_wms_action (MUST-1)",
+  );
+
+  assert.ok(
+    migrationSql.includes("bloque transaccional atómico único (BEGIN ... COMMIT)"),
+    "La migración debe documentar la obligatoriedad de ejecución en bloque transaccional atómico",
+  );
+});
+
+test("M7 C-3 — isHuColumnMissingError y wms-loader discriminan estrictamente errores de columna vs red/RLS (MUST-2)", () => {
+
+  // Debe retornar true para código 42703 (undefined_column) o mensaje descriptivo
+  assert.strictEqual(isHuColumnMissingError({ code: "42703", message: "column not found" }), true);
+  assert.strictEqual(
+    isHuColumnMissingError({ code: "PGRST204", message: "Could not find the 'state_controlled_at' column" }),
+    true,
+  );
+  assert.strictEqual(
+    isHuColumnMissingError({ code: "PGRST204", message: "Could not find the 'state_controlled_by' column" }),
+    true,
+  );
+
+  // Debe retornar false para errores de RLS (42501), de red, timeout o permisos
+  assert.strictEqual(isHuColumnMissingError({ code: "42501", message: "permission denied for table handling_units" }), false);
+  assert.strictEqual(isHuColumnMissingError({ code: "ETIMEDOUT", message: "connection timed out" }), false);
+  assert.strictEqual(isHuColumnMissingError({ message: "NetworkError when attempting to fetch resource." }), false);
+  assert.strictEqual(isHuColumnMissingError(null), false);
+  assert.strictEqual(isHuColumnMissingError(undefined), false);
+
+  // wms-loader.ts debe invocar isHuColumnMissingError en la consulta de fallback
+  const loaderSrc = readFileSync(resolve(import.meta.dirname, "../lib/wms-loader.ts"), "utf-8");
+  assert.ok(
+    loaderSrc.includes("isHuColumnMissingError(husRes.error)"),
+    "loadWmsData debe invocar isHuColumnMissingError antes de ejecutar la consulta de fallback",
+  );
+});
+
+test("M7 C-3 — CONTROL_STATE valida status fail-closed rechazando valores distintos de PASSED o REJECTED (SHOULD-2)", () => {
+  assert.ok(
+    migrationSql.includes("if upper(coalesce(p_payload->>'status', 'PASSED')) not in ('PASSED', 'REJECTED') then"),
+    "CONTROL_STATE debe validar que status sea estrictamente PASSED o REJECTED",
+  );
+  assert.ok(
+    migrationSql.includes("raise exception 'WMS_FORBIDDEN';"),
+    "CONTROL_STATE debe levantar WMS_FORBIDDEN ante status inválido",
+  );
+});
+
+test("M7 C-3 — lib/memorandum.ts modera la redacción de C-3 a 'En revisión independiente' (SHOULD-7)", () => {
+  const memoSrc = readFileSync(resolve(import.meta.dirname, "../lib/memorandum.ts"), "utf-8");
+  assert.ok(
+    memoSrc.includes("En revisión independiente de M7 (C-3)"),
+    "El resumen de almacenes en memorandum.ts debe reflejar 'En revisión independiente de M7 (C-3)'",
+  );
+  assert.ok(
+    !memoSrc.includes("Se incorpora en M7 (C-3)"),
+    "No debe afirmar que C-3 ya está incorporado en producción",
+  );
+});
+
 
 

@@ -1,5 +1,7 @@
 import { createSupabaseAdmin } from "./supabase-admin";
-import { EMPTY_WMS_DATA, type WmsOverviewData } from "./wms";
+import { EMPTY_WMS_DATA, isHuColumnMissingError, type WmsOverviewData } from "./wms";
+
+export { isHuColumnMissingError };
 
 export async function loadWmsData(
   tenantId: string,
@@ -176,8 +178,8 @@ export async function loadWmsData(
     const stRes = e1Results[4];
     const taskRes = e1Results[5];
 
-    if (husRes.error) {
-      // Fallback without C-3 columns if migration is not applied yet
+    if (husRes.error && isHuColumnMissingError(husRes.error)) {
+      // Fallback without C-3 columns strictly if migration is not applied yet (MUST-2)
       husRes = await db
         .from("handling_units")
         .select(
