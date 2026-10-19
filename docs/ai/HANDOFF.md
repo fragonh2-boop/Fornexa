@@ -2,6 +2,18 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## Cierre de release documental — 2026-10-19 17:08 CEST
+
+- **Orden:** Fran solicitó coordinar un merge y deploy. Se limitó el release a la documentación aprobada de PR #136, sin SQL productivo ni activación WMS.
+- **Revisión y merge:** Gemini emitió GO independiente en Slack sobre `b05ed45a600bec6085bee0766193c0c14dc128ec`, sin MUST/SHOULD. PR #136 squash-merged en `main b7cbb2fe249650985caf631630cbf4a7460baa88`.
+- **Verificación:** GitHub Actions CI #530 (run 39274902839), evento push y SHA anterior, completó SUCCESS. Pasaron typecheck, lint, tests, verificación relacional PostgreSQL C-3, build web y typecheck móvil.
+- **Producción:** Vercel proyecto `fornexa` READY, target production, commit `b7cbb2fe249650985caf631630cbf4a7460baa88`; alias `fornexasc.com` asociado al mismo despliegue y sin error de alias.
+- **Smoke público sin sesión:** `/` y `/memorandum` 200; `/dashboard/almacenes` 307 a login; `/api/wms` 401 `WMS_FORBIDDEN`; `/demo/almacenes` 404. Consulta de logs error/fatal del despliegue en ventana inicial: sin registros coincidentes. No se verificó flujo autenticado ni se hicieron movimientos.
+- **Límite de observación:** API directa del proyecto secundario `fornexa-app` no accesible (403); no se afirma verificación independiente de ese destino. El dominio productivo verificado pertenece a `fornexa`.
+- **Reviewer aún abierto:** PR #42 (`364cf7f05f6c479851b808549b040be06701b96a`) conserva CI #158 SUCCESS, pero las revisiones independientes de este ciclo fallaron: DeepSeek READ_FAILED y Grok BUDGET_EXCEEDED. Sin aprobación, merge ni deploy del reviewer.
+- **Siguiente acción:** diagnosticar con logs y versión realmente desplegada los fallos de evidencia del reviewer. El código de su main define 10 fuentes/lecturas, 500 KiB por archivo y 2 MiB totales; esto no confirma por sí solo cuál se agotó en runtime. No interpretar BUDGET_EXCEEDED como falta de saldo API.
+- **Gate M7:** sigue pendiente; la evidencia DB de las 11:30 CEST queda como snapshot histórico y no se consultó ni modificó Supabase en este release. Este checkpoint es una propuesta documental posterior, sin segundo merge/deploy.
+
 ## Estado operativo verificado — 2026-10-19 11:30 CEST
 
 **P0 — WMS M7 DB-first pendiente.** `main cc52ff38549792b5ad9049aa2462b436a1438731` incorpora PR #134 y PR #135; GitHub Actions #528 SUCCESS y Vercel Production READY en el mismo SHA. **No es equivalente a C-3 operativo:** Supabase prod `gqkjqhpmyejmehbuombk` registra 41 migraciones, terminando en WMS `20261017110000_wms_e1_core`; no registra `20261019120000_wms_c3_server_load_controls.sql`. Verificación SQL read-only: faltan `handling_units.state_controlled_at`, `handling_units.measured_at` y la RPC helper `fornexa_wms_policy_bool`.
