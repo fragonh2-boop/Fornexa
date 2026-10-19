@@ -942,3 +942,10 @@ console.log(`[WMS M7 C-3] SUCCESS: All 16 cases + MUST-1..4 + SHOULD-1 verified 
 console.log(`Durable receipt written to: docs/verification/receipt-m7-c3-postgres.json`);
 console.log(`Total: ${receipt.summary.total} | Passed: ${receipt.summary.passed} | Failed: ${receipt.summary.failed}`);
 console.log(`============================================================\n`);
+
+if (db.end) {
+  try {
+    await db.end();
+  } catch {}
+}
+process.exit(0);
