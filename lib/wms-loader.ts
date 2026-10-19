@@ -1,5 +1,7 @@
 import { createSupabaseAdmin } from "./supabase-admin";
-import { EMPTY_WMS_DATA, type WmsOverviewData } from "./wms";
+import { EMPTY_WMS_DATA, isHuColumnMissingError, type WmsOverviewData } from "./wms";
+
+export { isHuColumnMissingError };
 
 export async function loadWmsData(
   tenantId: string,
@@ -142,7 +144,7 @@ export async function loadWmsData(
       db
         .from("handling_units")
         .select(
-          "id,warehouse_id,code,code_type,hu_type,state,current_bin_id,current_dock_id,owner_party_id,parent_hu_id,gross_weight_kg,volume_m3,label_issued_at,is_active,created_at,updated_at",
+          "id,warehouse_id,code,code_type,hu_type,state,current_bin_id,current_dock_id,owner_party_id,parent_hu_id,gross_weight_kg,volume_m3,label_issued_at,state_controlled_at,state_controlled_by,measured_at,measured_by,is_active,created_at,updated_at",
         )
         .eq("tenant_id", tenantId)
         .order("code")
@@ -169,20 +171,43 @@ export async function loadWmsData(
         .limit(1000),
     ]);
 
-    if (e1Results.some((r) => r.error)) {
+    const polRes = e1Results[0];
+    const resRes = e1Results[1];
+    let husRes: { data?: any; error?: any } = e1Results[2];
+    const contRes = e1Results[3];
+    const stRes = e1Results[4];
+    const taskRes = e1Results[5];
+
+    if (husRes.error && isHuColumnMissingError(husRes.error)) {
+      // Fallback without C-3 columns strictly if migration is not applied yet (MUST-2)
+      husRes = await db
+        .from("handling_units")
+        .select(
+          "id,warehouse_id,code,code_type,hu_type,state,current_bin_id,current_dock_id,owner_party_id,parent_hu_id,gross_weight_kg,volume_m3,label_issued_at,is_active,created_at,updated_at",
+        )
+        .eq("tenant_id", tenantId)
+        .order("code")
+        .limit(1000);
+    }
+
+    if (polRes.error || resRes.error || husRes.error || contRes.error || stRes.error || taskRes.error) {
       schemaReady = false;
     } else {
-      policies = (e1Results[0].data ?? []) as any;
-      resources = (e1Results[1].data ?? []).map((r: any) => ({
+      policies = (polRes.data ?? []) as any;
+      resources = (resRes.data ?? []).map((r: any) => ({
         ...r,
         max_lift_height_m: r.max_lift_height_m !== null ? Number(r.max_lift_height_m) : null,
         max_weight_kg: r.max_weight_kg !== null ? Number(r.max_weight_kg) : null,
         certifications: Array.isArray(r.certifications) ? r.certifications : [],
       }));
-      handlingUnits = (e1Results[2].data ?? []).map((h: any) => ({
+      handlingUnits = (husRes.data ?? []).map((h: any) => ({
         ...h,
         gross_weight_kg: h.gross_weight_kg !== null ? Number(h.gross_weight_kg) : null,
         volume_m3: h.volume_m3 !== null ? Number(h.volume_m3) : null,
+        state_controlled_at: h.state_controlled_at ?? null,
+        state_controlled_by: h.state_controlled_by ?? null,
+        measured_at: h.measured_at ?? null,
+        measured_by: h.measured_by ?? null,
       }));
       huContents = (e1Results[3].data ?? []).map((c: any) => ({
         ...c,

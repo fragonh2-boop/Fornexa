@@ -39,6 +39,7 @@ export const WMS_ACTIONS = [
   "LOAD",
   "UPSERT_POLICY",
   "UPSERT_RESOURCE",
+  "CONTROL_STATE",
 ] as const;
 
 export type WmsAction = (typeof WMS_ACTIONS)[number];
@@ -136,6 +137,8 @@ export interface WmsBehaviorPolicyParams {
   require_label_scan_on_load: boolean;
   weight_tolerance_pct: number;
   volume_tolerance_pct: number;
+  require_weight_measurement?: boolean;
+  require_volume_measurement?: boolean;
   require_state_control_on_load: boolean;
   allow_cross_dock: boolean;
   require_resource_certification: boolean;
@@ -275,9 +278,29 @@ export interface WmsHandlingUnit {
   gross_weight_kg: number | null;
   volume_m3: number | null;
   label_issued_at: string | null;
+  state_controlled_at?: string | null;
+  state_controlled_by?: string | null;
+  measured_at?: string | null;
+  measured_by?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * Checks whether an error from querying handling_units is strictly due to
+ * missing C-3 columns (PostgreSQL error 42703 undefined_column or matching message).
+ * Prevents masking network, RLS or authorization errors (MUST-2).
+ */
+export function isHuColumnMissingError(err: any): boolean {
+  return Boolean(
+    err &&
+      (err.code === "42703" ||
+        (typeof err.message === "string" &&
+          (err.message.includes("state_controlled") ||
+            err.message.includes("measured_at") ||
+            err.message.includes("undefined_column")))),
+  );
 }
 
 export interface WmsHandlingUnitContent {
@@ -721,3 +744,114 @@ export function wmsRpcFailure(error: { code?: string; message?: string } | null 
     error: "No se pudo completar la operación de almacén.",
   };
 }
+
+export function validateWmsActionPayloadSecurity(
+  action: string,
+  payload: unknown,
+): { error: string; code: string; status: number } | null {
+  if (!WMS_ACTIONS.includes(action as WmsAction)) {
+    return {
+      error: "WMS_FORBIDDEN: Acción de almacén no reconocida.",
+      code: "WMS_FORBIDDEN",
+      status: 400,
+    };
+  }
+
+  const p =
+    payload && typeof payload === "object" && !Array.isArray(payload)
+      ? (payload as Record<string, unknown>)
+      : {};
+
+  if (
+    "state_controlled" in p ||
+    "expected_weight_kg" in p ||
+    "expected_volume_m3" in p
+  ) {
+    return {
+      error:
+        "WMS_FORBIDDEN: Los campos de control de estado y magnitudes esperadas son de cálculo exclusivo en servidor y no pueden enviarse desde el cliente.",
+      code: "WMS_FORBIDDEN",
+      status: 400,
+    };
+  }
+
+  if (
+    action === "REPLENISH" &&
+    ("consolidation" in p || "conflicting_batch" in p)
+  ) {
+    return {
+      error:
+        "WMS_FORBIDDEN: La política de consolidación es de cálculo exclusivo en servidor y no puede ser anulada desde el cliente.",
+      code: "WMS_FORBIDDEN",
+      status: 400,
+    };
+  }
+
+  return null;
+}
+
+export interface WmsAuthContextLike {
+  userId: string;
+  tenantId: string;
+  role: string;
+}
+
+export async function executeWmsActionApi(
+  request: Request,
+  authContext: WmsAuthContextLike | null,
+  rpcExecutor?: (action: WmsAction, payload: unknown, idemKey: string | null) => Promise<unknown>,
+): Promise<Response> {
+  if (!authContext) {
+    return Response.json({ error: "No autorizado.", code: "WMS_FORBIDDEN" }, { status: 401 });
+  }
+
+  const EDIT_ROLES = new Set(["OWNER", "ADMIN", "PLANNER", "OPERATOR"]);
+  const CONFIG_ROLES = new Set(["OWNER", "ADMIN", "PLANNER"]);
+
+  if (!EDIT_ROLES.has(authContext.role)) {
+    return Response.json(
+      {
+        error: "WMS_FORBIDDEN: No tienes permisos operativos en este almacén.",
+        code: "WMS_FORBIDDEN",
+      },
+      { status: 403 },
+    );
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return Response.json({ error: "JSON no válido.", code: "WMS_FORBIDDEN" }, { status: 400 });
+  }
+
+  const rawAction = String(body.action ?? "");
+  const securityViolation = validateWmsActionPayloadSecurity(rawAction, body.payload);
+  if (securityViolation) {
+    return Response.json(
+      { error: securityViolation.error, code: securityViolation.code },
+      { status: securityViolation.status },
+    );
+  }
+
+  const action = rawAction as WmsAction;
+  if ((action === "UPSERT_POLICY" || action === "UPSERT_RESOURCE") && !CONFIG_ROLES.has(authContext.role)) {
+    return Response.json(
+      {
+        error: "WMS_FORBIDDEN: Se requiere rol de planificación o administración.",
+        code: "WMS_FORBIDDEN",
+      },
+      { status: 403 },
+    );
+  }
+
+  if (rpcExecutor) {
+    const payload = body.payload && typeof body.payload === "object" ? body.payload : {};
+    const idemKey = typeof body.idempotency_key === "string" ? body.idempotency_key.trim() : null;
+    const result = await rpcExecutor(action, payload, idemKey);
+    return Response.json(result, { status: 200 });
+  }
+
+  return Response.json({ ok: true, action }, { status: 200 });
+}
+

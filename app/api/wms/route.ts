@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getAuthenticatedContext } from "@/lib/auth-context";
 import { createSupabaseAdmin } from "@/lib/supabase-admin";
 import { loadWmsData } from "@/lib/wms-loader";
-import { WMS_ACTIONS, wmsRpcFailure, type WmsAction } from "@/lib/wms";
+import { validateWmsActionPayloadSecurity, wmsRpcFailure, type WmsAction } from "@/lib/wms";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,13 +57,14 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json()) as Record<string, unknown>;
     const rawAction = String(body.action ?? "");
-    if (!WMS_ACTIONS.includes(rawAction as WmsAction)) {
+    const securityViolation = validateWmsActionPayloadSecurity(rawAction, body.payload);
+    if (securityViolation) {
       return response(
         {
-          error: "WMS_FORBIDDEN: Acción de almacén no reconocida.",
-          code: "WMS_FORBIDDEN",
+          error: securityViolation.error,
+          code: securityViolation.code,
         },
-        400,
+        securityViolation.status,
       );
     }
     const action = rawAction as WmsAction;
@@ -84,6 +85,36 @@ export async function POST(request: Request) {
       body.payload && typeof body.payload === "object" && !Array.isArray(body.payload)
         ? (body.payload as Record<string, unknown>)
         : {};
+
+    if (
+      "state_controlled" in payload ||
+      "expected_weight_kg" in payload ||
+      "expected_volume_m3" in payload
+    ) {
+      return response(
+        {
+          error:
+            "WMS_FORBIDDEN: Los campos de control de estado y magnitudes esperadas son de cálculo exclusivo en servidor y no pueden enviarse desde el cliente.",
+          code: "WMS_FORBIDDEN",
+        },
+        400,
+      );
+    }
+
+    if (
+      action === "REPLENISH" &&
+      ("consolidation" in payload || "conflicting_batch" in payload)
+    ) {
+      return response(
+        {
+          error:
+            "WMS_FORBIDDEN: La política de consolidación es de cálculo exclusivo en servidor y no puede ser anulada desde el cliente.",
+          code: "WMS_FORBIDDEN",
+        },
+        400,
+      );
+    }
+
     const idempotencyKey =
       typeof body.idempotency_key === "string" && body.idempotency_key.trim().length > 0
         ? body.idempotency_key.trim()

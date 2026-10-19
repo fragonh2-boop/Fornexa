@@ -863,8 +863,8 @@ export default function WmsWorkspace() {
                     .map((hu) => {
                       const inp = loadInputs[hu.id] ?? {
                         scannedCode: "",
-                        weight: String(hu.gross_weight_kg ?? 500),
-                        volume: String(hu.volume_m3 ?? 1.2),
+                        weight: "",
+                        volume: "",
                         stateOk: true,
                       };
                       const codeMatches =
@@ -894,74 +894,148 @@ export default function WmsWorkspace() {
                             <span className={flowBadgeClass(hu.state)}>
                               {FLOW_STATE_LABEL[hu.state]}
                             </span>
+                            {hu.state_controlled_at ? (
+                              <small className={styles.controlOk}>
+                                Control OK ({hu.state_controlled_at.slice(11, 19)})
+                              </small>
+                            ) : effectivePolicy.require_state_control_on_load && hu.state !== "LOADED" ? (
+                              <small className={styles.controlPending}>
+                                Control Pendiente
+                              </small>
+                            ) : null}
                           </td>
                           <td>
-                            {hu.state === "PICKED_STAGED" && !hu.label_issued_at && (
-                              <div className={styles.inlineForm}>
-                                <input
-                                  type="number"
-                                  aria-label={`Peso controlado para ${hu.code}`}
-                                  placeholder="Peso kg"
-                                  value={inp.weight}
-                                  onChange={(e) =>
-                                    setLoadInputs((prev) => ({
-                                      ...prev,
-                                      [hu.id]: { ...inp, weight: e.target.value },
-                                    }))
-                                  }
-                                />
-                                <button
-                                  type="button"
-                                  className={screenButton.secondary}
-                                  disabled={!data.canEdit || busy || !inp.stateOk}
-                                  onClick={() =>
-                                    void runAction("LABEL", {
-                                      hu_id: hu.id,
-                                      state_controlled: inp.stateOk,
-                                      measured_weight_kg: Number(inp.weight) || hu.gross_weight_kg,
-                                      expected_weight_kg: hu.gross_weight_kg,
-                                      measured_volume_m3: Number(inp.volume) || hu.volume_m3,
-                                      expected_volume_m3: hu.volume_m3,
-                                    })
-                                  }
-                                >
-                                  Emitir Etiqueta (LABEL)
-                                </button>
-                              </div>
-                            )}
-                            {hu.state === "PICKED_STAGED" && hu.label_issued_at && (
-                              <div className={styles.inlineForm}>
-                                <input
-                                  type="text"
-                                  aria-label={`Escanear etiqueta en carga para ${hu.code}`}
-                                  placeholder={`Escanear ${hu.code}...`}
-                                  value={inp.scannedCode}
-                                  onChange={(e) =>
-                                    setLoadInputs((prev) => ({
-                                      ...prev,
-                                      [hu.id]: { ...inp, scannedCode: e.target.value },
-                                    }))
-                                  }
-                                />
-                                <button
-                                  type="button"
-                                  className={screenButton.primary}
-                                  disabled={!data.canEdit || busy || !codeMatches}
-                                  title={
-                                    !codeMatches
-                                      ? "Escanea el código exacto de la etiqueta SSCC/LPN antes de cargar (WMS_LABEL_MISMATCH)"
-                                      : "Confirmar carga en vehículo (LOAD)"
-                                  }
-                                  onClick={() =>
-                                    void runAction("LOAD", {
-                                      hu_id: hu.id,
-                                      scanned_code: inp.scannedCode.trim(),
-                                      state_controlled: true,
-                                    })
-                                  }
-                                >
-                                  Confirmar Carga (LOAD)
-                                </button>
+                            {hu.state === "PICKED_STAGED" && (
+                              <div className={styles.controlStack}>
+                                {!hu.state_controlled_at ? (
+                                  <div className={styles.inlineForm}>
+                                    <button
+                                      type="button"
+                                      className={screenButton.secondary}
+                                      disabled={!data.canEdit || busy}
+                                      title="Registrar control físico conforme (CONTROL_STATE PASSED)"
+                                      onClick={() =>
+                                        void runAction("CONTROL_STATE", {
+                                          hu_id: hu.id,
+                                          status: "PASSED",
+                                        })
+                                      }
+                                    >
+                                      Superar Control de Estado
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={screenButton.secondary}
+                                      disabled={!data.canEdit || busy}
+                                      title="Rechazar por defecto físico y enviar a cuarentena (CONTROL_STATE REJECTED)"
+                                      onClick={() =>
+                                        void runAction("CONTROL_STATE", {
+                                          hu_id: hu.id,
+                                          status: "REJECTED",
+                                          disposition: "QUARANTINE",
+                                          reason: "Defecto en embalaje o precinto",
+                                        })
+                                      }
+                                    >
+                                      Rechazar Estado
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className={`${styles.badge} ${styles.badgeOk}`}>
+                                    Control de Estado Superado
+                                  </span>
+                                )}
+
+                                {!hu.label_issued_at && (
+                                  <div className={styles.inlineForm}>
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      aria-label={`Peso medido para ${hu.code}`}
+                                      placeholder="Peso medido (kg)"
+                                      value={inp.weight}
+                                      onChange={(e) =>
+                                        setLoadInputs((prev) => ({
+                                          ...prev,
+                                          [hu.id]: { ...inp, weight: e.target.value },
+                                        }))
+                                      }
+                                    />
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      aria-label={`Volumen medido para ${hu.code}`}
+                                      placeholder="Volumen medido (m³)"
+                                      value={inp.volume}
+                                      onChange={(e) =>
+                                        setLoadInputs((prev) => ({
+                                          ...prev,
+                                          [hu.id]: { ...inp, volume: e.target.value },
+                                        }))
+                                      }
+                                    />
+                                    <button
+                                      type="button"
+                                      className={screenButton.secondary}
+                                      disabled={!data.canEdit || busy}
+                                      onClick={() =>
+                                        void runAction("LABEL", {
+                                          hu_id: hu.id,
+                                          ...(inp.weight !== undefined && inp.weight !== "" && !isNaN(Number(inp.weight))
+                                            ? { measured_weight_kg: Number(inp.weight) }
+                                            : {}),
+                                          ...(inp.volume !== undefined && inp.volume !== "" && !isNaN(Number(inp.volume))
+                                            ? { measured_volume_m3: Number(inp.volume) }
+                                            : {}),
+                                        })
+                                      }
+                                    >
+                                      Emitir Etiqueta (LABEL)
+                                    </button>
+                                  </div>
+                                )}
+
+                                {hu.label_issued_at && (
+                                  <div className={styles.inlineForm}>
+                                    <input
+                                      type="text"
+                                      aria-label={`Escanear etiqueta en carga para ${hu.code}`}
+                                      placeholder={`Escanear ${hu.code}...`}
+                                      value={inp.scannedCode}
+                                      onChange={(e) =>
+                                        setLoadInputs((prev) => ({
+                                          ...prev,
+                                          [hu.id]: { ...inp, scannedCode: e.target.value },
+                                        }))
+                                      }
+                                    />
+                                    <button
+                                      type="button"
+                                      className={screenButton.primary}
+                                      disabled={
+                                        !data.canEdit ||
+                                        busy ||
+                                        !codeMatches ||
+                                        (effectivePolicy.require_state_control_on_load && !hu.state_controlled_at)
+                                      }
+                                      title={
+                                        effectivePolicy.require_state_control_on_load && !hu.state_controlled_at
+                                          ? "Requiere superar el control de estado previo a la carga (WMS_CONTROL_PENDING)"
+                                          : !codeMatches
+                                          ? "Escanea el código exacto de la etiqueta SSCC/LPN antes de cargar (WMS_LABEL_MISMATCH)"
+                                          : "Confirmar carga en vehículo (LOAD)"
+                                      }
+                                      onClick={() =>
+                                        void runAction("LOAD", {
+                                          hu_id: hu.id,
+                                          scanned_code: inp.scannedCode.trim(),
+                                        })
+                                      }
+                                    >
+                                      Confirmar Carga (LOAD)
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             )}
                             {hu.state === "LOADED" && (

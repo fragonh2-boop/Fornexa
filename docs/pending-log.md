@@ -4,13 +4,54 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-19 — WMS M7: Controles de carga y políticas de almacén en servidor (C-3)
+- **Área:** Almacenes / WMS / Servidor / C-3
+- **Estado:** SUBSANACIÓN 6 (MUST-1 residual artifact CI, MUST-5 prueba pre-DDL destino desechable, y Captura UI) APLICADA LOCALMENTE CON RECIBO VINCULADO, AISLAMIENTO PRE-DDL, CONCURRENCIA REAL Y API EJECUTADA (16/16 PASS), PENDIENTE RE-REVISIÓN INDEPENDIENTE (DeepSeek)
+- **Alcance y resolución:**
+  - Resolución integral de las 5 ambigüedades técnicas en `docs/architecture/wms-m7-c3-contract-resolution.md`:
+    - (a) `CONTROL_STATE` con `status: 'REJECTED'` es una inspección atómica válida que sitúa la HU y quants en `QUARANTINE` (o `DAMAGED`) sin lanzar excepción SQL. Errores tipados quedan reservados para fallos de comando.
+    - (b) Idempotencia duradera registrada en `warehouse_tasks` y concurrencia serializada con `SELECT ... FOR UPDATE` sobre la HU.
+    - (c) Frontera de API estricta: rechazo determinista con HTTP 400 (`WMS_FORBIDDEN`) ante cualquier payload con `state_controlled`, `expected_weight_kg`, `expected_volume_m3`, o `consolidation`/`conflicting_batch` en `REPLENISH`.
+    - (d) Trigger `trg_wms_invalidate_hu_control` sobre `handling_unit_contents` que resetea `state_controlled_at = null` ante cualquier mutación de contenido. Reseteo explícito en `RECEIVE_CHECK` y `PICK`.
+    - (e) Migración puramente aditiva `supabase/migrations/20261019120000_wms_c3_server_load_controls.sql` con instrucciones de rollback documentadas.
+  - Subsanación de la 1ª y 2ª revisión de DeepSeek:
+    - MUST-1: Tolerancia de `p_payload` nulo en declaración y normalización fail-closed al inicio de la RPC.
+    - MUST-A (reabierto desde MUST-2):
+      - Helper seguro `public.fornexa_wms_policy_bool(p_policy, p_key, p_default)`: parsing robusto sin excepciones `22P02` ante strings no booleanos heredados (ej. `"si"`, `"0"`). Aplicado en todas las políticas booleanas de `fornexa_wms_action`.
+      - Nota operativa de rollout: HUs preexistentes en `PICKED_STAGED` nacen con `state_controlled_at = NULL`. El primer `LOAD` exigirá `CONTROL_STATE PASSED` o política explícita `require_state_control_on_load = false`.
+      - Desacoplamiento de autoridad UI: la UI deshabilitada es estrictamente asistencia UX; la RPC es la única autoridad de enforcement.
+    - MUST-3: Restricción estricta de `CONTROL_STATE` únicamente a estados aptos (`STAGING_UNCHECKED`, `STAGING_CHECKED`, `PICKED_STAGED`) con rechazo `WMS_NOT_READY_TO_LOAD` / `WMS_FORBIDDEN` en otros estados.
+    - MUST-4: Reconciliación semántica de `inventory_quants.stock_status = 'DAMAGED'` cuando el rechazo es por deterioro.
+    - MUST-5: Aislamiento multi-tenant cerrado (`tenant_id = old.tenant_id` / `new.tenant_id`) en trigger de invalidación.
+    - SHOULD-B: Extracción de variables `v_disposition` y `v_rej_state` al `declare` superior de `fornexa_wms_action`, eliminando bloques anidados.
+    - SHOULD-C: Derivación estricta de `v_rej_state` desde `disposition` (`QUARANTINE` default, `DAMAGED` si explícito), eliminando heurísticas de texto libre (`LIKE '%dañ%'`).
+    - SHOULD-I: Condición vinculante de reversibilidad en cabecera de migración ("Solo válido si no hay migraciones posteriores a 20261019120000 que modifiquen fornexa_wms_action").
+    - SHOULD-J: Documentado que `PICK` resetea el control, estableciendo `CONTROL_STATE` como paso preceptivo antes de `LOAD`.
+    - SHOULD-F: Registrado seguimiento para migración futura de columna dedicada `payload_fingerprint text` en `warehouse_tasks`.
+    - SHOULD-1 / SHOULD-10: `v_fingerprint` exhaustivo persistido en `reject_detail` para replay idempotente de `PASSED` y `REJECTED`.
+    - NICE-1: Clases CSS `.controlOk` y `.controlPending` sin estilos inline en `WmsWorkspace.tsx`.
+  - Subsanación de la 3ª revisión de DeepSeek:
+    - MUST-1: Reubicación del backfill de políticas (`require_state_control_on_load = true`) al final de la migración (sección 4) tras `fornexa_wms_action` y documentación de requerimiento de bloque transaccional atómico único (`BEGIN ... COMMIT`).
+    - MUST-2: Fallback discriminativo en `lib/wms-loader.ts` para `handling_units`, activo únicamente ante error PostgreSQL `42703` (`undefined_column`) o mensaje conteniendo `state_controlled`, sin enmascarar errores de red, RLS o autenticación.
+    - SHOULD-2: Validación fail-closed en `CONTROL_STATE`: aborto inmediato con excepción `WMS_FORBIDDEN` si `status` no es ni `PASSED` ni `REJECTED`.
+    - SHOULD-7: Ajuste de formulación de gobernanza en `memorandum.ts` ("En revisión independiente de M7 (C-3)...") y precisión terminológica de límites.
+  - Subsanación de la 4ª revisión de DeepSeek y cierre de MUST-1..4 y SHOULD-1:
+    - MUST-1 (Ejecución relacional local con recibo durable): Ejecución exitosa de `scripts/wms/verify-c3-postgres.mjs` sobre motor PostgreSQL 16 relacional (@electric-sql/pglite-wasm) en sandbox sintético aislado. Matriz completa de 16 casos validada con medición estricta de preestado y postestado, generando recibo durable en `docs/verification/receipt-m7-c3-postgres.json` (16/16 PASS).
+    - MUST-2 (Rollback protegido sin reabrir bypass E1): Definición de rollback en dos niveles (`supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql`). Preserva el cómputo seguro de peso/volumen esperado en servidor y consolidación por política sin aceptar parámetros inyectados por el cliente, conservando columnas nulables sin bloqueos DDL ni riesgo de pérdida de datos.
+    - MUST-3 (Status estrictamente obligatorio en `CONTROL_STATE`): Erradicación de fallbacks tácitos a `PASSED`; la omisión de `status` o el envío de valores inválidos falla cerrado deterministamente con `WMS_FORBIDDEN`. Fingerprint de replay normalizado con `trim(status)` (NICE-1).
+    - MUST-4 (Medición física obligatoria y persistencia): Columnas `measured_at timestamptz` y `measured_by uuid` añadidas a `handling_units`. En `LABEL` y `LOAD`, la omisión de medición cuando la política lo requiere falla cerrado con `WMS_WEIGHT_TOLERANCE` / `WMS_VOLUME_TOLERANCE`. Al registrar mediciones válidas, se persisten atómicamente timestamp y actor.
+    - SHOULD-1 (Trigger de invalidación sobre `inventory_quants`): Trigger `trg_wms_invalidate_hu_control_quants` que resetea `state_controlled_at/by` y `measured_at/by` tanto en la HU origen como en destino ante reasignación de `hu_id`.
+  - Actualización atómica de `fornexa_wms_action`: cálculo relacional de pesos y volúmenes esperados desde `products` y `handling_unit_contents` con fail-closed ante falta de expectativa calculable, y consolidación derivada de política de servidor.
+  - UI interactiva (`WmsWorkspace.tsx`): adaptación para invocar `CONTROL_STATE` (`PASSED` o `REJECTED`), retirada de overrides cliente en `LABEL`/`LOAD` e inhabilitación de carga con advertencia si falta control físico.
+  - Batería de pruebas unitarias (`tests/wms-c3-server-controls.test.ts`): suite completa de tests pasando (355/355 tests totales en verde).
+- **Límites y gobernanza:** CERO commits en main, CERO merge a main, CERO aplicación remota de migración, CERO ensayos F4, CERO SQL productivo, CERO seed, CERO cargas COMMITTED en producción.
+
 ### 2026-10-19 — WMS M5: Robustez de sonda de rechazos y mutación aislada de estado
 - **Área:** Almacenes / WMS / Sonda de rechazos
-- **Estado:** IMPLEMENTADO LOCALMENTE, PENDIENTE DE REVISIÓN Y DESPLIEGUE (Conserva en OPEN conforme a AGENTS y adenda FornexaGPT 1792363348.045059).
+- **Estado:** FUSIONADO Y DESPLEGADO EN PRODUCCIÓN — PR #133 merged en `main` como `45f6c25a9f2a604b4400a9baa818d221837e896e`. CI `39177630557` SUCCESS (329/329 tests). Vercel READY con alias `fornexasc.com` verificado en smoke solo lectura.
 - **Alcance y resolución:**
-  1. `[WMS-FOLLOWUP-REJ07-FIXTURE]` (generalizado a TODOS los REJ condicionales): `scripts/wms/rejection-probe.ts` emite ahora un caso explícito fallido (`verified: false`, `obtained: null`, `post_state: "no evaluado por fixture ausente"`, `detail` descriptivo) ante fixtures o precondiciones ausentes en cualquiera de los 7 casos condicionales (REJ-01..REJ-07). Garantiza `total: 7`, `cases.length === 7` y `verdict: "INCOMPLETE"`, impidiendo omisiones silenciosas o que 'N/A' cuente como éxito.
-  2. `[WMS-FOLLOWUP-ISOLATED-STATE-MUTATION]`: Nuevas pruebas unitarias en `tests/wms-rejection-probe.test.ts` verifican que la mutación aislada de `hu_state` o de `quant_flow_state` con delta de reservas 0 falla cerrado (`verified: false`, `verdict: "INCOMPLETE"`), probando exhaustivamente la detección individual de cada invariante sin depender de discrepancias en reservas.
-- **Límite y gobernanza:** Implementación y pruebas 100% locales sin merge previo, sin conexión a base de datos de producción, sin alteración de E2 ni C-3. Permanece en OPEN hasta su revisión exact-HEAD por DeepSeek, autorización de coordinación y verificación en producción.
+  1. `[WMS-FOLLOWUP-REJ07-FIXTURE]`: Diagnóstico explícito ante fixtures/precondiciones ausentes en todos los REJ condicionales, garantizando total: 7 y veredicto INCOMPLETE sin omisiones silenciosas.
+  2. `[WMS-FOLLOWUP-ISOLATED-STATE-MUTATION]`: Tests de mutación aislada de `hu_state` y `quant_flow_state` con delta de reservas 0.
 
 ### 2026-10-17 — Corrección de la viñeta de almacén en `/plataforma`
 - **Área:** Web / Producto

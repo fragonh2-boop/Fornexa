@@ -19,13 +19,13 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "19 oct 2026";
-export const memorandumCommitCoverage = 663;
+export const memorandumCommitCoverage = 672;
 
 export const memorandumPending: MemorandumPending[] = [
   {
     area: "Funcional",
     title: "Almacenes — reglas de reposición, propuestas y lote sintético (E2 / F4 / F5)",
-    summary: "El núcleo operativo de Almacenes (recepción con chequeo en playa, ubicación dirigida, reservas por línea, picking con rotación FIFO/LIFO/FEFO, recursos, políticas jerárquicas y control de etiqueta, estado, peso y volumen antes de la carga) ya está implementado y su migración E1 aplicada y verificada en producción, con los 30 códigos de rechazo acreditados mediante ensayo transaccional y sonda con pre/postestado medido y diagnóstico explícito de fixtures ausentes (SHOULD-1 cerrado, robustez M5 en revisión). Quedan pendientes la entrega E2 (reglas de reposición min/max y consolidación en cola), la carga del lote sintético de escenarios de almacén y la verificación funcional punto a punto en producción.",
+    summary: "El núcleo operativo de Almacenes (recepción con chequeo en playa, ubicación dirigida, reservas por línea, picking con rotación FIFO/LIFO/FEFO, recursos, políticas jerárquicas y control de etiqueta, estado, peso y volumen antes de la carga) ya está implementado y su migración E1 aplicada y verificada en producción, con los 30 códigos de rechazo acreditados mediante ensayo transaccional y sonda con pre/postestado medido y diagnóstico explícito de fixtures ausentes (SHOULD-1 y robustez M5 verificados en producción). En revisión independiente de M7 (C-3) el control de estado físico y políticas de carga en servidor (CONTROL_STATE PASSED/REJECTED atómico, cálculo relacional de pesos y volúmenes, trigger de invalidación de control y consolidación por política en servidor). Quedan pendientes la entrega E2 (reglas de reposición min/max y consolidación en cola), la carga del lote sintético de escenarios de almacén y la verificación funcional punto a punto en producción.",
     priority: "Ahora",
     state: "En seguimiento",
   },
