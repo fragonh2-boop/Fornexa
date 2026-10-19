@@ -4,9 +4,18 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+## Actualización verificada — 2026-10-19 11:30 CEST (P0)
+
+- **WMS M7 C-3 NO COMPLETAMENTE OPERATIVO:** PR #134 y PR #135 ya están fusionadas en el código de `main cc52ff38549792b5ad9049aa2462b436a1438731`; CI #528 completó SUCCESS y Vercel `fornexa` Production READY en ese mismo SHA. Es un estado de despliegue **web**, no de activación completa del WMS.
+- **Gate de base de datos comprobado:** Supabase prod `gqkjqhpmyejmehbuombk` lista 41 migraciones; la última WMS es `20261017110000_wms_e1_core`. No consta `20261019120000_wms_c3_server_load_controls.sql`. Lecturas en `information_schema`/catálogo confirman ausentes `handling_units.state_controlled_at`, `handling_units.measured_at` y `public.fornexa_wms_policy_bool`. **No declarar C-3 aceptado ni realizar cargas F4 sobre este supuesto.**
+- **Acción coordinada:** preflight read-only del SQL, dependencias E1, tratamiento de HU legadas en `PICKED_STAGED` y tolerancias/políticas; revisión independiente de DeepSeek; Product Owner valida ventana y estrategia DB-first. Después, migración controlada autorizada, verificación de estructura/RLS/trigger/RPC, smoke funcional tenant-aware y F4 sobre fixture delimitado, y evidencia en Memorandum. Sin SQL productivo, seed ni ensayo de movimientos en este ciclo de coordinación.
+- **Gobernanza:** el estado `MIGRATIONS_FAILED` de integración de ramas Supabase/A2 sigue siendo un riesgo separado; resolverlo con provenance/Preview segura, nunca `migration repair` indiscriminado. PR #80/#81 continúan draft. Otros gates: DeCA POST/E2E con sesión OWNER/ADMIN legítima y ADR 2025.
+- **Slack:** coordinación publicada en `#fornexa` el 19-oct-2026, con tareas para GPT/Gemini/revisión DeepSeek y decisión de Fran.
+
+
 ### 2026-10-19 — WMS M7: Controles de carga y políticas de almacén en servidor (C-3)
 - **Área:** Almacenes / WMS / Servidor / C-3
-- **Estado:** FUSIONADO Y DESPLEGADO EN PRODUCCIÓN — PR #134 merged en `main` como `8600ce03bc80f734866136dd2998c85155af592a`. CI `39207230566` SUCCESS (356/356 tests). Vercel Production READY en `fornexa` (id 7166818830) y `fornexa-app` (id 7166806640), alias `fornexasc.com` verificado en smoke solo lectura (200 / 307 / 401). Seguimiento de SHOULD-1 (corrección documental de código de tolerancia) y SHOULD-2 (suite de pruebas de guard `validateDisposableDatabase`) implementado en rama `fix/wms-m7-shoulds-guard-and-doc`.
+- **Estado:** CÓDIGO FUSIONADO Y WEB READY; MIGRACIÓN C-3 EN SUPABASE PENDIENTE — PR #134 merged en `main` como `8600ce03bc80f734866136dd2998c85155af592a`. CI `39207230566` SUCCESS (356/356 tests). Vercel Production READY en `fornexa` (id 7166818830) y `fornexa-app` (id 7166806640), alias `fornexasc.com` verificado en smoke solo lectura (200 / 307 / 401). SHOULD-1 (documentación de tolerancia) y SHOULD-2 (pruebas de `validateDisposableDatabase`) fusionados mediante PR #135 en `main cc52ff38549792b5ad9049aa2462b436a1438731`, CI #528 SUCCESS y Vercel READY; no implica aplicación de la migración M7.
 - **Alcance y resolución:**
   - Resolución integral de las 5 ambigüedades técnicas en `docs/architecture/wms-m7-c3-contract-resolution.md`:
     - (a) `CONTROL_STATE` con `status: 'REJECTED'` es una inspección atómica válida que sitúa la HU y quants en `QUARANTINE` (o `DAMAGED`) sin lanzar excepción SQL. Errores tipados quedan reservados para fallos de comando.
@@ -44,7 +53,7 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
   - Actualización atómica de `fornexa_wms_action`: cálculo relacional de pesos y volúmenes esperados desde `products` y `handling_unit_contents` con fail-closed ante falta de expectativa calculable, y consolidación derivada de política de servidor.
   - UI interactiva (`WmsWorkspace.tsx`): adaptación para invocar `CONTROL_STATE` (`PASSED` o `REJECTED`), retirada de overrides cliente en `LABEL`/`LOAD` e inhabilitación de carga con advertencia si falta control físico.
   - Batería de pruebas unitarias (`tests/wms-c3-server-controls.test.ts`): suite completa de tests pasando (355/355 tests totales en verde).
-- **Límites y gobernanza:** CERO commits en main, CERO merge a main, CERO aplicación remota de migración, CERO ensayos F4, CERO SQL productivo, CERO seed, CERO cargas COMMITTED en producción.
+- **Límites y gobernanza (actualizados 19-oct 11:30 CEST):** hubo merges reales de PR #134/#135 a main y despliegue web READY. **No consta aplicación de la migración M7**, ni E2E operativo F4 de C-3; en esta coordinación no se ejecutaron DDL/seed/cargas productivas.
 
 ### 2026-10-19 — WMS M5: Robustez de sonda de rechazos y mutación aislada de estado
 - **Área:** Almacenes / WMS / Sonda de rechazos
