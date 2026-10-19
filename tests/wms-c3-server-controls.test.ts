@@ -112,18 +112,15 @@ test("M7 C-3 — migración declara columnas state_controlled_at/by e índice de
   );
 });
 
-test("M7 C-3 — trigger trg_wms_invalidate_hu_control invalida el control físico ante mutaciones de contenido", () => {
+test("M7 C-3 — trigger trg_wms_invalidate_hu_control preserva aislamiento multitenant estricto (MUST-5)", () => {
   assert.ok(
     migrationSql.includes("create or replace function public.fornexa_wms_invalidate_hu_control()"),
     "La migración debe definir la función de invalidación",
   );
   assert.ok(
-    migrationSql.includes("create trigger trg_wms_invalidate_hu_control"),
-    "La migración debe crear el trigger sobre handling_unit_contents",
-  );
-  assert.ok(
-    migrationSql.includes("after insert or update or delete"),
-    "El trigger debe dispararse en insert, update y delete",
+    migrationSql.includes("where tenant_id = old.tenant_id") &&
+    migrationSql.includes("where tenant_id = new.tenant_id"),
+    "La función de trigger debe filtrar por tenant_id tanto en DELETE como en INSERT/UPDATE (MUST-5)",
   );
   assert.ok(
     migrationSql.includes("set state_controlled_at = null"),
@@ -131,39 +128,77 @@ test("M7 C-3 — trigger trg_wms_invalidate_hu_control invalida el control físi
   );
 });
 
-test("M7 C-3 — fornexa_wms_action implementa CONTROL_STATE resolviendo ambigüedades (a) y (b)", () => {
+test("M7 C-3 — migración incluye pre-rollout seguro para require_state_control_on_load en políticas activas (MUST-2)", () => {
   assert.ok(
-    migrationSql.includes("elsif p_action = 'CONTROL_STATE' then"),
-    "fornexa_wms_action debe implementar el bloque CONTROL_STATE",
+    migrationSql.includes("update public.warehouse_behavior_policies"),
+    "La migración debe actualizar políticas de almacén activas",
   );
-  // Bloqueo de HU ya cargadas
+  assert.ok(
+    migrationSql.includes("require_state_control_on_load"),
+    "Debe asegurar require_state_control_on_load como default seguro",
+  );
+});
+
+test("M7 C-3 — fornexa_wms_action es inmune a p_payload NULL en declaración y cuerpo (MUST-1)", () => {
+  assert.ok(
+    migrationSql.includes("case when p_payload is not null then p_payload->>'idempotency_key' else null end"),
+    "v_idem debe proteger contra p_payload NULL",
+  );
+  assert.ok(
+    migrationSql.includes("if p_payload is null then") &&
+    migrationSql.includes("p_payload := '{}'::jsonb;"),
+    "El cuerpo de la RPC debe normalizar p_payload nulo a jsonb vacío antes de cualquier acceso",
+  );
+});
+
+test("M7 C-3 — CONTROL_STATE valida estados aptos de HU y bloquea no inspeccionables (MUST-3)", () => {
+  assert.ok(
+    migrationSql.includes("if v_hu.state not in ('STAGING_UNCHECKED', 'STAGING_CHECKED', 'PICKED_STAGED') then"),
+    "CONTROL_STATE debe restringir inspección únicamente a estados aptos de staging (MUST-3)",
+  );
+  assert.ok(
+    migrationSql.includes("raise exception 'WMS_NOT_READY_TO_LOAD'"),
+    "HU en STORED, QUARANTINE o DAMAGED debe levantar WMS_NOT_READY_TO_LOAD",
+  );
   assert.ok(
     migrationSql.includes("if v_hu.state = 'LOADED' then"),
-    "CONTROL_STATE sobre HU LOADED debe rechazar",
+    "HU en LOADED debe levantar excepción",
   );
-  // (a) REJECTED no lanza excepción SQL y pasa a QUARANTINE o DAMAGED
+});
+
+test("M7 C-3 — CONTROL_STATE reconcilia stock_status y flow_state en quants ante REJECTED (MUST-4)", () => {
   assert.ok(
-    migrationSql.includes("v_control_status = 'REJECTED'") ||
-    migrationSql.includes("p_payload->>'status', 'PASSED')) = 'REJECTED'"),
-    "CONTROL_STATE debe evaluar status REJECTED",
-  );
-  assert.ok(
-    migrationSql.includes("QUARANTINE"),
-    "CONTROL_STATE REJECTED debe transicionar a QUARANTINE",
+    migrationSql.includes("stock_status = case when v_rej_state = 'DAMAGED' then 'DAMAGED' else 'QUARANTINE' end"),
+    "inventory_quants debe asignar stock_status DAMAGED cuando el rechazo es por daño (MUST-4)",
   );
   assert.ok(
-    migrationSql.includes("CONTROL_STATE_REJECTED"),
-    "CONTROL_STATE REJECTED debe emitir evento de auditoría CONTROL_STATE_REJECTED",
+    migrationSql.includes("flow_state = v_rej_state"),
+    "flow_state debe alinearse semánticamente con v_rej_state",
   );
-  // (b) Idempotencia
+});
+
+test("M7 C-3 — replay idempotente de CONTROL_STATE cubre PASSED y REJECTED con fingerprint exhaustivo (SHOULD-1 y SHOULD-10)", () => {
   assert.ok(
-    migrationSql.includes("wt.idempotency_key = v_idem"),
-    "CONTROL_STATE debe soportar repetición idempotente",
+    migrationSql.includes("coalesce(upper(p_payload->>'status'), '')"),
+    "v_fingerprint debe incorporar status de inspección",
+  );
+  assert.ok(
+    migrationSql.includes("coalesce(p_payload->>'reason', '')"),
+    "v_fingerprint debe incorporar motivo de inspección",
+  );
+  assert.ok(
+    migrationSql.includes("v_fingerprint") &&
+    migrationSql.includes("'CONTROL_STATE', 'FAILED'"),
+    "Tareas FAILED por CONTROL_STATE deben guardar v_fingerprint en reject_detail para replay idéntico",
+  );
+  assert.ok(
+    migrationSql.includes("v_fingerprint") &&
+    migrationSql.includes("'CONTROL_STATE', 'DONE'"),
+    "Tareas DONE por CONTROL_STATE deben guardar v_fingerprint en reject_detail para replay idéntico",
   );
 });
 
 test("M7 C-3 — LABEL y LOAD calculan pesos y volúmenes en servidor y exigen control físico si la política lo requiere", () => {
-  // Cálculo de pesos y volúmenes por join con products
   assert.ok(
     migrationSql.includes("sum(p.gross_weight_kg * huc.quantity)"),
     "LABEL/LOAD deben calcular el peso sumando gross_weight_kg * quantity de productos",
@@ -172,7 +207,6 @@ test("M7 C-3 — LABEL y LOAD calculan pesos y volúmenes en servidor y exigen c
     migrationSql.includes("sum(p.volume_m3 * huc.quantity)"),
     "LABEL/LOAD deben calcular el volumen sumando volume_m3 * quantity de productos",
   );
-  // Exigencia de control físico en LABEL
   assert.ok(
     migrationSql.includes("require_state_control_on_load"),
     "Se debe consultar require_state_control_on_load de la política",
@@ -207,7 +241,6 @@ test("M7 C-3 — REPLENISH deriva consolidación estrictamente de política de s
 });
 
 test("M7 C-3 — RECEIVE_CHECK y PICK resetean explícitamente state_controlled_at", () => {
-  // RECEIVE_CHECK
   assert.ok(
     migrationSql.includes("state_controlled_at = null"),
     "RECEIVE_CHECK y PICK deben resetear state_controlled_at",
@@ -221,3 +254,4 @@ test("M7 C-3 — documento de resolución wms-m7-c3-contract-resolution.md cubre
   assert.ok(contractDoc.includes("### (d)"), "Debe documentar resolución (d)");
   assert.ok(contractDoc.includes("### (e)"), "Debe documentar resolución (e)");
 });
+

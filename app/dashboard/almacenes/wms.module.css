@@ -210,6 +210,12 @@
   font-size: 12px;
 }
 
+.controlStack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 @media (max-width: 760px) {
   .cards {
     grid-template-columns: 1fr;

@@ -905,7 +905,7 @@ export default function WmsWorkspace() {
                               >
                                 Control OK ({hu.state_controlled_at.slice(11, 19)})
                               </small>
-                            ) : effectivePolicy.require_state_control_on_load ? (
+                            ) : effectivePolicy.require_state_control_on_load && hu.state !== "LOADED" ? (
                               <small
                                 style={{
                                   display: "block",
@@ -919,7 +919,7 @@ export default function WmsWorkspace() {
                           </td>
                           <td>
                             {hu.state === "PICKED_STAGED" && (
-                              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                              <div className={styles.controlStack}>
                                 {!hu.state_controlled_at ? (
                                   <div className={styles.inlineForm}>
                                     <button
@@ -945,6 +945,7 @@ export default function WmsWorkspace() {
                                         void runAction("CONTROL_STATE", {
                                           hu_id: hu.id,
                                           status: "REJECTED",
+                                          disposition: "QUARANTINE",
                                           reason: "Defecto en embalaje o precinto",
                                         })
                                       }

@@ -11,15 +11,20 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
   3. *(c) Rechazo determinista en API:* `app/api/wms/route.ts` rechaza con HTTP 400 (`WMS_FORBIDDEN`) cualquier payload con `state_controlled`, `expected_weight_kg`, `expected_volume_m3` o `consolidation`/`conflicting_batch` en `REPLENISH`. Cero "ignorado silencioso".
   4. *(d) Invalidación completa:* Trigger `trg_wms_invalidate_hu_control` sobre `handling_unit_contents` que limpia `state_controlled_at = null` y `state_controlled_by = null` ante cualquier mutación de contenido. Reseteo explícito en `RECEIVE_CHECK` y `PICK`.
   5. *(e) Estrategia de rollout/rollback:* Migración aditiva independiente `supabase/migrations/20261019120000_wms_c3_server_load_controls.sql` con instrucciones de rollback documentadas sin modificar el core de E1.
+- **Subsanación de Revisión Independiente (DeepSeek `1792368288.673279` - `1792368289.867729`):**
+  - **MUST-1 (`p_payload` NULL safety):** `v_idem` protegido en declaración (`case when p_payload is not null then p_payload->>'idempotency_key' else null end`) y normalización fail-closed al inicio de la RPC (`if p_payload is null then p_payload := '{}'::jsonb; end if;`).
+  - **MUST-2 (Rollout safety):** Backfill idempotente de `require_state_control_on_load = true` para políticas activas en la migración e instrucciones de rollback cerradas.
+  - **MUST-3 (Guardas de estado de HU):** `CONTROL_STATE` restringe la inspección a estados de playa aptos (`STAGING_UNCHECKED`, `STAGING_CHECKED`, `PICKED_STAGED`), rechazando con `WMS_NOT_READY_TO_LOAD` estados `STORED`, `QUARANTINE` o `DAMAGED`, y con `WMS_FORBIDDEN` sobre `LOADED`.
+  - **MUST-4 (Integridad de inventario):** Reconciliación semántica de `inventory_quants.stock_status = 'DAMAGED'` ante rechazos físicos por deterioro.
+  - **MUST-5 (Aislamiento multitenant en trigger):** Filtrado explícito por `tenant_id = old.tenant_id` y `tenant_id = new.tenant_id` en `fornexa_wms_invalidate_hu_control`.
+  - **SHOULD-1 / SHOULD-10 (Fingerprint de idempotencia):** `v_fingerprint` exhaustivo (acción, hu, status, reason, disposition, etc.) persistido en `reject_detail` tanto para `DONE` (PASSED) como para `FAILED` (REJECTED), garantizando replay idéntico y evitando replays con cambio de estado.
+  - **SHOULD-4 (Diff textual `fornexa_wms_action` contra E1):** Verificado que únicamente se introducen las ramas de C-3 (`CONTROL_STATE`, cálculo relacional y tolerancias en `LABEL`/`LOAD`, consolidación por política en `REPLENISH`, e invalidación en `RECEIVE_CHECK`/`PICK`).
 - **Cambios implementados:**
   1. `supabase/migrations/20261019120000_wms_c3_server_load_controls.sql`:
      - Nuevas columnas `state_controlled_at timestamptz` y `state_controlled_by uuid` en `handling_units`.
-     - Trigger de invalidación `trg_wms_invalidate_hu_control` en `handling_unit_contents`.
-     - Actualización atómica de `fornexa_wms_action`:
-       - Acción `CONTROL_STATE` con bifurcación atómica para `PASSED` y `REJECTED`.
-       - Cálculo relacional en servidor de pesos y volúmenes esperados (`products` + `handling_unit_contents`) en `LABEL` y `LOAD`.
-       - Bloqueo por falta de control físico (`WMS_CONTROL_PENDING`) gobernado por la política `require_state_control_on_load`.
-       - Derivación estricta de consolidación y verificación de conflictos de lote en `REPLENISH` desde la política del almacén.
+     - Trigger de invalidación `trg_wms_invalidate_hu_control` en `handling_unit_contents` con aislamiento de tenant.
+     - Backfill preventivo de políticas activas para `require_state_control_on_load`.
+     - Actualización atómica de `fornexa_wms_action` con todas las guardas y replay idempotente.
   2. `lib/wms.ts` & `lib/wms-loader.ts`:
      - Añadido `CONTROL_STATE` a `WMS_ACTIONS` y campos `state_controlled_at/by` a `WmsHandlingUnit`.
      - Carga de datos resiliente con fallback sin romper compatibilidad en bases de datos sin la migración aplicada.
@@ -27,13 +32,14 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
      - Validación estricta y rechazo determinista HTTP 400 (`WMS_FORBIDDEN`) ante campos de autoridad cliente.
   4. `app/dashboard/almacenes/WmsWorkspace.tsx`:
      - Eliminación de overrides cliente en `LABEL` y `LOAD`.
-     - Exposición de acciones interactivas para superar (`PASSED`) o rechazar (`REJECTED`) el control de estado.
-     - Indicador visual de control de estado e inhabilitación de carga con tooltip informativo si falta control previo.
+     - Exposición de acciones interactivas para superar (`PASSED`) o rechazar (`REJECTED`) el control de estado, con soporte de `disposition: 'QUARANTINE'`.
+     - Extracción de estilos a clase CSS `.controlStack`.
+     - Ocultación de etiqueta "Control Pendiente" en unidades con estado `LOADED`.
   5. `tests/wms-c3-server-controls.test.ts`:
-     - Suite completa de 10 tests unitarios verificando los requisitos de contrato, validaciones de API, triggers y RPC (339/339 tests PASS en el repo).
+     - Suite completa de 14 tests unitarios verificando los requisitos de contrato, validaciones de API, triggers y RPC, incluyendo tests específicos para MUST-1..5 y SHOULD-1/10 (343/343 tests PASS en el repo).
   6. Gobernanza:
-     - `lib/memorandum.ts`: Cobertura de commits actualizada a 665, fecha `19 oct 2026`.
-     - `docs/pending-log.md`: M5 marcado como desplegado en producción; M7 registrado en `OPEN`.
+     - `lib/memorandum.ts`: Cobertura de commits actualizada a 666, fecha `19 oct 2026`.
+     - `docs/pending-log.md`: M5 marcado como desplegado en producción; M7 registrado en `OPEN` con subsanaciones.
 - **Límites y garantías fail-closed:**
   - Código y pruebas 100% locales en worktree aislado (`feat/wms-m7-c3-load-controls`).
   - CERO merge a main, CERO aplicación remota de migración, CERO ensayos F4, CERO SQL productivo, CERO seed, CERO COMMITTED.

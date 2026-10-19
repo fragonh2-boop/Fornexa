@@ -6,7 +6,7 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ### 2026-10-19 — WMS M7: Controles de carga y políticas de almacén en servidor (C-3)
 - **Área:** Almacenes / WMS / Servidor / C-3
-- **Estado:** IMPLEMENTADO LOCALMENTE, PENDIENTE DE REVISIÓN INDEPENDIENTE (DeepSeek)
+- **Estado:** SUBSANACIÓN MUST-1..5 / SHOULD-1..10 APLICADA LOCALMENTE, PENDIENTE RATIFICACIÓN TERMINAL (DeepSeek)
 - **Alcance y resolución:**
   - Resolución integral de las 5 ambigüedades técnicas en `docs/architecture/wms-m7-c3-contract-resolution.md`:
     - (a) `CONTROL_STATE` con `status: 'REJECTED'` es una inspección atómica válida que sitúa la HU y quants en `QUARANTINE` (o `DAMAGED`) sin lanzar excepción SQL. Errores tipados quedan reservados para fallos de comando.
@@ -14,9 +14,16 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
     - (c) Frontera de API estricta: rechazo determinista con HTTP 400 (`WMS_FORBIDDEN`) ante cualquier payload con `state_controlled`, `expected_weight_kg`, `expected_volume_m3`, o `consolidation`/`conflicting_batch` en `REPLENISH`.
     - (d) Trigger `trg_wms_invalidate_hu_control` sobre `handling_unit_contents` que resetea `state_controlled_at = null` ante cualquier mutación de contenido. Reseteo explícito en `RECEIVE_CHECK` y `PICK`.
     - (e) Migración puramente aditiva `supabase/migrations/20261019120000_wms_c3_server_load_controls.sql` con instrucciones de rollback documentadas.
+  - Subsanación rigurosa de los 5 MUSTs de la revisión de DeepSeek:
+    - MUST-1: Tolerancia de `p_payload` nulo en declaración y normalización fail-closed al inicio de la RPC.
+    - MUST-2: Backfill preventivo de `require_state_control_on_load = true` en políticas activas y documentación de rollback.
+    - MUST-3: Restricción estricta de `CONTROL_STATE` únicamente a estados aptos (`STAGING_UNCHECKED`, `STAGING_CHECKED`, `PICKED_STAGED`) con rechazo `WMS_NOT_READY_TO_LOAD` / `WMS_FORBIDDEN` en otros estados.
+    - MUST-4: Reconciliación semántica de `inventory_quants.stock_status = 'DAMAGED'` cuando el rechazo es por deterioro.
+    - MUST-5: Aislamiento multi-tenant cerrado (`tenant_id = old.tenant_id` / `new.tenant_id`) en trigger de invalidación.
+    - SHOULD-1 / SHOULD-10: `v_fingerprint` exhaustivo persistido en `reject_detail` para replay idempotente de `PASSED` y `REJECTED`.
   - Actualización atómica de `fornexa_wms_action`: cálculo relacional de pesos y volúmenes esperados desde `products` y `handling_unit_contents` con fail-closed ante falta de expectativa calculable, y consolidación derivada de política de servidor.
   - UI interactiva (`WmsWorkspace.tsx`): adaptación para invocar `CONTROL_STATE` (`PASSED` o `REJECTED`), retirada de overrides cliente en `LABEL`/`LOAD` e inhabilitación de carga con advertencia si falta control físico.
-  - Batería de pruebas unitarias (`tests/wms-c3-server-controls.test.ts`): 10 tests de contrato pasando (339/339 tests totales en verde).
+  - Batería de pruebas unitarias (`tests/wms-c3-server-controls.test.ts`): 14 tests de contrato pasando (343/343 tests totales en verde).
 - **Límites y gobernanza:** Cero merge a main, cero migración remota aplicada, cero ensayo F4, cero SQL productivo ni seed.
 
 ### 2026-10-19 — WMS M5: Robustez de sonda de rechazos y mutación aislada de estado

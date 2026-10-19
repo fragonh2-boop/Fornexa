@@ -107,3 +107,66 @@
 | 14 | Cross-docking autorizado por política | Flujo directo permitido conforme a configuración | Automatizado |
 | 15 | HU perteneciente a otro tenant | Rechazo estricto `WMS_FORBIDDEN` | Automatizado |
 | 16 | Fallo en inserción de `audit_events` | Rollback transaccional íntegro sin marcas huérfanas | Automatizado |
+
+---
+
+## 3. Subsanación y Cierre de Hallazgos de Revisión DeepSeek (PR #134)
+
+Tras la revisión independiente canónica emitida por DeepSeek (`U0BV95NCT89`, mensajes `1792368288.673279` a `1792368289.867729`), se han subsanado íntegramente los 5 MUSTs y las observaciones clave:
+
+1. **MUST-1 (`p_payload` NULL Safety)**:
+   - Declaración: `v_idem text := nullif(trim(coalesce(p_idempotency_key, case when p_payload is not null then p_payload->>'idempotency_key' else null end, '')), '');`.
+   - Normalización fail-closed al inicio del bloque de ejecución: `if p_payload is null then p_payload := '{}'::jsonb; end if;`.
+   - Garantiza que ninguna expresión de la RPC falle por desreferenciación nula en PL/pgSQL.
+
+2. **MUST-2 (`require_state_control_on_load` Rollout Safety)**:
+   - En la migración `20261019120000_wms_c3_server_load_controls.sql`, se incorpora una instrucción idempotente de backfill pre-rollout:
+     ```sql
+     update public.warehouse_behavior_policies
+        set params = jsonb_set(params, '{require_state_control_on_load}', 'true'::jsonb, true)
+      where params is not null
+        and (params->>'require_state_control_on_load' is null or params->>'require_state_control_on_load' = '');
+     ```
+   - En `LABEL` y `LOAD`, la evaluación `coalesce((v_policy->>'require_state_control_on_load')::boolean, true)` falla cerrada por defecto ante configuraciones heredadas.
+
+3. **MUST-3 (Validación de Estado de HU en `CONTROL_STATE`)**:
+   - Conforme al contrato (a), la inspección física solo es admisible para unidades en playa aptas para control:
+     ```sql
+     if v_hu.state = 'LOADED' then
+       raise exception 'WMS_FORBIDDEN';
+     end if;
+     if v_hu.state not in ('STAGING_UNCHECKED', 'STAGING_CHECKED', 'PICKED_STAGED') then
+       raise exception 'WMS_NOT_READY_TO_LOAD';
+     end if;
+     ```
+   - Se bloquea categóricamente la aplicación de `CONTROL_STATE` sobre HUs en `STORED`, `QUARANTINE` o `DAMAGED`.
+
+4. **MUST-4 (Reconciliación Semántica de `stock_status` y `flow_state` en `REJECTED`)**:
+   - En la rama `REJECTED`, la actualización de `inventory_quants` sincroniza ambos campos:
+     ```sql
+     update public.inventory_quants
+        set flow_state = v_rej_state,
+            stock_status = case when v_rej_state = 'DAMAGED' then 'DAMAGED' else 'QUARANTINE' end,
+            updated_at = v_ts
+      where tenant_id = p_tenant and hu_id = v_hu.id;
+     ```
+   - El estado de inventario refleja de forma exacta la condición física real (`DAMAGED` vs `QUARANTINE`), preservando la integridad del inventario de calidad.
+
+5. **MUST-5 (Aislamiento Multi-Tenant Estricto en Trigger)**:
+   - La función `fornexa_wms_invalidate_hu_control` añade filtro explícito por `tenant_id`:
+     `where tenant_id = old.tenant_id and id = old.handling_unit_id` (y análogo con `new.tenant_id`), cerrando cualquier potencial fuga o ambigüedad cross-tenant.
+
+6. **SHOULD-1 & SHOULD-10 (Idempotencia y Replay Exhaustivo)**:
+   - `v_fingerprint` incorpora todos los discriminantes de la acción: `p_action`, `hu_id`, `quant_id`, `reservation_id`, `destination_bin_id`, `quantity`, `status`, `reject_code`, `reason`, `disposition`.
+   - Tanto las tareas `DONE` (PASSED) como `FAILED` (REJECTED) registran `v_fingerprint` en `reject_detail`.
+   - Ante una repetición idéntica de la clave con el mismo payload, la RPC responde `idempotent_replay: true` devolviendo el resultado cacheado para ambos estados, mientras que un cambio de payload bajo la misma clave levanta deterministamente `WMS_DUPLICATE`.
+
+7. **SHOULD-4 (Diff Textual `fornexa_wms_action` contra E1)**:
+   - Las únicas diferencias entre la RPC de E1 (`20261017110000_wms_e1_core.sql`) y C-3 son:
+     - Variables locales auxiliares de cálculo relacional (`v_computed_weight`, `v_computed_volume`).
+     - Branch de acción `CONTROL_STATE` (PASSED/REJECTED con guardas y tareas idempotentes).
+     - Validación y cálculo en servidor de pesos/volúmenes y control de estado previo en `LABEL` y `LOAD`.
+     - Resolución de consolidación en servidor mediante política en `REPLENISH`.
+     - Reseteo explícito de `state_controlled_at/by` en `RECEIVE_CHECK` y `PICK`.
+     - Cero alteraciones en las demás acciones del núcleo E1 (`PUTAWAY`, `CONFIRM_TASK`, etc.).
+

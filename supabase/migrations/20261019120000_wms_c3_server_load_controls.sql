@@ -1,15 +1,20 @@
 -- ============================================================================
 -- MIGRATION: 20261019120000_wms_c3_server_load_controls.sql
 -- DESCRIPTION: C-3 Server-side load controls and warehouse behavior policy enforcement
--- AUTHOR: Antigravity (Gemini)
+-- AUTHOR: Gemini (Fornexa)
 -- DATE: 2026-10-19
 --
--- ROLLBACK INSTRUCTIONS:
+-- ROLLBACK INSTRUCTIONS & REVERSIBILITY GUARANTEES:
 -- 1. DROP TRIGGER IF EXISTS trg_wms_invalidate_hu_control ON public.handling_unit_contents;
 -- 2. DROP FUNCTION IF EXISTS public.fornexa_wms_invalidate_hu_control();
 -- 3. ALTER TABLE public.handling_units DROP COLUMN IF EXISTS state_controlled_at;
 -- 4. ALTER TABLE public.handling_units DROP COLUMN IF EXISTS state_controlled_by;
 -- 5. Re-apply fornexa_wms_action definition from 20261017110000_wms_e1_core.sql if needed.
+-- 6. Note on inventory state integrity:
+--    handling_units.state values 'QUARANTINE' and 'DAMAGED' and inventory_quants.stock_status
+--    values 'QUARANTINE' and 'DAMAGED' are already defined in the core E1 domain
+--    (20261017110000_wms_e1_core.sql and 20261002233000_master_data_foundation.sql).
+--    Any handling units transitioned to QUARANTINE/DAMAGED remain fully valid and consistent in E1.
 -- ============================================================================
 
 -- ── 1. Schema Alterations: Add State Control Columns to Handling Units ────────
@@ -34,7 +39,8 @@ begin
        set state_controlled_at = null,
            state_controlled_by = null,
            updated_at = clock_timestamp()
-     where id = old.handling_unit_id
+     where tenant_id = old.tenant_id
+       and id = old.handling_unit_id
        and (state_controlled_at is not null or state_controlled_by is not null);
     return old;
   else
@@ -42,7 +48,8 @@ begin
        set state_controlled_at = null,
            state_controlled_by = null,
            updated_at = clock_timestamp()
-     where id = new.handling_unit_id
+     where tenant_id = new.tenant_id
+       and id = new.handling_unit_id
        and (state_controlled_at is not null or state_controlled_by is not null);
     return new;
   end if;
@@ -55,6 +62,12 @@ create trigger trg_wms_invalidate_hu_control
   on public.handling_unit_contents
   for each row
   execute function public.fornexa_wms_invalidate_hu_control();
+
+-- ── 2b. Rollout Safety: Default Active Warehouse Policies to Require State Control ──
+update public.warehouse_behavior_policies
+   set params = jsonb_set(params, '{require_state_control_on_load}', 'true'::jsonb, true)
+ where params is not null
+   and (params->>'require_state_control_on_load' is null or params->>'require_state_control_on_load' = '');
 
 -- ── 3. Updated Atomic Mutation RPC: fornexa_wms_action ───────────────────────
 create or replace function public.fornexa_wms_action(
@@ -70,7 +83,7 @@ set search_path = ''
 as $$
 declare
   v_role text;
-  v_idem text := nullif(trim(coalesce(p_idempotency_key, p_payload->>'idempotency_key', '')), '');
+  v_idem text := nullif(trim(coalesce(p_idempotency_key, case when p_payload is not null then p_payload->>'idempotency_key' else null end, '')), '');
   v_fingerprint text;
   v_existing_task public.warehouse_tasks;
   v_hu public.handling_units;
@@ -116,8 +129,13 @@ declare
   v_result jsonb;
   v_ts timestamptz := date_trunc('milliseconds', clock_timestamp());
 begin
+  -- 0) Fail-closed safe default for null payload
+  if p_payload is null then
+    p_payload := '{}'::jsonb;
+  end if;
+
   -- 1) Explicit tenant mismatch check if payload declares tenant_id
-  if p_payload is not null and (p_payload ? 'tenant_id') and nullif(p_payload->>'tenant_id', '') is not null then
+  if (p_payload ? 'tenant_id') and nullif(p_payload->>'tenant_id', '') is not null then
     if (p_payload->>'tenant_id')::uuid is distinct from p_tenant then
       raise exception 'WMS_TENANT_MISMATCH';
     end if;
@@ -136,9 +154,16 @@ begin
   end if;
 
   -- 3) Idempotency check across warehouse_tasks
-  v_fingerprint := coalesce(p_action, '') || ':' || coalesce(p_payload->>'hu_id', '') || ':' ||
-                   coalesce(p_payload->>'quant_id', '') || ':' || coalesce(p_payload->>'reservation_id', '') || ':' ||
-                   coalesce(p_payload->>'destination_bin_id', '') || ':' || coalesce(p_payload->>'quantity', '');
+  v_fingerprint := coalesce(p_action, '') || ':' ||
+                   coalesce(p_payload->>'hu_id', '') || ':' ||
+                   coalesce(p_payload->>'quant_id', '') || ':' ||
+                   coalesce(p_payload->>'reservation_id', '') || ':' ||
+                   coalesce(p_payload->>'destination_bin_id', '') || ':' ||
+                   coalesce(p_payload->>'quantity', '') || ':' ||
+                   coalesce(upper(p_payload->>'status'), '') || ':' ||
+                   coalesce(p_payload->>'reject_code', '') || ':' ||
+                   coalesce(p_payload->>'reason', '') || ':' ||
+                   coalesce(upper(p_payload->>'disposition'), '');
 
   if v_idem is not null then
     select * into v_existing_task
@@ -796,15 +821,22 @@ begin
       raise exception 'WMS_FORBIDDEN';
     end if;
 
+    if v_hu.state not in ('STAGING_UNCHECKED', 'STAGING_CHECKED', 'PICKED_STAGED') then
+      raise exception 'WMS_NOT_READY_TO_LOAD';
+    end if;
+
     v_before := to_jsonb(v_hu);
 
     if upper(coalesce(p_payload->>'status', 'PASSED')) = 'REJECTED' then
       -- Ambiguity (a): Atomic REJECTED inspection does NOT throw SQL exception.
       -- Atomically updates HU and linked quants to QUARANTINE or DAMAGED.
       declare
+        v_disposition text := upper(trim(coalesce(p_payload->>'disposition', '')));
         v_rej_state text := case
+          when v_disposition in ('QUARANTINE', 'DAMAGED') then v_disposition
           when lower(coalesce(p_payload->>'reason', '')) like '%dañ%'
-            or lower(coalesce(p_payload->>'reject_code', '')) = 'DAMAGED'
+            or lower(coalesce(p_payload->>'reason', '')) like '%damag%'
+            or upper(coalesce(p_payload->>'reject_code', '')) = 'DAMAGED'
           then 'DAMAGED'
           else 'QUARANTINE'
         end;
@@ -819,7 +851,7 @@ begin
 
         update public.inventory_quants
            set flow_state = v_rej_state,
-               stock_status = 'QUARANTINE',
+               stock_status = case when v_rej_state = 'DAMAGED' then 'DAMAGED' else 'QUARANTINE' end,
                updated_at = v_ts
          where tenant_id = p_tenant and hu_id = v_hu.id;
 
@@ -829,7 +861,7 @@ begin
         ) values (
           p_tenant, v_hu.warehouse_id, 'CONTROL_STATE', 'FAILED', v_hu.id, v_idem,
           coalesce(nullif(p_payload->>'reject_code', ''), 'PHYSICAL_CHECK_FAILED'),
-          coalesce(nullif(p_payload->>'reason', ''), 'Control de estado rechazado'),
+          v_fingerprint,
           v_ts, v_ts
         ) returning * into v_task;
 
@@ -839,7 +871,7 @@ begin
         return jsonb_build_object('ok', true, 'action', 'CONTROL_STATE', 'status', 'REJECTED', 'hu', to_jsonb(v_hu), 'task_id', v_task.id);
       end;
     else
-      -- PASSED: set marks and leave state intact
+      -- PASSED: set marks and leave state intact (allows authorized re-control with full audit trail)
       update public.handling_units
          set state_controlled_at = v_ts,
              state_controlled_by = p_actor,
@@ -849,10 +881,10 @@ begin
 
       insert into public.warehouse_tasks (
         tenant_id, warehouse_id, task_type, state, hu_id, idempotency_key,
-        started_at, completed_at
+        reject_detail, started_at, completed_at
       ) values (
         p_tenant, v_hu.warehouse_id, 'CONTROL_STATE', 'DONE', v_hu.id, v_idem,
-        v_ts, v_ts
+        v_fingerprint, v_ts, v_ts
       ) returning * into v_task;
 
       insert into public.audit_events (tenant_id, entity_type, entity_id, action, actor_user_id, source_channel, before_data, after_data)
