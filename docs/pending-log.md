@@ -4,6 +4,12 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-19 — Coordinación de release documental y bloqueo del reviewer
+- **Estado:** PR #136 fusionada y producción web verificada en `b7cbb2fe249650985caf631630cbf4a7460baa88`. CI push #530 SUCCESS, Vercel `fornexa` READY y dominio `fornexasc.com` asociado al mismo SHA. Smoke sin sesión: portada/memorándum 200, almacenes 307 a login, API WMS 401 y demo 404. Cierre detallado en `docs/ai/HANDOFF.md`.
+- **OPEN — reviewer PR #42:** CI #158 SUCCESS para `364cf7f05f6c479851b808549b040be06701b96a`, pero DeepSeek terminó READ_FAILED y Grok BUDGET_EXCEEDED durante revisión acotada. No existe GO de este ciclo; PR sin merge/deploy. No confundir la corrección de subtypes/dispatch de esa PR con recuperación del límite de revisión.
+- **Aceptación pendiente:** logs saneados con versión del proceso, fuente/ruta fallida o contador y límite consumido; revisión independiente exact-HEAD completa antes de merge; destino Render y estado LIVE del SHA previsto antes de declarar deploy. No aumentar gasto ni desactivar validadores como remedio implícito.
+- **M7:** gate DB sin cambios; no se aplicaron migraciones, seeds, F4 ni movimientos productivos. Checkpoint documental posterior preparado en rama separada para evitar un segundo release.
+
 ## Actualización verificada — 2026-10-19 11:30 CEST (P0)
 
 - **WMS M7 C-3 NO COMPLETAMENTE OPERATIVO:** PR #134 y PR #135 ya están fusionadas en el código de `main cc52ff38549792b5ad9049aa2462b436a1438731`; CI #528 completó SUCCESS y Vercel `fornexa` Production READY en ese mismo SHA. Es un estado de despliegue **web**, no de activación completa del WMS.
