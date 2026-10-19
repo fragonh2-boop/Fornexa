@@ -4,21 +4,26 @@
 -- AUTHOR: Gemini (Fornexa)
 -- DATE: 2026-10-19
 --
--- ROLLBACK INSTRUCTIONS & REVERSIBILITY GUARANTEES:
--- 1. DROP TRIGGER IF EXISTS trg_wms_invalidate_hu_control ON public.handling_unit_contents;
--- 2. DROP FUNCTION IF EXISTS public.fornexa_wms_invalidate_hu_control();
--- 3. ALTER TABLE public.handling_units DROP COLUMN IF EXISTS state_controlled_at;
--- 4. ALTER TABLE public.handling_units DROP COLUMN IF EXISTS state_controlled_by;
--- 5. DROP FUNCTION IF EXISTS public.fornexa_wms_policy_bool(jsonb, text, boolean);
--- 6. Re-apply fornexa_wms_action definition from 20261017110000_wms_e1_core.sql if needed.
+-- ROLLBACK INSTRUCTIONS & REVERSIBILITY GUARANTEES (MUST-2 / PROTECTED ROLLBACK):
+-- 1. Nivel 1 (Rollback Operativo Inmediato - Cero DDL / Sin Downtime):
+--    Desactivar la exigencia de control físico y medición en políticas de almacén:
+--    UPDATE public.warehouse_behavior_policies
+--       SET params = jsonb_set(jsonb_set(params, '{require_state_control_on_load}', 'false'::jsonb), '{require_weight_measurement}', 'false'::jsonb),
+--           updated_at = now();
+-- 2. Nivel 2 (Rollback de RPC Protegido - Sin Reabrir Bypass E1):
+--    Aplicar supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql.
 --    CONDICIÓN VINCULANTE (SHOULD-I): Solo válido si no hay migraciones posteriores a
 --    20261019120000_wms_c3_server_load_controls.sql que modifiquen fornexa_wms_action.
--- 7. Note on inventory state integrity:
+--    Dicha definición preserva el cómputo seguro de peso/volumen esperado en servidor y la
+--    consolidación exclusiva por política, sin aceptar parámetros manipulados del payload.
+--    Las columnas state_controlled_at/by y measured_at/by se conservan nulables para preservar
+--    el histórico y evitar contención o pérdida de datos.
+-- 3. Note on inventory state integrity:
 --    handling_units.state values 'QUARANTINE' and 'DAMAGED' and inventory_quants.stock_status
 --    values 'QUARANTINE' and 'DAMAGED' are already defined in the core E1 domain
 --    (20261017110000_wms_e1_core.sql and 20261002233000_master_data_foundation.sql).
 --    Any handling units transitioned to QUARANTINE/DAMAGED remain fully valid and consistent in E1.
--- 8. NOTA OPERATIVA DE DESPLIEGUE (ROLLOUT SAFETY - MUST-A):
+-- 4. NOTA OPERATIVA DE DESPLIEGUE (ROLLOUT SAFETY - MUST-A):
 --    handling_units.state_controlled_at es una columna nueva inicializada en NULL para el inventario existente.
 --    Cualquier HU en estado 'PICKED_STAGED' existente previa a esta migración tendrá state_controlled_at = NULL.
 --    Con la política require_state_control_on_load = true, el primer intento de LOAD fallará cerrado con
@@ -27,22 +32,24 @@
 --    a) Los operarios deben ejecutar CONTROL_STATE PASSED sobre las HUs preparadas antes de LOAD, o
 --    b) Para almacenes con stock legado en tránsito, fijar explícitamente require_state_control_on_load = false
 --       en la política de almacén correspondiente antes de la carga.
--- 9. NOTA DE ORDEN DE EJECUCIÓN Y ATOMICIDAD (MUST-1):
+-- 5. NOTA DE ORDEN DE EJECUCIÓN Y ATOMICIDAD (MUST-1):
 --    El backfill de require_state_control_on_load se ubica al final de la migración (sección 4),
 --    tras definir fornexa_wms_action con soporte de CONTROL_STATE, y debe ejecutarse en un único
 --    bloque transaccional atómico (BEGIN ... COMMIT).
 -- ============================================================================
 
--- ── 1. Schema Alterations: Add State Control Columns to Handling Units ────────
+-- ── 1. Schema Alterations: Add State Control & Measurement Columns to Handling Units ────────
 alter table public.handling_units
   add column if not exists state_controlled_at timestamptz,
-  add column if not exists state_controlled_by uuid references auth.users(id) on delete set null;
+  add column if not exists state_controlled_by uuid references auth.users(id) on delete set null,
+  add column if not exists measured_at timestamptz,
+  add column if not exists measured_by uuid references auth.users(id) on delete set null;
 
 create index if not exists idx_handling_units_state_control
   on public.handling_units(tenant_id, warehouse_id, state_controlled_at)
   where state_controlled_at is not null;
 
--- ── 2. Automatic Control Invalidation Trigger on Content Mutation ────────────
+-- ── 2. Automatic Control & Measurement Invalidation Trigger on Mutation ────────────
 create or replace function public.fornexa_wms_invalidate_hu_control()
 returns trigger
 language plpgsql
@@ -50,24 +57,74 @@ security definer
 set search_path = ''
 as $$
 begin
-  if tg_op = 'DELETE' then
-    update public.handling_units
-       set state_controlled_at = null,
-           state_controlled_by = null,
-           updated_at = clock_timestamp()
-     where tenant_id = old.tenant_id
-       and id = old.handling_unit_id
-       and (state_controlled_at is not null or state_controlled_by is not null);
-    return old;
+  if tg_table_name = 'inventory_quants' then
+    if tg_op = 'UPDATE' then
+      if old.hu_id is distinct from new.hu_id then
+        if old.hu_id is not null then
+          update public.handling_units
+             set state_controlled_at = null,
+                 state_controlled_by = null,
+                 measured_at = null,
+                 measured_by = null,
+                 updated_at = clock_timestamp()
+           where tenant_id = old.tenant_id and id = old.hu_id
+             and (state_controlled_at is not null or state_controlled_by is not null or measured_at is not null or measured_by is not null);
+        end if;
+        if new.hu_id is not null then
+          update public.handling_units
+             set state_controlled_at = null,
+                 state_controlled_by = null,
+                 measured_at = null,
+                 measured_by = null,
+                 updated_at = clock_timestamp()
+           where tenant_id = new.tenant_id and id = new.hu_id
+             and (state_controlled_at is not null or state_controlled_by is not null or measured_at is not null or measured_by is not null);
+        end if;
+      end if;
+    elsif tg_op = 'DELETE' and old.hu_id is not null then
+      update public.handling_units
+         set state_controlled_at = null,
+             state_controlled_by = null,
+             measured_at = null,
+             measured_by = null,
+             updated_at = clock_timestamp()
+       where tenant_id = old.tenant_id and id = old.hu_id
+         and (state_controlled_at is not null or state_controlled_by is not null or measured_at is not null or measured_by is not null);
+    elsif tg_op = 'INSERT' and new.hu_id is not null then
+      update public.handling_units
+         set state_controlled_at = null,
+             state_controlled_by = null,
+             measured_at = null,
+             measured_by = null,
+             updated_at = clock_timestamp()
+       where tenant_id = new.tenant_id and id = new.hu_id
+         and (state_controlled_at is not null or state_controlled_by is not null or measured_at is not null or measured_by is not null);
+    end if;
+    return coalesce(new, old);
   else
-    update public.handling_units
-       set state_controlled_at = null,
-           state_controlled_by = null,
-           updated_at = clock_timestamp()
-     where tenant_id = new.tenant_id
-       and id = new.handling_unit_id
-       and (state_controlled_at is not null or state_controlled_by is not null);
-    return new;
+    if tg_op = 'DELETE' then
+      update public.handling_units
+         set state_controlled_at = null,
+             state_controlled_by = null,
+             measured_at = null,
+             measured_by = null,
+             updated_at = clock_timestamp()
+       where tenant_id = old.tenant_id
+         and id = old.handling_unit_id
+         and (state_controlled_at is not null or state_controlled_by is not null or measured_at is not null or measured_by is not null);
+      return old;
+    else
+      update public.handling_units
+         set state_controlled_at = null,
+             state_controlled_by = null,
+             measured_at = null,
+             measured_by = null,
+             updated_at = clock_timestamp()
+       where tenant_id = new.tenant_id
+         and id = new.handling_unit_id
+         and (state_controlled_at is not null or state_controlled_by is not null or measured_at is not null or measured_by is not null);
+      return new;
+    end if;
   end if;
 end;
 $$;
@@ -76,6 +133,13 @@ drop trigger if exists trg_wms_invalidate_hu_control on public.handling_unit_con
 create trigger trg_wms_invalidate_hu_control
   after insert or update or delete
   on public.handling_unit_contents
+  for each row
+  execute function public.fornexa_wms_invalidate_hu_control();
+
+drop trigger if exists trg_wms_invalidate_hu_control_quants on public.inventory_quants;
+create trigger trg_wms_invalidate_hu_control_quants
+  after insert or update or delete
+  on public.inventory_quants
   for each row
   execute function public.fornexa_wms_invalidate_hu_control();
 
@@ -165,6 +229,9 @@ declare
   v_consolidation text;
   v_disposition text;
   v_rej_state text;
+  v_control_status text;
+  v_req_weight boolean;
+  v_req_vol boolean;
   v_before jsonb;
   v_after jsonb;
   v_result jsonb;
@@ -201,10 +268,10 @@ begin
                    coalesce(p_payload->>'reservation_id', '') || ':' ||
                    coalesce(p_payload->>'destination_bin_id', '') || ':' ||
                    coalesce(p_payload->>'quantity', '') || ':' ||
-                   coalesce(upper(p_payload->>'status'), '') || ':' ||
+                   coalesce(upper(trim(p_payload->>'status')), '') || ':' ||
                    coalesce(p_payload->>'reject_code', '') || ':' ||
                    coalesce(p_payload->>'reason', '') || ':' ||
-                   coalesce(upper(p_payload->>'disposition'), '');
+                   coalesce(upper(trim(p_payload->>'disposition')), '');
 
   if v_idem is not null then
     select * into v_existing_task
@@ -866,12 +933,13 @@ begin
       raise exception 'WMS_NOT_READY_TO_LOAD';
     end if;
 
-    -- SHOULD-2: Fail-closed validation of status. Only PASSED or REJECTED allowed.
-    if upper(coalesce(p_payload->>'status', 'PASSED')) not in ('PASSED', 'REJECTED') then
+    -- MUST-3: Explicit status is strictly mandatory. Omission, empty, or unknown status raises WMS_FORBIDDEN fail-closed.
+    v_control_status := upper(nullif(trim(p_payload->>'status'), ''));
+    if v_control_status is null or v_control_status not in ('PASSED', 'REJECTED') then
       raise exception 'WMS_FORBIDDEN';
     end if;
 
-    if upper(coalesce(p_payload->>'status', 'PASSED')) = 'REJECTED' then
+    if v_control_status = 'REJECTED' then
       -- Ambiguity (a): Atomic REJECTED inspection does NOT throw SQL exception.
       -- Atomically updates HU and linked quants to QUARANTINE or DAMAGED.
       -- SHOULD-B: Variables hoisted to top-level DECLARE.
@@ -910,7 +978,7 @@ begin
       values (p_tenant, 'HANDLING_UNIT', v_hu.id, 'CONTROL_STATE_REJECTED', p_actor, 'FORNEXA_WMS', v_before, to_jsonb(v_hu));
 
       return jsonb_build_object('ok', true, 'action', 'CONTROL_STATE', 'status', 'REJECTED', 'hu', to_jsonb(v_hu), 'task_id', v_task.id);
-    else
+    elsif v_control_status = 'PASSED' then
       -- PASSED: set marks and leave state intact (allows authorized re-control with full audit trail)
       update public.handling_units
          set state_controlled_at = v_ts,
@@ -978,7 +1046,25 @@ begin
     v_weight_tol := coalesce((v_policy->>'weight_tolerance_pct')::numeric(6,2), 5.0);
     v_vol_tol := coalesce((v_policy->>'volume_tolerance_pct')::numeric(6,2), 10.0);
 
-    if v_measured_weight is not null then
+    v_req_weight := public.fornexa_wms_policy_bool(v_policy, 'require_weight_measurement', false)
+                    or (v_policy ? 'weight_tolerance_pct' and nullif(v_policy->>'weight_tolerance_pct', '') is not null);
+    v_req_vol := public.fornexa_wms_policy_bool(v_policy, 'require_volume_measurement', false)
+                 or (v_policy ? 'volume_tolerance_pct' and nullif(v_policy->>'volume_tolerance_pct', '') is not null);
+
+    if v_req_weight then
+      if v_measured_weight is null then
+        if v_hu.measured_at is not null and v_hu.gross_weight_kg is not null and v_hu.gross_weight_kg > 0 then
+          v_measured_weight := v_hu.gross_weight_kg;
+        else
+          raise exception 'WMS_WEIGHT_TOLERANCE';
+        end if;
+      end if;
+      if v_expected_weight is null or v_expected_weight <= 0 then
+        raise exception 'WMS_WEIGHT_TOLERANCE';
+      elsif abs(v_measured_weight - v_expected_weight) / v_expected_weight * 100.0 > v_weight_tol then
+        raise exception 'WMS_WEIGHT_TOLERANCE';
+      end if;
+    elsif v_measured_weight is not null then
       if v_expected_weight is null or v_expected_weight <= 0 then
         raise exception 'WMS_WEIGHT_TOLERANCE';
       elsif abs(v_measured_weight - v_expected_weight) / v_expected_weight * 100.0 > v_weight_tol then
@@ -986,7 +1072,20 @@ begin
       end if;
     end if;
 
-    if v_measured_volume is not null then
+    if v_req_vol then
+      if v_measured_volume is null then
+        if v_hu.measured_at is not null and v_hu.volume_m3 is not null and v_hu.volume_m3 > 0 then
+          v_measured_volume := v_hu.volume_m3;
+        else
+          raise exception 'WMS_VOLUME_TOLERANCE';
+        end if;
+      end if;
+      if v_expected_volume is null or v_expected_volume <= 0 then
+        raise exception 'WMS_VOLUME_TOLERANCE';
+      elsif abs(v_measured_volume - v_expected_volume) / v_expected_volume * 100.0 > v_vol_tol then
+        raise exception 'WMS_VOLUME_TOLERANCE';
+      end if;
+    elsif v_measured_volume is not null then
       if v_expected_volume is null or v_expected_volume <= 0 then
         raise exception 'WMS_VOLUME_TOLERANCE';
       elsif abs(v_measured_volume - v_expected_volume) / v_expected_volume * 100.0 > v_vol_tol then
@@ -1000,6 +1099,8 @@ begin
        set label_issued_at = v_ts,
            gross_weight_kg = coalesce(v_measured_weight, gross_weight_kg),
            volume_m3 = coalesce(v_measured_volume, volume_m3),
+           measured_at = case when v_measured_weight is not null or v_measured_volume is not null then v_ts else measured_at end,
+           measured_by = case when v_measured_weight is not null or v_measured_volume is not null then p_actor else measured_by end,
            updated_at = v_ts
      where tenant_id = p_tenant and id = v_hu.id
      returning * into v_hu;
@@ -1075,7 +1176,25 @@ begin
     v_weight_tol := coalesce((v_policy->>'weight_tolerance_pct')::numeric(6,2), 5.0);
     v_vol_tol := coalesce((v_policy->>'volume_tolerance_pct')::numeric(6,2), 10.0);
 
-    if v_measured_weight is not null then
+    v_req_weight := public.fornexa_wms_policy_bool(v_policy, 'require_weight_measurement', false)
+                    or (v_policy ? 'weight_tolerance_pct' and nullif(v_policy->>'weight_tolerance_pct', '') is not null);
+    v_req_vol := public.fornexa_wms_policy_bool(v_policy, 'require_volume_measurement', false)
+                 or (v_policy ? 'volume_tolerance_pct' and nullif(v_policy->>'volume_tolerance_pct', '') is not null);
+
+    if v_req_weight then
+      if v_measured_weight is null then
+        if v_hu.measured_at is not null and v_hu.gross_weight_kg is not null and v_hu.gross_weight_kg > 0 then
+          v_measured_weight := v_hu.gross_weight_kg;
+        else
+          raise exception 'WMS_WEIGHT_TOLERANCE';
+        end if;
+      end if;
+      if v_expected_weight is null or v_expected_weight <= 0 then
+        raise exception 'WMS_WEIGHT_TOLERANCE';
+      elsif abs(v_measured_weight - v_expected_weight) / v_expected_weight * 100.0 > v_weight_tol then
+        raise exception 'WMS_WEIGHT_TOLERANCE';
+      end if;
+    elsif v_measured_weight is not null then
       if v_expected_weight is null or v_expected_weight <= 0 then
         raise exception 'WMS_WEIGHT_TOLERANCE';
       elsif abs(v_measured_weight - v_expected_weight) / v_expected_weight * 100.0 > v_weight_tol then
@@ -1083,7 +1202,20 @@ begin
       end if;
     end if;
 
-    if v_measured_volume is not null then
+    if v_req_vol then
+      if v_measured_volume is null then
+        if v_hu.measured_at is not null and v_hu.volume_m3 is not null and v_hu.volume_m3 > 0 then
+          v_measured_volume := v_hu.volume_m3;
+        else
+          raise exception 'WMS_VOLUME_TOLERANCE';
+        end if;
+      end if;
+      if v_expected_volume is null or v_expected_volume <= 0 then
+        raise exception 'WMS_VOLUME_TOLERANCE';
+      elsif abs(v_measured_volume - v_expected_volume) / v_expected_volume * 100.0 > v_vol_tol then
+        raise exception 'WMS_VOLUME_TOLERANCE';
+      end if;
+    elsif v_measured_volume is not null then
       if v_expected_volume is null or v_expected_volume <= 0 then
         raise exception 'WMS_VOLUME_TOLERANCE';
       elsif abs(v_measured_volume - v_expected_volume) / v_expected_volume * 100.0 > v_vol_tol then
@@ -1097,6 +1229,10 @@ begin
        set state = 'LOADED',
            current_bin_id = null,
            current_dock_id = coalesce(nullif(p_payload->>'dock_id', '')::uuid, current_dock_id),
+           gross_weight_kg = coalesce(v_measured_weight, gross_weight_kg),
+           volume_m3 = coalesce(v_measured_volume, volume_m3),
+           measured_at = case when v_measured_weight is not null or v_measured_volume is not null then v_ts else measured_at end,
+           measured_by = case when v_measured_weight is not null or v_measured_volume is not null then p_actor else measured_by end,
            updated_at = v_ts
      where tenant_id = p_tenant and id = v_hu.id
      returning * into v_hu;

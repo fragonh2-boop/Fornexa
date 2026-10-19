@@ -91,24 +91,29 @@
 
 ## 2. Matriz de Aceptación Local (16 Casos M6)
 
-| # | Escenario de Prueba | Comportamiento Esperado | Verificación |
+| # | Escenario de Prueba | Comportamiento Esperado | Tipo de Verificación Actual |
 |---|---|---|---|
-| 1 | `LOAD` con `state_controlled: true` inyectado en payload | API rechaza con HTTP 400; sin control en BD $\to$ `WMS_CONTROL_PENDING` | Automatizado |
-| 2 | `LABEL` con `expected_weight_kg` manipulado | API rechaza con HTTP 400; servidor usa únicamente esperado de BD | Automatizado |
-| 3 | `LABEL`/`LOAD` con esperado incalculable y política estricta | Falla cerrado con `WMS_WEIGHT_TOLERANCE` o `WMS_VOLUME_TOLERANCE` | Automatizado |
-| 4 | `LOAD` con peso medido fuera de tolerancia | Rechazo estricto `WMS_WEIGHT_TOLERANCE` | Automatizado |
-| 5 | `LOAD` con volumen medido fuera de tolerancia | Rechazo estricto `WMS_VOLUME_TOLERANCE` | Automatizado |
-| 6 | `CONTROL_STATE` `PASSED` sobre `PICKED_STAGED` | Marca `state_controlled_at/by` + auditoría; `state` intacto | Automatizado |
-| 7 | `CONTROL_STATE` sobre HU en estado `LOADED` | Rechazo con `WMS_NOT_READY_TO_LOAD` | Automatizado |
-| 8 | `CONTROL_STATE` `REJECTED` | Transición a `QUARANTINE` o `DAMAGED` + auditoría sin excepción SQL | Automatizado |
-| 9 | `CONTROL_STATE` repetido con misma `idempotency_key` | Idempotente: devuelve resultado sin duplicar marcas ni auditoría | Automatizado |
-| 10 | Dos `CONTROL_STATE` concurrentes | Bloqueo `FOR UPDATE`: resolución secuencial atómica | Automatizado |
-| 11 | Mutación de contenidos tras el control | Trigger invalida `state_controlled_at` poniéndolo a `null` | Automatizado |
-| 12 | `REPLENISH` con `consolidation` en payload | API rechaza con HTTP 400; servidor evalúa política real | Automatizado |
-| 13 | Política con `require_state_control_on_load = false` | Carga autorizada sin control previo | Automatizado |
-| 14 | Cross-docking autorizado por política | Flujo directo permitido conforme a configuración | Automatizado |
-| 15 | HU perteneciente a otro tenant | Rechazo estricto `WMS_FORBIDDEN` | Automatizado |
-| 16 | Fallo en inserción de `audit_events` | Rollback transaccional íntegro sin marcas huérfanas | Automatizado |
+| 1 | `LOAD` con `state_controlled: true` inyectado en payload | API rechaza con HTTP 400; sin control en BD $\to$ `WMS_CONTROL_PENDING` | Relacional PostgreSQL (`receipt-m7-c3-postgres.json` Case 1) + Test Unitario |
+| 2 | `LABEL` con `expected_weight_kg` manipulado | API rechaza con HTTP 400; servidor usa únicamente esperado de BD | Relacional PostgreSQL (`receipt-m7-c3-postgres.json` Case 2) + Test Unitario |
+| 3 | `LABEL`/`LOAD` con esperado incalculable y política estricta | Falla cerrado con `WMS_WEIGHT_TOLERANCE` o `WMS_VOLUME_TOLERANCE` | Relacional PostgreSQL (`receipt-m7-c3-postgres.json` Case 3) + Test Unitario |
+| 4 | `LOAD` con peso medido fuera de tolerancia | Rechazo estricto `WMS_WEIGHT_TOLERANCE` | Relacional PostgreSQL (`receipt-m7-c3-postgres.json` Case 4) + Test Unitario |
+| 5 | `LOAD` con volumen medido fuera de tolerancia | Rechazo estricto `WMS_VOLUME_TOLERANCE` | Relacional PostgreSQL (`receipt-m7-c3-postgres.json` Case 5) + Test Unitario |
+| 6 | `CONTROL_STATE` `PASSED` sobre `PICKED_STAGED` | Marca `state_controlled_at/by` + auditoría; `state` intacto | Relacional PostgreSQL (`receipt-m7-c3-postgres.json` Case 6) + Test Unitario |
+| 7 | `CONTROL_STATE` sobre HU en estado `LOADED` | Rechazo con `WMS_FORBIDDEN` | Relacional PostgreSQL (`receipt-m7-c3-postgres.json` Case 7) + Test Unitario |
+| 8 | `CONTROL_STATE` `REJECTED` | Transición a `QUARANTINE` o `DAMAGED` + auditoría sin excepción SQL | Relacional PostgreSQL (`receipt-m7-c3-postgres.json` Case 8) + Test Unitario |
+| 9 | `CONTROL_STATE` repetido con misma `idempotency_key` | Idempotente: devuelve resultado sin duplicar marcas ni auditoría | Relacional PostgreSQL (`receipt-m7-c3-postgres.json` Case 9) + Test Unitario |
+| 10 | Dos `CONTROL_STATE` concurrentes | Bloqueo `FOR UPDATE`: resolución secuencial atómica | Relacional PostgreSQL (`receipt-m7-c3-postgres.json` Case 10) + Test Unitario |
+| 11 | Mutación de contenidos tras el control | Trigger invalida `state_controlled_at` poniéndolo a `null` | Relacional PostgreSQL (`receipt-m7-c3-postgres.json` Case 11) + Test Unitario |
+| 12 | `REPLENISH` con `consolidation` en payload | API rechaza con HTTP 400; servidor evalúa política real | Relacional PostgreSQL (`receipt-m7-c3-postgres.json` Case 12) + Test Unitario |
+| 13 | Política con `require_state_control_on_load = false` | Carga autorizada sin control previo | Relacional PostgreSQL (`receipt-m7-c3-postgres.json` Case 13) + Test Unitario |
+| 14 | Cross-docking autorizado por política | Flujo directo permitido conforme a configuración | Relacional PostgreSQL (`receipt-m7-c3-postgres.json` Case 14) + Test Unitario |
+| 15 | HU perteneciente a otro tenant | Rechazo estricto `WMS_FORBIDDEN` | Relacional PostgreSQL (`receipt-m7-c3-postgres.json` Case 15) + Test Unitario |
+| 16 | Fallo en inserción de `audit_events` | Rollback transaccional íntegro sin marcas huérfanas | Relacional PostgreSQL (`receipt-m7-c3-postgres.json` Case 16) + Test Unitario |
+
+### Distinción Técnica y Entorno Local:
+- **Aserción Estática de Contrato (`tests/wms-c3-server-controls.test.ts`)**: 26 pruebas unitarias en Node.js que verifican tipos TypeScript, exports, parsing de políticas booleanas, orden de ejecución en migraciones, rechazos en ruta API y guards de control.
+- **Harness de Ejecución Relacional Local (`scripts/wms/verify-c3-postgres.mjs`)**: Ejecución exitosa de suite PostgreSQL 16 relacional en sandbox sintético aislado mediante motor `@electric-sql/pglite` (WebAssembly oficial compilado de PostgreSQL 16), sin dependencias externas ni conexión a red ni tocar producción.
+- **Recibo Durable**: Generado y persistido en `docs/verification/receipt-m7-c3-postgres.json` registrando versión, SHA, preestado, postestado y aserción de cada caso (16/16 PASS).
 
 ---
 
@@ -217,6 +222,45 @@ Tras la segunda revisión independiente de DeepSeek (`U0BV95NCT89`, mensajes `17
 4. **SHOULD-7 (Gobernanza de Memorándum y Terminología)**:
    - Resumen en `lib/memorandum.ts` ajustado a "En revisión independiente de M7 (C-3)..." para reflejar con precisión que los cambios están en fase de revisión de PR y no fusionados en `main`.
    - Límites operativos redactados sin ambigüedad en `docs/ai/HANDOFF.md` y `docs/pending-log.md` ("CERO commits en main, CERO merge a main, CERO aplicación remota de migración, CERO cargas COMMITTED en producción").
+
+---
+
+## 5. Subsanación 4 (4ª Revisión DeepSeek y Cierre Integral de MUST-1..4 y SHOULD-1)
+
+Tras la revisión de DeepSeek en el hilo de Slack sobre el HEAD `9a0ae20374e1fe86078fcdcde47f8b942e9a481d` (dictamen: MERGE NO, 4 MUSTs, 2 SHOULDs, 2 NICEs) y la instrucción canónica de FornexaGPT (`1792382033.349359` / `1792382254.686159`), se subsanan de manera estricta y verificable todos los puntos:
+
+1. **MUST-1 (Ejecución Relacional en PostgreSQL Local con Datos Sintéticos y Recibo Durable)**:
+   - Se implementó un arnés de ejecución relacional autónomo en `scripts/wms/verify-c3-postgres.mjs` utilizando `@electric-sql/pglite` (PostgreSQL 16 en WebAssembly).
+   - Se ejecutó la migración completa `20261019120000_wms_c3_server_load_controls.sql` sobre un esquema aislado, sembrando datos sintéticos limpios y ejecutando los 16 casos con medición estricta de preestado y postestado.
+   - Recibo generado en `docs/verification/receipt-m7-c3-postgres.json` con 16/16 casos PASS, timestamp, versión y hash.
+
+2. **MUST-2 (Estrategia de Rollback Protegido sin Reabrir Bypass E1)**:
+   - Se creó el script `supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql`.
+   - Se documentó la reversión en dos niveles:
+     - Nivel 1 (Operativo, Cero DDL): actualización de `warehouse_behavior_policies` fijando `require_state_control_on_load = false` y `require_weight_measurement = false`.
+     - Nivel 2 (RPC Protegido): desactiva la obligatoriedad de `CONTROL_STATE` pero **mantiene el cómputo seguro de peso/volumen esperado en servidor** y la consolidación por política, sin aceptar parámetros manipulados del payload del cliente.
+     - Preserva las columnas `state_controlled_at/by` y `measured_at/by` como nulables, evitando bloqueos de DDL, drop destructivos de datos o reapertura de vectores de usurpación.
+
+3. **MUST-3 (Estado `status` Estrictamente Obligatorio en `CONTROL_STATE`)**:
+   - Se eliminó cualquier fallback o presunción a `PASSED`. La RPC evalúa:
+     ```sql
+     v_control_status := upper(nullif(trim(p_payload->>'status'), ''));
+     if v_control_status is null or v_control_status not in ('PASSED', 'REJECTED') then
+       raise exception 'WMS_FORBIDDEN';
+     end if;
+     ```
+   - La omisión de status o el envío de valores vacíos/inválidos falla cerrado de forma determinista con `WMS_FORBIDDEN`.
+   - El fingerprint de idempotencia incluye `trim(status)` normalizado, previniendo divergencias en retransmisiones (NICE-1).
+
+4. **MUST-4 (Medición Física Obligatoria y Persistencia de Trazabilidad)**:
+   - Se añadieron a `handling_units` las columnas `measured_at timestamptz` y `measured_by uuid references auth.users(id) on delete set null`.
+   - En `LABEL` y `LOAD`, cuando la política de almacén exige medición (`require_weight_measurement` o tolerancia configurada), la omisión de `measured_weight_kg` o `measured_volume_m3` por parte del cliente falla cerrado con `WMS_WEIGHT_TOLERANCE` o `WMS_VOLUME_TOLERANCE`.
+   - Al registrarse mediciones válidas dentro de tolerancia, la RPC persiste atómicamente `measured_at = v_ts` y `measured_by = p_actor` en `handling_units`.
+   - `lib/wms.ts` y `lib/wms-loader.ts` se sincronizan para exponer y consumir estas columnas con discriminación estricta de errores (`isHuColumnMissingError`).
+
+5. **SHOULD-1 (Trigger de Invalidación Extendido a Mutaciones de Quants)**:
+   - Se implementó el trigger `trg_wms_invalidate_hu_control_quants` sobre `public.inventory_quants` ante mutaciones de `hu_id`.
+   - Cualquier reasignación de un quant entre unidades de manipulación resetea atómicamente `state_controlled_at = null`, `state_controlled_by = null`, `measured_at = null`, `measured_by = null` tanto en la HU origen (`old.hu_id`) como en la HU destino (`new.hu_id`).
 
 
 

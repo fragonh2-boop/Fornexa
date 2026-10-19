@@ -32,28 +32,38 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
     - **MUST-2 (Fallback discriminativo en loader):** En `lib/wms-loader.ts`, el fallback de `handling_units` se restringe estrictamente a fallos por columnas ausentes (`code === '42703'` o `message` con `state_controlled`), evitando enmascarar errores de red, RLS o permisos.
     - **SHOULD-2 (`CONTROL_STATE` fail-closed):** Validación explícita de `status` en la RPC: si no es `PASSED` ni `REJECTED`, la función aborta con `WMS_FORBIDDEN`.
     - **SHOULD-7 (Gobernanza y terminología):** Texto del memorándum ajustado a "En revisión independiente de M7 (C-3)..." y límites operativos redactados con máxima precisión.
+  - **Subsanación de la 4ª revisión de DeepSeek y cierre de MUST-1..4 y SHOULD-1:**
+    - **MUST-1 (Ejecución relacional local con recibo durable):** Ejecución exitosa de `scripts/wms/verify-c3-postgres.mjs` sobre motor PostgreSQL 16 relacional (@electric-sql/pglite-wasm) en sandbox sintético aislado. Matriz completa de 16 casos validada con medición estricta de preestado y postestado, generando recibo durable en `docs/verification/receipt-m7-c3-postgres.json` (16/16 PASS).
+    - **MUST-2 (Rollback protegido sin reabrir bypass E1):** Definición de rollback en dos niveles (`supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql`). Preserva el cómputo seguro de peso/volumen esperado en servidor y consolidación por política sin aceptar parámetros inyectados por el cliente, conservando columnas nulables sin bloqueos DDL ni riesgo de pérdida de datos.
+    - **MUST-3 (Status estrictamente obligatorio en `CONTROL_STATE`):** Erradicación de fallbacks tácitos a `PASSED`; la omisión de `status` o el envío de valores inválidos falla cerrado deterministamente con `WMS_FORBIDDEN`. Fingerprint de replay normalizado con `trim(status)` (NICE-1).
+    - **MUST-4 (Medición física obligatoria y persistencia):** Columnas `measured_at timestamptz` y `measured_by uuid` añadidas a `handling_units`. En `LABEL` y `LOAD`, la omisión de medición cuando la política lo requiere falla cerrado con `WMS_WEIGHT_TOLERANCE` / `WMS_VOLUME_TOLERANCE`. Al registrar mediciones válidas, se persisten atómicamente timestamp y actor.
+    - **SHOULD-1 (Trigger de invalidación sobre `inventory_quants`):** Trigger `trg_wms_invalidate_hu_control_quants` que resetea `state_controlled_at/by` y `measured_at/by` tanto en la HU origen como en destino ante reasignación de `hu_id`.
 - **Cambios implementados:**
   1. `supabase/migrations/20261019120000_wms_c3_server_load_controls.sql`:
-     - Nuevas columnas `state_controlled_at timestamptz` y `state_controlled_by uuid` en `handling_units`.
+     - Nuevas columnas `state_controlled_at/by` y `measured_at/by` en `handling_units`.
      - Helper `fornexa_wms_policy_bool` para parsing robusto de políticas.
-     - Trigger de invalidación `trg_wms_invalidate_hu_control` en `handling_unit_contents` con aislamiento de tenant.
-     - Actualización atómica de `fornexa_wms_action` con todas las guardas, parsing seguro, replay idempotente y validación fail-closed de status.
+     - Triggers de invalidación `trg_wms_invalidate_hu_control` en `handling_unit_contents` y `trg_wms_invalidate_hu_control_quants` en `inventory_quants`.
+     - Actualización atómica de `fornexa_wms_action` con todas las guardas, parsing seguro, replay idempotente, validación fail-closed de status y medición obligatoria.
      - Backfill preventivo de políticas activas para `require_state_control_on_load` al final de la migración (MUST-1).
-  2. `lib/wms.ts` & `lib/wms-loader.ts`:
-     - Añadido `CONTROL_STATE` a `WMS_ACTIONS` y campos `state_controlled_at/by` a `WmsHandlingUnit`.
+  2. `supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql`:
+     - Script de reversión protegida (Nivel 2) que neutraliza la exigencia de control de carga sin reabrir los vectores de usurpación de E1.
+  3. `scripts/wms/verify-c3-postgres.mjs` & `docs/verification/receipt-m7-c3-postgres.json`:
+     - Harness de verificación relacional PostgreSQL y recibo durable de 16 casos con pre/postestado.
+  4. `lib/wms.ts` & `lib/wms-loader.ts`:
+     - Añadido `CONTROL_STATE` a `WMS_ACTIONS`, campos `state_controlled_at/by` y `measured_at/by` a `WmsHandlingUnit`, y tipos de política.
      - Helper exportado `isHuColumnMissingError` y fallback discriminativo sin enmascaramiento de errores (MUST-2).
-  3. `app/api/wms/route.ts`:
+  5. `app/api/wms/route.ts`:
      - Validación estricta y rechazo determinista HTTP 400 (`WMS_FORBIDDEN`) ante campos de autoridad cliente.
-  4. `app/dashboard/almacenes/WmsWorkspace.tsx`:
+  6. `app/dashboard/almacenes/WmsWorkspace.tsx`:
      - Eliminación de overrides cliente en `LABEL` y `LOAD`.
      - Exposición de acciones interactivas para superar (`PASSED`) o rechazar (`REJECTED`) el control de estado, con soporte de `disposition: 'QUARANTINE'`.
      - Extracción de estilos a clases CSS `.controlStack`, `.controlOk` y `.controlPending`.
      - Ocultación de etiqueta "Control Pendiente" en unidades con estado `LOADED`.
-  5. `tests/wms-c3-server-controls.test.ts`:
-     - Suite completa de 20 tests unitarios verificando los requisitos de contrato, validaciones de API, triggers, orden de migración y fallbacks discriminativos (347/347 tests PASS en el repo).
-  6. Gobernanza:
-     - `lib/memorandum.ts`: Cobertura de commits actualizada a 668, fecha `19 oct 2026`, redacción atenuada en pending summary.
-     - `docs/pending-log.md`: M7 registrado en `OPEN` con Subsanación 3 aplicada.
+  7. `tests/wms-c3-server-controls.test.ts`:
+     - Suite completa de 26 tests unitarios verificando los requisitos de contrato, validaciones de API, triggers, orden de migración, fallbacks discriminativos, recibo durable y rollback protegido (355/355 tests PASS en el repo).
+  8. Gobernanza:
+     - `lib/memorandum.ts`: Cobertura de commits actualizada a 669, fecha `19 oct 2026`, redacción atenuada en pending summary.
+     - `docs/pending-log.md`: M7 registrado en `OPEN` con Subsanación 4 aplicada.
 - **Límites y garantías fail-closed:**
   - Código y pruebas 100% locales en worktree aislado (`feat/wms-m7-c3-load-controls`).
   - CERO commits en main, CERO merge a main, CERO aplicación remota de migración, CERO ensayos F4, CERO SQL productivo, CERO seed, CERO cargas COMMITTED en producción.

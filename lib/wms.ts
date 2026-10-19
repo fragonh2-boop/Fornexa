@@ -137,6 +137,8 @@ export interface WmsBehaviorPolicyParams {
   require_label_scan_on_load: boolean;
   weight_tolerance_pct: number;
   volume_tolerance_pct: number;
+  require_weight_measurement?: boolean;
+  require_volume_measurement?: boolean;
   require_state_control_on_load: boolean;
   allow_cross_dock: boolean;
   require_resource_certification: boolean;
@@ -278,6 +280,8 @@ export interface WmsHandlingUnit {
   label_issued_at: string | null;
   state_controlled_at?: string | null;
   state_controlled_by?: string | null;
+  measured_at?: string | null;
+  measured_by?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -292,7 +296,10 @@ export function isHuColumnMissingError(err: any): boolean {
   return Boolean(
     err &&
       (err.code === "42703" ||
-        (typeof err.message === "string" && err.message.includes("state_controlled"))),
+        (typeof err.message === "string" &&
+          (err.message.includes("state_controlled") ||
+            err.message.includes("measured_at") ||
+            err.message.includes("undefined_column")))),
   );
 }
 

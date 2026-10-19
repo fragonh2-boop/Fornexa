@@ -144,7 +144,7 @@ export async function loadWmsData(
       db
         .from("handling_units")
         .select(
-          "id,warehouse_id,code,code_type,hu_type,state,current_bin_id,current_dock_id,owner_party_id,parent_hu_id,gross_weight_kg,volume_m3,label_issued_at,state_controlled_at,state_controlled_by,is_active,created_at,updated_at",
+          "id,warehouse_id,code,code_type,hu_type,state,current_bin_id,current_dock_id,owner_party_id,parent_hu_id,gross_weight_kg,volume_m3,label_issued_at,state_controlled_at,state_controlled_by,measured_at,measured_by,is_active,created_at,updated_at",
         )
         .eq("tenant_id", tenantId)
         .order("code")
@@ -206,6 +206,8 @@ export async function loadWmsData(
         volume_m3: h.volume_m3 !== null ? Number(h.volume_m3) : null,
         state_controlled_at: h.state_controlled_at ?? null,
         state_controlled_by: h.state_controlled_by ?? null,
+        measured_at: h.measured_at ?? null,
+        measured_by: h.measured_by ?? null,
       }));
       huContents = (e1Results[3].data ?? []).map((c: any) => ({
         ...c,

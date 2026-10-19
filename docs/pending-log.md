@@ -6,7 +6,7 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ### 2026-10-19 — WMS M7: Controles de carga y políticas de almacén en servidor (C-3)
 - **Área:** Almacenes / WMS / Servidor / C-3
-- **Estado:** SUBSANACIÓN 3 (MUST-1, MUST-2, SHOULD-2, SHOULD-7) APLICADA LOCALMENTE, PENDIENTE RATIFICACIÓN TERMINAL (DeepSeek)
+- **Estado:** SUBSANACIÓN 4 (MUST-1..4, SHOULD-1) APLICADA LOCALMENTE CON RECIBO RELACIONAL POSTGRESQL DURABLE (16/16 PASS), PENDIENTE RE-REVISIÓN INDEPENDIENTE (DeepSeek)
 - **Alcance y resolución:**
   - Resolución integral de las 5 ambigüedades técnicas en `docs/architecture/wms-m7-c3-contract-resolution.md`:
     - (a) `CONTROL_STATE` con `status: 'REJECTED'` es una inspección atómica válida que sitúa la HU y quants en `QUARANTINE` (o `DAMAGED`) sin lanzar excepción SQL. Errores tipados quedan reservados para fallos de comando.
@@ -35,9 +35,15 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
     - MUST-2: Fallback discriminativo en `lib/wms-loader.ts` para `handling_units`, activo únicamente ante error PostgreSQL `42703` (`undefined_column`) o mensaje conteniendo `state_controlled`, sin enmascarar errores de red, RLS o autenticación.
     - SHOULD-2: Validación fail-closed en `CONTROL_STATE`: aborto inmediato con excepción `WMS_FORBIDDEN` si `status` no es ni `PASSED` ni `REJECTED`.
     - SHOULD-7: Ajuste de formulación de gobernanza en `memorandum.ts` ("En revisión independiente de M7 (C-3)...") y precisión terminológica de límites.
+  - Subsanación de la 4ª revisión de DeepSeek y cierre de MUST-1..4 y SHOULD-1:
+    - MUST-1 (Ejecución relacional local con recibo durable): Ejecución exitosa de `scripts/wms/verify-c3-postgres.mjs` sobre motor PostgreSQL 16 relacional (@electric-sql/pglite-wasm) en sandbox sintético aislado. Matriz completa de 16 casos validada con medición estricta de preestado y postestado, generando recibo durable en `docs/verification/receipt-m7-c3-postgres.json` (16/16 PASS).
+    - MUST-2 (Rollback protegido sin reabrir bypass E1): Definición de rollback en dos niveles (`supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql`). Preserva el cómputo seguro de peso/volumen esperado en servidor y consolidación por política sin aceptar parámetros inyectados por el cliente, conservando columnas nulables sin bloqueos DDL ni riesgo de pérdida de datos.
+    - MUST-3 (Status estrictamente obligatorio en `CONTROL_STATE`): Erradicación de fallbacks tácitos a `PASSED`; la omisión de `status` o el envío de valores inválidos falla cerrado deterministamente con `WMS_FORBIDDEN`. Fingerprint de replay normalizado con `trim(status)` (NICE-1).
+    - MUST-4 (Medición física obligatoria y persistencia): Columnas `measured_at timestamptz` y `measured_by uuid` añadidas a `handling_units`. En `LABEL` y `LOAD`, la omisión de medición cuando la política lo requiere falla cerrado con `WMS_WEIGHT_TOLERANCE` / `WMS_VOLUME_TOLERANCE`. Al registrar mediciones válidas, se persisten atómicamente timestamp y actor.
+    - SHOULD-1 (Trigger de invalidación sobre `inventory_quants`): Trigger `trg_wms_invalidate_hu_control_quants` que resetea `state_controlled_at/by` y `measured_at/by` tanto en la HU origen como en destino ante reasignación de `hu_id`.
   - Actualización atómica de `fornexa_wms_action`: cálculo relacional de pesos y volúmenes esperados desde `products` y `handling_unit_contents` con fail-closed ante falta de expectativa calculable, y consolidación derivada de política de servidor.
   - UI interactiva (`WmsWorkspace.tsx`): adaptación para invocar `CONTROL_STATE` (`PASSED` o `REJECTED`), retirada de overrides cliente en `LABEL`/`LOAD` e inhabilitación de carga con advertencia si falta control físico.
-  - Batería de pruebas unitarias (`tests/wms-c3-server-controls.test.ts`): tests de contrato pasando (347/347 tests totales en verde).
+  - Batería de pruebas unitarias (`tests/wms-c3-server-controls.test.ts`): suite completa de tests pasando (355/355 tests totales en verde).
 - **Límites y gobernanza:** CERO commits en main, CERO merge a main, CERO aplicación remota de migración, CERO ensayos F4, CERO SQL productivo, CERO seed, CERO cargas COMMITTED en producción.
 
 ### 2026-10-19 — WMS M5: Robustez de sonda de rechazos y mutación aislada de estado

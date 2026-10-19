@@ -26,7 +26,7 @@ const contractDoc = readFileSync(C3_RESOLUTION_PATH, "utf-8");
 const apiRoute = readFileSync(API_ROUTE_PATH, "utf-8");
 const workspace = readFileSync(WORKSPACE_PATH, "utf-8");
 
-test("M7 C-3 — lib/wms declara CONTROL_STATE en WMS_ACTIONS y columnas de control en WmsHandlingUnit", () => {
+test("M7 C-3 — lib/wms declara CONTROL_STATE en WMS_ACTIONS y columnas de control y medición en WmsHandlingUnit", () => {
   assert.ok(
     WMS_ACTIONS.includes("CONTROL_STATE" as WmsAction),
     "CONTROL_STATE debe formar parte de WMS_ACTIONS",
@@ -39,6 +39,14 @@ test("M7 C-3 — lib/wms declara CONTROL_STATE en WMS_ACTIONS y columnas de cont
   assert.ok(
     wmsTs.includes("state_controlled_by?: string | null;"),
     "WmsHandlingUnit debe declarar state_controlled_by",
+  );
+  assert.ok(
+    wmsTs.includes("measured_at?: string | null;"),
+    "WmsHandlingUnit debe declarar measured_at",
+  );
+  assert.ok(
+    wmsTs.includes("measured_by?: string | null;"),
+    "WmsHandlingUnit debe declarar measured_by",
   );
 });
 
@@ -179,6 +187,7 @@ test("M7 C-3 — CONTROL_STATE reconcilia stock_status y flow_state en quants an
 
 test("M7 C-3 — replay idempotente de CONTROL_STATE cubre PASSED y REJECTED con fingerprint exhaustivo (SHOULD-1 y SHOULD-10)", () => {
   assert.ok(
+    migrationSql.includes("coalesce(upper(trim(p_payload->>'status')), '')") ||
     migrationSql.includes("coalesce(upper(p_payload->>'status'), '')"),
     "v_fingerprint debe incorporar status de inspección",
   );
@@ -370,14 +379,22 @@ test("M7 C-3 — isHuColumnMissingError y wms-loader discriminan estrictamente e
   );
 });
 
-test("M7 C-3 — CONTROL_STATE valida status fail-closed rechazando valores distintos de PASSED o REJECTED (SHOULD-2)", () => {
+test("M7 C-3 — CONTROL_STATE exige status explícito obligatorio y rechaza omisiones fail-closed sin inventar PASSED (MUST-3)", () => {
   assert.ok(
-    migrationSql.includes("if upper(coalesce(p_payload->>'status', 'PASSED')) not in ('PASSED', 'REJECTED') then"),
-    "CONTROL_STATE debe validar que status sea estrictamente PASSED o REJECTED",
+    migrationSql.includes("v_control_status := upper(nullif(trim(p_payload->>'status'), ''));"),
+    "CONTROL_STATE debe extraer y normalizar status de manera estricta",
+  );
+  assert.ok(
+    migrationSql.includes("if v_control_status is null or v_control_status not in ('PASSED', 'REJECTED') then"),
+    "CONTROL_STATE debe exigir que status sea estrictamente no nulo y ('PASSED', 'REJECTED')",
   );
   assert.ok(
     migrationSql.includes("raise exception 'WMS_FORBIDDEN';"),
-    "CONTROL_STATE debe levantar WMS_FORBIDDEN ante status inválido",
+    "CONTROL_STATE debe levantar WMS_FORBIDDEN ante status inválido o nulo",
+  );
+  assert.ok(
+    !migrationSql.includes("coalesce(p_payload->>'status', 'PASSED')"),
+    "No debe admitir fallback tácito a PASSED ante ausencia de status",
   );
 });
 
@@ -390,6 +407,64 @@ test("M7 C-3 — lib/memorandum.ts modera la redacción de C-3 a 'En revisión i
   assert.ok(
     !memoSrc.includes("Se incorpora en M7 (C-3)"),
     "No debe afirmar que C-3 ya está incorporado en producción",
+  );
+});
+
+test("M7 C-3 — Ejecución local relacional en PostgreSQL genera recibo con pre/postestado de 16 casos (MUST-1)", () => {
+  const receiptPath = resolve(import.meta.dirname, "../docs/verification/receipt-m7-c3-postgres.json");
+  const rawReceipt = readFileSync(receiptPath, "utf-8");
+  const receipt = JSON.parse(rawReceipt);
+  assert.equal(receipt.summary.total, 16);
+  assert.equal(receipt.summary.passed, 16);
+  assert.equal(receipt.summary.failed, 0);
+  assert.ok(receipt.cases.length === 16);
+  assert.ok(receipt.musts.length >= 4);
+});
+
+test("M7 C-3 — Script de rollback protegido no reabre el bypass E1 ni elimina columnas (MUST-2)", () => {
+  const rbPath = resolve(
+    import.meta.dirname,
+    "../supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql",
+  );
+  const rbSql = readFileSync(rbPath, "utf-8");
+  assert.ok(!rbSql.includes("drop column"), "Rollback protegido no debe eliminar columnas nulables");
+  assert.ok(
+    rbSql.includes("p_idempotency_key text default null"),
+    "Rollback protegido debe preservar la firma exacta de fornexa_wms_action",
+  );
+  assert.ok(
+    rbSql.includes("raise exception 'WMS_ROLLBACK_ACTIVE';"),
+    "Rollback protegido debe rechazar ejecuciones operativas inseguras",
+  );
+});
+
+test("M7 C-3 — Medición de peso/volumen es obligatoria cuando la política lo requiere y persiste timestamps (MUST-4)", () => {
+  assert.ok(
+    migrationSql.includes("v_req_weight := public.fornexa_wms_policy_bool(v_policy, 'require_weight_measurement', false)"),
+    "LABEL y LOAD deben evaluar require_weight_measurement",
+  );
+  assert.ok(
+    migrationSql.includes("raise exception 'WMS_WEIGHT_TOLERANCE';"),
+    "Omisión de peso medido cuando es requerido debe levantar WMS_WEIGHT_TOLERANCE",
+  );
+  assert.ok(
+    migrationSql.includes("measured_at = case when v_measured_weight is not null or v_measured_volume is not null then v_ts else measured_at end"),
+    "LABEL y LOAD deben actualizar measured_at con timestamp del servidor",
+  );
+  assert.ok(
+    migrationSql.includes("measured_by = case when v_measured_weight is not null or v_measured_volume is not null then p_actor else measured_by end"),
+    "LABEL y LOAD deben registrar el actor que efectuó la medición",
+  );
+});
+
+test("M7 C-3 — Mutación de quant.hu_id invalida control de estado y mediciones (SHOULD-1)", () => {
+  assert.ok(
+    migrationSql.includes("drop trigger if exists trg_wms_invalidate_hu_control_quants on public.inventory_quants;"),
+    "Debe registrarse trigger de invalidación sobre inventory_quants",
+  );
+  assert.ok(
+    migrationSql.includes("tg_table_name = 'inventory_quants'"),
+    "Función fornexa_wms_invalidate_hu_control debe manejar mutaciones de inventory_quants",
   );
 });
 
