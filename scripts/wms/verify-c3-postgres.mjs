@@ -1016,7 +1016,7 @@ if (clientType === "pg-socket") {
   console.log(`============================================================\n`);
 }
 
-  if (db && db.end) {
+  if (db?.end) {
     try {
       await db.end();
     } catch {}
@@ -1024,10 +1024,7 @@ if (clientType === "pg-socket") {
   return receipt;
 }
 
-const isDirectExecution =
-  Boolean(process.argv[1]) &&
-  (resolve(process.argv[1]) === fileURLToPath(import.meta.url) ||
-    fileURLToPath(import.meta.url).endsWith(process.argv[1].replace(/^\.\//, "")));
+const isDirectExecution = Boolean(process.argv[1]) && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (isDirectExecution) {
   runHarness()

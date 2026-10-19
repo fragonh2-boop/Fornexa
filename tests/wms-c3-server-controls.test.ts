@@ -587,20 +587,20 @@ test("M7 C-3 SHOULD-1 — API Request execution rejects client-provided authorit
 });
 
 test("M7 C-3 SHOULD-1 — documento de contrato no cita códigos inexistentes como WMS_MEASUREMENT_REQUIRED y documenta WMS_WEIGHT_TOLERANCE", () => {
-  const currentContractDoc = readFileSync(C3_RESOLUTION_PATH, "utf-8");
   assert.ok(
-    !currentContractDoc.includes("WMS_MEASUREMENT_REQUIRED"),
+    !contractDoc.includes("WMS_MEASUREMENT_REQUIRED"),
     "El documento de contrato no debe citar el código inexistente WMS_MEASUREMENT_REQUIRED",
   );
   assert.ok(
-    currentContractDoc.includes("WMS_WEIGHT_TOLERANCE"),
+    contractDoc.includes("WMS_WEIGHT_TOLERANCE"),
     "El documento de contrato debe documentar el código real WMS_WEIGHT_TOLERANCE",
   );
 });
 
 test("M7 C-3 SHOULD-2 — validateDisposableDatabase rechaza base con tablas sin marcador sintético y autoriza con marcador o vacía (MUST-5 guard)", async () => {
-  // @ts-expect-error - import dynamic from local .mjs harness script
-  const { validateDisposableDatabase, validateIsolation } = await import("../scripts/wms/verify-c3-postgres.mjs");
+  const { validateDisposableDatabase, validateIsolation } = await import(
+    "../scripts/wms/verify-c3-postgres.mjs"
+  );
 
   // 1. Base externa con tablas ajenas en 'public' SIN marcador sintético -> DEBE LANZAR [SECURITY_FATAL MUST-5]
   const mockAlienDb = {

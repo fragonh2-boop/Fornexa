@@ -4,9 +4,16 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
-### 2026-10-19 — WMS M7: Controles de carga y políticas de almacén en servidor (C-3)
+### 2026-10-19 — WMS M7: Seguimiento de PR #135 (SHOULD-1 documental y SHOULD-2 guard de base desechable)
 - **Área:** Almacenes / WMS / Servidor / C-3
-- **Estado:** FUSIONADO Y DESPLEGADO EN PRODUCCIÓN — PR #134 merged en `main` como `8600ce03bc80f734866136dd2998c85155af592a`. CI `39207230566` SUCCESS (356/356 tests). Vercel Production READY en `fornexa` (id 7166818830) y `fornexa-app` (id 7166806640), alias `fornexasc.com` verificado en smoke solo lectura (200 / 307 / 401). Seguimiento de SHOULD-1 (corrección documental de código de tolerancia) y SHOULD-2 (suite de pruebas de guard `validateDisposableDatabase`) implementado en rama `fix/wms-m7-shoulds-guard-and-doc`.
+- **Estado:** PR #135 ABIERTO en rama `fix/wms-m7-shoulds-guard-and-doc` desde `main` (`8600ce03bc80f734866136dd2998c85155af592a`). CI `39208506275` SUCCESS (358/358 tests). Revisión independiente de DeepSeek emitida (MERGE CONDICIONADO con 0 MUST y subsanaciones de robustez aplicadas).
+- **Alcance y resolución:**
+  1. SHOULD-1: Corrección documental en `docs/architecture/wms-m7-c3-contract-resolution.md` suprimiendo la cita errónea al código inexistente `WMS_MEASUREMENT_REQUIRED` y documentando la aplicación fail-closed de `WMS_WEIGHT_TOLERANCE` ante omisión de medición obligatoria. Test unitario específico añadido.
+  2. SHOULD-2: Exportación de `validateDisposableDatabase` y `validateIsolation` en `scripts/wms/verify-c3-postgres.mjs` con detección estricta de ejecución directa (`isDirectExecution = Boolean(process.argv[1]) && resolve(process.argv[1]) === fileURLToPath(import.meta.url)`). Batería completa de pruebas unitarias en `tests/wms-c3-server-controls.test.ts` con clientes simulados comprobando rechazo `[SECURITY_FATAL MUST-5]` ante bases con tablas ajenas sin marcador sintético, autorización segura con marcador o vacía, bypass en memoria para PGlite, validación de aislamiento y orden pre-DDL estricto.
+
+### 2026-10-19 — WMS M7: Controles de carga y políticas de almacén en servidor (C-3 / PR #134)
+- **Área:** Almacenes / WMS / Servidor / C-3
+- **Estado:** FUSIONADO Y DESPLEGADO EN PRODUCCIÓN — PR #134 merged en `main` como `8600ce03bc80f734866136dd2998c85155af592a`. CI `39207230566` SUCCESS (356/356 tests). Vercel Production READY en `fornexa` (id 7166818830) y `fornexa-app` (id 7166806640), alias `fornexasc.com` verificado en smoke solo lectura (200 / 307 / 401).
 - **Alcance y resolución:**
   - Resolución integral de las 5 ambigüedades técnicas en `docs/architecture/wms-m7-c3-contract-resolution.md`:
     - (a) `CONTROL_STATE` con `status: 'REJECTED'` es una inspección atómica válida que sitúa la HU y quants en `QUARANTINE` (o `DAMAGED`) sin lanzar excepción SQL. Errores tipados quedan reservados para fallos de comando.
