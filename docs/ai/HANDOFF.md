@@ -2,6 +2,14 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## Estado operativo verificado — 2026-10-19 11:30 CEST
+
+**P0 — WMS M7 DB-first pendiente.** `main cc52ff38549792b5ad9049aa2462b436a1438731` incorpora PR #134 y PR #135; GitHub Actions #528 SUCCESS y Vercel Production READY en el mismo SHA. **No es equivalente a C-3 operativo:** Supabase prod `gqkjqhpmyejmehbuombk` registra 41 migraciones, terminando en WMS `20261017110000_wms_e1_core`; no registra `20261019120000_wms_c3_server_load_controls.sql`. Verificación SQL read-only: faltan `handling_units.state_controlled_at`, `handling_units.measured_at` y la RPC helper `fornexa_wms_policy_bool`.
+
+**Secuencia autorizable, no ejecutada:** Gemini prepara preflight read-only (E1, SQL M7, HU legadas `PICKED_STAGED`, políticas, rollback protegido); DeepSeek revisa en modo independiente exact `main`; GPT coordina y reconcilia backlog; Fran valida estrategia/ventana DB-first. Solo tras autorización y revisión se podrá aplicar migration productiva, verificar DDL/triggers/RLS/RPC y completar F4 controlado. No confundir CI/Preview o Vercel READY con migración productiva. Integración A2 Supabase `MIGRATIONS_FAILED` permanece separada; no migration repair ciego.
+
+**Otros abiertos:** PR #80 y #81 draft; DeCA E2E autenticado legítimo; ADR 2025; TLM-1 configuración y validación. Publicado aviso coordinado en `#fornexa` el 19-oct-2026.
+
 ## 2026-10-19 — WMS M7: Controles de carga y políticas de almacén en servidor (C-3)
 
 - **Contexto y encargo:** `TASK_ID: WMS-RESEARCH-20261017`. Tras completarse la Fase 1 (GO133: merge de PR #133 en `main 45f6c25a9f2a604b4400a9baa818d221837e896e`, CI en verde, Vercel READY con alias `fornexasc.com` y smoke tests de solo lectura verificados y publicados en Slack), FornexaGPT activa la Fase 2 (M7: C-3 server-side load controls and warehouse policies, `1792366867.769679`). Gemini implementa la solución en worktree y PR aislada resolviendo las 5 ambigüedades técnicas (a)-(e) con DeepSeek como revisor independiente.
