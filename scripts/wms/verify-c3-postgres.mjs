@@ -424,7 +424,7 @@ export async function runHarness() {
     summary: { total: 0, passed: 0, failed: 0 },
   };
 
-  // 3. MUST-RLS: Certify Row Level Security is active on WMS tables
+  // 3. MUST-RLS: Certify Row Level Security is active on WMS tables and verify real isolation
   console.log("[WMS M7 C-3] Verifying Row Level Security (MUST-RLS)...");
   const rlsRes = await db.query(`
     select relname, relrowsecurity
@@ -438,46 +438,198 @@ export async function runHarness() {
   for (const row of rlsRes.rows) {
     assert.equal(row.relrowsecurity, true, `Table ${row.relname} must have relrowsecurity = true`);
   }
-  receipt.musts.push({
-    must: "MUST-RLS",
-    title: "Certificación de Row Level Security (RLS) activo en tablas WMS del repositorio",
-    status: "PASS",
-    evidence: {
-      tables: rlsRes.rows,
-      policy: "tenant_read ON public.handling_units, etc. USING (public.fornexa_has_tenant_access(tenant_id))",
-    },
-  });
-  console.log("  ✔ MUST-RLS PASSED: relrowsecurity = true verified on all core WMS tables");
+  console.log("  ✔ MUST-RLS (relrowsecurity): relrowsecurity = true verified on all core WMS tables");
 
   // 4. Synthetic Fixtures Setup
   const tenantA = "10000000-0000-4000-8000-000000000001";
   const tenantB = "10000000-0000-4000-8000-000000000002";
   const actorA = "20000000-0000-4000-8000-000000000001";
+  const actorB = "20000000-0000-4000-8000-000000000002";
   const wh1 = "30000000-0000-4000-8000-000000000001";
   const wh2 = "30000000-0000-4000-8000-000000000002";
   const whB = "30000000-0000-4000-8000-000000000003";
   const zone1 = "40000000-0000-4000-8000-000000000001";
+  const zoneB = "40000000-0000-4000-8000-000000000002";
   const bin1 = "50000000-0000-4000-8000-000000000001";
   const binStage = "50000000-0000-4000-8000-000000000002";
+  const binB = "50000000-0000-4000-8000-000000000003";
   const prod1 = "60000000-0000-4000-8000-000000000001"; // 10kg, 0.05m3
+  const prodB = "60000000-0000-4000-8000-000000000002"; // 12kg, 0.06m3
 
   await runSql(`
     insert into tenants (id, code, name) values ('${tenantA}', 'T-A', 'Tenant A'), ('${tenantB}', 'T-B', 'Tenant B');
-    insert into auth.users (id, email) values ('${actorA}', 'actor@test.com');
+    insert into auth.users (id, email) values ('${actorA}', 'actorA@test.com'), ('${actorB}', 'actorB@test.com');
     insert into tenant_members (tenant_id, user_id, role, status) values
-      ('${tenantA}', '${actorA}', 'ADMIN', 'ACTIVE');
+      ('${tenantA}', '${actorA}', 'ADMIN', 'ACTIVE'),
+      ('${tenantB}', '${actorB}', 'ADMIN', 'ACTIVE');
     insert into warehouses (id, tenant_id, code, name) values
       ('${wh1}', '${tenantA}', 'WH-1', 'Main Warehouse'),
       ('${wh2}', '${tenantA}', 'WH-2', 'Secondary Warehouse'),
       ('${whB}', '${tenantB}', 'WH-B', 'Warehouse B');
     insert into warehouse_zones (id, tenant_id, warehouse_id, code, name) values
-      ('${zone1}', '${tenantA}', '${wh1}', 'Z-DRY', 'Dry Zone');
+      ('${zone1}', '${tenantA}', '${wh1}', 'Z-DRY', 'Dry Zone'),
+      ('${zoneB}', '${tenantB}', '${whB}', 'Z-DRY-B', 'Dry Zone B');
     insert into warehouse_bins (id, tenant_id, warehouse_id, zone_id, bin_code, bin_type) values
       ('${bin1}', '${tenantA}', '${wh1}', '${zone1}', 'A-01-01', 'PALLET_RACK'),
-      ('${binStage}', '${tenantA}', '${wh1}', '${zone1}', 'STAGE-01', 'DOCK_STAGE');
+      ('${binStage}', '${tenantA}', '${wh1}', '${zone1}', 'STAGE-01', 'DOCK_STAGE'),
+      ('${binB}', '${tenantB}', '${whB}', '${zoneB}', 'B-01-01', 'PALLET_RACK');
     insert into products (id, tenant_id, sku, name, gross_weight_kg, volume_m3) values
-      ('${prod1}', '${tenantA}', 'SKU-001', 'Test Widget', 10.0, 0.050);
+      ('${prod1}', '${tenantA}', 'SKU-001', 'Test Widget', 10.0, 0.050),
+      ('${prodB}', '${tenantB}', 'SKU-002', 'Widget B', 12.0, 0.060);
   `);
+
+  // 4b. MUST-RLS Probes: Real table queries and cross-tenant isolation under role 'authenticated' and 'anon'
+  console.log("[WMS M7 C-3] Executing real RLS isolation probes (Tenant A vs Tenant B with synthetic JWT claims)...");
+  const huRlsA = "70000000-0000-4000-8000-0000000000a1";
+  const huRlsB = "70000000-0000-4000-8000-0000000000b1";
+  const taskRlsA = "70000000-0000-4000-8000-0000000000a2";
+  const taskRlsB = "70000000-0000-4000-8000-0000000000b2";
+  const quantRlsA = "70000000-0000-4000-8000-0000000000a3";
+  const quantRlsB = "70000000-0000-4000-8000-0000000000b3";
+  const policyRlsA = "70000000-0000-4000-8000-0000000000a4";
+  const policyRlsB = "70000000-0000-4000-8000-0000000000b4";
+
+  await runSql(`
+    -- Seed test records for Tenant A
+    insert into handling_units (id, tenant_id, warehouse_id, code, hu_type, state)
+      values ('${huRlsA}', '${tenantA}', '${wh1}', 'HU-RLS-A', 'PALLET', 'STAGING_UNCHECKED');
+    insert into warehouse_behavior_policies (id, tenant_id, scope, warehouse_id, params)
+      values ('${policyRlsA}', '${tenantA}', 'WAREHOUSE', '${wh1}', '{"require_state_control_on_load": false}'::jsonb);
+    insert into warehouse_tasks (id, tenant_id, warehouse_id, task_type, state)
+      values ('${taskRlsA}', '${tenantA}', '${wh1}', 'RECEIVE_CHECK', 'READY');
+    insert into inventory_quants (id, tenant_id, warehouse_id, bin_id, product_id, quantity_on_hand)
+      values ('${quantRlsA}', '${tenantA}', '${wh1}', '${bin1}', '${prod1}', 10);
+
+    -- Seed test records for Tenant B
+    insert into handling_units (id, tenant_id, warehouse_id, code, hu_type, state)
+      values ('${huRlsB}', '${tenantB}', '${whB}', 'HU-RLS-B', 'PALLET', 'STAGING_UNCHECKED');
+    insert into warehouse_behavior_policies (id, tenant_id, scope, warehouse_id, params)
+      values ('${policyRlsB}', '${tenantB}', 'WAREHOUSE', '${whB}', '{"require_state_control_on_load": false}'::jsonb);
+    insert into warehouse_tasks (id, tenant_id, warehouse_id, task_type, state)
+      values ('${taskRlsB}', '${tenantB}', '${whB}', 'RECEIVE_CHECK', 'READY');
+    insert into inventory_quants (id, tenant_id, warehouse_id, bin_id, product_id, quantity_on_hand)
+      values ('${quantRlsB}', '${tenantB}', '${whB}', '${binB}', '${prodB}', 20);
+  `);
+
+  // Probe A: Actor A (authenticated with Tenant A JWT claim)
+  await runSql(`
+    set role authenticated;
+    select set_config('request.jwt.claim.sub', '${actorA}', false);
+    select set_config('request.jwt.claim.role', 'authenticated', false);
+  `);
+
+  const huA = (await db.query(`select id, tenant_id from handling_units where id in ('${huRlsA}', '${huRlsB}')`)).rows;
+  const polA = (await db.query(`select id, tenant_id from warehouse_behavior_policies where id in ('${policyRlsA}', '${policyRlsB}')`)).rows;
+  const taskA = (await db.query(`select id, tenant_id from warehouse_tasks where id in ('${taskRlsA}', '${taskRlsB}')`)).rows;
+  const quantA = (await db.query(`select id, tenant_id from inventory_quants where id in ('${quantRlsA}', '${quantRlsB}')`)).rows;
+
+  assert.equal(huA.length, 1, "RLS: Actor A must see exactly 1 HU");
+  assert.equal(huA[0].id, huRlsA, "RLS: Actor A must only see its own Tenant A HU");
+  assert.equal(polA.length, 1, "RLS: Actor A must see exactly 1 policy");
+  assert.equal(polA[0].id, policyRlsA, "RLS: Actor A must only see Tenant A policy");
+  assert.equal(taskA.length, 1, "RLS: Actor A must see exactly 1 task");
+  assert.equal(taskA[0].id, taskRlsA, "RLS: Actor A must only see Tenant A task");
+  assert.equal(quantA.length, 1, "RLS: Actor A must see exactly 1 quant");
+  assert.equal(quantA[0].id, quantRlsA, "RLS: Actor A must only see Tenant A quant");
+
+  // Direct table mutation denial for authenticated role
+  let insertDenied = false;
+  let updateDenied = false;
+  let deleteDenied = false;
+  try {
+    await db.query(`insert into handling_units (id, tenant_id, warehouse_id, code, hu_type) values (gen_random_uuid(), '${tenantA}', '${wh1}', 'HU-HACK', 'PALLET')`);
+  } catch (err) {
+    insertDenied = err.message.includes("permission denied");
+  }
+  try {
+    await db.query(`update handling_units set code = 'HU-MOD' where id = '${huRlsA}'`);
+  } catch (err) {
+    updateDenied = err.message.includes("permission denied");
+  }
+  try {
+    await db.query(`delete from handling_units where id = '${huRlsA}'`);
+  } catch (err) {
+    deleteDenied = err.message.includes("permission denied");
+  }
+
+  assert.equal(insertDenied, true, "Direct INSERT by role 'authenticated' must be denied by table grants");
+  assert.equal(updateDenied, true, "Direct UPDATE by role 'authenticated' must be denied by table grants");
+  assert.equal(deleteDenied, true, "Direct DELETE by role 'authenticated' must be denied by table grants");
+
+  // Probe B: Actor B (authenticated with Tenant B JWT claim)
+  await runSql(`
+    select set_config('request.jwt.claim.sub', '${actorB}', false);
+  `);
+
+  const huB = (await db.query(`select id, tenant_id from handling_units where id in ('${huRlsA}', '${huRlsB}')`)).rows;
+  const polB = (await db.query(`select id, tenant_id from warehouse_behavior_policies where id in ('${policyRlsA}', '${policyRlsB}')`)).rows;
+  const taskB = (await db.query(`select id, tenant_id from warehouse_tasks where id in ('${taskRlsA}', '${taskRlsB}')`)).rows;
+  const quantB = (await db.query(`select id, tenant_id from inventory_quants where id in ('${quantRlsA}', '${quantRlsB}')`)).rows;
+
+  assert.equal(huB.length, 1, "RLS: Actor B must see exactly 1 HU");
+  assert.equal(huB[0].id, huRlsB, "RLS: Actor B must only see Tenant B HU (0 rows for Tenant A)");
+  assert.equal(polB.length, 1, "RLS: Actor B must see exactly 1 policy");
+  assert.equal(polB[0].id, policyRlsB, "RLS: Actor B must only see Tenant B policy (0 rows for Tenant A)");
+  assert.equal(taskB.length, 1, "RLS: Actor B must see exactly 1 task");
+  assert.equal(taskB[0].id, taskRlsB, "RLS: Actor B must only see Tenant B task (0 rows for Tenant A)");
+  assert.equal(quantB.length, 1, "RLS: Actor B must see exactly 1 quant");
+  assert.equal(quantB[0].id, quantRlsB, "RLS: Actor B must only see Tenant B quant (0 rows for Tenant A)");
+
+  // Probe C: Role anon direct query denial
+  await runSql(`set role anon;`);
+  let anonSelectDenied = false;
+  try {
+    await db.query(`select * from handling_units where id = '${huRlsA}'`);
+  } catch (err) {
+    anonSelectDenied = err.message.includes("permission denied");
+  }
+  assert.equal(anonSelectDenied, true, "Role 'anon' must be denied SELECT on handling_units");
+
+  // Reset role and clean up probe rows
+  await runSql(`
+    reset role;
+    select set_config('request.jwt.claim.sub', '', false);
+    select set_config('request.jwt.claim.role', '', false);
+    delete from inventory_quants where id in ('${quantRlsA}', '${quantRlsB}');
+    delete from warehouse_tasks where id in ('${taskRlsA}', '${taskRlsB}');
+    delete from warehouse_behavior_policies where id in ('${policyRlsA}', '${policyRlsB}');
+    delete from handling_units where id in ('${huRlsA}', '${huRlsB}');
+  `);
+
+  receipt.musts.push({
+    must: "MUST-RLS",
+    title: "Certificación de Row Level Security (RLS) activo y aislamiento comprobado entre tenants A/B",
+    status: "PASS",
+    evidence: {
+      tables_relrowsecurity: rlsRes.rows,
+      policy: "tenant_read ON public.%I FOR SELECT TO authenticated USING (public.fornexa_has_tenant_access(tenant_id))",
+      probes: {
+        tenant_a_actor_a: {
+          handling_units_tenant_a: huA.length,
+          handling_units_tenant_b_leak: huA.filter(r => r.id === huRlsB).length,
+          warehouse_behavior_policies_tenant_a: polA.length,
+          warehouse_tasks_tenant_a: taskA.length,
+          inventory_quants_tenant_a: quantA.length,
+        },
+        tenant_b_actor_b: {
+          handling_units_tenant_b: huB.length,
+          handling_units_tenant_a_leak: huB.filter(r => r.id === huRlsA).length,
+          warehouse_behavior_policies_tenant_b: polB.length,
+          warehouse_tasks_tenant_b: taskB.length,
+          inventory_quants_tenant_b: quantB.length,
+        },
+        direct_mutations_denied_for_authenticated: {
+          insert_denied: insertDenied,
+          update_denied: updateDenied,
+          delete_denied: deleteDenied,
+        },
+        anon_denied: {
+          select_denied: anonSelectDenied,
+        },
+      },
+    },
+  });
+  console.log("  ✔ MUST-RLS PASSED: relrowsecurity = true and real cross-tenant isolation certified on all core WMS tables");
 
   // 5. MUST-EXECUTE: Certify non-superuser EXECUTE permissions on fornexa_wms_action
   console.log("[WMS M7 C-3] Verifying privilege separation on fornexa_wms_action (MUST-EXECUTE)...");

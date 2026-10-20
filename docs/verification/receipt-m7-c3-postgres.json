@@ -1,18 +1,18 @@
 {
   "task": "M7 C-3 Server Load Controls Relational Execution",
-  "executed_at": "2026-10-20T13:11:42.871Z",
+  "executed_at": "2026-10-20T14:27:55.770Z",
   "base_sha": "b7cbb2fe249650985caf631630cbf4a7460baa88",
   "tenant_access_sha256": "5324296160e5bf7c6d9b95d3128626fcce01f47b33b97970bf5a7b0a483b694a",
   "e1_core_sha256": "91c25fb49f7f4df1d14dbf6c41d56c2b8771d75fc41a82296bc03ab0f7038d8a",
   "migration_sha256": "5f18e45ccd1db028a5f082963fae1f2e691bc59bd62e6b6b884c68065fcec6d6",
   "rollback_sha256": "3c30750a751d62b6cd1f5d019ef09b2f9c64dc45e52aca16cc826a99e01b5447",
-  "harness_sha256": "2ce5e74c071192e884caaa72508b5b7f0755fc3768ecadc8e3beae2bd4dd7264",
+  "harness_sha256": "ce123e8b22ecfd1c33de85b4144005f95fb0a2e52e7758b86329f96607aa2cff",
   "input_hashes": {
     "supabase/migrations/20260819_harden_tenant_access_function.sql": "5324296160e5bf7c6d9b95d3128626fcce01f47b33b97970bf5a7b0a483b694a",
     "supabase/migrations/20261017110000_wms_e1_core.sql": "91c25fb49f7f4df1d14dbf6c41d56c2b8771d75fc41a82296bc03ab0f7038d8a",
     "supabase/migrations/20261019120000_wms_c3_server_load_controls.sql": "5f18e45ccd1db028a5f082963fae1f2e691bc59bd62e6b6b884c68065fcec6d6",
     "supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql": "3c30750a751d62b6cd1f5d019ef09b2f9c64dc45e52aca16cc826a99e01b5447",
-    "scripts/wms/verify-c3-postgres.mjs": "2ce5e74c071192e884caaa72508b5b7f0755fc3768ecadc8e3beae2bd4dd7264"
+    "scripts/wms/verify-c3-postgres.mjs": "ce123e8b22ecfd1c33de85b4144005f95fb0a2e52e7758b86329f96607aa2cff"
   },
   "pg_version": "PostgreSQL 18.6 (PGlite 0.5.10) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.5 (1db513782be24469589d7cb8a1f1834e9a33f271), 32-bit",
   "engine": "pglite-wasm",
@@ -36,8 +36,8 @@
         "is_active": true,
         "tenant_id": "10000000-0000-4000-8000-000000000001",
         "volume_m3": 0.25,
-        "created_at": "2026-10-20T14:11:42.876+01:00",
-        "updated_at": "2026-10-20T14:11:42.876+01:00",
+        "created_at": "2026-10-20T15:27:55.781+01:00",
+        "updated_at": "2026-10-20T15:27:55.781+01:00",
         "measured_at": null,
         "measured_by": null,
         "parent_hu_id": null,
@@ -46,7 +46,7 @@
         "owner_party_id": null,
         "current_dock_id": null,
         "gross_weight_kg": 50,
-        "label_issued_at": "2026-10-20T14:11:42.876+01:00",
+        "label_issued_at": "2026-10-20T15:27:55.781+01:00",
         "state_controlled_at": null,
         "state_controlled_by": null
       },
@@ -59,8 +59,8 @@
         "is_active": true,
         "tenant_id": "10000000-0000-4000-8000-000000000001",
         "volume_m3": 0.25,
-        "created_at": "2026-10-20T14:11:42.876+01:00",
-        "updated_at": "2026-10-20T14:11:42.876+01:00",
+        "created_at": "2026-10-20T15:27:55.781+01:00",
+        "updated_at": "2026-10-20T15:27:55.781+01:00",
         "measured_at": null,
         "measured_by": null,
         "parent_hu_id": null,
@@ -69,7 +69,7 @@
         "owner_party_id": null,
         "current_dock_id": null,
         "gross_weight_kg": 50,
-        "label_issued_at": "2026-10-20T14:11:42.876+01:00",
+        "label_issued_at": "2026-10-20T15:27:55.781+01:00",
         "state_controlled_at": null,
         "state_controlled_by": null
       },
@@ -88,8 +88,8 @@
         "is_active": true,
         "tenant_id": "10000000-0000-4000-8000-000000000001",
         "volume_m3": null,
-        "created_at": "2026-10-20T14:11:42.882+01:00",
-        "updated_at": "2026-10-20T14:11:42.882+01:00",
+        "created_at": "2026-10-20T15:27:55.787+01:00",
+        "updated_at": "2026-10-20T15:27:55.787+01:00",
         "measured_at": null,
         "measured_by": null,
         "parent_hu_id": null,
@@ -99,7 +99,7 @@
         "current_dock_id": null,
         "gross_weight_kg": null,
         "label_issued_at": null,
-        "state_controlled_at": "2026-10-20T14:11:42.882+01:00",
+        "state_controlled_at": "2026-10-20T15:27:55.787+01:00",
         "state_controlled_by": "20000000-0000-4000-8000-000000000001"
       },
       "post_state": {
@@ -111,9 +111,9 @@
         "is_active": true,
         "tenant_id": "10000000-0000-4000-8000-000000000001",
         "volume_m3": 0.15,
-        "created_at": "2026-10-20T14:11:42.882+01:00",
-        "updated_at": "2026-10-20T14:11:42.883+01:00",
-        "measured_at": "2026-10-20T14:11:42.883+01:00",
+        "created_at": "2026-10-20T15:27:55.787+01:00",
+        "updated_at": "2026-10-20T15:27:55.789+01:00",
+        "measured_at": "2026-10-20T15:27:55.789+01:00",
         "measured_by": "20000000-0000-4000-8000-000000000001",
         "parent_hu_id": null,
         "warehouse_id": "30000000-0000-4000-8000-000000000001",
@@ -121,8 +121,8 @@
         "owner_party_id": null,
         "current_dock_id": null,
         "gross_weight_kg": 30,
-        "label_issued_at": "2026-10-20T14:11:42.883+01:00",
-        "state_controlled_at": "2026-10-20T14:11:42.882+01:00",
+        "label_issued_at": "2026-10-20T15:27:55.789+01:00",
+        "state_controlled_at": "2026-10-20T15:27:55.787+01:00",
         "state_controlled_by": "20000000-0000-4000-8000-000000000001"
       },
       "result": {
@@ -135,9 +135,9 @@
           "is_active": true,
           "tenant_id": "10000000-0000-4000-8000-000000000001",
           "volume_m3": 0.15,
-          "created_at": "2026-10-20T14:11:42.882+01:00",
-          "updated_at": "2026-10-20T14:11:42.883+01:00",
-          "measured_at": "2026-10-20T14:11:42.883+01:00",
+          "created_at": "2026-10-20T15:27:55.787+01:00",
+          "updated_at": "2026-10-20T15:27:55.789+01:00",
+          "measured_at": "2026-10-20T15:27:55.789+01:00",
           "measured_by": "20000000-0000-4000-8000-000000000001",
           "parent_hu_id": null,
           "warehouse_id": "30000000-0000-4000-8000-000000000001",
@@ -145,13 +145,13 @@
           "owner_party_id": null,
           "current_dock_id": null,
           "gross_weight_kg": 30,
-          "label_issued_at": "2026-10-20T14:11:42.883+01:00",
-          "state_controlled_at": "2026-10-20T14:11:42.882+01:00",
+          "label_issued_at": "2026-10-20T15:27:55.789+01:00",
+          "state_controlled_at": "2026-10-20T15:27:55.787+01:00",
           "state_controlled_by": "20000000-0000-4000-8000-000000000001"
         },
         "ok": true,
         "action": "LABEL",
-        "task_id": "e321d84b-2a8b-4b9b-be4d-09766b4adbac"
+        "task_id": "68f50acb-9a25-4e68-ac34-e96b260a72c4"
       }
     },
     {
@@ -167,8 +167,8 @@
         "is_active": true,
         "tenant_id": "10000000-0000-4000-8000-000000000001",
         "volume_m3": null,
-        "created_at": "2026-10-20T14:11:42.887+01:00",
-        "updated_at": "2026-10-20T14:11:42.887+01:00",
+        "created_at": "2026-10-20T15:27:55.792+01:00",
+        "updated_at": "2026-10-20T15:27:55.792+01:00",
         "measured_at": null,
         "measured_by": null,
         "parent_hu_id": null,
@@ -178,7 +178,7 @@
         "current_dock_id": null,
         "gross_weight_kg": null,
         "label_issued_at": null,
-        "state_controlled_at": "2026-10-20T14:11:42.887+01:00",
+        "state_controlled_at": "2026-10-20T15:27:55.792+01:00",
         "state_controlled_by": "20000000-0000-4000-8000-000000000001"
       },
       "post_state": {
@@ -190,8 +190,8 @@
         "is_active": true,
         "tenant_id": "10000000-0000-4000-8000-000000000001",
         "volume_m3": null,
-        "created_at": "2026-10-20T14:11:42.887+01:00",
-        "updated_at": "2026-10-20T14:11:42.887+01:00",
+        "created_at": "2026-10-20T15:27:55.792+01:00",
+        "updated_at": "2026-10-20T15:27:55.792+01:00",
         "measured_at": null,
         "measured_by": null,
         "parent_hu_id": null,
@@ -201,7 +201,7 @@
         "current_dock_id": null,
         "gross_weight_kg": null,
         "label_issued_at": null,
-        "state_controlled_at": "2026-10-20T14:11:42.887+01:00",
+        "state_controlled_at": "2026-10-20T15:27:55.792+01:00",
         "state_controlled_by": "20000000-0000-4000-8000-000000000001"
       },
       "error_code": "WMS_WEIGHT_TOLERANCE"
@@ -219,8 +219,8 @@
         "is_active": true,
         "tenant_id": "10000000-0000-4000-8000-000000000001",
         "volume_m3": null,
-        "created_at": "2026-10-20T14:11:42.888+01:00",
-        "updated_at": "2026-10-20T14:11:42.888+01:00",
+        "created_at": "2026-10-20T15:27:55.794+01:00",
+        "updated_at": "2026-10-20T15:27:55.794+01:00",
         "measured_at": null,
         "measured_by": null,
         "parent_hu_id": null,
@@ -229,8 +229,8 @@
         "owner_party_id": null,
         "current_dock_id": null,
         "gross_weight_kg": null,
-        "label_issued_at": "2026-10-20T14:11:42.888+01:00",
-        "state_controlled_at": "2026-10-20T14:11:42.888+01:00",
+        "label_issued_at": "2026-10-20T15:27:55.794+01:00",
+        "state_controlled_at": "2026-10-20T15:27:55.794+01:00",
         "state_controlled_by": "20000000-0000-4000-8000-000000000001"
       },
       "post_state": {
@@ -242,8 +242,8 @@
         "is_active": true,
         "tenant_id": "10000000-0000-4000-8000-000000000001",
         "volume_m3": null,
-        "created_at": "2026-10-20T14:11:42.888+01:00",
-        "updated_at": "2026-10-20T14:11:42.888+01:00",
+        "created_at": "2026-10-20T15:27:55.794+01:00",
+        "updated_at": "2026-10-20T15:27:55.794+01:00",
         "measured_at": null,
         "measured_by": null,
         "parent_hu_id": null,
@@ -252,8 +252,8 @@
         "owner_party_id": null,
         "current_dock_id": null,
         "gross_weight_kg": null,
-        "label_issued_at": "2026-10-20T14:11:42.888+01:00",
-        "state_controlled_at": "2026-10-20T14:11:42.888+01:00",
+        "label_issued_at": "2026-10-20T15:27:55.794+01:00",
+        "state_controlled_at": "2026-10-20T15:27:55.794+01:00",
         "state_controlled_by": "20000000-0000-4000-8000-000000000001"
       },
       "error_code": "WMS_WEIGHT_TOLERANCE"
@@ -271,8 +271,8 @@
         "is_active": true,
         "tenant_id": "10000000-0000-4000-8000-000000000001",
         "volume_m3": null,
-        "created_at": "2026-10-20T14:11:42.89+01:00",
-        "updated_at": "2026-10-20T14:11:42.89+01:00",
+        "created_at": "2026-10-20T15:27:55.796+01:00",
+        "updated_at": "2026-10-20T15:27:55.796+01:00",
         "measured_at": null,
         "measured_by": null,
         "parent_hu_id": null,
@@ -281,8 +281,8 @@
         "owner_party_id": null,
         "current_dock_id": null,
         "gross_weight_kg": null,
-        "label_issued_at": "2026-10-20T14:11:42.89+01:00",
-        "state_controlled_at": "2026-10-20T14:11:42.89+01:00",
+        "label_issued_at": "2026-10-20T15:27:55.796+01:00",
+        "state_controlled_at": "2026-10-20T15:27:55.796+01:00",
         "state_controlled_by": "20000000-0000-4000-8000-000000000001"
       },
       "post_state": {
@@ -294,8 +294,8 @@
         "is_active": true,
         "tenant_id": "10000000-0000-4000-8000-000000000001",
         "volume_m3": null,
-        "created_at": "2026-10-20T14:11:42.89+01:00",
-        "updated_at": "2026-10-20T14:11:42.89+01:00",
+        "created_at": "2026-10-20T15:27:55.796+01:00",
+        "updated_at": "2026-10-20T15:27:55.796+01:00",
         "measured_at": null,
         "measured_by": null,
         "parent_hu_id": null,
@@ -304,8 +304,8 @@
         "owner_party_id": null,
         "current_dock_id": null,
         "gross_weight_kg": null,
-        "label_issued_at": "2026-10-20T14:11:42.89+01:00",
-        "state_controlled_at": "2026-10-20T14:11:42.89+01:00",
+        "label_issued_at": "2026-10-20T15:27:55.796+01:00",
+        "state_controlled_at": "2026-10-20T15:27:55.796+01:00",
         "state_controlled_by": "20000000-0000-4000-8000-000000000001"
       },
       "error_code": "WMS_VOLUME_TOLERANCE"
@@ -323,8 +323,8 @@
         "is_active": true,
         "tenant_id": "10000000-0000-4000-8000-000000000001",
         "volume_m3": null,
-        "created_at": "2026-10-20T14:11:42.892+01:00",
-        "updated_at": "2026-10-20T14:11:42.892+01:00",
+        "created_at": "2026-10-20T15:27:55.798+01:00",
+        "updated_at": "2026-10-20T15:27:55.798+01:00",
         "measured_at": null,
         "measured_by": null,
         "parent_hu_id": null,
@@ -346,8 +346,8 @@
         "is_active": true,
         "tenant_id": "10000000-0000-4000-8000-000000000001",
         "volume_m3": null,
-        "created_at": "2026-10-20T14:11:42.892+01:00",
-        "updated_at": "2026-10-20T14:11:42.892+01:00",
+        "created_at": "2026-10-20T15:27:55.798+01:00",
+        "updated_at": "2026-10-20T15:27:55.798+01:00",
         "measured_at": null,
         "measured_by": null,
         "parent_hu_id": null,
@@ -357,7 +357,7 @@
         "current_dock_id": null,
         "gross_weight_kg": null,
         "label_issued_at": null,
-        "state_controlled_at": "2026-10-20T14:11:42.892+01:00",
+        "state_controlled_at": "2026-10-20T15:27:55.798+01:00",
         "state_controlled_by": "20000000-0000-4000-8000-000000000001"
       },
       "audit_count": 1
@@ -375,8 +375,8 @@
         "is_active": true,
         "tenant_id": "10000000-0000-4000-8000-000000000001",
         "volume_m3": null,
-        "created_at": "2026-10-20T14:11:42.894+01:00",
-        "updated_at": "2026-10-20T14:11:42.894+01:00",
+        "created_at": "2026-10-20T15:27:55.8+01:00",
+        "updated_at": "2026-10-20T15:27:55.8+01:00",
         "measured_at": null,
         "measured_by": null,
         "parent_hu_id": null,
@@ -385,8 +385,8 @@
         "owner_party_id": null,
         "current_dock_id": null,
         "gross_weight_kg": null,
-        "label_issued_at": "2026-10-20T14:11:42.894+01:00",
-        "state_controlled_at": "2026-10-20T14:11:42.894+01:00",
+        "label_issued_at": "2026-10-20T15:27:55.8+01:00",
+        "state_controlled_at": "2026-10-20T15:27:55.8+01:00",
         "state_controlled_by": null
       },
       "post_state": {
@@ -398,8 +398,8 @@
         "is_active": true,
         "tenant_id": "10000000-0000-4000-8000-000000000001",
         "volume_m3": null,
-        "created_at": "2026-10-20T14:11:42.894+01:00",
-        "updated_at": "2026-10-20T14:11:42.894+01:00",
+        "created_at": "2026-10-20T15:27:55.8+01:00",
+        "updated_at": "2026-10-20T15:27:55.8+01:00",
         "measured_at": null,
         "measured_by": null,
         "parent_hu_id": null,
@@ -408,8 +408,8 @@
         "owner_party_id": null,
         "current_dock_id": null,
         "gross_weight_kg": null,
-        "label_issued_at": "2026-10-20T14:11:42.894+01:00",
-        "state_controlled_at": "2026-10-20T14:11:42.894+01:00",
+        "label_issued_at": "2026-10-20T15:27:55.8+01:00",
+        "state_controlled_at": "2026-10-20T15:27:55.8+01:00",
         "state_controlled_by": null
       },
       "error_code": "WMS_FORBIDDEN"
@@ -427,8 +427,8 @@
         "is_active": true,
         "tenant_id": "10000000-0000-4000-8000-000000000001",
         "volume_m3": null,
-        "created_at": "2026-10-20T14:11:42.895+01:00",
-        "updated_at": "2026-10-20T14:11:42.895+01:00",
+        "created_at": "2026-10-20T15:27:55.801+01:00",
+        "updated_at": "2026-10-20T15:27:55.801+01:00",
         "measured_at": null,
         "measured_by": null,
         "parent_hu_id": null,
@@ -442,7 +442,7 @@
         "state_controlled_by": null
       },
       "pre_quant": {
-        "id": "e74fadce-340d-4808-945b-4cda1331ea0e",
+        "id": "1f0db5c6-8e6e-4a77-abc6-fdd03c48139d",
         "uom": "UN",
         "hu_id": "70000000-0000-4000-8000-000000000008",
         "bin_id": "50000000-0000-4000-8000-000000000002",
@@ -450,11 +450,11 @@
         "tenant_id": "10000000-0000-4000-8000-000000000001",
         "volume_m3": null,
         "weight_kg": null,
-        "created_at": "2026-10-20T14:11:42.895+01:00",
+        "created_at": "2026-10-20T15:27:55.801+01:00",
         "flow_state": "PICKED_STAGED",
         "lot_number": null,
         "product_id": "60000000-0000-4000-8000-000000000001",
-        "updated_at": "2026-10-20T14:11:42.895+01:00",
+        "updated_at": "2026-10-20T15:27:55.801+01:00",
         "expiry_date": null,
         "batch_number": null,
         "stock_status": "AVAILABLE",
@@ -473,8 +473,8 @@
         "is_active": true,
         "tenant_id": "10000000-0000-4000-8000-000000000001",
         "volume_m3": null,
-        "created_at": "2026-10-20T14:11:42.895+01:00",
-        "updated_at": "2026-10-20T14:11:42.896+01:00",
+        "created_at": "2026-10-20T15:27:55.801+01:00",
+        "updated_at": "2026-10-20T15:27:55.802+01:00",
         "measured_at": null,
         "measured_by": null,
         "parent_hu_id": null,
@@ -488,7 +488,7 @@
         "state_controlled_by": null
       },
       "post_quant": {
-        "id": "e74fadce-340d-4808-945b-4cda1331ea0e",
+        "id": "1f0db5c6-8e6e-4a77-abc6-fdd03c48139d",
         "uom": "UN",
         "hu_id": "70000000-0000-4000-8000-000000000008",
         "bin_id": "50000000-0000-4000-8000-000000000002",
@@ -496,11 +496,11 @@
         "tenant_id": "10000000-0000-4000-8000-000000000001",
         "volume_m3": null,
         "weight_kg": null,
-        "created_at": "2026-10-20T14:11:42.895+01:00",
+        "created_at": "2026-10-20T15:27:55.801+01:00",
         "flow_state": "QUARANTINE",
         "lot_number": null,
         "product_id": "60000000-0000-4000-8000-000000000001",
-        "updated_at": "2026-10-20T14:11:42.896+01:00",
+        "updated_at": "2026-10-20T15:27:55.802+01:00",
         "expiry_date": null,
         "batch_number": null,
         "stock_status": "QUARANTINE",
@@ -520,8 +520,8 @@
           "is_active": true,
           "tenant_id": "10000000-0000-4000-8000-000000000001",
           "volume_m3": null,
-          "created_at": "2026-10-20T14:11:42.895+01:00",
-          "updated_at": "2026-10-20T14:11:42.896+01:00",
+          "created_at": "2026-10-20T15:27:55.801+01:00",
+          "updated_at": "2026-10-20T15:27:55.802+01:00",
           "measured_at": null,
           "measured_by": null,
           "parent_hu_id": null,
@@ -537,7 +537,7 @@
         "ok": true,
         "action": "CONTROL_STATE",
         "status": "REJECTED",
-        "task_id": "3f4f31f1-53af-4e1f-ac4f-676b472c91a5"
+        "task_id": "ed9e7b4f-6d2d-43ce-8b04-737e358c96ad"
       }
     },
     {
@@ -554,8 +554,8 @@
           "is_active": true,
           "tenant_id": "10000000-0000-4000-8000-000000000001",
           "volume_m3": null,
-          "created_at": "2026-10-20T14:11:42.897+01:00",
-          "updated_at": "2026-10-20T14:11:42.897+01:00",
+          "created_at": "2026-10-20T15:27:55.804+01:00",
+          "updated_at": "2026-10-20T15:27:55.804+01:00",
           "measured_at": null,
           "measured_by": null,
           "parent_hu_id": null,
@@ -565,20 +565,20 @@
           "current_dock_id": null,
           "gross_weight_kg": null,
           "label_issued_at": null,
-          "state_controlled_at": "2026-10-20T14:11:42.897+01:00",
+          "state_controlled_at": "2026-10-20T15:27:55.804+01:00",
           "state_controlled_by": "20000000-0000-4000-8000-000000000001"
         },
         "ok": true,
         "action": "CONTROL_STATE",
         "status": "PASSED",
-        "task_id": "b07bde4c-1140-4f75-b7b5-1f0f01d32491"
+        "task_id": "a7c0ca86-11b0-45d5-a03a-b885c6fc24f6"
       },
       "second_res": {
         "ok": true,
         "hu_id": "70000000-0000-4000-8000-000000000009",
         "action": "CONTROL_STATE",
         "status": "PASSED",
-        "task_id": "b07bde4c-1140-4f75-b7b5-1f0f01d32491",
+        "task_id": "a7c0ca86-11b0-45d5-a03a-b885c6fc24f6",
         "idempotent_replay": true,
         "destination_bin_id": null
       },
@@ -601,8 +601,8 @@
           "is_active": true,
           "tenant_id": "10000000-0000-4000-8000-000000000001",
           "volume_m3": null,
-          "created_at": "2026-10-20T14:11:42.899+01:00",
-          "updated_at": "2026-10-20T14:11:42.899+01:00",
+          "created_at": "2026-10-20T15:27:55.805+01:00",
+          "updated_at": "2026-10-20T15:27:55.805+01:00",
           "measured_at": null,
           "measured_by": null,
           "parent_hu_id": null,
@@ -612,13 +612,13 @@
           "current_dock_id": null,
           "gross_weight_kg": null,
           "label_issued_at": null,
-          "state_controlled_at": "2026-10-20T14:11:42.899+01:00",
+          "state_controlled_at": "2026-10-20T15:27:55.805+01:00",
           "state_controlled_by": "20000000-0000-4000-8000-000000000001"
         },
         "ok": true,
         "action": "CONTROL_STATE",
         "status": "PASSED",
-        "task_id": "50d94b62-bf3a-4941-8028-f0ca150071e3"
+        "task_id": "a2a35ba7-a763-4482-95a8-b3d6d859abc4"
       },
       "res2": {
         "hu": {
@@ -630,8 +630,8 @@
           "is_active": true,
           "tenant_id": "10000000-0000-4000-8000-000000000001",
           "volume_m3": null,
-          "created_at": "2026-10-20T14:11:42.899+01:00",
-          "updated_at": "2026-10-20T14:11:42.899+01:00",
+          "created_at": "2026-10-20T15:27:55.805+01:00",
+          "updated_at": "2026-10-20T15:27:55.806+01:00",
           "measured_at": null,
           "measured_by": null,
           "parent_hu_id": null,
@@ -641,13 +641,13 @@
           "current_dock_id": null,
           "gross_weight_kg": null,
           "label_issued_at": null,
-          "state_controlled_at": "2026-10-20T14:11:42.899+01:00",
+          "state_controlled_at": "2026-10-20T15:27:55.806+01:00",
           "state_controlled_by": "20000000-0000-4000-8000-000000000001"
         },
         "ok": true,
         "action": "CONTROL_STATE",
         "status": "PASSED",
-        "task_id": "b6c3b255-c81f-4408-90d4-7b2b17c03208"
+        "task_id": "8ff75972-2ce7-4b13-b11a-393173eb30ab"
       },
       "tasks_count": 2
     },
@@ -664,9 +664,9 @@
         "is_active": true,
         "tenant_id": "10000000-0000-4000-8000-000000000001",
         "volume_m3": null,
-        "created_at": "2026-10-20T14:11:42.9+01:00",
-        "updated_at": "2026-10-20T14:11:42.9+01:00",
-        "measured_at": "2026-10-20T14:11:42.9+01:00",
+        "created_at": "2026-10-20T15:27:55.807+01:00",
+        "updated_at": "2026-10-20T15:27:55.807+01:00",
+        "measured_at": "2026-10-20T15:27:55.807+01:00",
         "measured_by": "20000000-0000-4000-8000-000000000001",
         "parent_hu_id": null,
         "warehouse_id": "30000000-0000-4000-8000-000000000001",
@@ -675,7 +675,7 @@
         "current_dock_id": null,
         "gross_weight_kg": 40,
         "label_issued_at": null,
-        "state_controlled_at": "2026-10-20T14:11:42.9+01:00",
+        "state_controlled_at": "2026-10-20T15:27:55.807+01:00",
         "state_controlled_by": "20000000-0000-4000-8000-000000000001"
       },
       "post_state": {
@@ -687,8 +687,8 @@
         "is_active": true,
         "tenant_id": "10000000-0000-4000-8000-000000000001",
         "volume_m3": null,
-        "created_at": "2026-10-20T14:11:42.9+01:00",
-        "updated_at": "2026-10-20T14:11:42.902+01:00",
+        "created_at": "2026-10-20T15:27:55.807+01:00",
+        "updated_at": "2026-10-20T15:27:55.807+01:00",
         "measured_at": null,
         "measured_by": null,
         "parent_hu_id": null,
@@ -709,7 +709,7 @@
       "result": {
         "ok": true,
         "task": {
-          "id": "e26537e5-9e6b-4f02-a18e-629332b48458",
+          "id": "b52b2222-c88e-47f7-914d-2940491fc136",
           "uom": "UN",
           "hu_id": null,
           "state": "READY",
@@ -717,7 +717,7 @@
           "quantity": 10,
           "task_type": "REPLENISH",
           "tenant_id": "10000000-0000-4000-8000-000000000001",
-          "created_at": "2026-10-20T14:11:42.902+01:00",
+          "created_at": "2026-10-20T15:27:55.808+01:00",
           "product_id": "60000000-0000-4000-8000-000000000001",
           "started_at": null,
           "reject_code": null,
@@ -746,8 +746,8 @@
           "is_active": true,
           "tenant_id": "10000000-0000-4000-8000-000000000001",
           "volume_m3": null,
-          "created_at": "2026-10-20T14:11:42.904+01:00",
-          "updated_at": "2026-10-20T14:11:42.904+01:00",
+          "created_at": "2026-10-20T15:27:55.809+01:00",
+          "updated_at": "2026-10-20T15:27:55.809+01:00",
           "measured_at": null,
           "measured_by": null,
           "parent_hu_id": null,
@@ -756,13 +756,13 @@
           "owner_party_id": null,
           "current_dock_id": null,
           "gross_weight_kg": null,
-          "label_issued_at": "2026-10-20T14:11:42.904+01:00",
+          "label_issued_at": "2026-10-20T15:27:55.809+01:00",
           "state_controlled_at": null,
           "state_controlled_by": null
         },
         "ok": true,
         "action": "LOAD",
-        "task_id": "b3a6a099-cdc3-4b3e-b3cf-df912775c5e2"
+        "task_id": "7f3a91b6-e897-4095-ac9d-7a85d1e9591a"
       },
       "final_state": "LOADED"
     },
@@ -780,8 +780,8 @@
           "is_active": true,
           "tenant_id": "10000000-0000-4000-8000-000000000001",
           "volume_m3": null,
-          "created_at": "2026-10-20T14:11:42.906+01:00",
-          "updated_at": "2026-10-20T14:11:42.906+01:00",
+          "created_at": "2026-10-20T15:27:55.811+01:00",
+          "updated_at": "2026-10-20T15:27:55.811+01:00",
           "measured_at": null,
           "measured_by": null,
           "parent_hu_id": null,
@@ -790,13 +790,13 @@
           "owner_party_id": null,
           "current_dock_id": null,
           "gross_weight_kg": null,
-          "label_issued_at": "2026-10-20T14:11:42.906+01:00",
+          "label_issued_at": "2026-10-20T15:27:55.811+01:00",
           "state_controlled_at": null,
           "state_controlled_by": null
         },
         "ok": true,
         "action": "LOAD",
-        "task_id": "42050339-b4b8-4076-94fc-9b2554455f2f"
+        "task_id": "d51a7a5f-5415-4429-b6f7-8406212a1797"
       },
       "final_state": "LOADED"
     },
@@ -836,10 +836,10 @@
     },
     {
       "must": "MUST-RLS",
-      "title": "Certificación de Row Level Security (RLS) activo en tablas WMS del repositorio",
+      "title": "Certificación de Row Level Security (RLS) activo y aislamiento comprobado entre tenants A/B",
       "status": "PASS",
       "evidence": {
-        "tables": [
+        "tables_relrowsecurity": [
           {
             "relname": "handling_units",
             "relrowsecurity": true
@@ -857,7 +857,31 @@
             "relrowsecurity": true
           }
         ],
-        "policy": "tenant_read ON public.handling_units, etc. USING (public.fornexa_has_tenant_access(tenant_id))"
+        "policy": "tenant_read ON public.%I FOR SELECT TO authenticated USING (public.fornexa_has_tenant_access(tenant_id))",
+        "probes": {
+          "tenant_a_actor_a": {
+            "handling_units_tenant_a": 1,
+            "handling_units_tenant_b_leak": 0,
+            "warehouse_behavior_policies_tenant_a": 1,
+            "warehouse_tasks_tenant_a": 1,
+            "inventory_quants_tenant_a": 1
+          },
+          "tenant_b_actor_b": {
+            "handling_units_tenant_b": 1,
+            "handling_units_tenant_a_leak": 0,
+            "warehouse_behavior_policies_tenant_b": 1,
+            "warehouse_tasks_tenant_b": 1,
+            "inventory_quants_tenant_b": 1
+          },
+          "direct_mutations_denied_for_authenticated": {
+            "insert_denied": true,
+            "update_denied": true,
+            "delete_denied": true
+          },
+          "anon_denied": {
+            "select_denied": true
+          }
+        }
       }
     },
     {
@@ -889,7 +913,7 @@
         "errMissing": "WMS_WEIGHT_TOLERANCE",
         "post": {
           "state": "LOADED",
-          "measured_at": "2026-10-20T13:11:42.910Z",
+          "measured_at": "2026-10-20T14:27:55.815Z",
           "measured_by": "20000000-0000-4000-8000-000000000001",
           "gross_weight_kg": "20.000"
         }
