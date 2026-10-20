@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
-import { getAuthenticatedContext } from "@/lib/auth-context";
-import { createSupabaseAdmin } from "@/lib/supabase-admin";
-import { loadWmsData } from "@/lib/wms-loader";
-import { validateWmsActionPayloadSecurity, wmsRpcFailure, type WmsAction } from "@/lib/wms";
+import { NextResponse } from "next/server.js";
+import { getAuthenticatedContext, type AuthenticatedContext } from "../../../lib/auth-context.ts";
+import { createSupabaseAdmin } from "../../../lib/supabase-admin.ts";
+import { loadWmsData } from "../../../lib/wms-loader.ts";
+import { validateWmsActionPayloadSecurity, wmsRpcFailure, type WmsAction } from "../../../lib/wms.ts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,8 +17,11 @@ function response(data: unknown, status = 200) {
   });
 }
 
-export async function GET(request: Request) {
-  const auth = await getAuthenticatedContext();
+export async function GET(
+  request: Request,
+  context?: { params?: any; auth?: AuthenticatedContext | null },
+) {
+  const auth = context?.auth !== undefined ? context.auth : await getAuthenticatedContext();
   if (!auth) {
     return response({ error: "No autorizado.", code: "WMS_FORBIDDEN" }, 401);
   }
@@ -39,8 +42,15 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
-  const auth = await getAuthenticatedContext();
+export async function POST(
+  request: Request,
+  context?: {
+    params?: any;
+    auth?: AuthenticatedContext | null;
+    rpcClient?: { rpc: (name: string, args: Record<string, unknown>) => Promise<any> };
+  },
+) {
+  const auth = context?.auth !== undefined ? context.auth : await getAuthenticatedContext();
   if (!auth) {
     return response({ error: "No autorizado.", code: "WMS_FORBIDDEN" }, 401);
   }
@@ -120,7 +130,7 @@ export async function POST(request: Request) {
         ? body.idempotency_key.trim()
         : null;
 
-    const db = createSupabaseAdmin();
+    const db = context?.rpcClient ?? createSupabaseAdmin();
     const result = await db.rpc("fornexa_wms_action", {
       p_tenant: auth.tenantId,
       p_actor: auth.userId,

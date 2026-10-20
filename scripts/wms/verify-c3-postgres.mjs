@@ -13,10 +13,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const ROOT = resolve(__dirname, "../..");
 
-const BASE_SHA = "45f6c25a9f2a604b4400a9baa818d221837e896e";
+const BASE_SHA = "b7cbb2fe249650985caf631630cbf4a7460baa88";
 
 // ── MUST-5: Pre-flight Host and Database Isolation Validator ──
-export function validateIsolation({ host, database }) {
+export function validateIsolation({ host, database } = {}) {
   const allowedHosts = ["127.0.0.1", "localhost", "::1"];
   const forbiddenDatabases = [
     "postgres",
@@ -29,7 +29,7 @@ export function validateIsolation({ host, database }) {
     "supabase_admin",
   ];
 
-  if (host && !allowedHosts.includes(host.toLowerCase())) {
+  if (!host || typeof host !== "string" || !allowedHosts.includes(host.trim().toLowerCase())) {
     throw new Error(
       `[SECURITY_FATAL MUST-5] Target host '${host}' is NOT a local loopback address (${allowedHosts.join(
         ", ",
@@ -37,13 +37,16 @@ export function validateIsolation({ host, database }) {
     );
   }
 
-  if (database) {
-    const dbLower = database.toLowerCase();
-    if (forbiddenDatabases.includes(dbLower)) {
-      throw new Error(
-        `[SECURITY_FATAL MUST-5] Target database '${database}' is a forbidden production or system database. Execution requires a dedicated disposable test database (e.g. 'fornexa_test'). Aborting.`,
-      );
-    }
+  if (!database || typeof database !== "string") {
+    throw new Error(
+      `[SECURITY_FATAL MUST-5] Target database is required. Aborting.`,
+    );
+  }
+
+  if (forbiddenDatabases.includes(database.trim().toLowerCase())) {
+    throw new Error(
+      `[SECURITY_FATAL MUST-5] Target database '${database}' is a forbidden production or system database. Execution requires a dedicated disposable test database (e.g. 'fornexa_test'). Aborting.`,
+    );
   }
 }
 
@@ -977,18 +980,30 @@ console.log("[WMS M7 C-3] Verifying MUST-2: Protected rollback execution...");
 
   const huId = "70000000-0000-4000-8000-000000000097";
   await runSql(`
-    insert into handling_units (id, tenant_id, warehouse_id, code, state)
-    values ('${huId}', '${tenantA}', '${wh1}', 'HU-RB', 'PICKED_STAGED');
+    insert into warehouse_behavior_policies (tenant_id, warehouse_id, priority, params)
+    values ('${tenantA}', '${wh1}', 100, '{"require_state_control_on_load": false, "require_label_scan_on_load": false, "require_weight_measurement": false}'::jsonb);
+    insert into handling_units (id, tenant_id, warehouse_id, code, state, label_issued_at)
+    values ('${huId}', '${tenantA}', '${wh1}', 'HU-RB', 'PICKED_STAGED', now());
   `);
 
   // In rollback mode, CONTROL_STATE is rejected
   const errRb = await expectRpcError("CONTROL_STATE", { hu_id: huId, status: "PASSED" }, "WMS_FORBIDDEN");
   
+  // In rollback mode, standard WMS operations (e.g. LOAD without prior state control) remain fully functional
+  const loadRb = await executeAction("LOAD", { hu_id: huId, scanned_code: "HU-RB" });
+  if (!loadRb || loadRb.ok !== true) {
+    throw new Error("Rollback RPC function failed to execute valid standard action (LOAD)");
+  }
+  const huPost = (await db.query(`select state from handling_units where id = '${huId}'`)).rows[0];
+  if (!huPost || huPost.state !== "LOADED") {
+    throw new Error(`Rollback LOAD failed to transition HU to LOADED, found: ${huPost?.state}`);
+  }
+
   receipt.musts.push({
     must: "MUST-2",
     title: "Rollback protegido desactiva CONTROL_STATE sin reinstalar vectores de bypass de E1 ni dropear columnas",
     status: "PASS",
-    evidence: { errRb: errRb.error }
+    evidence: { errRb: errRb.error, rollbackLoadOk: huPost.state === "LOADED" }
   });
   console.log("  ✔ MUST-2 PASSED: Protected rollback script executed successfully");
 }
@@ -1024,10 +1039,18 @@ if (clientType === "pg-socket") {
   return receipt;
 }
 
-const isDirectExecution =
-  Boolean(process.argv[1]) &&
-  (resolve(process.argv[1]) === fileURLToPath(import.meta.url) ||
-    fileURLToPath(import.meta.url).endsWith(process.argv[1].replace(/^\.\//, "")));
+export function checkIsDirectExecution(argv1 = process.argv[1], metaUrl = import.meta.url) {
+  if (!argv1 || typeof argv1 !== "string") return false;
+  try {
+    const resolvedArgv = resolve(argv1);
+    const resolvedMeta = fileURLToPath(metaUrl);
+    return resolvedArgv === resolvedMeta;
+  } catch {
+    return false;
+  }
+}
+
+export const isDirectExecution = checkIsDirectExecution();
 
 if (isDirectExecution) {
   runHarness()
