@@ -980,32 +980,23 @@ console.log("[WMS M7 C-3] Verifying MUST-2: Protected rollback execution...");
 
   const huId = "70000000-0000-4000-8000-000000000097";
   await runSql(`
-    insert into warehouse_behavior_policies (tenant_id, warehouse_id, priority, params)
-    values ('${tenantA}', '${wh1}', 100, '{"require_state_control_on_load": false, "require_label_scan_on_load": false, "require_weight_measurement": false}'::jsonb);
-    insert into handling_units (id, tenant_id, warehouse_id, code, state, label_issued_at)
-    values ('${huId}', '${tenantA}', '${wh1}', 'HU-RB', 'PICKED_STAGED', now());
+    insert into handling_units (id, tenant_id, warehouse_id, code, state)
+    values ('${huId}', '${tenantA}', '${wh1}', 'HU-RB', 'PICKED_STAGED');
   `);
 
-  // In rollback mode, CONTROL_STATE is rejected
+  // In rollback mode, CONTROL_STATE is rejected fail-closed with WMS_FORBIDDEN
   const errRb = await expectRpcError("CONTROL_STATE", { hu_id: huId, status: "PASSED" }, "WMS_FORBIDDEN");
   
-  // In rollback mode, standard WMS operations (e.g. LOAD without prior state control) remain fully functional
-  const loadRb = await executeAction("LOAD", { hu_id: huId, scanned_code: "HU-RB" });
-  if (!loadRb || loadRb.ok !== true) {
-    throw new Error("Rollback RPC function failed to execute valid standard action (LOAD)");
-  }
-  const huPost = (await db.query(`select state from handling_units where id = '${huId}'`)).rows[0];
-  if (!huPost || huPost.state !== "LOADED") {
-    throw new Error(`Rollback LOAD failed to transition HU to LOADED, found: ${huPost?.state}`);
-  }
+  // In rollback mode, standard actions raise WMS_ROLLBACK_ACTIVE (deliberate protective shutdown, NO bypass)
+  const errRbLoad = await expectRpcError("LOAD", { hu_id: huId, scanned_code: "HU-RB" }, "WMS_ROLLBACK_ACTIVE");
 
   receipt.musts.push({
     must: "MUST-2",
-    title: "Rollback protegido desactiva CONTROL_STATE sin reinstalar vectores de bypass de E1 ni dropear columnas",
+    title: "Rollback protegido desactiva CONTROL_STATE sin reinstalar vectores de bypass de E1 ni dropear columnas (apagado deliberado WMS_ROLLBACK_ACTIVE)",
     status: "PASS",
-    evidence: { errRb: errRb.error, rollbackLoadOk: huPost.state === "LOADED" }
+    evidence: { errRbControlState: errRb.error, errRbStandardAction: errRbLoad.error }
   });
-  console.log("  ✔ MUST-2 PASSED: Protected rollback script executed successfully");
+  console.log("  ✔ MUST-2 PASSED: Protected rollback script executed successfully (fail-closed deliberate shutdown)");
 }
 
 // Save durable receipt

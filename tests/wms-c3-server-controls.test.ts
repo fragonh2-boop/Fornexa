@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { WMS_ACTIONS, isHuColumnMissingError, executeWmsActionApi, validateWmsActionPayloadSecurity, type WmsAction } from "../lib/wms.ts";
 
@@ -600,7 +601,10 @@ test("M7 C-3 SHOULD-1 — documento de contrato no cita códigos inexistentes co
 
 test("M7 C-3 SHOULD-2 — validateDisposableDatabase rechaza base con tablas sin marcador sintético y autoriza con marcador o vacía (MUST-5 guard)", async () => {
   // @ts-expect-error - import dynamic from local .mjs harness script
-  const { validateDisposableDatabase, validateIsolation } = await import("../scripts/wms/verify-c3-postgres.mjs");
+  const { validateDisposableDatabase, validateIsolation, checkIsDirectExecution, isDirectExecution } = await import("../scripts/wms/verify-c3-postgres.mjs");
+
+  // Al importar desde el test runner, la guarda de ejecución directa DEBE ser estrictamente false (cero efectos secundarios)
+  assert.equal(isDirectExecution, false, "Al importar el arnés desde test runner, isDirectExecution debe ser estrictamente false");
 
   // 1. Base externa con tablas ajenas en 'public' SIN marcador sintético -> DEBE LANZAR [SECURITY_FATAL MUST-5]
   const mockAlienDb = {
@@ -653,10 +657,26 @@ test("M7 C-3 SHOULD-2 — validateDisposableDatabase rechaza base con tablas sin
     await validateDisposableDatabase(mockPgliteDb, "pglite-wasm");
   });
 
-  // 5. Host y DB isolation validator
+  // 5. Host y DB isolation validator exhaustivo
   assert.throws(
     () => validateIsolation({ host: "192.168.1.100", database: "fornexa_test" }),
     /\[SECURITY_FATAL MUST-5\] Target host '192.168.1.100' is NOT a local loopback address/,
+  );
+  assert.throws(
+    () => validateIsolation({ host: "", database: "fornexa_test" }),
+    /\[SECURITY_FATAL MUST-5\] Target host '' is NOT a local loopback address/,
+  );
+  assert.throws(
+    () => validateIsolation({ host: "supabase", database: "fornexa_test" }),
+    /\[SECURITY_FATAL MUST-5\] Target host 'supabase' is NOT a local loopback address/,
+  );
+  assert.throws(
+    () => validateIsolation({ database: "fornexa_test" } as any),
+    /\[SECURITY_FATAL MUST-5\] Target host 'undefined' is NOT a local loopback address/,
+  );
+  assert.throws(
+    () => validateIsolation({ host: "127.0.0.1", database: "" }),
+    /\[SECURITY_FATAL MUST-5\] Target database is required/,
   );
   assert.throws(
     () => validateIsolation({ host: "127.0.0.1", database: "production" }),
@@ -666,10 +686,15 @@ test("M7 C-3 SHOULD-2 — validateDisposableDatabase rechaza base con tablas sin
     () => validateIsolation({ host: "127.0.0.1", database: "postgres" }),
     /\[SECURITY_FATAL MUST-5\] Target database 'postgres' is a forbidden production or system database/,
   );
+  assert.throws(
+    () => validateIsolation({ host: "127.0.0.1", database: "supabase" }),
+    /\[SECURITY_FATAL MUST-5\] Target database 'supabase' is a forbidden production or system database/,
+  );
   assert.doesNotThrow(() => validateIsolation({ host: "127.0.0.1", database: "fornexa_test" }));
   assert.doesNotThrow(() => validateIsolation({ host: "localhost", database: "fornexa_test" }));
+  assert.doesNotThrow(() => validateIsolation({ host: "::1", database: "fornexa_test" }));
 
-  // 6. Comprobación estática: validateDisposableDatabase se invoca antes de drop schema public cascade
+  // 6. Comprobación estática de orden en arnés
   const harnessScript = readFileSync(resolve(import.meta.dirname, "../scripts/wms/verify-c3-postgres.mjs"), "utf-8");
   const idxValidate = harnessScript.indexOf("validateDisposableDatabase(db, clientType)");
   const idxDropSchema = harnessScript.indexOf("drop schema if exists public cascade");
@@ -679,6 +704,47 @@ test("M7 C-3 SHOULD-2 — validateDisposableDatabase rechaza base con tablas sin
     idxValidate < idxDropSchema,
     "validateDisposableDatabase DEBE llamarse estrictamente antes de drop schema public cascade",
   );
+
+  // 7. Comprobación DINÁMICA de ejecución: el arnés aborta antes de ejecutar cualquier DDL destructivo
+  let ddlExecuted = false;
+  const mockFailingDb = {
+    query: async (sqlText: string) => {
+      if (typeof sqlText === "string" && sqlText.toLowerCase().includes("drop schema")) {
+        ddlExecuted = true;
+      }
+      return { rows: [{ table_name: "orders" }, { table_name: "users" }] };
+    },
+  };
+  await assert.rejects(
+    async () => {
+      // Simula el orden exacto del flujo en runHarness(): primero validación, si falla no hay DDL
+      await validateDisposableDatabase(mockFailingDb, "pg-socket");
+      await mockFailingDb.query("drop schema if exists public cascade");
+    },
+    /\[SECURITY_FATAL MUST-5\]/,
+  );
+  assert.equal(ddlExecuted, false, "El DDL destructivo jamás debe ejecutarse si validateDisposableDatabase rechaza la base");
+
+  // 8. Certificación simétrica de checkIsDirectExecution (eliminación del fallo de endsWith)
+  const scriptMetaUrl = new URL("../scripts/wms/verify-c3-postgres.mjs", import.meta.url).href;
+  const scriptAbsPath = fileURLToPath(scriptMetaUrl);
+
+  // Invocaciones legítimas
+  assert.equal(checkIsDirectExecution(scriptAbsPath, scriptMetaUrl), true, "Ruta absoluta canónica resuelta debe retornar true");
+  assert.equal(checkIsDirectExecution("./scripts/wms/verify-c3-postgres.mjs", scriptMetaUrl), true, "Ruta relativa resuelta debe retornar true");
+
+  // Falsos positivos que el endsWith frágil aceptaba erróneamente:
+  assert.equal(checkIsDirectExecution("c3-postgres.mjs", scriptMetaUrl), false, "Sufijo corto c3-postgres.mjs debe ser estrictamente false");
+  assert.equal(checkIsDirectExecution("postgres.mjs", scriptMetaUrl), false, "Sufijo corto postgres.mjs debe ser estrictamente false");
+  assert.equal(checkIsDirectExecution("gres.mjs", scriptMetaUrl), false, "Sufijo corto gres.mjs debe ser estrictamente false");
+  assert.equal(checkIsDirectExecution(".mjs", scriptMetaUrl), false, "Sufijo .mjs debe ser estrictamente false");
+  assert.equal(checkIsDirectExecution("s", scriptMetaUrl), false, "Sufijo de un caracter 's' debe ser estrictamente false");
+
+  // Runners y scripts de prueba
+  assert.equal(checkIsDirectExecution("/usr/local/bin/node", scriptMetaUrl), false, "Runner 'node' debe ser estrictamente false");
+  assert.equal(checkIsDirectExecution("tests/wms-c3-server-controls.test.ts", scriptMetaUrl), false, "Test runner debe ser estrictamente false");
+  assert.equal(checkIsDirectExecution("", scriptMetaUrl), false, "Cadena vacía debe ser false");
+  assert.equal(checkIsDirectExecution(undefined, scriptMetaUrl), false, "Undefined debe ser false");
 });
 
 

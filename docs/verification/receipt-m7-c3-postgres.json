@@ -1,10 +1,10 @@
 {
   "task": "M7 C-3 Server Load Controls Relational Execution",
-  "executed_at": "2026-10-19T05:14:14.149Z",
-  "base_sha": "45f6c25a9f2a604b4400a9baa818d221837e896e",
+  "executed_at": "2026-10-20T09:40:26.454Z",
+  "base_sha": "b7cbb2fe249650985caf631630cbf4a7460baa88",
   "migration_sha256": "b8d7673be55d3c698c2b79babaea6b7a6a8d2ec8d6a5ac8ad4d357bd733c629d",
-  "rollback_sha256": "5be722c81d25b729ce7c17a6d7878ff520b6aa08004796369cca6e8557e76108",
-  "harness_sha256": "f2f5249330877a704c6db30afeb0f0d39645a6ad6880b36c26fc495d3f07e5ac",
+  "rollback_sha256": "3c30750a751d62b6cd1f5d019ef09b2f9c64dc45e52aca16cc826a99e01b5447",
+  "harness_sha256": "0756b1298ac18f598b79aedf50e5bd7444751486abeea5db0123399f3a4cef5e",
   "pg_version": "PostgreSQL 16.4 on x86_64-pc-linux-musl, compiled by gcc (Alpine 13.2.1 20240309) 13.2.1 20240309, 64-bit",
   "engine": "pg-socket",
   "database": "fornexa_test",
@@ -299,7 +299,7 @@
     },
     {
       "case": 6,
-      "title": "CONTROL_STATE PASSED sobre PICKED_STAGED registra marcas y auditoría",
+      "title": "CONTROL_STATE PASSED sobre PICKED_STAGED registra marcas y auditor\u00eda",
       "status": "PASS",
       "pre_state": {
         "id": "70000000-0000-4000-8000-000000000006",
@@ -565,7 +565,7 @@
     },
     {
       "case": 10,
-      "title": "Dos sesiones TCP concurrentes se serializan con FOR UPDATE y contención real",
+      "title": "Dos sesiones TCP concurrentes se serializan con FOR UPDATE y contenci\u00f3n real",
       "status": "PASS",
       "model": "real_two_tcp_sessions_row_lock_barrier",
       "concurrency_certified": true,
@@ -580,7 +580,7 @@
     },
     {
       "case": 11,
-      "title": "Mutación de contenidos invalida state_controlled_at y measured_at",
+      "title": "Mutaci\u00f3n de contenidos invalida state_controlled_at y measured_at",
       "status": "PASS",
       "pre_state": {
         "id": "70000000-0000-4000-8000-000000000011",
@@ -631,7 +631,7 @@
     },
     {
       "case": 12,
-      "title": "REPLENISH ignora consolidation inyectada en payload y usa política",
+      "title": "REPLENISH ignora consolidation inyectada en payload y usa pol\u00edtica",
       "status": "PASS",
       "result": {
         "ok": true,
@@ -661,7 +661,7 @@
     },
     {
       "case": 13,
-      "title": "Política require_state_control_on_load = false autoriza LOAD sin control previo",
+      "title": "Pol\u00edtica require_state_control_on_load = false autoriza LOAD sin control previo",
       "status": "PASS",
       "result": {
         "hu": {
@@ -729,13 +729,13 @@
     },
     {
       "case": 15,
-      "title": "Operación sobre HU de otro tenant rechaza estrictamente con WMS_FORBIDDEN",
+      "title": "Operaci\u00f3n sobre HU de otro tenant rechaza estrictamente con WMS_FORBIDDEN",
       "status": "PASS",
       "error_code": "WMS_FORBIDDEN"
     },
     {
       "case": 16,
-      "title": "Fallo transaccional revierte íntegramente sin marcas huérfanas",
+      "title": "Fallo transaccional revierte \u00edntegramente sin marcas hu\u00e9rfanas",
       "status": "PASS",
       "tasks_before": 0,
       "tasks_after": 0,
@@ -745,7 +745,7 @@
   "musts": [
     {
       "must": "MUST-5",
-      "title": "Validación de aislamiento previo a DDL (host local y base de datos desechable comprobada)",
+      "title": "Validaci\u00f3n de aislamiento previo a DDL (host local y base de datos desechable comprobada)",
       "status": "PASS",
       "evidence": {
         "engine": "pg-socket",
@@ -763,7 +763,7 @@
     },
     {
       "must": "MUST-3",
-      "title": "CONTROL_STATE sin status rechaza WMS_FORBIDDEN y nunca certifica PASSED por omisión",
+      "title": "CONTROL_STATE sin status rechaza WMS_FORBIDDEN y nunca certifica PASSED por omisi\u00f3n",
       "status": "PASS",
       "evidence": {
         "errNoStatus": "WMS_FORBIDDEN",
@@ -773,7 +773,7 @@
     },
     {
       "must": "MUST-4",
-      "title": "Medición requerida ausente falla cerrado con WMS_WEIGHT_TOLERANCE; medición válida persiste measured_at/by",
+      "title": "Medici\u00f3n requerida ausente falla cerrado con WMS_WEIGHT_TOLERANCE; medici\u00f3n v\u00e1lida persiste measured_at/by",
       "status": "PASS",
       "evidence": {
         "errMissing": "WMS_WEIGHT_TOLERANCE",
@@ -787,7 +787,7 @@
     },
     {
       "must": "SHOULD-1",
-      "title": "Reasignación de quant.hu_id invalida state_controlled_at y measured_at en HU origen y destino",
+      "title": "Reasignaci\u00f3n de quant.hu_id invalida state_controlled_at y measured_at en HU origen y destino",
       "status": "PASS",
       "evidence": {
         "postA": {
@@ -802,10 +802,11 @@
     },
     {
       "must": "MUST-2",
-      "title": "Rollback protegido desactiva CONTROL_STATE sin reinstalar vectores de bypass de E1 ni dropear columnas",
+      "title": "Rollback protegido desactiva CONTROL_STATE sin reinstalar vectores de bypass de E1 ni dropear columnas (apagado deliberado WMS_ROLLBACK_ACTIVE)",
       "status": "PASS",
       "evidence": {
-        "errRb": "WMS_FORBIDDEN"
+        "errRbControlState": "WMS_FORBIDDEN",
+        "errRbStandardAction": "WMS_ROLLBACK_ACTIVE"
       }
     }
   ],
