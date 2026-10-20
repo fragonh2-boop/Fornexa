@@ -411,15 +411,41 @@ test("M7 C-3 — lib/memorandum.ts modera la redacción de C-3 a 'En revisión i
   );
 });
 
-test("M7 C-3 — Ejecución local relacional en PostgreSQL genera recibo con pre/postestado de 16 casos (MUST-1)", () => {
+test("M7 C-3 — Ejecución relacional en PostgreSQL 16 genera recibo duradero con 16 casos y MUSTs certificados (MUST-1)", () => {
   const receiptPath = resolve(import.meta.dirname, "../docs/verification/receipt-m7-c3-postgres.json");
   const rawReceipt = readFileSync(receiptPath, "utf-8");
   const receipt = JSON.parse(rawReceipt);
+  assert.equal(receipt.engine, "pg-socket", "El recibo duradero debe estar certificado con engine pg-socket");
+  assert.equal(receipt.database, "fornexa_test", "La base de datos del recibo debe ser fornexa_test");
+  assert.equal(receipt.certification_scope, "DURABLE_PG16_CONTAINER_CERTIFICATION");
+  assert.equal(receipt.concurrency_certified, true);
   assert.equal(receipt.summary.total, 16);
   assert.equal(receipt.summary.passed, 16);
   assert.equal(receipt.summary.failed, 0);
-  assert.ok(receipt.cases.length === 16);
-  assert.ok(receipt.musts.length >= 4);
+  assert.equal(receipt.cases.length, 16);
+
+  // Musts certificados
+  const mustMap = new Map(receipt.musts.map((m: any) => [m.must, m]));
+  assert.ok(mustMap.has("MUST-1"), "Debe certificar MUST-1 explícito");
+  assert.ok(mustMap.has("MUST-2"), "Debe certificar MUST-2 (rollback protegido)");
+  assert.ok(mustMap.has("MUST-3"), "Debe certificar MUST-3 (CONTROL_STATE sin status)");
+  assert.ok(mustMap.has("MUST-4"), "Debe certificar MUST-4 (medición requerida)");
+  assert.ok(mustMap.has("MUST-5"), "Debe certificar MUST-5 (aislamiento previo a DDL)");
+  assert.ok(mustMap.has("MUST-RLS"), "Debe certificar MUST-RLS");
+  assert.ok(mustMap.has("MUST-EXECUTE"), "Debe certificar MUST-EXECUTE");
+
+  // MUST-RLS detalle
+  const rlsMust = mustMap.get("MUST-RLS") as any;
+  assert.equal(rlsMust.status, "PASS");
+  assert.equal(rlsMust.evidence.probes.direct_mutations_denied_for_authenticated.sqlstate, "42501");
+  assert.equal(rlsMust.evidence.probes.anon_denied.sqlstate, "42501");
+
+  // MUST-EXECUTE detalle
+  const execMust = mustMap.get("MUST-EXECUTE") as any;
+  assert.equal(execMust.status, "PASS");
+  assert.equal(execMust.evidence.service_role_has_function_privilege, true);
+  assert.equal(execMust.evidence.authenticated_sqlstate, "42501");
+  assert.equal(execMust.evidence.anon_sqlstate, "42501");
 });
 
 test("M7 C-3 — Script de rollback protegido no reabre el bypass E1 ni elimina columnas (MUST-2)", () => {
@@ -601,7 +627,7 @@ test("M7 C-3 SHOULD-1 — documento de contrato no cita códigos inexistentes co
 
 test("M7 C-3 SHOULD-2 — validateDisposableDatabase rechaza base con tablas sin marcador sintético y autoriza con marcador o vacía (MUST-5 guard)", async () => {
   // @ts-expect-error - import dynamic from local .mjs harness script
-  const { validateDisposableDatabase, validateIsolation, checkIsDirectExecution, isDirectExecution } = await import("../scripts/wms/verify-c3-postgres.mjs");
+  const { validateDisposableDatabase, validateIsolation, checkIsDirectExecution, isDirectExecution, runHarness } = await import("../scripts/wms/verify-c3-postgres.mjs");
 
   // Al importar desde el test runner, la guarda de ejecución directa DEBE ser estrictamente false (cero efectos secundarios)
   assert.equal(isDirectExecution, false, "Al importar el arnés desde test runner, isDirectExecution debe ser estrictamente false");
@@ -705,25 +731,36 @@ test("M7 C-3 SHOULD-2 — validateDisposableDatabase rechaza base con tablas sin
     "validateDisposableDatabase DEBE llamarse estrictamente antes de drop schema public cascade",
   );
 
-  // 7. Comprobación DINÁMICA de ejecución: el arnés aborta antes de ejecutar cualquier DDL destructivo
-  let ddlExecuted = false;
-  const mockFailingDb = {
+  // 7. Comprobación DINÁMICA de ejecución real del arnés: runHarness aborta antes de ejecutar cualquier DDL destructivo
+  let ddlExecutedByHarness = false;
+  const mockAlienDbForHarness = {
     query: async (sqlText: string) => {
-      if (typeof sqlText === "string" && sqlText.toLowerCase().includes("drop schema")) {
-        ddlExecuted = true;
+      const lower = typeof sqlText === "string" ? sqlText.toLowerCase() : "";
+      if (lower.includes("select version()") || lower.includes("select version();")) {
+        return { rows: [{ ver: "PostgreSQL 16.15 (test mock)" }] };
       }
-      return { rows: [{ table_name: "orders" }, { table_name: "users" }] };
+      if (lower.includes("drop schema") || lower.includes("create schema") || lower.includes("create table")) {
+        ddlExecutedByHarness = true;
+      }
+      if (lower.includes("information_schema.tables")) {
+        return { rows: [{ table_name: "orders" }, { table_name: "users" }] };
+      }
+      return { rows: [] };
     },
   };
+
   await assert.rejects(
     async () => {
-      // Simula el orden exacto del flujo en runHarness(): primero validación, si falla no hay DDL
-      await validateDisposableDatabase(mockFailingDb, "pg-socket");
-      await mockFailingDb.query("drop schema if exists public cascade");
+      // Invoca el arnés real pasando la BD con tablas preexistentes no desechables
+      await runHarness({ db: mockAlienDbForHarness, clientType: "pg-socket", skipReceipt: true });
     },
-    /\[SECURITY_FATAL MUST-5\]/,
+    /\[SECURITY_FATAL MUST-5\] Target database contains non-disposable existing tables/,
   );
-  assert.equal(ddlExecuted, false, "El DDL destructivo jamás debe ejecutarse si validateDisposableDatabase rechaza la base");
+  assert.equal(
+    ddlExecutedByHarness,
+    false,
+    "runHarness DEBE abortar antes de ejecutar cualquier DDL destructivo (drop/create schema) si validateDisposableDatabase rechaza la base",
+  );
 
   // 8. Certificación simétrica de checkIsDirectExecution (eliminación del fallo de endsWith)
   const scriptMetaUrl = new URL("../scripts/wms/verify-c3-postgres.mjs", import.meta.url).href;

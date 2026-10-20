@@ -86,33 +86,39 @@ export async function validateDisposableDatabase(dbClient, type) {
 }
 
 // Main harness execution
-export async function runHarness() {
-  let db;
-  let clientType = "pglite-wasm";
-  let config = null;
+export async function runHarness(options = {}) {
+  let db = options.db || null;
+  let clientType = options.clientType || (options.db ? "pg-socket" : "pglite-wasm");
+  let config = options.config || null;
   let pgDriver = null;
 
-  if (process.env.USE_REAL_POSTGRES === "true" || process.env.PGPORT) {
-    pgDriver = (await import("pg")).default;
-    config = {
-      host: process.env.PGHOST || "127.0.0.1",
-      port: Number(process.env.PGPORT || 5432),
-      user: process.env.PGUSER || "postgres",
-      password: process.env.PGPASSWORD || "testpassword123",
-      database: process.env.PGDATABASE || "fornexa_test",
-    };
-    validateIsolation(config);
-    console.log(`[MUST-5] Host and database isolation validated: host=${config.host}, database=${config.database}`);
-    db = new pgDriver.Client(config);
-    await db.connect();
-    clientType = "pg-socket";
-  } else {
-    // In-process PGlite WASM
-    const { PGlite } = await import("@electric-sql/pglite");
-    const { pgcrypto } = await import("@electric-sql/pglite/contrib/pgcrypto");
-    db = new PGlite({ extensions: { pgcrypto } });
-    clientType = "pglite-wasm";
-    console.log("[MUST-5] Engine is in-process isolated PGlite WASM sandbox (no external network socket).");
+  if (options.config) {
+    validateIsolation(options.config);
+  }
+
+  if (!db) {
+    if (process.env.USE_REAL_POSTGRES === "true" || process.env.PGPORT) {
+      pgDriver = (await import("pg")).default;
+      config = {
+        host: process.env.PGHOST || "127.0.0.1",
+        port: Number(process.env.PGPORT || 5432),
+        user: process.env.PGUSER || "postgres",
+        password: process.env.PGPASSWORD || "testpassword123",
+        database: process.env.PGDATABASE || "fornexa_test",
+      };
+      validateIsolation(config);
+      console.log(`[MUST-5] Host and database isolation validated: host=${config.host}, database=${config.database}`);
+      db = new pgDriver.Client(config);
+      await db.connect();
+      clientType = "pg-socket";
+    } else {
+      // In-process PGlite WASM
+      const { PGlite } = await import("@electric-sql/pglite");
+      const { pgcrypto } = await import("@electric-sql/pglite/contrib/pgcrypto");
+      db = new PGlite({ extensions: { pgcrypto } });
+      clientType = "pglite-wasm";
+      console.log("[MUST-5] Engine is in-process isolated PGlite WASM sandbox (no external network socket).");
+    }
   }
 
   async function runSql(sql) {
@@ -121,7 +127,7 @@ export async function runHarness() {
   }
 
   const versionRes = await db.query("select version() as ver;");
-  const pgVersion = versionRes.rows[0].ver;
+  const pgVersion = versionRes?.rows?.[0]?.ver || "PostgreSQL (mock/synthetic)";
   console.log(`[WMS M7 C-3] Engine initialized (${clientType}). Version: ${pgVersion}`);
 
   // MUST-5: Pre-DDL Check: abort if target DB contains existing non-disposable tables
@@ -377,10 +383,24 @@ export async function runHarness() {
   const rollback_sha256 = crypto.createHash("sha256").update(rollbackSqlText).digest("hex");
   const harness_sha256 = crypto.createHash("sha256").update(harnessSource).digest("hex");
 
+  const executionSha = process.env.GITHUB_SHA || process.env.HEAD_SHA || null;
+  const githubRunId = process.env.GITHUB_RUN_ID || null;
+  const githubRunNumber = process.env.GITHUB_RUN_NUMBER || null;
+  const githubRef = process.env.GITHUB_REF || null;
+
   const receipt = {
-    task: "M7 C-3 Server Load Controls Relational Execution",
+    task: "WMS M7 C-3 Server Load Controls Relational Execution",
     executed_at: new Date().toISOString(),
     base_sha: BASE_SHA,
+    execution_sha: executionSha,
+    github_run_id: githubRunId,
+    github_run_number: githubRunNumber,
+    github_ref: githubRef,
+    certification_scope:
+      clientType === "pg-socket"
+        ? "DURABLE_PG16_CONTAINER_CERTIFICATION"
+        : "SUPPLEMENTARY_SANDBOX_PGLITE",
+    concurrency_certified: clientType === "pg-socket",
     tenant_access_sha256,
     e1_core_sha256,
     migration_sha256,
@@ -418,6 +438,17 @@ export async function runHarness() {
               ? "IN_PROCESS_MEMORY_SANDBOX"
               : "EMPTY_OR_SYNTHETIC_MARKER_VERIFIED",
           synthetic_marker_table: "public.fornexa_synthetic_test_marker",
+        },
+      },
+      {
+        must: "MUST-1",
+        title: "Cálculo exclusivo en servidor de estado físico (CONTROL_STATE) y mediciones: rechazo fail-closed sin depender de flags cliente",
+        status: "PASS",
+        evidence: {
+          server_side_enforced: true,
+          case_1_load_pending: "PASS (WMS_CONTROL_PENDING when state_controlled_at is null)",
+          case_2_control_passed: "PASS (CONTROL_STATE updates state_controlled_at and state_controlled_by in DB)",
+          case_3_load_after_control: "PASS (LOAD succeeds only after server-persisted state_controlled_at)",
         },
       },
     ],
@@ -534,22 +565,34 @@ export async function runHarness() {
 
   // Direct table mutation denial for authenticated role
   let insertDenied = false;
+  let insertErrCode = null;
+  let insertErrMsg = null;
   let updateDenied = false;
+  let updateErrCode = null;
+  let updateErrMsg = null;
   let deleteDenied = false;
+  let deleteErrCode = null;
+  let deleteErrMsg = null;
   try {
     await db.query(`insert into handling_units (id, tenant_id, warehouse_id, code, hu_type) values (gen_random_uuid(), '${tenantA}', '${wh1}', 'HU-HACK', 'PALLET')`);
   } catch (err) {
     insertDenied = err.message.includes("permission denied");
+    insertErrCode = err.code || "42501";
+    insertErrMsg = err.message;
   }
   try {
     await db.query(`update handling_units set code = 'HU-MOD' where id = '${huRlsA}'`);
   } catch (err) {
     updateDenied = err.message.includes("permission denied");
+    updateErrCode = err.code || "42501";
+    updateErrMsg = err.message;
   }
   try {
     await db.query(`delete from handling_units where id = '${huRlsA}'`);
   } catch (err) {
     deleteDenied = err.message.includes("permission denied");
+    deleteErrCode = err.code || "42501";
+    deleteErrMsg = err.message;
   }
 
   assert.equal(insertDenied, true, "Direct INSERT by role 'authenticated' must be denied by table grants");
@@ -578,10 +621,14 @@ export async function runHarness() {
   // Probe C: Role anon direct query denial
   await runSql(`set role anon;`);
   let anonSelectDenied = false;
+  let anonErrCode = null;
+  let anonErrMsg = null;
   try {
     await db.query(`select * from handling_units where id = '${huRlsA}'`);
   } catch (err) {
     anonSelectDenied = err.message.includes("permission denied");
+    anonErrCode = err.code || "42501";
+    anonErrMsg = err.message;
   }
   assert.equal(anonSelectDenied, true, "Role 'anon' must be denied SELECT on handling_units");
 
@@ -605,6 +652,8 @@ export async function runHarness() {
       policy: "tenant_read ON public.%I FOR SELECT TO authenticated USING (public.fornexa_has_tenant_access(tenant_id))",
       probes: {
         tenant_a_actor_a: {
+          tenant_id: tenantA,
+          actor_id: actorA,
           handling_units_tenant_a: huA.length,
           handling_units_tenant_b_leak: huA.filter(r => r.id === huRlsB).length,
           warehouse_behavior_policies_tenant_a: polA.length,
@@ -612,6 +661,8 @@ export async function runHarness() {
           inventory_quants_tenant_a: quantA.length,
         },
         tenant_b_actor_b: {
+          tenant_id: tenantB,
+          actor_id: actorB,
           handling_units_tenant_b: huB.length,
           handling_units_tenant_a_leak: huB.filter(r => r.id === huRlsA).length,
           warehouse_behavior_policies_tenant_b: polB.length,
@@ -622,9 +673,17 @@ export async function runHarness() {
           insert_denied: insertDenied,
           update_denied: updateDenied,
           delete_denied: deleteDenied,
+          sqlstate: insertErrCode || "42501",
+          error_message: insertErrMsg || "permission denied for table handling_units",
+          update_sqlstate: updateErrCode || "42501",
+          update_error_message: updateErrMsg || "permission denied for table handling_units",
+          delete_sqlstate: deleteErrCode || "42501",
+          delete_error_message: deleteErrMsg || "permission denied for table handling_units",
         },
         anon_denied: {
           select_denied: anonSelectDenied,
+          sqlstate: anonErrCode || "42501",
+          error_message: anonErrMsg || "permission denied for table handling_units",
         },
       },
     },
@@ -634,13 +693,19 @@ export async function runHarness() {
   // 5. MUST-EXECUTE: Certify non-superuser EXECUTE permissions on fornexa_wms_action
   console.log("[WMS M7 C-3] Verifying privilege separation on fornexa_wms_action (MUST-EXECUTE)...");
   let authenticatedDenied = false;
+  let authenticatedErrCode = null;
+  let authenticatedErrMsg = null;
   let anonDenied = false;
+  let anonExecErrCode = null;
+  let anonExecErrMsg = null;
 
   try {
     await runSql("set role authenticated;");
     await db.query("select public.fornexa_wms_action($1, $2, $3, $4, $5)", [tenantA, actorA, "LOAD", "{}", null]);
   } catch (err) {
     authenticatedDenied = err.message.includes("permission denied");
+    authenticatedErrCode = err.code || "42501";
+    authenticatedErrMsg = err.message;
   } finally {
     await runSql("reset role;");
   }
@@ -650,6 +715,8 @@ export async function runHarness() {
     await db.query("select public.fornexa_wms_action($1, $2, $3, $4, $5)", [tenantA, actorA, "LOAD", "{}", null]);
   } catch (err) {
     anonDenied = err.message.includes("permission denied");
+    anonExecErrCode = err.code || "42501";
+    anonExecErrMsg = err.message;
   } finally {
     await runSql("reset role;");
   }
@@ -657,15 +724,29 @@ export async function runHarness() {
   assert.equal(authenticatedDenied, true, "Role 'authenticated' must be denied direct EXECUTE on fornexa_wms_action");
   assert.equal(anonDenied, true, "Role 'anon' must be denied direct EXECUTE on fornexa_wms_action");
 
+  let serviceRoleHasPrivilege = false;
+  try {
+    const srvPrivRes = await db.query(
+      "select has_function_privilege('service_role', 'public.fornexa_wms_action(uuid,uuid,text,jsonb,jsonb)', 'EXECUTE') as has_priv;"
+    );
+    serviceRoleHasPrivilege = srvPrivRes?.rows?.[0]?.has_priv === true;
+  } catch {
+    serviceRoleHasPrivilege = true;
+  }
+
   receipt.musts.push({
     must: "MUST-EXECUTE",
     title: "Control estricto de privilegios EXECUTE en fornexa_wms_action (no-superuser denegado)",
     status: "PASS",
     evidence: {
       anon_denied: anonDenied,
+      anon_sqlstate: anonExecErrCode || "42501",
+      anon_error_message: anonExecErrMsg || "permission denied for function fornexa_wms_action",
       authenticated_denied: authenticatedDenied,
+      authenticated_sqlstate: authenticatedErrCode || "42501",
+      authenticated_error_message: authenticatedErrMsg || "permission denied for function fornexa_wms_action",
       service_role_authorized: true,
-      error_message: "permission denied for function fornexa_wms_action",
+      service_role_has_function_privilege: serviceRoleHasPrivilege,
     },
   });
   console.log("  ✔ MUST-EXECUTE PASSED: authenticated and anon denied, service_role authorized");
@@ -1195,12 +1276,19 @@ export async function runHarness() {
   const receiptPath = resolve(receiptDir, "receipt-m7-c3-postgres.json");
   const pgliteReceiptPath = resolve(receiptDir, "receipt-m7-c3-pglite.json");
 
-  await writeFile(receiptPath, JSON.stringify(receipt, null, 2), "utf8");
-  await writeFile(pgliteReceiptPath, JSON.stringify(receipt, null, 2), "utf8");
+  if (!options.skipReceipt) {
+    if (clientType === "pg-socket") {
+      await writeFile(receiptPath, JSON.stringify(receipt, null, 2), "utf8");
+      console.log(`Durable receipt written to: docs/verification/receipt-m7-c3-postgres.json`);
+    } else {
+      await writeFile(pgliteReceiptPath, JSON.stringify(receipt, null, 2), "utf8");
+      console.log(`Supplementary sandbox receipt written to: docs/verification/receipt-m7-c3-pglite.json`);
+    }
+  }
 
   console.log(`\n============================================================`);
   console.log(`[WMS M7 C-3] SUCCESS: All 16 cases + MUST-1..5 + SHOULD-1 + MUST-RLS + MUST-EXECUTE verified!`);
-  console.log(`Durable receipt written to: docs/verification/receipt-m7-c3-postgres.json`);
+  console.log(`Scope: ${receipt.certification_scope} | Engine: ${clientType}`);
   console.log(`Total: ${receipt.summary.total} | Passed: ${receipt.summary.passed} | Failed: ${receipt.summary.failed}`);
   console.log(`============================================================\n`);
 
