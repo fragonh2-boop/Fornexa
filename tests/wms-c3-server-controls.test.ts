@@ -419,6 +419,9 @@ test("M7 C-3 — Ejecución relacional en PostgreSQL 16 genera recibo duradero c
   assert.equal(receipt.database, "fornexa_test", "La base de datos del recibo debe ser fornexa_test");
   assert.equal(receipt.certification_scope, "DURABLE_PG16_CONTAINER_CERTIFICATION");
   assert.equal(receipt.concurrency_certified, true);
+  assert.ok(receipt.execution_sha, "Debe tener execution_sha registrado");
+  assert.ok(receipt.github_run_id, "Debe tener github_run_id registrado");
+  assert.ok(receipt.harness_sha256, "Debe tener harness_sha256 registrado");
   assert.equal(receipt.summary.total, 16);
   assert.equal(receipt.summary.passed, 16);
   assert.equal(receipt.summary.failed, 0);
@@ -434,18 +437,34 @@ test("M7 C-3 — Ejecución relacional en PostgreSQL 16 genera recibo duradero c
   assert.ok(mustMap.has("MUST-RLS"), "Debe certificar MUST-RLS");
   assert.ok(mustMap.has("MUST-EXECUTE"), "Debe certificar MUST-EXECUTE");
 
-  // MUST-RLS detalle
+  // MUST-RLS detalle exacto emitido por el arnés
   const rlsMust = mustMap.get("MUST-RLS") as any;
   assert.equal(rlsMust.status, "PASS");
+  assert.equal(
+    rlsMust.title,
+    "Certificación de Row Level Security (RLS) activo y aislamiento comprobado entre tenants A/B",
+  );
+  assert.ok(Array.isArray(rlsMust.evidence.tables_relrowsecurity));
+  assert.equal(rlsMust.evidence.tables_relrowsecurity.length, 4);
+  assert.ok(
+    rlsMust.evidence.tables_relrowsecurity.every((t: any) => t.relrowsecurity === true),
+    "Todas las tablas WMS deben tener relrowsecurity = true",
+  );
   assert.equal(rlsMust.evidence.probes.direct_mutations_denied_for_authenticated.sqlstate, "42501");
   assert.equal(rlsMust.evidence.probes.anon_denied.sqlstate, "42501");
 
-  // MUST-EXECUTE detalle
+  // MUST-EXECUTE detalle exacto con sonda positiva has_function_privilege
   const execMust = mustMap.get("MUST-EXECUTE") as any;
   assert.equal(execMust.status, "PASS");
+  assert.equal(
+    execMust.title,
+    "Control estricto de privilegios EXECUTE en fornexa_wms_action (no-superuser denegado)",
+  );
   assert.equal(execMust.evidence.service_role_has_function_privilege, true);
   assert.equal(execMust.evidence.authenticated_sqlstate, "42501");
   assert.equal(execMust.evidence.anon_sqlstate, "42501");
+  assert.equal(execMust.evidence.authenticated_denied, true);
+  assert.equal(execMust.evidence.anon_denied, true);
 });
 
 test("M7 C-3 — Script de rollback protegido no reabre el bypass E1 ni elimina columnas (MUST-2)", () => {
@@ -746,6 +765,13 @@ test("M7 C-3 SHOULD-2 — validateDisposableDatabase rechaza base con tablas sin
         return { rows: [{ table_name: "orders" }, { table_name: "users" }] };
       }
       return { rows: [] };
+    },
+    exec: async (sqlText: string) => {
+      const lower = typeof sqlText === "string" ? sqlText.toLowerCase() : "";
+      if (lower.includes("drop schema") || lower.includes("create schema") || lower.includes("create table")) {
+        ddlExecutedByHarness = true;
+      }
+      return [];
     },
   };
 
