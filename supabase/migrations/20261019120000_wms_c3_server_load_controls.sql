@@ -49,6 +49,22 @@ create index if not exists idx_handling_units_state_control
   on public.handling_units(tenant_id, warehouse_id, state_controlled_at)
   where state_controlled_at is not null;
 
+alter table public.warehouse_tasks
+  drop constraint if exists warehouse_tasks_task_type_check;
+
+alter table public.warehouse_tasks
+  add constraint warehouse_tasks_task_type_check check (task_type in (
+    'RECEIVE_CHECK','PUTAWAY','REPLENISH','PICK','PACK','LABEL','LOAD','COUNT','TRANSFER','CONTROL_STATE'
+  ));
+
+alter table public.warehouse_tasks
+  drop constraint if exists warehouse_tasks_state_check;
+
+alter table public.warehouse_tasks
+  add constraint warehouse_tasks_state_check check (state in (
+    'PROPOSED','READY','ASSIGNED','IN_PROGRESS','DONE','REJECTED','CANCELLED','FAILED'
+  ));
+
 -- ── 2. Automatic Control & Measurement Invalidation Trigger on Mutation ────────────
 create or replace function public.fornexa_wms_invalidate_hu_control()
 returns trigger
@@ -1046,10 +1062,8 @@ begin
     v_weight_tol := coalesce((v_policy->>'weight_tolerance_pct')::numeric(6,2), 5.0);
     v_vol_tol := coalesce((v_policy->>'volume_tolerance_pct')::numeric(6,2), 10.0);
 
-    v_req_weight := public.fornexa_wms_policy_bool(v_policy, 'require_weight_measurement', false)
-                    or (v_policy ? 'weight_tolerance_pct' and nullif(v_policy->>'weight_tolerance_pct', '') is not null);
-    v_req_vol := public.fornexa_wms_policy_bool(v_policy, 'require_volume_measurement', false)
-                 or (v_policy ? 'volume_tolerance_pct' and nullif(v_policy->>'volume_tolerance_pct', '') is not null);
+    v_req_weight := public.fornexa_wms_policy_bool(v_policy, 'require_weight_measurement', false);
+    v_req_vol := public.fornexa_wms_policy_bool(v_policy, 'require_volume_measurement', false);
 
     if v_req_weight then
       if v_measured_weight is null then
@@ -1176,10 +1190,8 @@ begin
     v_weight_tol := coalesce((v_policy->>'weight_tolerance_pct')::numeric(6,2), 5.0);
     v_vol_tol := coalesce((v_policy->>'volume_tolerance_pct')::numeric(6,2), 10.0);
 
-    v_req_weight := public.fornexa_wms_policy_bool(v_policy, 'require_weight_measurement', false)
-                    or (v_policy ? 'weight_tolerance_pct' and nullif(v_policy->>'weight_tolerance_pct', '') is not null);
-    v_req_vol := public.fornexa_wms_policy_bool(v_policy, 'require_volume_measurement', false)
-                 or (v_policy ? 'volume_tolerance_pct' and nullif(v_policy->>'volume_tolerance_pct', '') is not null);
+    v_req_weight := public.fornexa_wms_policy_bool(v_policy, 'require_weight_measurement', false);
+    v_req_vol := public.fornexa_wms_policy_bool(v_policy, 'require_volume_measurement', false);
 
     if v_req_weight then
       if v_measured_weight is null then
