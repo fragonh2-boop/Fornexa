@@ -576,28 +576,31 @@ export async function runHarness(options = {}) {
   try {
     await db.query(`insert into handling_units (id, tenant_id, warehouse_id, code, hu_type) values (gen_random_uuid(), '${tenantA}', '${wh1}', 'HU-HACK', 'PALLET')`);
   } catch (err) {
-    insertDenied = err.message.includes("permission denied");
-    insertErrCode = err.code || "42501";
-    insertErrMsg = err.message;
+    insertDenied = err.code === "42501" || err.message?.includes("permission denied");
+    insertErrCode = err.code || null;
+    insertErrMsg = err.message || null;
   }
   try {
     await db.query(`update handling_units set code = 'HU-MOD' where id = '${huRlsA}'`);
   } catch (err) {
-    updateDenied = err.message.includes("permission denied");
-    updateErrCode = err.code || "42501";
-    updateErrMsg = err.message;
+    updateDenied = err.code === "42501" || err.message?.includes("permission denied");
+    updateErrCode = err.code || null;
+    updateErrMsg = err.message || null;
   }
   try {
     await db.query(`delete from handling_units where id = '${huRlsA}'`);
   } catch (err) {
-    deleteDenied = err.message.includes("permission denied");
-    deleteErrCode = err.code || "42501";
-    deleteErrMsg = err.message;
+    deleteDenied = err.code === "42501" || err.message?.includes("permission denied");
+    deleteErrCode = err.code || null;
+    deleteErrMsg = err.message || null;
   }
 
   assert.equal(insertDenied, true, "Direct INSERT by role 'authenticated' must be denied by table grants");
+  assert.equal(insertErrCode, "42501", "Direct INSERT denial must return SQLSTATE 42501");
   assert.equal(updateDenied, true, "Direct UPDATE by role 'authenticated' must be denied by table grants");
+  assert.equal(updateErrCode, "42501", "Direct UPDATE denial must return SQLSTATE 42501");
   assert.equal(deleteDenied, true, "Direct DELETE by role 'authenticated' must be denied by table grants");
+  assert.equal(deleteErrCode, "42501", "Direct DELETE denial must return SQLSTATE 42501");
 
   // Probe B: Actor B (authenticated with Tenant B JWT claim)
   await runSql(`
@@ -626,11 +629,12 @@ export async function runHarness(options = {}) {
   try {
     await db.query(`select * from handling_units where id = '${huRlsA}'`);
   } catch (err) {
-    anonSelectDenied = err.message.includes("permission denied");
-    anonErrCode = err.code || "42501";
-    anonErrMsg = err.message;
+    anonSelectDenied = err.code === "42501" || err.message?.includes("permission denied");
+    anonErrCode = err.code || null;
+    anonErrMsg = err.message || null;
   }
   assert.equal(anonSelectDenied, true, "Role 'anon' must be denied SELECT on handling_units");
+  assert.equal(anonErrCode, "42501", "Role 'anon' SELECT denial must return SQLSTATE 42501");
 
   // Reset role and clean up probe rows
   await runSql(`
@@ -673,17 +677,17 @@ export async function runHarness(options = {}) {
           insert_denied: insertDenied,
           update_denied: updateDenied,
           delete_denied: deleteDenied,
-          sqlstate: insertErrCode || "42501",
-          error_message: insertErrMsg || "permission denied for table handling_units",
-          update_sqlstate: updateErrCode || "42501",
-          update_error_message: updateErrMsg || "permission denied for table handling_units",
-          delete_sqlstate: deleteErrCode || "42501",
-          delete_error_message: deleteErrMsg || "permission denied for table handling_units",
+          sqlstate: insertErrCode,
+          error_message: insertErrMsg,
+          update_sqlstate: updateErrCode,
+          update_error_message: updateErrMsg,
+          delete_sqlstate: deleteErrCode,
+          delete_error_message: deleteErrMsg,
         },
         anon_denied: {
           select_denied: anonSelectDenied,
-          sqlstate: anonErrCode || "42501",
-          error_message: anonErrMsg || "permission denied for table handling_units",
+          sqlstate: anonErrCode,
+          error_message: anonErrMsg,
         },
       },
     },
@@ -703,9 +707,9 @@ export async function runHarness(options = {}) {
     await runSql("set role authenticated;");
     await db.query("select public.fornexa_wms_action($1, $2, $3, $4, $5)", [tenantA, actorA, "LOAD", "{}", null]);
   } catch (err) {
-    authenticatedDenied = err.message.includes("permission denied");
-    authenticatedErrCode = err.code || "42501";
-    authenticatedErrMsg = err.message;
+    authenticatedDenied = err.code === "42501" || err.message?.includes("permission denied");
+    authenticatedErrCode = err.code || null;
+    authenticatedErrMsg = err.message || null;
   } finally {
     await runSql("reset role;");
   }
@@ -714,25 +718,34 @@ export async function runHarness(options = {}) {
     await runSql("set role anon;");
     await db.query("select public.fornexa_wms_action($1, $2, $3, $4, $5)", [tenantA, actorA, "LOAD", "{}", null]);
   } catch (err) {
-    anonDenied = err.message.includes("permission denied");
-    anonExecErrCode = err.code || "42501";
-    anonExecErrMsg = err.message;
+    anonDenied = err.code === "42501" || err.message?.includes("permission denied");
+    anonExecErrCode = err.code || null;
+    anonExecErrMsg = err.message || null;
   } finally {
     await runSql("reset role;");
   }
 
   assert.equal(authenticatedDenied, true, "Role 'authenticated' must be denied direct EXECUTE on fornexa_wms_action");
+  assert.equal(authenticatedErrCode, "42501", "Role 'authenticated' must receive SQLSTATE 42501 (insufficient_privilege)");
   assert.equal(anonDenied, true, "Role 'anon' must be denied direct EXECUTE on fornexa_wms_action");
+  assert.equal(anonExecErrCode, "42501", "Role 'anon' must receive SQLSTATE 42501 (insufficient_privilege)");
 
   let serviceRoleHasPrivilege = false;
   try {
     const srvPrivRes = await db.query(
-      "select has_function_privilege('service_role', 'public.fornexa_wms_action(uuid,uuid,text,jsonb,jsonb)', 'EXECUTE') as has_priv;"
+      "select has_function_privilege('service_role', 'public.fornexa_wms_action(uuid,uuid,text,jsonb,text)', 'EXECUTE') as has_priv;"
     );
     serviceRoleHasPrivilege = srvPrivRes?.rows?.[0]?.has_priv === true;
-  } catch {
-    serviceRoleHasPrivilege = true;
+  } catch (err) {
+    serviceRoleHasPrivilege = false;
+    console.error("  ✖ has_function_privilege query failed:", err.message);
   }
+
+  assert.equal(
+    serviceRoleHasPrivilege,
+    true,
+    "Role 'service_role' must possess EXECUTE privilege on public.fornexa_wms_action(uuid,uuid,text,jsonb,text)"
+  );
 
   receipt.musts.push({
     must: "MUST-EXECUTE",
@@ -740,16 +753,16 @@ export async function runHarness(options = {}) {
     status: "PASS",
     evidence: {
       anon_denied: anonDenied,
-      anon_sqlstate: anonExecErrCode || "42501",
-      anon_error_message: anonExecErrMsg || "permission denied for function fornexa_wms_action",
+      anon_sqlstate: anonExecErrCode,
+      anon_error_message: anonExecErrMsg,
       authenticated_denied: authenticatedDenied,
-      authenticated_sqlstate: authenticatedErrCode || "42501",
-      authenticated_error_message: authenticatedErrMsg || "permission denied for function fornexa_wms_action",
-      service_role_authorized: true,
+      authenticated_sqlstate: authenticatedErrCode,
+      authenticated_error_message: authenticatedErrMsg,
+      service_role_authorized: serviceRoleHasPrivilege === true,
       service_role_has_function_privilege: serviceRoleHasPrivilege,
     },
   });
-  console.log("  ✔ MUST-EXECUTE PASSED: authenticated and anon denied, service_role authorized");
+  console.log("  ✔ MUST-EXECUTE PASSED: authenticated and anon denied, service_role authorized with verified has_function_privilege");
 
   // Helper execution functions
   async function executeAction(action, payload, idem = null, tenant = tenantA, actor = actorA) {

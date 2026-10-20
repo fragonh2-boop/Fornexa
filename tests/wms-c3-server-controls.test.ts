@@ -810,6 +810,57 @@ test("M7 C-3 SHOULD-2 — validateDisposableDatabase rechaza base con tablas sin
   assert.equal(checkIsDirectExecution(undefined, scriptMetaUrl), false, "Undefined debe ser false");
 });
 
+test("M7 C-3 — Arnés aborta fail-closed y rechaza falsos positivos si la sonda has_function_privilege falla (MUST-EXECUTE)", async () => {
+  // Verificamos que si la base de datos lanza un error en has_function_privilege o devuelve false,
+  // runHarness aborta fail-closed y NO marca service_role_authorized = true ni emite PASS.
+  // @ts-expect-error - import dynamic from local .mjs harness script
+  const { runHarness } = await import("../scripts/wms/verify-c3-postgres.mjs");
+  const { PGlite } = await import("@electric-sql/pglite");
+
+  // Caso A: La consulta has_function_privilege lanza un error (simulando firma inexistente o fallo de motor)
+  const memDbA = new PGlite();
+  const dbErroringPrivilege = {
+    query: async (sqlText: string, params: any[]) => {
+      if (typeof sqlText === "string" && sqlText.includes("has_function_privilege")) {
+        throw new Error('function "public.fornexa_wms_action(uuid,uuid,text,jsonb,jsonb)" does not exist');
+      }
+      return memDbA.query(sqlText, params);
+    },
+    exec: (sqlText: string) => memDbA.exec(sqlText),
+  };
+
+  await assert.rejects(
+    async () => {
+      await runHarness({ db: dbErroringPrivilege, clientType: "pglite", skipReceipt: true });
+    },
+    /Role 'service_role' must possess EXECUTE privilege on public\.fornexa_wms_action/,
+    "runHarness DEBE abortar con AssertionError si la consulta has_function_privilege lanza error",
+  );
+  await memDbA.close();
+
+  // Caso B: La consulta has_function_privilege devuelve has_priv = false
+  const memDbB = new PGlite();
+  const dbFalsePrivilege = {
+    query: async (sqlText: string, params: any[]) => {
+      if (typeof sqlText === "string" && sqlText.includes("has_function_privilege")) {
+        return { rows: [{ has_priv: false }] };
+      }
+      return memDbB.query(sqlText, params);
+    },
+    exec: (sqlText: string) => memDbB.exec(sqlText),
+  };
+
+  await assert.rejects(
+    async () => {
+      await runHarness({ db: dbFalsePrivilege, clientType: "pglite", skipReceipt: true });
+    },
+    /Role 'service_role' must possess EXECUTE privilege on public\.fornexa_wms_action/,
+    "runHarness DEBE abortar con AssertionError si service_role carece del privilegio EXECUTE (has_priv = false)",
+  );
+  await memDbB.close();
+});
+
+
 
 
 
