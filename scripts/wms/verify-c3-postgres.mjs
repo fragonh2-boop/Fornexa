@@ -902,12 +902,14 @@ export async function runHarness(options = {}) {
     return { pre_state: pre, post_state: post, result: res };
   });
 
-  // ── CASE 3: LABEL/LOAD with incalculable expected weight fails closed with WMS_WEIGHT_TOLERANCE ──
-  await recordCase(3, "LABEL con esperado incalculable y peso medido falla cerrado WMS_WEIGHT_TOLERANCE", async () => {
+  // ── CASE 3: LABEL/LOAD with incalculable expected weight fails closed with WMS_WEIGHT_TOLERANCE when policy requires measurement ──
+  await recordCase(3, "LABEL con esperado incalculable y peso exigido por política falla cerrado WMS_WEIGHT_TOLERANCE", async () => {
     const huId = "70000000-0000-4000-8000-000000000003";
     await runSql(`
+      insert into warehouse_behavior_policies (tenant_id, scope, warehouse_id, params)
+      values ('${tenantA}', 'WAREHOUSE', '${wh2}', '{"require_weight_measurement": true, "require_state_control_on_load": false}'::jsonb);
       insert into handling_units (id, tenant_id, warehouse_id, code, state, state_controlled_at, state_controlled_by)
-      values ('${huId}', '${tenantA}', '${wh1}', 'HU-003', 'PICKED_STAGED', now(), '${actorA}');
+      values ('${huId}', '${tenantA}', '${wh2}', 'HU-003', 'PICKED_STAGED', now(), '${actorA}');
     `);
     const pre = (await db.query(`select to_jsonb(h.*) as h from handling_units h where id = '${huId}'`)).rows[0].h;
     const err = await expectRpcError("LABEL", { hu_id: huId, measured_weight_kg: 25.0 }, "WMS_WEIGHT_TOLERANCE");

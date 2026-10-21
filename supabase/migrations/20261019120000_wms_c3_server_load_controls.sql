@@ -72,6 +72,14 @@ alter table public.warehouse_tasks
     'PROPOSED','READY','ASSIGNED','IN_PROGRESS','DONE','REJECTED','CANCELLED','FAILED'
   ));
 
+-- MUST-4: Persist source quant identity on tasks to prevent cross-quant mismatch and enable exact reservation release
+alter table public.warehouse_tasks
+  add column if not exists source_quant_id uuid references public.inventory_quants(id) on delete set null;
+
+create index if not exists idx_warehouse_tasks_source_quant
+  on public.warehouse_tasks(tenant_id, source_quant_id)
+  where source_quant_id is not null;
+
 -- ── 2. Automatic Control & Measurement Invalidation Trigger on Mutation ────────────
 create or replace function public.fornexa_wms_invalidate_hu_control()
 returns trigger
@@ -868,22 +876,30 @@ begin
        where tenant_id = p_tenant and id = v_task.id
        returning * into v_task;
 
-      -- MUST-C: Release reserved quantity from source quant upon confirming REPLENISH
-      if v_task.task_type = 'REPLENISH' and v_task.source_bin_id is not null then
-        update public.inventory_quants
-           set quantity_reserved = greatest(0, quantity_reserved - v_task.quantity),
-               updated_at = v_ts
-         where id = (
-           select id from public.inventory_quants
-            where tenant_id = p_tenant
-              and warehouse_id = v_task.warehouse_id
-              and bin_id = v_task.source_bin_id
-              and product_id = v_task.product_id
-              and (v_task.hu_id is null or hu_id = v_task.hu_id)
-              and quantity_reserved > 0
-            order by quantity_reserved desc, updated_at desc
-            limit 1
-         );
+      -- MUST-4 & MUST-C: Release reserved quantity from exact source quant upon confirming REPLENISH
+      if v_task.task_type = 'REPLENISH' then
+        if v_task.source_quant_id is not null then
+          update public.inventory_quants
+             set quantity_reserved = greatest(0, quantity_reserved - v_task.quantity),
+                 updated_at = v_ts
+           where id = v_task.source_quant_id;
+        elsif v_task.source_bin_id is not null then
+          -- Fallback for legacy tasks prior to source_quant_id
+          update public.inventory_quants
+             set quantity_reserved = greatest(0, quantity_reserved - v_task.quantity),
+                 updated_at = v_ts
+           where id = (
+             select id from public.inventory_quants
+              where tenant_id = p_tenant
+                and warehouse_id = v_task.warehouse_id
+                and bin_id = v_task.source_bin_id
+                and product_id = v_task.product_id
+                and (v_task.hu_id is null or hu_id = v_task.hu_id)
+                and quantity_reserved > 0
+              order by quantity_reserved desc, updated_at desc
+              limit 1
+           );
+        end if;
       end if;
 
       insert into public.audit_events (tenant_id, entity_type, entity_id, action, actor_user_id, source_channel, before_data, after_data)
@@ -942,9 +958,8 @@ begin
       order by iq.expiry_date asc nulls last, iq.created_at asc
         for update;
 
-    -- MUST-5 & MUST-C (Aclaración Fran 21-oct): Evaluar saldo disponible sin doble contabilización.
-    -- Se utiliza greatest(iq.quantity_reserved, sum(wt.quantity)) para consolidar la reserva durable
-    -- con cualquier tarea pendiente legacy, evitando comprometer más del disponible real (ej. 100 con 60+40 válidas, 60+60 rechazadas).
+    -- MUST-3 & MUST-C: Evaluate available balance directly against durable reservation:
+    -- (iq.quantity_on_hand - iq.quantity_reserved) >= v_qty without mixing total reservations with task subsets.
     select * into v_quant
       from public.inventory_quants iq
      where iq.tenant_id = p_tenant
@@ -952,19 +967,7 @@ begin
        and iq.product_id = v_product_id
        and iq.flow_state = 'STORED'
        and iq.stock_status = 'AVAILABLE'
-       and (iq.quantity_on_hand - greatest(
-             iq.quantity_reserved,
-             coalesce(
-               (select sum(wt.quantity)
-                  from public.warehouse_tasks wt
-                 where wt.tenant_id = p_tenant
-                   and wt.source_bin_id = iq.bin_id
-                   and wt.product_id = iq.product_id
-                   and wt.task_type = 'REPLENISH'
-                   and wt.state in ('PROPOSED','READY','ASSIGNED','IN_PROGRESS')),
-               0
-             )
-           )) >= v_qty
+       and (iq.quantity_on_hand - iq.quantity_reserved) >= v_qty
      order by iq.expiry_date asc nulls last, iq.created_at asc
      limit 1
      for update;
@@ -1003,12 +1006,13 @@ begin
      where tenant_id = p_tenant and id = v_quant.id
      returning * into v_quant;
 
+    -- MUST-1 & MUST-4: Persist source_quant_id for exact release and v_fingerprint in reject_detail for idempotent replay
     insert into public.warehouse_tasks (
       tenant_id, warehouse_id, task_type, state, source_bin_id, destination_bin_id,
-      hu_id, product_id, quantity, uom, idempotency_key, reject_detail
+      hu_id, product_id, quantity, uom, idempotency_key, reject_detail, source_quant_id
     ) values (
       p_tenant, v_warehouse_id, 'REPLENISH', 'READY', v_quant.bin_id, v_bin_id,
-      v_quant.hu_id, v_product_id, v_qty, v_quant.uom, v_idem, null
+      v_quant.hu_id, v_product_id, v_qty, v_quant.uom, v_idem, v_fingerprint, v_quant.id
     ) returning * into v_task;
 
     insert into public.audit_events (tenant_id, entity_type, entity_id, action, actor_user_id, source_channel, before_data, after_data)
@@ -1074,13 +1078,14 @@ begin
              updated_at = v_ts
        where tenant_id = p_tenant and hu_id = v_hu.id;
 
+      -- MUST-1: reject_detail stores v_fingerprint for server-enforced idempotent replay verification
       insert into public.warehouse_tasks (
         tenant_id, warehouse_id, task_type, state, hu_id, idempotency_key,
         reject_code, reject_detail, started_at, completed_at
       ) values (
         p_tenant, v_hu.warehouse_id, 'CONTROL_STATE', 'FAILED', v_hu.id, v_idem,
         coalesce(nullif(p_payload->>'reject_code', ''), 'PHYSICAL_CHECK_FAILED'),
-        coalesce(nullif(p_payload->>'reject_detail', ''), 'Physical state inspection rejected'),
+        v_fingerprint,
         v_ts, v_ts
       ) returning * into v_task;
 
@@ -1097,13 +1102,13 @@ begin
        where tenant_id = p_tenant and id = v_hu.id
        returning * into v_hu;
 
-      -- SHOULD-4: reject_detail must be NULL on PASSED tasks to avoid domain field pollution
+      -- MUST-1: reject_detail stores v_fingerprint for server-enforced idempotent replay verification
       insert into public.warehouse_tasks (
         tenant_id, warehouse_id, task_type, state, hu_id, idempotency_key,
         reject_detail, started_at, completed_at
       ) values (
         p_tenant, v_hu.warehouse_id, 'CONTROL_STATE', 'DONE', v_hu.id, v_idem,
-        null, v_ts, v_ts
+        v_fingerprint, v_ts, v_ts
       ) returning * into v_task;
 
       insert into public.audit_events (tenant_id, entity_type, entity_id, action, actor_user_id, source_channel, before_data, after_data)
@@ -1149,10 +1154,9 @@ begin
       join public.products p on p.id = huc.product_id and p.tenant_id = p_tenant
      where huc.tenant_id = p_tenant and huc.handling_unit_id = v_hu.id;
 
-    -- MUST-B: Expected weight & volume derive strictly from contents.
-    -- No fallback to v_hu.gross_weight_kg or v_hu.volume_m3 to prevent circular self-confirmation (fail-closed).
-    v_expected_weight := case when v_computed_weight > 0 then v_computed_weight else null end;
-    v_expected_volume := case when v_computed_volume > 0 then v_computed_volume else null end;
+    -- MUST-2: Expected weight & volume derive from contents/products with fallback to nominal handling unit data (partida/SGA).
+    v_expected_weight := coalesce(nullif(v_computed_weight, 0), v_hu.gross_weight_kg);
+    v_expected_volume := coalesce(nullif(v_computed_volume, 0), v_hu.volume_m3);
 
     v_measured_weight := nullif(p_payload->>'measured_weight_kg', '')::numeric(10,3);
     v_measured_volume := nullif(p_payload->>'measured_volume_m3', '')::numeric(10,4);
@@ -1178,10 +1182,12 @@ begin
         raise exception 'WMS_WEIGHT_TOLERANCE';
       end if;
     elsif v_measured_weight is not null then
-      if v_expected_weight is null or v_expected_weight <= 0 then
-        raise exception 'WMS_WEIGHT_TOLERANCE';
-      elsif abs(v_measured_weight - v_expected_weight) / v_expected_weight * 100.0 > v_weight_tol then
-        raise exception 'WMS_WEIGHT_TOLERANCE';
+      -- MUST-2: Medición voluntaria cuando require_weight_measurement = false.
+      -- Si se dispone de valor esperado, se valida tolerancia; si no hay valor esperado, no se penaliza al operario.
+      if v_expected_weight is not null and v_expected_weight > 0 then
+        if abs(v_measured_weight - v_expected_weight) / v_expected_weight * 100.0 > v_weight_tol then
+          raise exception 'WMS_WEIGHT_TOLERANCE';
+        end if;
       end if;
     end if;
 
@@ -1199,10 +1205,12 @@ begin
         raise exception 'WMS_VOLUME_TOLERANCE';
       end if;
     elsif v_measured_volume is not null then
-      if v_expected_volume is null or v_expected_volume <= 0 then
-        raise exception 'WMS_VOLUME_TOLERANCE';
-      elsif abs(v_measured_volume - v_expected_volume) / v_expected_volume * 100.0 > v_vol_tol then
-        raise exception 'WMS_VOLUME_TOLERANCE';
+      -- MUST-2: Medición voluntaria cuando require_volume_measurement = false.
+      -- Si se dispone de valor esperado, se valida tolerancia; si no hay valor esperado, no se penaliza al operario.
+      if v_expected_volume is not null and v_expected_volume > 0 then
+        if abs(v_measured_volume - v_expected_volume) / v_expected_volume * 100.0 > v_vol_tol then
+          raise exception 'WMS_VOLUME_TOLERANCE';
+        end if;
       end if;
     end if;
 
@@ -1281,10 +1289,9 @@ begin
       join public.products p on p.id = huc.product_id and p.tenant_id = p_tenant
      where huc.tenant_id = p_tenant and huc.handling_unit_id = v_hu.id;
 
-    -- MUST-B: Expected weight & volume derive strictly from contents.
-    -- No fallback to v_hu.gross_weight_kg or v_hu.volume_m3 to prevent circular self-confirmation (fail-closed).
-    v_expected_weight := case when v_computed_weight > 0 then v_computed_weight else null end;
-    v_expected_volume := case when v_computed_volume > 0 then v_computed_volume else null end;
+    -- MUST-2: Expected weight & volume derive from contents/products with fallback to nominal handling unit data (partida/SGA).
+    v_expected_weight := coalesce(nullif(v_computed_weight, 0), v_hu.gross_weight_kg);
+    v_expected_volume := coalesce(nullif(v_computed_volume, 0), v_hu.volume_m3);
 
     v_measured_weight := nullif(p_payload->>'measured_weight_kg', '')::numeric(10,3);
     v_measured_volume := nullif(p_payload->>'measured_volume_m3', '')::numeric(10,4);
@@ -1310,10 +1317,12 @@ begin
         raise exception 'WMS_WEIGHT_TOLERANCE';
       end if;
     elsif v_measured_weight is not null then
-      if v_expected_weight is null or v_expected_weight <= 0 then
-        raise exception 'WMS_WEIGHT_TOLERANCE';
-      elsif abs(v_measured_weight - v_expected_weight) / v_expected_weight * 100.0 > v_weight_tol then
-        raise exception 'WMS_WEIGHT_TOLERANCE';
+      -- MUST-2: Medición voluntaria cuando require_weight_measurement = false.
+      -- Si se dispone de valor esperado, se valida tolerancia; si no hay valor esperado, no se penaliza al operario.
+      if v_expected_weight is not null and v_expected_weight > 0 then
+        if abs(v_measured_weight - v_expected_weight) / v_expected_weight * 100.0 > v_weight_tol then
+          raise exception 'WMS_WEIGHT_TOLERANCE';
+        end if;
       end if;
     end if;
 
@@ -1331,10 +1340,12 @@ begin
         raise exception 'WMS_VOLUME_TOLERANCE';
       end if;
     elsif v_measured_volume is not null then
-      if v_expected_volume is null or v_expected_volume <= 0 then
-        raise exception 'WMS_VOLUME_TOLERANCE';
-      elsif abs(v_measured_volume - v_expected_volume) / v_expected_volume * 100.0 > v_vol_tol then
-        raise exception 'WMS_VOLUME_TOLERANCE';
+      -- MUST-2: Medición voluntaria cuando require_volume_measurement = false.
+      -- Si se dispone de valor esperado, se valida tolerancia; si no hay valor esperado, no se penaliza al operario.
+      if v_expected_volume is not null and v_expected_volume > 0 then
+        if abs(v_measured_volume - v_expected_volume) / v_expected_volume * 100.0 > v_vol_tol then
+          raise exception 'WMS_VOLUME_TOLERANCE';
+        end if;
       end if;
     end if;
 
@@ -1495,6 +1506,42 @@ update public.warehouse_behavior_policies
  where params is not null
    and superseded_at is null
    and (params->>'require_state_control_on_load' is null or params->>'require_state_control_on_load' = '');
+
+-- MUST-3 & MUST-4: Backfill quantity_reserved and source_quant_id for any pre-existing active REPLENISH tasks
+with legacy_replenish as (
+  select wt.tenant_id, wt.warehouse_id, wt.source_bin_id, wt.product_id, wt.hu_id, sum(wt.quantity) as total_qty
+    from public.warehouse_tasks wt
+   where wt.task_type = 'REPLENISH'
+     and wt.state in ('PROPOSED','READY','ASSIGNED','IN_PROGRESS')
+     and wt.source_bin_id is not null
+   group by wt.tenant_id, wt.warehouse_id, wt.source_bin_id, wt.product_id, wt.hu_id
+)
+update public.inventory_quants iq
+   set quantity_reserved = iq.quantity_reserved + lr.total_qty,
+       updated_at = now()
+  from legacy_replenish lr
+ where iq.tenant_id = lr.tenant_id
+   and iq.warehouse_id = lr.warehouse_id
+   and iq.bin_id = lr.source_bin_id
+   and iq.product_id = lr.product_id
+   and (lr.hu_id is null or iq.hu_id = lr.hu_id);
+
+update public.warehouse_tasks wt
+   set source_quant_id = (
+     select iq.id
+       from public.inventory_quants iq
+      where iq.tenant_id = wt.tenant_id
+        and iq.warehouse_id = wt.warehouse_id
+        and iq.bin_id = wt.source_bin_id
+        and iq.product_id = wt.product_id
+        and (wt.hu_id is null or iq.hu_id = wt.hu_id)
+      order by iq.quantity_reserved desc, iq.updated_at desc
+      limit 1
+   )
+ where wt.task_type = 'REPLENISH'
+   and wt.source_quant_id is null
+   and wt.source_bin_id is not null
+   and wt.state in ('PROPOSED','READY','ASSIGNED','IN_PROGRESS');
 
 -- Privilegios de funciones de servidor C-3 (SHOULD revokes y grants a service_role)
 revoke all on function public.fornexa_wms_invalidate_hu_control() from public, anon, authenticated;

@@ -1030,8 +1030,8 @@ test("M7 C-3 — Auditoría estática y anclaje sintáctico de cláusulas DDL (U
     "CONTROL_STATE debe registrar v_before en audit_events",
   );
 
-  // MUST-5: Serialización de bin destino y prevención de doble consumo en REPLENISH
-  const replenishBlockMatch = migrationSql.match(/elsif\s+p_action\s+in\s*\(\s*'REPLENISH'[\s\S]*?\)\s+then([\s\S]*?)elsif/i);
+  // MUST-5 & MUST-3: Serialización de bin destino y evaluación de disponible duradero en REPLENISH
+  const replenishBlockMatch = migrationSql.match(/elsif\s+p_action\s+in\s*\(\s*'REPLENISH'[\s\S]*?\)\s+then([\s\S]*?)elsif\s+p_action\s*=\s*'CONTROL_STATE'/i);
   assert.ok(replenishBlockMatch, "Debe existir el bloque REPLENISH");
   const replenishBlock = replenishBlockMatch[1];
   assert.ok(
@@ -1043,8 +1043,8 @@ test("M7 C-3 — Auditoría estática y anclaje sintáctico de cláusulas DDL (U
     "REPLENISH debe rechazar tareas pendientes en destino con WMS_REPLENISHMENT_PENDING",
   );
   assert.ok(
-    /wt\.source_bin_id\s*=\s*iq\.bin_id/i.test(replenishBlock),
-    "REPLENISH debe deducir tareas pendientes de reposición del saldo disponible origen",
+    /\(iq\.quantity_on_hand\s*-\s*iq\.quantity_reserved\)\s*>=\s*v_qty/i.test(replenishBlock),
+    "REPLENISH debe evaluar saldo disponible sin mezclar reservas totales con tareas pendientes (MUST-3)",
   );
 
   // MUST-6: Cabecera y script de rollback documentan apagado fail-closed (WMS_ROLLBACK_ACTIVE)
@@ -1080,24 +1080,28 @@ test("M7 C-3 — Auditoría estática y anclaje sintáctico de cláusulas DDL (U
   );
 });
 
-test("M7 C-3 — Subsanaciones Claude SQL (MUST-A, MUST-B, MUST-C, MUST-D)", () => {
+test("M7 C-3 — Subsanaciones Claude SQL (MUST-1, MUST-2, MUST-3, MUST-4)", () => {
   // MUST-A: Backfill acotado estrictamente a políticas activas (superseded_at is null)
   assert.ok(
     /update\s+public\.warehouse_behavior_policies[\s\S]*?superseded_at\s+is\s+null/i.test(migrationSql),
     "El backfill debe acotarse estrictamente con superseded_at is null",
   );
 
-  // MUST-B: Peso y volumen esperado sin fallback a gross_weight_kg (prevención de autoconfirmación fail-open)
+  // MUST-2: Inversión del fallback: peso y volumen esperado legítimo de partida/SGA (v_hu.gross_weight_kg / volume_m3)
   assert.ok(
-    migrationSql.includes("v_expected_weight := case when v_computed_weight > 0 then v_computed_weight else null end;"),
-    "v_expected_weight debe calcularse estrictamente desde contenidos sin fallback a v_hu.gross_weight_kg",
+    migrationSql.includes("v_expected_weight := coalesce(nullif(v_computed_weight, 0), v_hu.gross_weight_kg);"),
+    "v_expected_weight debe calcularse desde contenidos con fallback a dato legítimo v_hu.gross_weight_kg",
   );
   assert.ok(
-    migrationSql.includes("v_expected_volume := case when v_computed_volume > 0 then v_computed_volume else null end;"),
-    "v_expected_volume debe calcularse estrictamente desde contenidos sin fallback a v_hu.volume_m3",
+    migrationSql.includes("v_expected_volume := coalesce(nullif(v_computed_volume, 0), v_hu.volume_m3);"),
+    "v_expected_volume debe calcularse desde contenidos con fallback a dato legítimo v_hu.volume_m3",
+  );
+  assert.ok(
+    migrationSql.includes("if v_expected_weight is not null and v_expected_weight > 0 then"),
+    "Medición voluntaria de peso no debe abortar si el valor esperado es nulo",
   );
 
-  // MUST-C: Serialización origen y reserva persistente en REPLENISH
+  // MUST-3 & MUST-C: Disponibilidad sin greatest y reserva duradera en REPLENISH
   const replenishBlockMatch = migrationSql.match(/elsif\s+p_action\s+in\s*\(\s*'REPLENISH'[\s\S]*?\)\s+then([\s\S]*?)elsif\s+p_action\s*=\s*'CONTROL_STATE'/i);
   assert.ok(replenishBlockMatch, "Debe existir el bloque REPLENISH");
   const replenishBlock = replenishBlockMatch[1];
@@ -1106,12 +1110,22 @@ test("M7 C-3 — Subsanaciones Claude SQL (MUST-A, MUST-B, MUST-C, MUST-D)", () 
     "REPLENISH debe bloquear quants origen con FOR UPDATE",
   );
   assert.ok(
+    /\(iq\.quantity_on_hand\s*-\s*iq\.quantity_reserved\)\s*>=\s*v_qty/i.test(replenishBlock),
+    "REPLENISH debe evaluar disponible con (quantity_on_hand - quantity_reserved) >= v_qty directamente sin mezclar con subconjunto de tareas",
+  );
+  assert.ok(
     /update\s+public\.inventory_quants\s+set\s+quantity_reserved\s*=\s*quantity_reserved\s*\+\s*v_qty/i.test(replenishBlock),
     "REPLENISH debe incrementar quantity_reserved de forma duradera en el quant origen",
   );
+
+  // MUST-4: Identidad durable de reservas en warehouse_tasks y liberación exacta
   assert.ok(
-    /quantity_reserved\s*=\s*greatest\(0,\s*quantity_reserved\s*-\s*v_task\.quantity\)/i.test(replenishBlock),
-    "CONFIRM_TASK debe liberar quantity_reserved del quant origen",
+    /source_quant_id\s+uuid\s+references\s+public\.inventory_quants\(id\)/i.test(migrationSql),
+    "warehouse_tasks debe incluir columna source_quant_id",
+  );
+  assert.ok(
+    /v_task\.source_quant_id\s+is\s+not\s+null/i.test(replenishBlock),
+    "CONFIRM_TASK debe liberar quantity_reserved usando source_quant_id exacto",
   );
 
   // MUST-D: Validación explícita de warehouse perteneciente al tenant en UPSERT_POLICY y UPSERT_RESOURCE
@@ -1120,13 +1134,21 @@ test("M7 C-3 — Subsanaciones Claude SQL (MUST-A, MUST-B, MUST-C, MUST-D)", () 
     "UPSERT_POLICY y UPSERT_RESOURCE deben validar que warehouse_id pertenezca a p_tenant",
   );
 
-  // SHOULD-4: reject_detail = null en CONTROL_STATE PASSED
+  // MUST-1: Reversión de SHOULD-4: reject_detail almacena v_fingerprint para garantizar replay idempotente
   const controlStateBlockMatch = migrationSql.match(/elsif\s+p_action\s*=\s*'CONTROL_STATE'\s+then([\s\S]*?)elsif\s+p_action\s*=\s*'LABEL'/i);
   assert.ok(controlStateBlockMatch, "Debe existir bloque CONTROL_STATE");
   const csBlock = controlStateBlockMatch[1];
   assert.ok(
-    /v_control_status\s*=\s*'PASSED'[\s\S]*?insert\s+into\s+public\.warehouse_tasks[\s\S]*?null,\s*v_ts,\s*v_ts/i.test(csBlock),
-    "CONTROL_STATE PASSED debe fijar reject_detail a null para no contaminar campos de dominio",
+    /v_control_status\s*=\s*'PASSED'[\s\S]*?insert\s+into\s+public\.warehouse_tasks[\s\S]*?v_fingerprint,\s*v_ts,\s*v_ts/i.test(csBlock),
+    "CONTROL_STATE PASSED debe fijar reject_detail a v_fingerprint para replay idempotente de servidor",
+  );
+  assert.ok(
+    /v_control_status\s*=\s*'REJECTED'[\s\S]*?insert\s+into\s+public\.warehouse_tasks[\s\S]*?v_fingerprint,\s*v_ts,\s*v_ts/i.test(csBlock),
+    "CONTROL_STATE REJECTED debe fijar reject_detail a v_fingerprint para replay idempotente de servidor",
+  );
+  assert.ok(
+    /p_action\s+in\s*\(\s*'REPLENISH'[\s\S]*?insert\s+into\s+public\.warehouse_tasks[\s\S]*?v_fingerprint,\s*v_quant\.id/i.test(migrationSql),
+    "REPLENISH debe fijar reject_detail a v_fingerprint y source_quant_id a v_quant.id",
   );
 });
 

@@ -34,8 +34,8 @@ import assert from "node:assert/strict";
 
 const require = createRequire(import.meta.url);
 
-export const PINNED_C3_SQL_SHA256 = "f3d944d7620fc4fb53c9b6f8baf470c2645886d926424e43c2393fdcad6d3a3b";
-export const PINNED_C3_SQL_BYTES = 69678;
+export const PINNED_C3_SQL_SHA256 = "96f78651fa782c44eff96b77980e0abc188ecad1ebfab15324e4f6b14db4feef";
+export const PINNED_C3_SQL_BYTES = 72081;
 export const MIGRATION_VERSION = "20261019120000";
 export const MIGRATION_NAME = "20261019120000_wms_c3_server_load_controls.sql";
 
