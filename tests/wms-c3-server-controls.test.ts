@@ -1131,6 +1131,7 @@ test("M7 C-3 — Subsanaciones Claude SQL (MUST-A, MUST-B, MUST-C, MUST-D)", () 
 });
 
 test("M7 C-3 — Runner Transaccional: Validación de Destinos (MUST-1 Gate Fail-Closed)", async () => {
+  // @ts-expect-error - import dynamic from local .mjs runner script
   const { validateDestination } = await import("../scripts/wms/run-c3-migration.mjs");
 
   // 1. Rechazo inmediato de hosts en denylist de producción
@@ -1167,6 +1168,7 @@ test("M7 C-3 — Runner Transaccional: Delimitadores, Guard de Importación y Ha
     isDirectCliExecution,
     PINNED_C3_SQL_SHA256,
     PINNED_C3_SQL_BYTES,
+    // @ts-expect-error - import dynamic from local .mjs runner script
   } = await import("../scripts/wms/run-c3-migration.mjs");
 
   // 1. Hash pinning coincide con el archivo en disco
@@ -1199,6 +1201,7 @@ COMMIT;
 });
 
 test("M7 C-3 — Runner Transaccional: Ejecución Rehearsal PGlite y Post-condiciones Atómicas", async () => {
+  // @ts-expect-error - import dynamic from local .mjs runner script
   const { runC3Migration } = await import("../scripts/wms/run-c3-migration.mjs");
   const receipt = await runC3Migration({ usePgLite: true, dryRun: true });
 
