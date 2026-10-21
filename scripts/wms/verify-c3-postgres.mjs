@@ -915,6 +915,10 @@ export async function runHarness(options = {}) {
 
     const audit = (await db.query(`select * from audit_events where entity_id = '${huId}' and action = 'CONTROL_STATE'`)).rows;
     assert.equal(audit.length, 1);
+    assert.ok(audit[0].before_data, "before_data debe capturar preimagen en CONTROL_STATE (MUST-4)");
+    assert.equal(audit[0].before_data.id, huId);
+    assert.equal(audit[0].before_data.state_controlled_at, null);
+    assert.ok(audit[0].after_data.state_controlled_at);
     return { pre_state: pre, post_state: post, audit_count: audit.length };
   });
 
@@ -960,6 +964,13 @@ export async function runHarness(options = {}) {
     assert.equal(postHu.state_controlled_at, null);
     assert.equal(postQuant.flow_state, "QUARANTINE");
     assert.equal(postQuant.stock_status, "QUARANTINE");
+
+    const auditRej = (await db.query(`select * from audit_events where entity_id = '${huId}' and action = 'CONTROL_STATE_REJECTED'`)).rows;
+    assert.equal(auditRej.length, 1);
+    assert.ok(auditRej[0].before_data, "before_data debe capturar preimagen en CONTROL_STATE_REJECTED (MUST-4)");
+    assert.equal(auditRej[0].before_data.id, huId);
+    assert.equal(auditRej[0].before_data.state, "PICKED_STAGED");
+    assert.equal(auditRej[0].after_data.state, "QUARANTINE");
     return { pre_hu: preHu, pre_quant: preQuant, post_hu: postHu, post_quant: postQuant, result: res };
   });
 
@@ -1082,8 +1093,8 @@ export async function runHarness(options = {}) {
     return { pre_state: pre, post_state: post };
   });
 
-  // ── CASE 12: REPLENISH with injected consolidation in payload uses policy instead ──
-  await recordCase(12, "REPLENISH ignora consolidation inyectada en payload y usa política", async () => {
+  // ── CASE 12: REPLENISH ignora consolidation en payload, serializa destino y previene doble consumo ──
+  await recordCase(12, "REPLENISH ignora consolidation inyectada en payload, serializa destino y previene doble consumo", async () => {
     const qId = "80000000-0000-4000-8000-000000000001";
     await runSql(`
       insert into inventory_quants (id, tenant_id, warehouse_id, bin_id, product_id, quantity_on_hand, quantity_reserved, stock_status, flow_state)
@@ -1098,7 +1109,42 @@ export async function runHarness(options = {}) {
       consolidation: "NO",
     }, "idem-rep-case-12");
     assert.equal(res.ok, true);
-    return { result: res };
+
+    // MUST-5: Segundo intento sobre el mismo destino falla cerrado con WMS_REPLENISHMENT_PENDING
+    const errPending = await expectRpcError("REPLENISH", {
+      warehouse_id: wh1,
+      product_id: prod1,
+      destination_bin_id: binStage,
+      quantity: 5,
+    }, "WMS_REPLENISHMENT_PENDING");
+    assert.equal(errPending.error, "WMS_REPLENISHMENT_PENDING");
+
+    // MUST-5: Intento de reposición que excede el saldo no comprometido falla con WMS_NO_SOURCE_STOCK
+    const customBinDest = "20000000-0000-4000-8000-000000000099";
+    await runSql(`
+      insert into warehouse_bins (id, tenant_id, warehouse_id, zone_id, bin_code, bin_type)
+      values ('${customBinDest}', '${tenantA}', '${wh1}', '${zone1}', 'STAGE-99', 'DOCK_STAGE');
+    `);
+    const errExceed = await expectRpcError("REPLENISH", {
+      warehouse_id: wh1,
+      product_id: prod1,
+      destination_bin_id: customBinDest,
+      quantity: 95, // 100 - 10 pendiente = 90 disponible, 95 excede
+    }, "WMS_NO_SOURCE_STOCK");
+    assert.equal(errExceed.error, "WMS_NO_SOURCE_STOCK");
+
+    // MUST-1: Verificación de UPSERT_RESOURCE preservada de E1
+    const resResource = await executeAction("UPSERT_RESOURCE", {
+      warehouse_id: wh1,
+      code: "FORK-TEST-01",
+      name: "Test Forklift",
+      resource_type: "FORKLIFT",
+    });
+    assert.equal(resResource.ok, true);
+    assert.equal(resResource.action, "UPSERT_RESOURCE");
+    assert.equal(resResource.resource.code, "FORK-TEST-01");
+
+    return { result: res, pending_error: errPending.error, exceed_error: errExceed.error, resource: resResource.resource.code };
   });
 
   // ── CASE 13: Policy with require_state_control_on_load = false permits LOAD without control ──

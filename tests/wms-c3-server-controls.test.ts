@@ -860,6 +860,78 @@ test("M7 C-3 — Arnés aborta fail-closed y rechaza falsos positivos si la sond
   await memDbB.close();
 });
 
+test("M7 C-3 — Subsanaciones de revisión independiente Grok (6 MUSTs y revocación de privilegios)", () => {
+  // MUST-1: UPSERT_RESOURCE preservado de E1 en fornexa_wms_action para OWNER/ADMIN/PLANNER
+  assert.ok(
+    migrationSql.includes("elsif p_action = 'UPSERT_RESOURCE' then"),
+    "fornexa_wms_action debe soportar UPSERT_RESOURCE (MUST-1)",
+  );
+  assert.ok(
+    migrationSql.includes("v_role not in ('OWNER','ADMIN','PLANNER')"),
+    "UPSERT_RESOURCE debe restringirse estrictamente a OWNER, ADMIN y PLANNER (MUST-1)",
+  );
+  assert.ok(
+    migrationSql.includes("insert into public.warehouse_resources"),
+    "UPSERT_RESOURCE debe insertar en warehouse_resources (MUST-1)",
+  );
+
+  // MUST-2: Envoltura atómica BEGIN ... COMMIT
+  assert.ok(
+    /^\s*begin;/m.test(migrationSql),
+    "La migración debe comenzar con BEGIN (MUST-2)",
+  );
+  assert.ok(
+    /commit;\s*$/m.test(migrationSql),
+    "La migración debe finalizar con COMMIT (MUST-2)",
+  );
+
+  // MUST-3: Contrato de backfill sin sobreescribir false y actualizando updated_at
+  assert.ok(
+    migrationSql.includes("params->>'require_state_control_on_load' is null or params->>'require_state_control_on_load' = ''"),
+    "El backfill de políticas debe aplicar solo cuando la clave esté indefinida o vacía (MUST-3)",
+  );
+  assert.ok(
+    migrationSql.includes("updated_at = now()"),
+    "El backfill de políticas debe actualizar updated_at (MUST-3)",
+  );
+
+  // MUST-4: Preimagen real en auditoría de CONTROL_STATE
+  assert.ok(
+    migrationSql.includes("v_before := to_jsonb(v_hu);"),
+    "CONTROL_STATE debe capturar v_before := to_jsonb(v_hu) antes de cualquier mutación (MUST-4)",
+  );
+
+  // MUST-5: Serialización de bin destino y prevención de doble consumo en REPLENISH
+  assert.ok(
+    migrationSql.includes("from public.warehouse_bins wb") && migrationSql.includes("for update"),
+    "REPLENISH debe bloquear y validar el bin destino con FOR UPDATE (MUST-5)",
+  );
+  assert.ok(
+    migrationSql.includes("raise exception 'WMS_REPLENISHMENT_PENDING'"),
+    "REPLENISH debe rechazar tareas pendientes en destino con WMS_REPLENISHMENT_PENDING (MUST-5)",
+  );
+  assert.ok(
+    migrationSql.includes("wt.source_bin_id = iq.bin_id"),
+    "REPLENISH debe deducir tareas pendientes de reposición del saldo disponible origen (MUST-5)",
+  );
+
+  // MUST-6: Cabecera y script de rollback documentan apagado fail-closed (WMS_ROLLBACK_ACTIVE)
+  assert.ok(
+    migrationSql.includes("Nivel 2 (Rollback de RPC Protegido - Apagado Fail-Closed sin Reabrir Bypass E1)"),
+    "La cabecera de la migración debe declarar apagado fail-closed en Nivel 2 (MUST-6)",
+  );
+
+  // SHOULD: Revocación de privilegios en funciones auxiliares
+  assert.ok(
+    migrationSql.includes("revoke all on function public.fornexa_wms_invalidate_hu_control() from public, anon, authenticated"),
+    "Se deben revocar privilegios públicos de fornexa_wms_invalidate_hu_control (SHOULD)",
+  );
+  assert.ok(
+    migrationSql.includes("revoke all on function public.fornexa_wms_policy_bool(jsonb, text, boolean) from public, anon, authenticated"),
+    "Se deben revocar privilegios públicos de fornexa_wms_policy_bool (SHOULD)",
+  );
+});
+
 
 
 

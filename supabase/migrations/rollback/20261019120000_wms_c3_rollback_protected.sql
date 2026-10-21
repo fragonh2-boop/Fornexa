@@ -8,6 +8,8 @@
 -- without relaxing global security policies or dropping invalidation triggers.
 -- ============================================================================
 
+begin;
+
 -- 1. Protected definition of fornexa_wms_action (C-3 Rollback)
 -- Note: CONTROL_STATE is deactivated (WMS_FORBIDDEN). All other actions deliberately
 -- raise WMS_ROLLBACK_ACTIVE (fail-closed shutdown) to prevent unvalidated operations
@@ -57,3 +59,8 @@ begin
   raise exception 'WMS_ROLLBACK_ACTIVE';
 end;
 $$;
+
+revoke all on function public.fornexa_wms_action(uuid, uuid, text, jsonb, text) from public, anon, authenticated;
+grant execute on function public.fornexa_wms_action(uuid, uuid, text, jsonb, text) to service_role;
+
+commit;

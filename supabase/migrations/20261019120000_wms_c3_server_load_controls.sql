@@ -10,14 +10,15 @@
 --    UPDATE public.warehouse_behavior_policies
 --       SET params = jsonb_set(jsonb_set(params, '{require_state_control_on_load}', 'false'::jsonb), '{require_weight_measurement}', 'false'::jsonb),
 --           updated_at = now();
--- 2. Nivel 2 (Rollback de RPC Protegido - Sin Reabrir Bypass E1):
+-- 2. Nivel 2 (Rollback de RPC Protegido - Apagado Fail-Closed sin Reabrir Bypass E1):
 --    Aplicar supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql.
 --    CONDICIÓN VINCULANTE (SHOULD-I): Solo válido si no hay migraciones posteriores a
 --    20261019120000_wms_c3_server_load_controls.sql que modifiquen fornexa_wms_action.
---    Dicha definición preserva el cómputo seguro de peso/volumen esperado en servidor y la
---    consolidación exclusiva por política, sin aceptar parámetros manipulados del payload.
---    Las columnas state_controlled_at/by y measured_at/by se conservan nulables para preservar
---    el histórico y evitar contención o pérdida de datos.
+--    Dicha definición ejecuta un apagado preventivo deliberado fail-closed (CONTROL_STATE -> WMS_FORBIDDEN,
+--    demás acciones -> WMS_ROLLBACK_ACTIVE), impidiendo cualquier bypass operacional sin relajar
+--    políticas ni reabrir el bypass de cliente legado de E1.
+--    Las columnas state_controlled_at/by y measured_at/by y sus índices se conservan intactos
+--    para preservar el histórico de auditoría sin contención ni pérdida de datos.
 -- 3. Note on inventory state integrity:
 --    handling_units.state values 'QUARANTINE' and 'DAMAGED' and inventory_quants.stock_status
 --    values 'QUARANTINE' and 'DAMAGED' are already defined in the core E1 domain
@@ -33,10 +34,14 @@
 --    b) Para almacenes con stock legado en tránsito, fijar explícitamente require_state_control_on_load = false
 --       en la política de almacén correspondiente antes de la carga.
 -- 5. NOTA DE ORDEN DE EJECUCIÓN Y ATOMICIDAD (MUST-1):
+--    Toda la migración está envuelta en un bloque transaccional atómico único (BEGIN ... COMMIT).
 --    El backfill de require_state_control_on_load se ubica al final de la migración (sección 4),
---    tras definir fornexa_wms_action con soporte de CONTROL_STATE, y debe ejecutarse en un único
---    bloque transaccional atómico (BEGIN ... COMMIT).
+--    tras definir fornexa_wms_action con soporte de CONTROL_STATE y controles de servidor.
+--    Aplica exclusivamente a políticas donde require_state_control_on_load esté indefinido (NULL o vacío),
+--    sin sobreescribir políticas donde se haya configurado explícitamente false de forma legítima.
 -- ============================================================================
+
+begin;
 
 -- ── 1. Schema Alterations: Add State Control & Measurement Columns to Handling Units ────────
 alter table public.handling_units
@@ -167,6 +172,7 @@ create or replace function public.fornexa_wms_policy_bool(
 ) returns boolean
 language plpgsql
 immutable
+set search_path = ''
 as $$
 declare
   v_raw text;
@@ -868,11 +874,43 @@ begin
     v_product_id := (p_payload->>'product_id')::uuid;
     v_bin_id := (p_payload->>'destination_bin_id')::uuid;
     v_qty := coalesce(nullif(p_payload->>'quantity', '')::numeric(12,3), 1);
+
+    -- MUST-5: Lock and validate destination bin to serialize concurrent replenishment planning
+    select * into v_bin
+      from public.warehouse_bins wb
+     where wb.tenant_id = p_tenant
+       and wb.warehouse_id = v_warehouse_id
+       and wb.id = v_bin_id
+       for update;
+    if not found then
+      raise exception 'WMS_FORBIDDEN';
+    end if;
+
+    -- MUST-5: Reject if a replenishment task is already pending for this destination bin
+    if exists (
+      select 1 from public.warehouse_tasks wt
+       where wt.tenant_id = p_tenant
+         and wt.destination_bin_id = v_bin_id
+         and wt.product_id = v_product_id
+         and wt.task_type = 'REPLENISH'
+         and wt.state in ('PROPOSED','READY','ASSIGNED','IN_PROGRESS')
+    ) then
+      raise exception 'WMS_REPLENISHMENT_PENDING';
+    end if;
+
+    -- MUST-5: Lock quants in destination bin to serialize consolidation evaluation
+    perform 1
+       from public.inventory_quants iq
+      where iq.tenant_id = p_tenant
+        and iq.bin_id = v_bin_id
+        for update;
+
     v_policy := public.fornexa_wms_effective_policy(p_tenant, v_warehouse_id, null, v_product_id);
 
     -- C-3 Policy derivation: consolidation behavior is derived strictly from server policy
     v_consolidation := coalesce(v_policy->>'consolidation', 'YES');
 
+    -- MUST-5: Select source quant, deducting any pending replenishment tasks from the same source bin to prevent double consumption
     select * into v_quant
       from public.inventory_quants iq
      where iq.tenant_id = p_tenant
@@ -880,7 +918,16 @@ begin
        and iq.product_id = v_product_id
        and iq.flow_state = 'STORED'
        and iq.stock_status = 'AVAILABLE'
-       and (iq.quantity_on_hand - iq.quantity_reserved) >= v_qty
+       and (iq.quantity_on_hand - iq.quantity_reserved - coalesce(
+             (select sum(wt.quantity)
+                from public.warehouse_tasks wt
+               where wt.tenant_id = p_tenant
+                 and wt.source_bin_id = iq.bin_id
+                 and wt.product_id = iq.product_id
+                 and wt.task_type = 'REPLENISH'
+                 and wt.state in ('PROPOSED','READY','ASSIGNED','IN_PROGRESS')),
+             0
+           )) >= v_qty
      order by iq.expiry_date asc nulls last, iq.created_at asc
      limit 1
      for update;
@@ -935,6 +982,9 @@ begin
     if not found then
       raise exception 'WMS_FORBIDDEN';
     end if;
+
+    -- MUST-4: Capture true pre-image before state mutation for exhaustive audit tracking
+    v_before := to_jsonb(v_hu);
 
     if (p_payload ? 'warehouse_id') and nullif(p_payload->>'warehouse_id', '') is not null
        and (p_payload->>'warehouse_id')::uuid <> v_hu.warehouse_id then
@@ -1319,6 +1369,45 @@ begin
 
     return jsonb_build_object('ok', true, 'action', 'UPSERT_POLICY', 'policy', v_after);
 
+  -- ── ACTION: UPSERT_RESOURCE (Preservada de E1 sin bypass) ──────────────────
+  elsif p_action = 'UPSERT_RESOURCE' then
+    if v_role not in ('OWNER','ADMIN','PLANNER') then
+      raise exception 'WMS_FORBIDDEN';
+    end if;
+    v_warehouse_id := (p_payload->>'warehouse_id')::uuid;
+    insert into public.warehouse_resources (
+      tenant_id, warehouse_id, code, name, resource_type, status,
+      max_lift_height_m, max_weight_kg, certifications, shift_code, is_active
+    ) values (
+      p_tenant,
+      v_warehouse_id,
+      p_payload->>'code',
+      p_payload->>'name',
+      p_payload->>'resource_type',
+      coalesce(p_payload->>'status', 'AVAILABLE'),
+      nullif(p_payload->>'max_lift_height_m', '')::numeric(5,2),
+      nullif(p_payload->>'max_weight_kg', '')::numeric(10,2),
+      coalesce(array(select jsonb_array_elements_text(coalesce(p_payload->'certifications', '[]'::jsonb))), '{}'),
+      nullif(p_payload->>'shift_code', ''),
+      case when lower(trim(coalesce(p_payload->>'is_active', ''))) in ('false', '0', 'no', 'off') then false else true end
+    )
+    on conflict (tenant_id, warehouse_id, code) do update set
+      name = excluded.name,
+      resource_type = excluded.resource_type,
+      status = excluded.status,
+      max_lift_height_m = excluded.max_lift_height_m,
+      max_weight_kg = excluded.max_weight_kg,
+      certifications = excluded.certifications,
+      shift_code = excluded.shift_code,
+      is_active = excluded.is_active,
+      updated_at = v_ts
+    returning * into v_resource;
+
+    insert into public.audit_events (tenant_id, entity_type, entity_id, action, actor_user_id, source_channel, before_data, after_data)
+    values (p_tenant, 'WAREHOUSE_RESOURCE', v_resource.id, 'UPSERT_RESOURCE', p_actor, 'FORNEXA_WMS', null, to_jsonb(v_resource));
+
+    return jsonb_build_object('ok', true, 'action', 'UPSERT_RESOURCE', 'resource', to_jsonb(v_resource));
+
   else
     raise exception 'WMS_FORBIDDEN';
   end if;
@@ -1327,12 +1416,23 @@ $$;
 
 -- ── 4. Rollout Safety: Default Active Warehouse Policies to Require State Control (MUST-1) ──
 -- NOTA DE SEGURIDAD OPERATIVA Y TRANSACCIONAL:
--- Esta migración debe ejecutarse dentro de un bloque transaccional atómico único (BEGIN ... COMMIT).
+-- Esta migración se ejecuta dentro de un bloque transaccional atómico único (BEGIN ... COMMIT).
 -- El backfill de require_state_control_on_load se ubica al final de la migración para asegurar que
 -- la función fornexa_wms_action ya incorpore el soporte de CONTROL_STATE y validación de carga antes
 -- de activar el requisito en las políticas activas preexistentes.
+-- Se aplica únicamente a políticas activas donde la clave esté indefinida (NULL o vacía),
+-- respetando estrictamente políticas donde se haya configurado explícitamente false de forma legítima.
 update public.warehouse_behavior_policies
-   set params = jsonb_set(params, '{require_state_control_on_load}', 'true'::jsonb, true)
+   set params = jsonb_set(params, '{require_state_control_on_load}', 'true'::jsonb, true),
+       updated_at = now()
  where params is not null
    and (params->>'require_state_control_on_load' is null or params->>'require_state_control_on_load' = '');
+
+-- Privilegios de funciones de servidor C-3 (SHOULD revokes)
+revoke all on function public.fornexa_wms_invalidate_hu_control() from public, anon, authenticated;
+revoke all on function public.fornexa_wms_policy_bool(jsonb, text, boolean) from public, anon, authenticated;
+revoke all on function public.fornexa_wms_action(uuid, uuid, text, jsonb, text) from public, anon, authenticated;
+grant execute on function public.fornexa_wms_action(uuid, uuid, text, jsonb, text) to service_role;
+
+commit;
 
