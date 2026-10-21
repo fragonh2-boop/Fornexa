@@ -942,7 +942,9 @@ begin
       order by iq.expiry_date asc nulls last, iq.created_at asc
         for update;
 
-    -- MUST-5 & MUST-C: Select source quant, evaluating unreserved stock and deducting any pending replenishment tasks
+    -- MUST-5 & MUST-C (Aclaración Fran 21-oct): Evaluar saldo disponible sin doble contabilización.
+    -- Se utiliza greatest(iq.quantity_reserved, sum(wt.quantity)) para consolidar la reserva durable
+    -- con cualquier tarea pendiente legacy, evitando comprometer más del disponible real (ej. 100 con 60+40 válidas, 60+60 rechazadas).
     select * into v_quant
       from public.inventory_quants iq
      where iq.tenant_id = p_tenant
@@ -950,15 +952,18 @@ begin
        and iq.product_id = v_product_id
        and iq.flow_state = 'STORED'
        and iq.stock_status = 'AVAILABLE'
-       and (iq.quantity_on_hand - iq.quantity_reserved - coalesce(
-             (select sum(wt.quantity)
-                from public.warehouse_tasks wt
-               where wt.tenant_id = p_tenant
-                 and wt.source_bin_id = iq.bin_id
-                 and wt.product_id = iq.product_id
-                 and wt.task_type = 'REPLENISH'
-                 and wt.state in ('PROPOSED','READY','ASSIGNED','IN_PROGRESS')),
-             0
+       and (iq.quantity_on_hand - greatest(
+             iq.quantity_reserved,
+             coalesce(
+               (select sum(wt.quantity)
+                  from public.warehouse_tasks wt
+                 where wt.tenant_id = p_tenant
+                   and wt.source_bin_id = iq.bin_id
+                   and wt.product_id = iq.product_id
+                   and wt.task_type = 'REPLENISH'
+                   and wt.state in ('PROPOSED','READY','ASSIGNED','IN_PROGRESS')),
+               0
+             )
            )) >= v_qty
      order by iq.expiry_date asc nulls last, iq.created_at asc
      limit 1
