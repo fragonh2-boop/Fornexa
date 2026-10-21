@@ -458,11 +458,11 @@ export function validateRelationalReceipt(receipt: any): void {
   // Validación estricta de MUSTs de seguridad y arquitectura
   const requiredMusts = ["MUST-1", "MUST-2", "MUST-3", "MUST-4", "MUST-5", "MUST-RLS", "MUST-EXECUTE", "MUST-POLICY-BOOL"];
   assert.ok(Array.isArray(receipt.musts), "receipt.musts debe ser un array");
-  const mustMap = new Map(receipt.musts.map((m: any) => [m.must, m]));
+  const mustMap = new Map<string, any>(receipt.musts.map((m: any) => [m.must, m]));
 
   for (const mustKey of requiredMusts) {
     assert.ok(mustMap.has(mustKey), `Debe existir ${mustKey} en receipt.musts`);
-    const m = mustMap.get(mustKey);
+    const m: any = mustMap.get(mustKey);
     assert.equal(m.status, "PASS", `El requisito ${mustKey} debe certificar status: PASS explícito`);
     assert.ok(typeof m.title === "string" && m.title.trim().length > 0, `El requisito ${mustKey} debe tener título`);
     assert.ok(m.evidence && typeof m.evidence === "object", `El requisito ${mustKey} debe contener evidencia`);
