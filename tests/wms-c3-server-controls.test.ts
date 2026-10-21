@@ -469,7 +469,7 @@ export function validateRelationalReceipt(receipt: any): void {
   }
 }
 
-test("M7 C-3 — Ejecución relacional en PostgreSQL 16 genera recibo duradero con 16 casos y MUSTs certificados (MUST-1)", () => {
+test("M7 C-3 — Valida la forma del recibo histórico de CI #537 (no ejecuta PostgreSQL)", () => {
   const receiptPath = resolve(import.meta.dirname, "../docs/verification/receipt-m7-c3-postgres.json");
   const rawReceipt = readFileSync(receiptPath, "utf-8");
   const receipt = JSON.parse(rawReceipt);
@@ -1039,8 +1039,8 @@ test("M7 C-3 — Auditoría estática y anclaje sintáctico de cláusulas DDL (U
     "REPLENISH debe bloquear el bin destino con FOR UPDATE",
   );
   assert.ok(
-    /raise\s+exception\s+'WMS_REPLENISHMENT_PENDING'/i.test(replenishBlock),
-    "REPLENISH debe rechazar tareas pendientes en destino con WMS_REPLENISHMENT_PENDING",
+    !/raise\s+exception\s+'WMS_REPLENISHMENT_PENDING'/i.test(replenishBlock),
+    "REPLENISH admite órdenes distintas al mismo destino con saldo suficiente",
   );
   assert.ok(
     /\(iq\.quantity_on_hand\s*-\s*iq\.quantity_reserved\)\s*>=\s*v_qty/i.test(replenishBlock),
@@ -1089,15 +1089,15 @@ test("M7 C-3 — Subsanaciones Claude SQL (MUST-1, MUST-2, MUST-3, MUST-4)", () 
 
   // MUST-2: Inversión del fallback: peso y volumen esperado legítimo de partida/SGA (v_hu.gross_weight_kg / volume_m3)
   assert.ok(
-    migrationSql.includes("v_expected_weight := coalesce(nullif(v_computed_weight, 0), v_hu.gross_weight_kg);"),
+    migrationSql.includes("v_expected_weight := coalesce(nullif(v_hu.gross_weight_kg, 0), nullif(v_computed_weight, 0));"),
     "v_expected_weight debe calcularse desde contenidos con fallback a dato legítimo v_hu.gross_weight_kg",
   );
   assert.ok(
-    migrationSql.includes("v_expected_volume := coalesce(nullif(v_computed_volume, 0), v_hu.volume_m3);"),
+    migrationSql.includes("v_expected_volume := coalesce(nullif(v_hu.volume_m3, 0), nullif(v_computed_volume, 0));"),
     "v_expected_volume debe calcularse desde contenidos con fallback a dato legítimo v_hu.volume_m3",
   );
   assert.ok(
-    migrationSql.includes("if v_expected_weight is not null and v_expected_weight > 0 then"),
+    migrationSql.includes("if v_expected_weight > 0 and"),
     "Medición voluntaria de peso no debe abortar si el valor esperado es nulo",
   );
 
@@ -1120,7 +1120,7 @@ test("M7 C-3 — Subsanaciones Claude SQL (MUST-1, MUST-2, MUST-3, MUST-4)", () 
 
   // MUST-4: Identidad durable de reservas en warehouse_tasks y liberación exacta
   assert.ok(
-    /source_quant_id\s+uuid\s+references\s+public\.inventory_quants\(id\)/i.test(migrationSql),
+    /foreign key\s*\(tenant_id,\s*source_quant_id\)\s+references public\.inventory_quants\(tenant_id,\s*id\)/i.test(migrationSql),
     "warehouse_tasks debe incluir columna source_quant_id",
   );
   assert.ok(
@@ -1240,3 +1240,12 @@ test("M7 C-3 — Runner Transaccional: Ejecución Rehearsal PGlite y Post-condic
 
 
 
+
+
+test("C3 runner refuses apply in PGlite and dryRun=false without explicit apply", async () => {
+  // @ts-expect-error - local mjs runner
+  const { runC3Migration } = await import("../scripts/wms/run-c3-migration.mjs");
+  await assert.rejects(() => runC3Migration({ applyLive: true, usePgLite: true, confirmApply: true }), /WMS_APPLY_GATE_CLOSED/);
+  await assert.rejects(() => runC3Migration({ dryRun: false, usePgLite: true }), /WMS_APPLY_GATE_CLOSED/);
+  await assert.rejects(() => runC3Migration({ applyLive: true, dryRun: true }), /WMS_APPLY_GATE_CLOSED/);
+});

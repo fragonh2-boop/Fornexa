@@ -4,6 +4,14 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-21 — C3 #138: correcciones preparadas; CI y revisión pendientes
+- **Estado:** ABIERTO. Delta de ChatGPT Work sobre `7c62694c` en la rama existente, tras pausa de Gemini; sin merge, deploy ni SQL remoto.
+- **Aceptación de negocio cerrada:** dato SGA vigente editable; reservas de distintas órdenes con mismo origen/destino permitidas. Stock100→60+40 admitido y60+60 sin sobreasignación, sin liberar reserva ajena al confirmar.
+- **Preparado:** RPC y FK de tenant, identidad de orden, procedencia de peso/volumen, endpoint con autenticación propia y mocks de módulos en tests, evidencias persistentes y gates del runner. El arnés añade casos17–20 (concurrencia de reservas, FK/CHECK, SGA, consolidación entrante).
+- **Verificado localmente:** 65 pruebas focales, PGlite20/20 complementario, tipos/lint/build. La suite general registra un timeout del test DATA150 de lock vacío, también aislado, sin cambios en ese subsistema. No se debilita ni elimina esa prueba; contrastar en CI.
+- **Siguiente:** CI del SHA publicado con PostgreSQL16 TCP, revisión delta de Claude nativo y plan DB-first revisado. Actualizar contrato E2 #139 con las decisiones finales; no implementar E2 por esta entrega. Mantener histórico JSON de CI537 identificado como histórico y usar el artefacto del run actual como evidencia.
+
+
 ## Actualización verificada — 2026-10-19 11:30 CEST (P0)
 
 - **WMS M7 C-3 NO COMPLETAMENTE OPERATIVO:** PR #134 y PR #135 ya están fusionadas en el código de `main cc52ff38549792b5ad9049aa2462b436a1438731`; CI #528 completó SUCCESS y Vercel `fornexa` Production READY en ese mismo SHA. Es un estado de despliegue **web**, no de activación completa del WMS.

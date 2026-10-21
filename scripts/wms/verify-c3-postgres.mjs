@@ -2,7 +2,7 @@
 // Local relational execution of C-3 Server Load Controls (PR #138 / M7 C-3)
 // Executes real migrations from repository (tenant access hardening, WMS E1 core, C-3 server controls),
 // certifies Row Level Security (RLS) and non-superuser privilege separation (GRANT/REVOKE EXECUTE),
-// and executes the full 16-case matrix and rollback validation in isolated PostgreSQL.
+// and executes the WMS behavior matrix (not the entire production migration chain) and rollback validation in isolated PostgreSQL.
 // Emits durable receipt with input hashes, pre/post-state measurements, and security evidence.
 
 import assert from "node:assert/strict";
@@ -129,6 +129,7 @@ export async function runHarness(options = {}) {
   const versionRes = await db.query("select version() as ver;");
   const pgVersion = versionRes?.rows?.[0]?.ver || "PostgreSQL (mock/synthetic)";
   console.log(`[WMS M7 C-3] Engine initialized (${clientType}). Version: ${pgVersion}`);
+  if (clientType === "pg-socket") assert.match(pgVersion, /^PostgreSQL 16\./, "TCP certification requires PostgreSQL16");
 
   // MUST-5: Pre-DDL Check: abort if target DB contains existing non-disposable tables
   await validateDisposableDatabase(db, clientType);
@@ -296,15 +297,17 @@ export async function runHarness(options = {}) {
       serial_number text,
       expiry_date date,
       quantity numeric(12,3) not null default 0,
-      quantity_on_hand numeric(12,3) not null default 0,
-      quantity_reserved numeric(12,3) not null default 0,
+      quantity_on_hand numeric(12,3) not null default 0 check (quantity_on_hand >= 0),
+      quantity_reserved numeric(12,3) not null default 0 check (quantity_reserved >= 0 and quantity_reserved <= quantity_on_hand),
       uom text not null default 'UN',
       lot_number text,
-      flow_state text,
+      flow_state text check (flow_state is null or flow_state in (
+        'STAGING_UNCHECKED','STAGING_CHECKED','STORED','RESERVED','PICKED_STAGED','LOADED','QUARANTINE','DAMAGED'
+      )),
       hu_id uuid,
       weight_kg numeric(10,3),
       volume_m3 numeric(10,4),
-      stock_status text default 'AVAILABLE',
+      stock_status text default 'AVAILABLE' check (stock_status in ('AVAILABLE','RESERVED','INSPECTION','QUARANTINE','DAMAGED','BLOCKED')),
       created_at timestamptz default now(),
       updated_at timestamptz default now(),
       unique(tenant_id, id)
@@ -401,6 +404,8 @@ export async function runHarness(options = {}) {
         ? "DURABLE_PG16_CONTAINER_CERTIFICATION"
         : "SUPPLEMENTARY_SANDBOX_PGLITE",
     concurrency_certified: clientType === "pg-socket",
+    baseline_scope: "PARTIAL_MASTER_DATA_WITH_QUANT_BALANCE_STATUS_AND_FLOW_CONSTRAINTS",
+    full_production_migration_chain: false,
     tenant_access_sha256,
     e1_core_sha256,
     migration_sha256,
@@ -452,7 +457,7 @@ export async function runHarness(options = {}) {
         },
       },
     ],
-    summary: { total: 0, passed: 0, failed: 0 },
+    summary: { total: 0, passed: 0, failed: 0, certified: 0, not_certified: 0 },
   };
 
   // 3. MUST-RLS: Certify Row Level Security is active on WMS tables and verify real isolation
@@ -845,6 +850,8 @@ export async function runHarness(options = {}) {
       const result = await runFn();
       receipt.cases.push({ case: num, title, status: "PASS", ...result });
       receipt.summary.passed++;
+      if (clientType === "pg-socket" && result.concurrency_certified !== false) receipt.summary.certified++;
+      else receipt.summary.not_certified++;
       console.log(`  ✔ Case ${num}: ${title}`);
     } catch (e) {
       receipt.cases.push({ case: num, title, status: "FAIL", error: e.message });
@@ -854,7 +861,7 @@ export async function runHarness(options = {}) {
     }
   }
 
-  console.log("[WMS M7 C-3] Fixtures ready. Executing 16-case relational verification suite...");
+  console.log("[WMS M7 C-3] Fixtures ready. Executing WMS behavior verification suite...");
 
   // ── CASE 1: LOAD without state control fails closed with WMS_CONTROL_PENDING ──
   await recordCase(1, "LOAD con state_controlled_at null falla cerrado con WMS_CONTROL_PENDING", async () => {
@@ -912,7 +919,7 @@ export async function runHarness(options = {}) {
       values ('${huId}', '${tenantA}', '${wh2}', 'HU-003', 'PICKED_STAGED', now(), '${actorA}');
     `);
     const pre = (await db.query(`select to_jsonb(h.*) as h from handling_units h where id = '${huId}'`)).rows[0].h;
-    const err = await expectRpcError("LABEL", { hu_id: huId, measured_weight_kg: 25.0 }, "WMS_WEIGHT_TOLERANCE");
+    const err = await expectRpcError("LABEL", { hu_id: huId }, "WMS_WEIGHT_TOLERANCE");
     const post = (await db.query(`select to_jsonb(h.*) as h from handling_units h where id = '${huId}'`)).rows[0].h;
     assert.equal(post.label_issued_at, null);
     return { pre_state: pre, post_state: post, error_code: err.error };
@@ -1187,14 +1194,14 @@ export async function runHarness(options = {}) {
     }, "idem-rep-case-12-bis");
     assert.equal(res2.ok, true);
 
-    // MUST-5: Segundo intento sobre el mismo destino falla cerrado con WMS_REPLENISHMENT_PENDING
-    const errPending = await expectRpcError("REPLENISH", {
-      warehouse_id: wh1,
-      product_id: prod1,
-      destination_bin_id: binStage,
-      quantity: 5,
-    }, "WMS_REPLENISHMENT_PENDING");
-    assert.equal(errPending.error, "WMS_REPLENISHMENT_PENDING");
+    // Different orders may share the exact same source and destination.
+    const additional = await executeAction("REPLENISH", {
+      warehouse_id: wh1, product_id: prod1, quant_id: qId,
+      destination_bin_id: binStage, quantity: 5,
+    }, "idem-rep-case-12-shared");
+    assert.equal(additional.ok, true);
+    assert.notEqual(additional.task.id, res2.task.id);
+    assert.equal(Number((await db.query(`select quantity_reserved from inventory_quants where id = '${qId}'`)).rows[0].quantity_reserved), 15);
 
     // MUST-5: Intento de reposición que excede el saldo no comprometido falla con WMS_NO_SOURCE_STOCK
     const customBinDest = "20000000-0000-4000-8000-000000000099";
@@ -1238,7 +1245,7 @@ export async function runHarness(options = {}) {
     assert.equal(resResource.action, "UPSERT_RESOURCE");
     assert.equal(resResource.resource.code, "FORK-TEST-01");
 
-    return { result: res, pending_error: errPending.error, exceed_error: errExceed.error, resource: resResource.resource.code };
+    return { result: res, shared_destination: additional.task.id, exceed_error: errExceed.error, resource: resResource.resource.code };
   });
 
   // ── CASE 13: Policy with require_state_control_on_load = false permits LOAD without control ──
@@ -1310,6 +1317,114 @@ export async function runHarness(options = {}) {
     return { tasks_before: tasksBefore, tasks_after: tasksAfter, state: post.state };
   });
 
+  // Fran's acceptance criteria, exercised against the RPC and durable balances.
+  await recordCase(17, "Órdenes distintas: stock100 admite60+40 y rechaza60+60, mismo/diferente destino", async () => {
+    const observations = [];
+    for (const sameDestination of [true, false]) {
+      for (const secondQuantity of [40, 60]) {
+        const product = crypto.randomUUID();
+        const quant = crypto.randomUUID();
+        const destination2 = sameDestination ? binStage : crypto.randomUUID();
+        const order1 = crypto.randomUUID(), order2 = crypto.randomUUID();
+        await db.query("insert into products (id,tenant_id,sku,name,gross_weight_kg,volume_m3) values ($1::uuid,$2::uuid,$1::text,'Acceptance product',1,0.001)", [product,tenantA]);
+        await db.query("insert into orders (id,tenant_id,order_number) values ($1::uuid,$3::uuid,$1::text),($2::uuid,$3::uuid,$2::text)", [order1,order2,tenantA]);
+        if (!sameDestination) await db.query("insert into warehouse_bins (id,tenant_id,warehouse_id,bin_code) values ($1::uuid,$2::uuid,$3::uuid,$1::text)", [destination2,tenantA,wh1]);
+        await db.query("insert into inventory_quants (id,tenant_id,warehouse_id,bin_id,product_id,quantity_on_hand,flow_state,stock_status) values ($1,$2,$3,$4,$5,100,'STORED','AVAILABLE')", [quant,tenantA,wh1,bin1,product]);
+        const firstPayload = { warehouse_id: wh1, product_id: product, quant_id: quant, destination_bin_id: binStage, quantity: 60, order_id: order1 };
+        const secondPayload = { ...firstPayload, destination_bin_id: destination2, quantity: secondQuantity, order_id: order2 };
+        const firstKey = crypto.randomUUID(), secondKey = crypto.randomUUID();
+        let first, second, secondError = null;
+        if (clientType === "pg-socket" && pgDriver && config) {
+          const peer = new pgDriver.Client(config);
+          await peer.connect();
+          try {
+            await peer.query("set statement_timeout = '5s'");
+            await db.query("BEGIN");
+            first = await executeAction("REPLENISH", firstPayload, firstKey);
+            let settled = false;
+            const pending = peer.query("select public.fornexa_wms_action($1,$2,'REPLENISH',$3,$4) as res", [tenantA,actorA,JSON.stringify(secondPayload),secondKey])
+              .then(r => { settled = true; return { result: r.rows[0].res }; }, error => { settled = true; return { error: error.message }; });
+            await new Promise(resolve => setTimeout(resolve, 60));
+            assert.equal(settled, false, "Second session must wait for source/destination reservation lock");
+            await db.query("COMMIT");
+            const outcome = await pending;
+            second = outcome.result;
+            secondError = outcome.error || null;
+          } finally { await db.query("ROLLBACK"); await peer.end(); }
+        } else {
+          first = await executeAction("REPLENISH", firstPayload, firstKey);
+          try { second = await executeAction("REPLENISH", secondPayload, secondKey); }
+          catch (err) { secondError = err.message; }
+        }
+        assert.equal(first.task.order_id, order1);
+        if (secondQuantity === 40) {
+          assert.equal(second.ok, true);
+          assert.equal(second.task.order_id, order2);
+          assert.notEqual(second.task.id, first.task.id);
+        } else assert.match(secondError, /WMS_NO_SOURCE_STOCK/);
+        const reserved = () => db.query("select quantity_reserved from inventory_quants where id=$1", [quant]).then(r => Number(r.rows[0].quantity_reserved));
+        assert.equal(await reserved(), secondQuantity === 40 ? 100 : 60);
+        const replay = await executeAction("REPLENISH", firstPayload, firstKey);
+        assert.equal(replay.idempotent_replay, true);
+        assert.equal(await reserved(), secondQuantity === 40 ? 100 : 60, "Replay must not reserve twice");
+        await executeAction("CONFIRM_TASK", { task_id: first.task.id });
+        assert.equal(await reserved(), secondQuantity === 40 ? 40 : 0, "Confirmation must preserve the other order's reservation");
+        if (secondQuantity === 40) {
+          await executeAction("CONFIRM_TASK", { task_id: second.task.id });
+          assert.equal(await reserved(), 0);
+        }
+        observations.push({ same_destination: sameDestination, stock: 100, quantities: [60, secondQuantity], accepted: secondQuantity === 40, source_quant_id: quant, concurrency_certified: clientType === "pg-socket" });
+      }
+    }
+    return { observations, concurrency_certified: clientType === "pg-socket" };
+  });
+
+  await recordCase(18, "FK de origen y CHECK de reservas impiden cruces de tenant y sobreasignación", async () => {
+    const qa = crypto.randomUUID(), qb = crypto.randomUUID();
+    await db.query("insert into inventory_quants (id,tenant_id,warehouse_id,bin_id,product_id,quantity_on_hand) values ($1,$2,$3,$4,$5,100),($6,$7,$8,$9,$10,100)", [qa,tenantA,wh1,bin1,prod1,qb,tenantB,whB,binB,prodB]);
+    assert.equal((await db.query("select count(*)::int as n from inventory_quants where id in ($1,$2)", [qa,qb])).rows[0].n, 2);
+    await assert.rejects(() => db.query("insert into warehouse_tasks (tenant_id,warehouse_id,task_type,state,source_quant_id,quantity) values ($1,$2,'REPLENISH','READY',$3,1)", [tenantA,wh1,qb]), err => err.code === '23503');
+    await assert.rejects(() => db.query("update inventory_quants set quantity_reserved=quantity_on_hand+1 where id=$1", [qa]), err => err.code === '23514');
+    return { cross_tenant_fk_sqlstate: '23503', excessive_reservation_sqlstate: '23514' };
+  });
+
+  await recordCase(19, "LABEL/LOAD aceptan dato SGA editado sin inventar medición física", async () => {
+    const hu = crypto.randomUUID();
+    await db.query("insert into handling_units (id,tenant_id,warehouse_id,code,hu_type,state,gross_weight_kg,volume_m3) values ($1::uuid,$2::uuid,$3::uuid,$1::text,'PALLET','PICKED_STAGED',25,0.2)", [hu,tenantA,wh2]);
+    await db.query("update warehouse_behavior_policies set params = params || '{\"require_weight_measurement\":true,\"require_volume_measurement\":true,\"require_label_scan_on_load\":false,\"require_state_control_on_load\":false}'::jsonb where tenant_id=$1 and warehouse_id=$2", [tenantA,wh2]);
+    // This persisted edit is the current SGA declaration; no new physical reading.
+    await db.query("update handling_units set gross_weight_kg=30, volume_m3=0.3 where id=$1", [hu]);
+    const label = await executeAction("LABEL", { hu_id: hu });
+    assert.equal(Number(label.hu.gross_weight_kg), 30);
+    assert.equal(label.hu.measured_at, null);
+    const load = await executeAction("LOAD", { hu_id: hu });
+    assert.equal(load.hu.state, 'LOADED');
+    assert.equal(load.hu.measured_at, null);
+    assert.equal(load.hu.measured_by, null);
+    const audit = (await db.query("select after_data from audit_events where entity_id=$1 and action='LOAD' order by id desc limit 1", [hu])).rows[0].after_data;
+    assert.equal(audit.weight_source, 'SGA_DECLARED');
+    assert.equal(audit.volume_source, 'SGA_DECLARED');
+    return { declared_weight: 30, declared_volume: 0.3, physical_measurement_stamped: false, audit_sources: [audit.weight_source,audit.volume_source] };
+  });
+
+  await recordCase(20, "Consolidación de servidor también verifica las reservas entrantes", async () => {
+    const wh = crypto.randomUUID(), source = crypto.randomUUID(), dest = crypto.randomUUID(), destNo = crypto.randomUUID();
+    const product = crypto.randomUUID(), qa = crypto.randomUUID(), qb = crypto.randomUUID();
+    await db.query("insert into warehouses (id,tenant_id,code,name) values ($1::uuid,$2::uuid,$1::text,'Consolidation test')", [wh,tenantA]);
+    for (const bin of [source,dest,destNo]) await db.query("insert into warehouse_bins (id,tenant_id,warehouse_id,bin_code) values ($1::uuid,$2::uuid,$3::uuid,$1::text)", [bin,tenantA,wh]);
+    await db.query("insert into products (id,tenant_id,sku,name) values ($1::uuid,$2::uuid,$1::text,'Batch product')", [product,tenantA]);
+    await db.query("insert into warehouse_behavior_policies (tenant_id,warehouse_id,scope,params) values ($1,$2,'WAREHOUSE','{\"consolidation\":\"BY_BATCH\"}')", [tenantA,wh]);
+    await db.query("insert into inventory_quants (id,tenant_id,warehouse_id,bin_id,product_id,batch_number,quantity_on_hand,flow_state) values ($1,$3,$4,$5,$6,'A',100,'STORED'),($2,$3,$4,$5,$6,'B',100,'STORED')", [qa,qb,tenantA,wh,source,product]);
+    const payload = {warehouse_id:wh,product_id:product,quant_id:qa,destination_bin_id:dest,quantity:60};
+    await executeAction("REPLENISH", payload, crypto.randomUUID());
+    await expectRpcError("REPLENISH", {...payload,quant_id:qb,quantity:40}, "WMS_CONSOLIDATION_CONFLICT", crypto.randomUUID());
+    await executeAction("REPLENISH", {...payload,quantity:40}, crypto.randomUUID());
+    await db.query("update warehouse_behavior_policies set params='{\"consolidation\":\"NO\"}' where tenant_id=$1 and warehouse_id=$2", [tenantA,wh]);
+    await executeAction("REPLENISH", {...payload,quant_id:qb,destination_bin_id:destNo,quantity:10}, crypto.randomUUID());
+    await expectRpcError("REPLENISH", {...payload,quant_id:qb,destination_bin_id:destNo,quantity:5}, "WMS_CONSOLIDATION_CONFLICT", crypto.randomUUID());
+    return { compatible_incoming_batch: true, conflicting_incoming_batch_rejected: true, no_consolidation_incoming_rejected: true };
+  });
+
   // ── MUST-3 VERIFICATION: CONTROL_STATE without status is strictly rejected fail-closed ──
   console.log("[WMS M7 C-3] Verifying MUST-3: CONTROL_STATE status requirement...");
   {
@@ -1332,7 +1447,7 @@ export async function runHarness(options = {}) {
   }
 
   // ── MUST-4 VERIFICATION: Measurement required omission fails closed ──
-  console.log("[WMS M7 C-3] Verifying MUST-4: Mandatory measurement check...");
+  console.log("[WMS M7 C-3] Verifying MUST-4: Current SGA data and explicit measurement provenance...");
   {
     const huId = "70000000-0000-4000-8000-000000000094";
     const strictWh = "30000000-0000-4000-8000-000000000094";
@@ -1342,8 +1457,6 @@ export async function runHarness(options = {}) {
       values ('${tenantA}', '${strictWh}', 'WAREHOUSE', '{"require_weight_measurement": true, "weight_tolerance_pct": 5.0, "require_state_control_on_load": false, "require_label_scan_on_load": false}'::jsonb);
       insert into handling_units (id, tenant_id, warehouse_id, code, state, label_issued_at)
       values ('${huId}', '${tenantA}', '${strictWh}', 'HU-MUST4', 'PICKED_STAGED', now());
-      insert into handling_unit_contents (tenant_id, handling_unit_id, product_id, quantity)
-      values ('${tenantA}', '${huId}', '${prod1}', 2);
     `);
 
     const errMissing = await expectRpcError("LOAD", { hu_id: huId, scanned_code: "HU-MUST4" }, "WMS_WEIGHT_TOLERANCE");
@@ -1352,10 +1465,13 @@ export async function runHarness(options = {}) {
     const huNoContents = "70000000-0000-4000-8000-0000000000c1";
     await runSql(`
       insert into handling_units (id, tenant_id, warehouse_id, code, state, label_issued_at, gross_weight_kg, measured_at, state_controlled_at)
-      values ('${huNoContents}', '${tenantA}', '${strictWh}', 'HU-NOCONTENTS', 'PICKED_STAGED', now(), 50.0, now(), now());
+      values ('${huNoContents}', '${tenantA}', '${strictWh}', 'HU-NOCONTENTS', 'PICKED_STAGED', now(), 50.0, null, now());
     `);
-    const errNoContents = await expectRpcError("LOAD", { hu_id: huNoContents, scanned_code: "HU-NOCONTENTS" }, "WMS_WEIGHT_TOLERANCE");
-    assert.equal(errNoContents.error, "WMS_WEIGHT_TOLERANCE", "HU sin contenidos con medicion obligatoria debe fallar cerrado sin autoconfirmarse con gross_weight_kg legado");
+    const declared = await executeAction("LOAD", { hu_id: huNoContents, scanned_code: "HU-NOCONTENTS" });
+    assert.equal(declared.ok, true, "Existing SGA value suffices without a new measurement");
+    assert.equal(declared.hu.measured_at, null, "Inherited data must not acquire a physical measurement stamp");
+    await runSql(`insert into handling_unit_contents (tenant_id, handling_unit_id, product_id, quantity)
+      values ('${tenantA}', '${huId}', '${prod1}', 2);`);
 
     const resSuccess = await executeAction("LOAD", { hu_id: huId, scanned_code: "HU-MUST4", measured_weight_kg: 20.0 });
     assert.equal(resSuccess.ok, true);
@@ -1368,11 +1484,11 @@ export async function runHarness(options = {}) {
 
     receipt.musts.push({
       must: "MUST-4",
-      title: "Medición requerida ausente falla cerrado con WMS_WEIGHT_TOLERANCE; medición válida persiste measured_at/by",
+      title: "Dato SGA vigente satisface política; ausencia total rechaza y medición explícita registra procedencia",
       status: "PASS",
-      evidence: { errMissing: errMissing.error, post },
+      evidence: { errMissing: errMissing.error, declared_sga: declared.hu, post },
     });
-    console.log("  ✔ MUST-4 PASSED: Omission of required measurement fails closed; valid measurement persists timestamp");
+    console.log("  ✔ MUST-4 PASSED: Current SGA declaration accepted; explicit measurement provenance verified");
   }
 
   // ── SHOULD-1 VERIFICATION: Quant hu_id transition invalidates state control and measurements ──
@@ -1449,9 +1565,9 @@ export async function runHarness(options = {}) {
   }
 
   console.log(`\n============================================================`);
-  console.log(`[WMS M7 C-3] SUCCESS: All 16 cases + MUST-1..5 + SHOULD-1 + MUST-RLS + MUST-EXECUTE verified!`);
+  console.log(`[WMS M7 C-3] SUCCESS: Behavior matrix completed; see per-case certification and baseline scope.`);
   console.log(`Scope: ${receipt.certification_scope} | Engine: ${clientType}`);
-  console.log(`Total: ${receipt.summary.total} | Passed: ${receipt.summary.passed} | Failed: ${receipt.summary.failed}`);
+  console.log(`Total: ${receipt.summary.total} | Passed: ${receipt.summary.passed} | Failed: ${receipt.summary.failed} | Certified: ${receipt.summary.certified} | Not certified: ${receipt.summary.not_certified}`);
   console.log(`============================================================\n`);
 
   if (db && db.end) {

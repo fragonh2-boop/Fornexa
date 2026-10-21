@@ -16,7 +16,7 @@
  *    - Inserción en `supabase_migrations.schema_migrations` dentro de la MISMA transacción, sin try/catch.
  *    - Comprobación previa de versión ya aplicada (rechazo fail-closed sin ON CONFLICT DO UPDATE).
  * 4. Integridad y Checksums:
- *    - Hash pinning estricto contra HEAD 024d0b1 (SHA-256 f3d944d7..., 69.678 bytes).
+ *    - Hash pinning del SQL revisado; actualizar las constantes solo con un nuevo delta revisable.
  * 5. Preflight y Preimagen Persistida:
  *    - Timeout preventivo: `SET LOCAL lock_timeout = '5s'`, `SET LOCAL statement_timeout = '30s'`.
  *    - Captura de preimagen de `public.fornexa_wms_action` con pg_get_functiondef para reversibilidad Nivel 2.
@@ -25,17 +25,17 @@
  *      security definer en fornexa_wms_action y permisos exclusivos en service_role.
  */
 
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { resolve } from "node:path";
-import { createHash } from "node:crypto";
+import { readFileSync, writeFileSync, mkdirSync, openSync, fsyncSync, closeSync, renameSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { createHash, randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 
 const require = createRequire(import.meta.url);
 
-export const PINNED_C3_SQL_SHA256 = "96f78651fa782c44eff96b77980e0abc188ecad1ebfab15324e4f6b14db4feef";
-export const PINNED_C3_SQL_BYTES = 72081;
+export const PINNED_C3_SQL_SHA256 = "deb9cb2f2f375084d01985785ce59b485b8c0a8887d3f445d8d7ab311d907f46";
+export const PINNED_C3_SQL_BYTES = 73038;
 export const MIGRATION_VERSION = "20261019120000";
 export const MIGRATION_NAME = "20261019120000_wms_c3_server_load_controls.sql";
 
@@ -51,11 +51,14 @@ export function validateDestination(targetUrl, options = {}) {
   let parsed;
   try {
     parsed = new URL(targetUrl);
-  } catch (err) {
-    throw new Error(`WMS_DESTINATION_INVALID: Failed to parse connection URL: ${err.message}`);
+  } catch {
+    throw new Error("WMS_DESTINATION_INVALID: Failed to parse connection URL.");
   }
 
-  const hostname = (parsed.hostname || "").toLowerCase();
+  if (!['postgres:', 'postgresql:'].includes(parsed.protocol) || !parsed.pathname.slice(1)) {
+    throw new Error("WMS_DESTINATION_INVALID: PostgreSQL protocol and explicit database are required.");
+  }
+  const hostname = (parsed.hostname || "").toLowerCase().replace(/^\[|\]$/g, '');
   const pathname = (parsed.pathname || "").toLowerCase();
 
   // 1. Strict Production Denylist (FAIL-CLOSED)
@@ -167,9 +170,34 @@ export function isDirectCliExecution(argv = process.argv) {
   }
 }
 
+export function validateExecutionMode(options = {}) {
+  const applyLive = options.applyLive === true;
+  const dryRun = options.dryRun ?? !applyLive;
+  const usePgLite = options.usePgLite === true || !process.env.POSTGRES_URL_NON_POOLING?.trim();
+  if (!dryRun && !applyLive) throw new Error("WMS_APPLY_GATE_CLOSED: dryRun=false requires explicit applyLive.");
+  if (applyLive && (usePgLite || dryRun)) {
+    throw new Error("WMS_APPLY_GATE_CLOSED: apply requires an explicit PostgreSQL destination, never PGlite or dry-run.");
+  }
+  if (applyLive && !options.evidenceDirectory) {
+    throw new Error("WMS_EVIDENCE_REQUIRED: apply requires an explicit evidenceDirectory.");
+  }
+  return { usePgLite, dryRun, applyLive };
+}
+
+// fsync + rename prevents a partial receipt from being mistaken for a complete one.
+function persistEvidence(path, content) {
+  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+  const temporary = `${path}.${randomUUID()}.tmp`;
+  writeFileSync(temporary, content, { mode: 0o600 });
+  const fd = openSync(temporary, "r");
+  try { fsyncSync(fd); } finally { closeSync(fd); }
+  renameSync(temporary, path);
+  const dirFd = openSync(dirname(path), "r");
+  try { fsyncSync(dirFd); } finally { closeSync(dirFd); }
+}
+
 export async function getClient(options = {}) {
-  const isPgLite = options.usePgLite || process.argv.includes("--pglite") || !process.env.POSTGRES_URL_NON_POOLING;
-  
+  const { usePgLite: isPgLite } = validateExecutionMode(options);
   if (isPgLite) {
     const { PGlite } = await import("@electric-sql/pglite");
     const db = new PGlite();
@@ -197,7 +225,7 @@ export async function getClient(options = {}) {
       create table if not exists public.orders (id uuid primary key default gen_random_uuid(), tenant_id uuid not null references public.tenants(id), order_number text not null, unique(tenant_id, id));
       create table if not exists public.order_lines (id uuid primary key default gen_random_uuid(), tenant_id uuid not null references public.tenants(id), order_id uuid not null references public.orders(id), product_id uuid not null references public.products(id), quantity numeric(10,3) not null default 1, unique(tenant_id, id));
       create table if not exists public.warehouse_docks (id uuid primary key default gen_random_uuid(), tenant_id uuid not null references public.tenants(id), warehouse_id uuid not null references public.warehouses(id), code text not null, unique(tenant_id, id));
-      create table if not exists public.inventory_quants (id uuid primary key default gen_random_uuid(), tenant_id uuid not null references public.tenants(id), warehouse_id uuid not null references public.warehouses(id), bin_id uuid not null references public.warehouse_bins(id), product_id uuid not null references public.products(id), quantity numeric(12,3) not null default 0, quantity_on_hand numeric(12,3) not null default 0, quantity_reserved numeric(12,3) not null default 0, uom text not null default 'UN', flow_state text, hu_id uuid, stock_status text default 'AVAILABLE', created_at timestamptz default now(), updated_at timestamptz default now(), unique(tenant_id, id));
+      create table if not exists public.inventory_quants (id uuid primary key default gen_random_uuid(), tenant_id uuid not null references public.tenants(id), warehouse_id uuid not null references public.warehouses(id), bin_id uuid not null references public.warehouse_bins(id), product_id uuid not null references public.products(id), quantity numeric(12,3) not null default 0, quantity_on_hand numeric(12,3) not null default 0, quantity_reserved numeric(12,3) not null default 0, uom text not null default 'UN', expiry_date date, flow_state text, hu_id uuid, stock_status text default 'AVAILABLE', check (quantity_on_hand >= 0), check (quantity_reserved >= 0 and quantity_reserved <= quantity_on_hand), created_at timestamptz default now(), updated_at timestamptz default now(), unique(tenant_id, id));
       create table if not exists public.inventory_movements (id uuid primary key default gen_random_uuid(), tenant_id uuid not null references public.tenants(id), warehouse_id uuid not null references public.warehouses(id), product_id uuid not null references public.products(id), quantity numeric(12,3) not null, uom text not null default 'UN', unique(tenant_id, id));
       create table if not exists public.audit_events (id bigint generated always as identity primary key, tenant_id uuid not null references public.tenants(id), entity_type text not null, entity_id uuid, action text not null, actor_user_id uuid, source_channel text, before_data jsonb, after_data jsonb, created_at timestamptz not null default now());
     `);
@@ -207,6 +235,7 @@ export async function getClient(options = {}) {
     await db.exec(e1Sql);
     return {
       type: "pglite",
+      destination: { engine: "pglite", scope: "IN_MEMORY_REDUCED_SCHEMA_STRUCTURAL_REHEARSAL" },
       query: (sql, params) => db.query(sql, params),
       exec: (sql) => db.exec(sql),
       close: () => db.close(),
@@ -215,13 +244,14 @@ export async function getClient(options = {}) {
 
   // PostgreSQL client con validación de destino previa
   const connStr = process.env.POSTGRES_URL_NON_POOLING?.trim();
-  validateDestination(connStr, options);
+  const destination = validateDestination(connStr, options);
 
   const { Client } = require("pg");
   const client = new Client({ connectionString: connStr });
   await client.connect();
   return {
     type: "pg",
+    destination,
     query: (sql, params) => client.query(sql, params),
     exec: (sql) => client.query(sql), // client.query(sql) sin params usa Simple Query Protocol ('Q'), multi-sentencia nativo
     close: () => client.end(),
@@ -229,9 +259,8 @@ export async function getClient(options = {}) {
 }
 
 export async function runC3Migration(options = {}) {
-  const isApplyLive = options.applyLive ?? process.argv.includes("--apply-live");
-  const confirmApply = options.confirmApply ?? process.argv.includes("--i-understand-this-modifies-database");
-  const dryRun = options.dryRun ?? (!isApplyLive || process.argv.includes("--dry-run"));
+  const { applyLive: isApplyLive, dryRun } = validateExecutionMode(options);
+  const confirmApply = options.confirmApply === true;
 
   const repoRoot = resolve(import.meta.dirname, "../..");
   const migrationPath = resolve(repoRoot, "supabase/migrations", MIGRATION_NAME);
@@ -239,7 +268,7 @@ export async function runC3Migration(options = {}) {
   const migrationHash = sha256(migrationRaw);
   const migrationBytes = Buffer.byteLength(migrationRaw, "utf-8");
 
-  // Hash Pinning estricto contra HEAD 024d0b1
+  // Hash pinning del SQL exacto que se va a ejecutar
   if (migrationHash !== PINNED_C3_SQL_SHA256) {
     throw new Error(
       `WMS_INTEGRITY_MISMATCH: Migration hash ${migrationHash} does not match pinned hash ${PINNED_C3_SQL_SHA256}`
@@ -261,6 +290,8 @@ export async function runC3Migration(options = {}) {
     usePgLite: options.usePgLite,
     allowRemoteStaging: options.allowRemoteStaging,
     authorizedStagingHost: options.authorizedStagingHost,
+    evidenceDirectory: options.evidenceDirectory,
+    dryRun,
   });
 
   const receipt = {
@@ -270,12 +301,18 @@ export async function runC3Migration(options = {}) {
     bytes: migrationBytes,
     dry_run: dryRun,
     engine: client.type,
+    destination: client.destination,
+    scope: client.type === "pglite" ? "STRUCTURAL_REHEARSAL_ONLY" : "SCHEMA_AND_PRIVILEGES_NOT_BUSINESS_CERTIFICATION",
     started_at: new Date().toISOString(),
     preflight: {},
     postconditions: {},
     status: "PENDING",
   };
 
+  let committed = false;
+  let commitAttempted = false;
+  const evidenceId = `${MIGRATION_VERSION}-${randomUUID()}`;
+  const receiptPath = options.evidenceDirectory ? resolve(options.evidenceDirectory, `${evidenceId}.json`) : null;
   try {
     // ── PASO 1: Preflight Read-Only ──────────────────────────────────────────
     console.log("[WMS C-3 RUNNER] Ejecutando Fase 1: Preflight read-only...");
@@ -291,10 +328,12 @@ export async function runC3Migration(options = {}) {
     receipt.preflight.preimage_fornexa_wms_action = preimage;
     console.log(`  ✔ Preimagen de fornexa_wms_action capturada (${preimage ? "EXISTENTE" : "INEXISTENTE"})`);
 
-    if (options.persistPreimage && preimage) {
-      const preimagePath = resolve(repoRoot, "docs/verification/fornexa_wms_action_preimage.sql");
-      writeFileSync(preimagePath, preimage, "utf-8");
+    if (!dryRun) {
+      assert.ok(preimage, "WMS_PREIMAGE_REQUIRED: existing WMS RPC must be captured before apply");
+      const preimagePath = resolve(options.evidenceDirectory, `${evidenceId}-preimage.sql`);
+      persistEvidence(preimagePath, preimage);
       receipt.preflight.preimage_persisted_path = preimagePath;
+      receipt.preflight.preimage_sha256 = sha256(preimage);
     }
 
     // ── PASO 2: Transacción Atómica con Dueño Único (Single Owner) ───────────
@@ -311,14 +350,12 @@ export async function runC3Migration(options = {}) {
     console.log("  ✔ Sentencias DDL/DML ejecutadas dentro de la transacción atómica");
 
     // ── Inserción atómica en ledger schema_migrations (SIN try/catch) ────────
-    await client.exec(`
-      create schema if not exists supabase_migrations;
-      create table if not exists supabase_migrations.schema_migrations (
-        version text primary key,
-        statements text[],
-        name text
-      );
-    `);
+    // Only the in-memory structural fixture creates a reduced ledger. A PostgreSQL
+    // destination must already have the real ledger; a missing/incompatible one aborts.
+    if (client.type === "pglite") {
+      await client.exec(`create schema if not exists supabase_migrations;
+        create table supabase_migrations.schema_migrations (version text primary key, statements text[], name text);`);
+    }
 
     // Comprobación de versión existente (fail-closed, sin ON CONFLICT DO UPDATE)
     const existingVersionRes = await client.query(`
@@ -334,9 +371,12 @@ export async function runC3Migration(options = {}) {
     await client.query(`
       insert into supabase_migrations.schema_migrations (version, statements, name)
       values ($1, array[$2], $3);
-    `, [MIGRATION_VERSION, MIGRATION_NAME, MIGRATION_NAME]);
+    `, [MIGRATION_VERSION, sqlToExecute, MIGRATION_NAME]);
     console.log("  ✔ Ledger supabase_migrations.schema_migrations insertado atómicamente");
     receipt.postconditions.ledger_recorded = true;
+    receipt.executed_sql_sha256 = sha256(sqlToExecute);
+    const ledger = await client.query("select statements from supabase_migrations.schema_migrations where version = $1", [MIGRATION_VERSION]);
+    assert.equal(ledger.rows[0].statements[0], sqlToExecute, "Ledger must contain exactly the executed SQL");
 
     // ── PASO 3: Verificación de Post-condiciones dentro de la unidad atómica ───
     console.log("[WMS C-3 RUNNER] Ejecutando Fase 3: Post-condiciones de esquema y permisos...");
@@ -397,20 +437,29 @@ export async function runC3Migration(options = {}) {
       console.log("[WMS C-3 RUNNER] Transacción REVERTIDA limpiamente (ROLLBACK; en dry-run)");
       receipt.status = "SUCCESS_DRY_RUN";
     } else {
+      // Persist intent/preimage/postconditions before COMMIT. A disk failure here
+      // aborts DDL+ledger together. This file never claims a commit before it happens.
+      receipt.status = "PENDING_COMMIT";
+      receipt.receipt_path = receiptPath;
+      persistEvidence(receiptPath, JSON.stringify(receipt, null, 2));
+      commitAttempted = true;
       await client.exec("COMMIT;");
+      committed = true;
       console.log("[WMS C-3 RUNNER] Transacción CONFIRMADA atómicamente (COMMIT;)");
-      receipt.status = "COMMITTED_LIVE";
+      receipt.status = client.destination.isLoopback ? "COMMITTED_TEST_DATABASE" : "COMMITTED_STAGING";
     }
 
     receipt.completed_at = new Date().toISOString();
+    if (receiptPath) persistEvidence(receiptPath, JSON.stringify(receipt, null, 2));
     return receipt;
   } catch (err) {
-    try {
-      await client.exec("ROLLBACK;");
-    } catch {}
-    receipt.status = "FAILED";
+    if (!committed && !commitAttempted) {
+      try { await client.exec("ROLLBACK;"); }
+      catch (rollbackError) { throw new AggregateError([err, rollbackError], "WMS_ROLLBACK_FAILED: transaction outcome requires investigation"); }
+    }
+    receipt.status = committed ? "COMMITTED_RECEIPT_WRITE_FAILED" : commitAttempted ? "COMMIT_OUTCOME_UNKNOWN" : "FAILED";
     receipt.error = err.message;
-    console.error("[WMS C-3 RUNNER] Error durante ejecución, transacción abortada con ROLLBACK:", err.message);
+    console.error(`[WMS C-3 RUNNER] ${receipt.status}: ${err.message}`);
     throw err;
   } finally {
     await client.close();
@@ -418,7 +467,14 @@ export async function runC3Migration(options = {}) {
 }
 
 if (isDirectCliExecution()) {
-  runC3Migration()
+  const evidenceIndex = process.argv.indexOf("--evidence-directory");
+  runC3Migration({
+    applyLive: process.argv.includes("--apply-live"),
+    confirmApply: process.argv.includes("--i-understand-this-modifies-database"),
+    dryRun: process.argv.includes("--dry-run") ? true : undefined,
+    usePgLite: process.argv.includes("--pglite"),
+    evidenceDirectory: evidenceIndex >= 0 ? process.argv[evidenceIndex + 1] : undefined,
+  })
     .then(r => {
       console.log(`[WMS C-3 RUNNER] Veredicto: ${r.status}`);
       process.exit(0);

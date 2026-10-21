@@ -1,7 +1,27 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { beforeEach, mock } from "node:test";
+import type { AuthenticatedContext } from "../lib/auth-context.ts";
 import { resolve } from "node:path";
-import { POST } from "../app/api/wms/route.ts";
+// Mock server-owned modules before importing the real route. No test inputs enter
+// the production handler signature or its authentication boundary.
+let currentAuth: AuthenticatedContext | null = null;
+let currentRpc: { rpc: (name: string, args: Record<string, unknown>) => Promise<unknown> };
+mock.module(new URL("../lib/auth-context.ts", import.meta.url).href, {
+  namedExports: { getAuthenticatedContext: async () => currentAuth },
+});
+mock.module(new URL("../lib/supabase-admin.ts", import.meta.url).href, {
+  namedExports: { createSupabaseAdmin: () => currentRpc },
+});
+const { POST, GET } = await import("../app/api/wms/route.ts");
+beforeEach(() => {
+  currentAuth = null;
+  currentRpc = { rpc: async () => { throw new Error("Unexpected RPC"); } };
+});
+async function postAs(request: Request, dependencies: { auth: AuthenticatedContext | null; rpcClient?: typeof currentRpc }) {
+  currentAuth = dependencies.auth;
+  if (dependencies.rpcClient) currentRpc = dependencies.rpcClient;
+  return POST(request);
+}
 // @ts-expect-error - import from local .mjs harness script
 import { checkIsDirectExecution, validateIsolation, validateDisposableDatabase, isDirectExecution } from "../scripts/wms/verify-c3-postgres.mjs";
 
@@ -45,7 +65,7 @@ test("M7 C-3 POST /api/wms — rechaza solicitudes no autenticadas con HTTP 401 
 
 test("M7 C-3 POST /api/wms — rechaza roles no operativos (ej. VIEWER) con HTTP 403 WMS_FORBIDDEN", async () => {
   const req = createPostRequest({ action: "LOAD", payload: { hu_id: "70000000-0000-4000-8000-000000000001" } });
-  const res = await POST(req, { auth: VIEWER_AUTH });
+  const res = await postAs(req, { auth: VIEWER_AUTH });
   assert.equal(res.status, 403);
   const data = (await res.json()) as { code: string; error: string };
   assert.equal(data.code, "WMS_FORBIDDEN");
@@ -54,13 +74,13 @@ test("M7 C-3 POST /api/wms — rechaza roles no operativos (ej. VIEWER) con HTTP
 
 test("M7 C-3 POST /api/wms — rechaza UPSERT_POLICY y UPSERT_RESOURCE a rol OPERATOR con HTTP 403 WMS_FORBIDDEN", async () => {
   const req1 = createPostRequest({ action: "UPSERT_POLICY", payload: { params: {} } });
-  const res1 = await POST(req1, { auth: OPERATOR_AUTH });
+  const res1 = await postAs(req1, { auth: OPERATOR_AUTH });
   assert.equal(res1.status, 403);
   const data1 = (await res1.json()) as { code: string };
   assert.equal(data1.code, "WMS_FORBIDDEN");
 
   const req2 = createPostRequest({ action: "UPSERT_RESOURCE", payload: {} });
-  const res2 = await POST(req2, { auth: OPERATOR_AUTH });
+  const res2 = await postAs(req2, { auth: OPERATOR_AUTH });
   assert.equal(res2.status, 403);
   const data2 = (await res2.json()) as { code: string };
   assert.equal(data2.code, "WMS_FORBIDDEN");
@@ -73,7 +93,7 @@ test("M7 C-3 POST /api/wms — rechaza UPSERT_POLICY y UPSERT_RESOURCE a rol OPE
     }),
   };
   const reqPlanner = createPostRequest({ action: "UPSERT_POLICY", payload: { params: {} } });
-  const resPlanner = await POST(reqPlanner, { auth: PLANNER_AUTH, rpcClient: mockRpc });
+  const resPlanner = await postAs(reqPlanner, { auth: PLANNER_AUTH, rpcClient: mockRpc });
   assert.equal(resPlanner.status, 200);
 });
 
@@ -95,7 +115,7 @@ test("M7 C-3 POST /api/wms — rechaza usurpación de state_controlled con HTTP 
     },
   });
 
-  const res = await POST(req, { auth: OPERATOR_AUTH, rpcClient: mockRpc });
+  const res = await postAs(req, { auth: OPERATOR_AUTH, rpcClient: mockRpc });
   assert.equal(res.status, 400);
   assert.equal(rpcInvoked, false, "El RPC fornexa_wms_action NUNCA debe ser invocado ante intentos de usurpación");
   const data = (await res.json()) as { code: string; error: string };
@@ -117,7 +137,7 @@ test("M7 C-3 POST /api/wms — rechaza expected_weight_kg y expected_volume_m3 c
     action: "LABEL",
     payload: { hu_id: "70000000-0000-4000-8000-000000000001", expected_weight_kg: 50.0 },
   });
-  const resWeight = await POST(reqWeight, { auth: OPERATOR_AUTH, rpcClient: mockRpc });
+  const resWeight = await postAs(reqWeight, { auth: OPERATOR_AUTH, rpcClient: mockRpc });
   assert.equal(resWeight.status, 400);
   assert.equal(rpcInvoked, false);
 
@@ -126,7 +146,7 @@ test("M7 C-3 POST /api/wms — rechaza expected_weight_kg y expected_volume_m3 c
     action: "LABEL",
     payload: { hu_id: "70000000-0000-4000-8000-000000000001", expected_volume_m3: 0.5 },
   });
-  const resVol = await POST(reqVol, { auth: OPERATOR_AUTH, rpcClient: mockRpc });
+  const resVol = await postAs(reqVol, { auth: OPERATOR_AUTH, rpcClient: mockRpc });
   assert.equal(resVol.status, 400);
   assert.equal(rpcInvoked, false);
 });
@@ -144,7 +164,7 @@ test("M7 C-3 POST /api/wms — REPLENISH rechaza consolidation y conflicting_bat
     action: "REPLENISH",
     payload: { consolidation: "BY_BATCH" },
   });
-  const res1 = await POST(reqConsolidation, { auth: OPERATOR_AUTH, rpcClient: mockRpc });
+  const res1 = await postAs(reqConsolidation, { auth: OPERATOR_AUTH, rpcClient: mockRpc });
   assert.equal(res1.status, 400);
   assert.equal(rpcInvoked, false);
 
@@ -152,7 +172,7 @@ test("M7 C-3 POST /api/wms — REPLENISH rechaza consolidation y conflicting_bat
     action: "REPLENISH",
     payload: { conflicting_batch: "ALLOW" },
   });
-  const res2 = await POST(reqBatch, { auth: OPERATOR_AUTH, rpcClient: mockRpc });
+  const res2 = await postAs(reqBatch, { auth: OPERATOR_AUTH, rpcClient: mockRpc });
   assert.equal(res2.status, 400);
   assert.equal(rpcInvoked, false);
 });
@@ -170,7 +190,7 @@ test("M7 C-3 POST /api/wms — rechaza acciones no reconocidas con HTTP 400 WMS_
     action: "INVALID_HACK_ACTION",
     payload: {},
   });
-  const res = await POST(req, { auth: OPERATOR_AUTH, rpcClient: mockRpc });
+  const res = await postAs(req, { auth: OPERATOR_AUTH, rpcClient: mockRpc });
   assert.equal(res.status, 400);
   assert.equal(rpcInvoked, false);
   const data = (await res.json()) as { code: string };
@@ -198,7 +218,7 @@ test("M7 C-3 POST /api/wms — solicitud legítima delega a RPC garantizando ais
     idempotency_key: "test-idem-key-123",
   });
 
-  const res = await POST(req, { auth: OPERATOR_AUTH, rpcClient: mockRpc });
+  const res = await postAs(req, { auth: OPERATOR_AUTH, rpcClient: mockRpc });
   assert.equal(res.status, 200);
   assert.ok(capturedRpcArgs);
   const rpcArgs = capturedRpcArgs as Record<string, unknown>;
@@ -236,7 +256,7 @@ test("M7 C-3 POST /api/wms — mapea fallos RPC de base de datos a códigos dete
       payload: { hu_id: "70000000-0000-4000-8000-000000000001", scanned_code: "HU-001" },
     });
 
-    const res = await POST(req, { auth: OPERATOR_AUTH, rpcClient: mockRpc });
+    const res = await postAs(req, { auth: OPERATOR_AUTH, rpcClient: mockRpc });
     assert.equal(res.status, c.expectedStatus, `Status for ${c.rpcMsg}`);
     const data = (await res.json()) as { code: string };
     assert.equal(data.code, c.expectedCode, `Code for ${c.rpcMsg}`);
@@ -355,4 +375,19 @@ test("M7 C-3 DEUDA PR #135 — validateDisposableDatabase verifica dinámicament
 
   // 3. Certificar que las comprobaciones de seguridad fueron las primeras en ejecutarse
   assert.ok(executionLog[0].includes("information_schema.tables"));
+});
+
+// JavaScript callers can pass excess arguments; neither HTTP handler trusts them.
+test("M7 C-3 route ignores caller-supplied identity and RPC context", async () => {
+  currentAuth = null;
+  let forgedRpcCalled = false;
+  const forgedContext = { auth: { ...OPERATOR_AUTH, role: "OWNER" }, rpcClient: {
+    rpc: async () => { forgedRpcCalled = true; return { data: {}, error: null }; },
+  } };
+  const request = createPostRequest({ action: "LOAD", payload: {} });
+  const post = await Reflect.apply(POST, undefined, [request, forgedContext]);
+  const get = await Reflect.apply(GET, undefined, [new Request("https://localhost/api/wms"), forgedContext]);
+  assert.equal(post.status, 401);
+  assert.equal(get.status, 401);
+  assert.equal(forgedRpcCalled, false);
 });

@@ -2,6 +2,14 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-21 — C3 PR #138: relevo de preparación y decisiones SGA/reposición
+
+- Base de trabajo: `feat/wms-c3-server-controls-real-post`, padre `7c62694c38699e9f4e185d6b2257122ef3eb7f36`; main remoto comprobado `b7cbb2fe249650985caf631630cbf4a7460baa88`. Gemini confirmó pausa y ausencia de diff pendiente; ChatGPT Work prepara este delta, Claude nativo conserva revisión independiente.
+- Decisiones del propietario: dato vigente de SGA suficiente y editable; órdenes distintas pueden compartir origen y destino de picking/preparación con saldo suficiente. Se incorporan al contrato C3, RPC, identidad de orden/reserva, trazabilidad y pruebas de comportamiento. La revisión de #139 debe reconciliar estas mismas decisiones después.
+- Se corrigen la referencia de stock por tenant, el aislamiento de dependencias de los tests HTTP y los límites/evidencias del runner. El recibo histórico no se presenta como ejecución actual; el arnés de 20 casos declara esquema maestro parcial y contadores de certificación separados.
+- Comprobaciones locales: 65 pruebas focales PASS, ensayo PGlite 20/20 (0 certificadas como PostgreSQL16), TypeScript y lint PASS, build de producción PASS con el Memorandum actualizado. Suite general: 378/379 PASS; el test DATA150 de recuperación de lock vacío agota 15s también aislado en este entorno; sus fuentes no se han modificado. La CI del nuevo SHA debe comprobar la suite completa y las dos sesiones reales de PostgreSQL16. No se sustituye por PGlite.
+- Pendiente: CI del nuevo commit, revalidación independiente del delta y plan DB-first concreto antes de merge/deploy. No se ha aplicado SQL remoto, creado seed, hecho merge ni desplegado. No declarar C3 terminado por esta preparación.
+
 ## Estado operativo verificado — 2026-10-19 11:30 CEST
 
 **P0 — WMS M7 DB-first pendiente.** `main cc52ff38549792b5ad9049aa2462b436a1438731` incorpora PR #134 y PR #135; GitHub Actions #528 SUCCESS y Vercel Production READY en el mismo SHA. **No es equivalente a C-3 operativo:** Supabase prod `gqkjqhpmyejmehbuombk` registra 41 migraciones, terminando en WMS `20261017110000_wms_e1_core`; no registra `20261019120000_wms_c3_server_load_controls.sql`. Verificación SQL read-only: faltan `handling_units.state_controlled_at`, `handling_units.measured_at` y la RPC helper `fornexa_wms_policy_bool`.

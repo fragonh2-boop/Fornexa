@@ -74,7 +74,14 @@ alter table public.warehouse_tasks
 
 -- MUST-4: Persist source quant identity on tasks to prevent cross-quant mismatch and enable exact reservation release
 alter table public.warehouse_tasks
-  add column if not exists source_quant_id uuid references public.inventory_quants(id) on delete set null;
+  add column if not exists source_quant_id uuid,
+  add column if not exists order_id uuid;
+alter table public.warehouse_tasks
+  add constraint warehouse_tasks_source_quant_tenant_fk
+    foreign key (tenant_id, source_quant_id) references public.inventory_quants(tenant_id, id)
+    on delete set null (source_quant_id),
+  add constraint warehouse_tasks_order_tenant_fk
+    foreign key (tenant_id, order_id) references public.orders(tenant_id, id) on delete restrict;
 
 create index if not exists idx_warehouse_tasks_source_quant
   on public.warehouse_tasks(tenant_id, source_quant_id)
@@ -303,7 +310,14 @@ begin
                    coalesce(upper(trim(p_payload->>'status')), '') || ':' ||
                    coalesce(p_payload->>'reject_code', '') || ':' ||
                    coalesce(p_payload->>'reason', '') || ':' ||
-                   coalesce(upper(trim(p_payload->>'disposition')), '');
+                   coalesce(upper(trim(p_payload->>'disposition')), '') || ':' ||
+                   coalesce(p_payload->>'order_id', '') || ':' ||
+                   coalesce(p_payload->>'task_id', '') || ':' ||
+                   coalesce(p_payload->>'warehouse_id', '') || ':' ||
+                   coalesce(p_payload->>'product_id', '') || ':' ||
+                   coalesce(p_payload->>'measured_weight_kg', '') || ':' ||
+                   coalesce(p_payload->>'measured_volume_m3', '') || ':' ||
+                   coalesce(p_payload->>'scanned_code', '');
 
   if v_idem is not null then
     select * into v_existing_task
@@ -313,7 +327,10 @@ begin
        for update;
 
     if found then
-      if v_existing_task.state in ('DONE', 'FAILED') and coalesce(v_existing_task.reject_detail, v_fingerprint) = v_fingerprint then
+      if (v_existing_task.state in ('DONE', 'FAILED') or
+          (p_action = 'REPLENISH' and v_existing_task.task_type = 'REPLENISH'
+           and v_existing_task.state in ('PROPOSED','READY','ASSIGNED','IN_PROGRESS')))
+         and v_existing_task.reject_detail = v_fingerprint then
         return jsonb_build_object(
           'ok', true,
           'idempotent_replay', true,
@@ -882,7 +899,7 @@ begin
           update public.inventory_quants
              set quantity_reserved = greatest(0, quantity_reserved - v_task.quantity),
                  updated_at = v_ts
-           where id = v_task.source_quant_id;
+           where id = v_task.source_quant_id and tenant_id = p_tenant;
         elsif v_task.source_bin_id is not null then
           -- Fallback for legacy tasks prior to source_quant_id
           update public.inventory_quants
@@ -911,6 +928,7 @@ begin
     v_product_id := (p_payload->>'product_id')::uuid;
     v_bin_id := (p_payload->>'destination_bin_id')::uuid;
     v_qty := coalesce(nullif(p_payload->>'quantity', '')::numeric(12,3), 1);
+    if v_qty <= 0 then raise exception 'WMS_FORBIDDEN'; end if;
 
     -- MUST-5: Lock and validate destination bin to serialize concurrent replenishment planning
     select * into v_bin
@@ -923,18 +941,8 @@ begin
       raise exception 'WMS_FORBIDDEN';
     end if;
 
-    -- MUST-5: Reject if a replenishment task is already pending for this destination bin
-    if exists (
-      select 1 from public.warehouse_tasks wt
-       where wt.tenant_id = p_tenant
-         and wt.destination_bin_id = v_bin_id
-         and wt.product_id = v_product_id
-         and wt.task_type = 'REPLENISH'
-         and wt.state in ('PROPOSED','READY','ASSIGNED','IN_PROGRESS')
-    ) then
-      raise exception 'WMS_REPLENISHMENT_PENDING';
-    end if;
-
+    -- Distinct preparation orders may replenish the same destination concurrently.
+    -- The destination row lock serializes the policy check, not the lifetime of tasks.
     -- MUST-5: Lock quants in destination bin to serialize consolidation evaluation
     perform 1
        from public.inventory_quants iq
@@ -953,8 +961,8 @@ begin
       where iq.tenant_id = p_tenant
         and iq.warehouse_id = v_warehouse_id
         and iq.product_id = v_product_id
-        and iq.flow_state = 'STORED'
-        and iq.stock_status = 'AVAILABLE'
+        and iq.flow_state in ('STORED', 'RESERVED')
+        and iq.stock_status in ('AVAILABLE', 'RESERVED')
       order by iq.expiry_date asc nulls last, iq.created_at asc
         for update;
 
@@ -965,8 +973,10 @@ begin
      where iq.tenant_id = p_tenant
        and iq.warehouse_id = v_warehouse_id
        and iq.product_id = v_product_id
-       and iq.flow_state = 'STORED'
-       and iq.stock_status = 'AVAILABLE'
+       and iq.flow_state in ('STORED', 'RESERVED')
+       and iq.stock_status in ('AVAILABLE', 'RESERVED')
+       and iq.bin_id <> v_bin_id
+       and (nullif(p_payload->>'quant_id', '') is null or iq.id = (p_payload->>'quant_id')::uuid)
        and (iq.quantity_on_hand - iq.quantity_reserved) >= v_qty
      order by iq.expiry_date asc nulls last, iq.created_at asc
      limit 1
@@ -999,6 +1009,24 @@ begin
       end if;
     end if;
 
+    -- Pending tasks are incoming stock for consolidation policy, but never imply
+    -- blanket destination exclusivity. Compatible orders may share the same bin.
+    if v_consolidation = 'BY_BATCH' and exists (
+      select 1 from public.warehouse_tasks wt
+      join public.inventory_quants sq on sq.tenant_id = wt.tenant_id and sq.id = wt.source_quant_id
+       where wt.tenant_id = p_tenant and wt.destination_bin_id = v_bin_id
+         and wt.task_type = 'REPLENISH' and wt.state in ('PROPOSED','READY','ASSIGNED','IN_PROGRESS')
+         and wt.product_id = v_product_id and sq.batch_number is distinct from v_quant.batch_number
+    ) then
+      raise exception 'WMS_CONSOLIDATION_CONFLICT';
+    elsif v_consolidation = 'NO' and exists (
+      select 1 from public.warehouse_tasks wt
+       where wt.tenant_id = p_tenant and wt.destination_bin_id = v_bin_id
+         and wt.task_type = 'REPLENISH' and wt.state in ('PROPOSED','READY','ASSIGNED','IN_PROGRESS')
+    ) then
+      raise exception 'WMS_CONSOLIDATION_CONFLICT';
+    end if;
+
     -- MUST-C: Persist stock reservation directly on the source quant to prevent double consumption across sessions
     update public.inventory_quants
        set quantity_reserved = quantity_reserved + v_qty,
@@ -1009,10 +1037,10 @@ begin
     -- MUST-1 & MUST-4: Persist source_quant_id for exact release and v_fingerprint in reject_detail for idempotent replay
     insert into public.warehouse_tasks (
       tenant_id, warehouse_id, task_type, state, source_bin_id, destination_bin_id,
-      hu_id, product_id, quantity, uom, idempotency_key, reject_detail, source_quant_id
+      hu_id, product_id, quantity, uom, idempotency_key, reject_detail, source_quant_id, order_id
     ) values (
       p_tenant, v_warehouse_id, 'REPLENISH', 'READY', v_quant.bin_id, v_bin_id,
-      v_quant.hu_id, v_product_id, v_qty, v_quant.uom, v_idem, v_fingerprint, v_quant.id
+      v_quant.hu_id, v_product_id, v_qty, v_quant.uom, v_idem, v_fingerprint, v_quant.id, nullif(p_payload->>'order_id', '')::uuid
     ) returning * into v_task;
 
     insert into public.audit_events (tenant_id, entity_type, entity_id, action, actor_user_id, source_channel, before_data, after_data)
@@ -1154,9 +1182,9 @@ begin
       join public.products p on p.id = huc.product_id and p.tenant_id = p_tenant
      where huc.tenant_id = p_tenant and huc.handling_unit_id = v_hu.id;
 
-    -- MUST-2: Expected weight & volume derive from contents/products with fallback to nominal handling unit data (partida/SGA).
-    v_expected_weight := coalesce(nullif(v_computed_weight, 0), v_hu.gross_weight_kg);
-    v_expected_volume := coalesce(nullif(v_computed_volume, 0), v_hu.volume_m3);
+    -- MUST-2: Current partida/SGA values take precedence; contents/products are only an estimate when no declaration exists.
+    v_expected_weight := coalesce(nullif(v_hu.gross_weight_kg, 0), nullif(v_computed_weight, 0));
+    v_expected_volume := coalesce(nullif(v_hu.volume_m3, 0), nullif(v_computed_volume, 0));
 
     v_measured_weight := nullif(p_payload->>'measured_weight_kg', '')::numeric(10,3);
     v_measured_volume := nullif(p_payload->>'measured_volume_m3', '')::numeric(10,4);
@@ -1168,49 +1196,28 @@ begin
     v_req_weight := public.fornexa_wms_policy_bool(v_policy, 'require_weight_measurement', false);
     v_req_vol := public.fornexa_wms_policy_bool(v_policy, 'require_volume_measurement', false);
 
-    if v_req_weight then
-      if v_measured_weight is null then
-        if v_hu.measured_at is not null and v_hu.gross_weight_kg is not null and v_hu.gross_weight_kg > 0 then
-          v_measured_weight := v_hu.gross_weight_kg;
-        else
-          raise exception 'WMS_WEIGHT_TOLERANCE';
-        end if;
-      end if;
-      if v_expected_weight is null or v_expected_weight <= 0 then
+    -- Fran: the current SGA declaration suffices, even when these flags are true.
+    -- Only an explicitly supplied measurement is compared and stamped as measured.
+    if v_req_weight and v_measured_weight is null
+       and coalesce(nullif(v_hu.gross_weight_kg, 0), v_expected_weight, 0) <= 0 then
+      raise exception 'WMS_WEIGHT_TOLERANCE';
+    end if;
+    if v_measured_weight is not null then
+      if v_measured_weight <= 0 then raise exception 'WMS_WEIGHT_TOLERANCE'; end if;
+      if v_expected_weight > 0 and
+         abs(v_measured_weight - v_expected_weight) / v_expected_weight * 100.0 > v_weight_tol then
         raise exception 'WMS_WEIGHT_TOLERANCE';
-      elsif abs(v_measured_weight - v_expected_weight) / v_expected_weight * 100.0 > v_weight_tol then
-        raise exception 'WMS_WEIGHT_TOLERANCE';
-      end if;
-    elsif v_measured_weight is not null then
-      -- MUST-2: Medición voluntaria cuando require_weight_measurement = false.
-      -- Si se dispone de valor esperado, se valida tolerancia; si no hay valor esperado, no se penaliza al operario.
-      if v_expected_weight is not null and v_expected_weight > 0 then
-        if abs(v_measured_weight - v_expected_weight) / v_expected_weight * 100.0 > v_weight_tol then
-          raise exception 'WMS_WEIGHT_TOLERANCE';
-        end if;
       end if;
     end if;
-
-    if v_req_vol then
-      if v_measured_volume is null then
-        if v_hu.measured_at is not null and v_hu.volume_m3 is not null and v_hu.volume_m3 > 0 then
-          v_measured_volume := v_hu.volume_m3;
-        else
-          raise exception 'WMS_VOLUME_TOLERANCE';
-        end if;
-      end if;
-      if v_expected_volume is null or v_expected_volume <= 0 then
+    if v_req_vol and v_measured_volume is null
+       and coalesce(nullif(v_hu.volume_m3, 0), v_expected_volume, 0) <= 0 then
+      raise exception 'WMS_VOLUME_TOLERANCE';
+    end if;
+    if v_measured_volume is not null then
+      if v_measured_volume <= 0 then raise exception 'WMS_VOLUME_TOLERANCE'; end if;
+      if v_expected_volume > 0 and
+         abs(v_measured_volume - v_expected_volume) / v_expected_volume * 100.0 > v_vol_tol then
         raise exception 'WMS_VOLUME_TOLERANCE';
-      elsif abs(v_measured_volume - v_expected_volume) / v_expected_volume * 100.0 > v_vol_tol then
-        raise exception 'WMS_VOLUME_TOLERANCE';
-      end if;
-    elsif v_measured_volume is not null then
-      -- MUST-2: Medición voluntaria cuando require_volume_measurement = false.
-      -- Si se dispone de valor esperado, se valida tolerancia; si no hay valor esperado, no se penaliza al operario.
-      if v_expected_volume is not null and v_expected_volume > 0 then
-        if abs(v_measured_volume - v_expected_volume) / v_expected_volume * 100.0 > v_vol_tol then
-          raise exception 'WMS_VOLUME_TOLERANCE';
-        end if;
       end if;
     end if;
 
@@ -1233,7 +1240,10 @@ begin
     ) returning * into v_task;
 
     insert into public.audit_events (tenant_id, entity_type, entity_id, action, actor_user_id, source_channel, before_data, after_data)
-    values (p_tenant, 'HANDLING_UNIT', v_hu.id, 'LABEL', p_actor, 'FORNEXA_WMS', v_before, to_jsonb(v_hu));
+    values (p_tenant, 'HANDLING_UNIT', v_hu.id, 'LABEL', p_actor, 'FORNEXA_WMS', v_before,
+      to_jsonb(v_hu) || jsonb_build_object(
+        'weight_source', case when v_measured_weight is not null then 'OPERATOR_INPUT' when (v_before->>'gross_weight_kg')::numeric > 0 then 'SGA_DECLARED' else 'CONTENTS_ESTIMATE' end,
+        'volume_source', case when v_measured_volume is not null then 'OPERATOR_INPUT' when (v_before->>'volume_m3')::numeric > 0 then 'SGA_DECLARED' else 'CONTENTS_ESTIMATE' end));
 
     return jsonb_build_object('ok', true, 'action', 'LABEL', 'hu', to_jsonb(v_hu), 'task_id', v_task.id);
 
@@ -1289,9 +1299,9 @@ begin
       join public.products p on p.id = huc.product_id and p.tenant_id = p_tenant
      where huc.tenant_id = p_tenant and huc.handling_unit_id = v_hu.id;
 
-    -- MUST-2: Expected weight & volume derive from contents/products with fallback to nominal handling unit data (partida/SGA).
-    v_expected_weight := coalesce(nullif(v_computed_weight, 0), v_hu.gross_weight_kg);
-    v_expected_volume := coalesce(nullif(v_computed_volume, 0), v_hu.volume_m3);
+    -- MUST-2: Current partida/SGA values take precedence; contents/products are only an estimate when no declaration exists.
+    v_expected_weight := coalesce(nullif(v_hu.gross_weight_kg, 0), nullif(v_computed_weight, 0));
+    v_expected_volume := coalesce(nullif(v_hu.volume_m3, 0), nullif(v_computed_volume, 0));
 
     v_measured_weight := nullif(p_payload->>'measured_weight_kg', '')::numeric(10,3);
     v_measured_volume := nullif(p_payload->>'measured_volume_m3', '')::numeric(10,4);
@@ -1303,49 +1313,28 @@ begin
     v_req_weight := public.fornexa_wms_policy_bool(v_policy, 'require_weight_measurement', false);
     v_req_vol := public.fornexa_wms_policy_bool(v_policy, 'require_volume_measurement', false);
 
-    if v_req_weight then
-      if v_measured_weight is null then
-        if v_hu.measured_at is not null and v_hu.gross_weight_kg is not null and v_hu.gross_weight_kg > 0 then
-          v_measured_weight := v_hu.gross_weight_kg;
-        else
-          raise exception 'WMS_WEIGHT_TOLERANCE';
-        end if;
-      end if;
-      if v_expected_weight is null or v_expected_weight <= 0 then
+    -- Fran: the current SGA declaration suffices, even when these flags are true.
+    -- Only an explicitly supplied measurement is compared and stamped as measured.
+    if v_req_weight and v_measured_weight is null
+       and coalesce(nullif(v_hu.gross_weight_kg, 0), v_expected_weight, 0) <= 0 then
+      raise exception 'WMS_WEIGHT_TOLERANCE';
+    end if;
+    if v_measured_weight is not null then
+      if v_measured_weight <= 0 then raise exception 'WMS_WEIGHT_TOLERANCE'; end if;
+      if v_expected_weight > 0 and
+         abs(v_measured_weight - v_expected_weight) / v_expected_weight * 100.0 > v_weight_tol then
         raise exception 'WMS_WEIGHT_TOLERANCE';
-      elsif abs(v_measured_weight - v_expected_weight) / v_expected_weight * 100.0 > v_weight_tol then
-        raise exception 'WMS_WEIGHT_TOLERANCE';
-      end if;
-    elsif v_measured_weight is not null then
-      -- MUST-2: Medición voluntaria cuando require_weight_measurement = false.
-      -- Si se dispone de valor esperado, se valida tolerancia; si no hay valor esperado, no se penaliza al operario.
-      if v_expected_weight is not null and v_expected_weight > 0 then
-        if abs(v_measured_weight - v_expected_weight) / v_expected_weight * 100.0 > v_weight_tol then
-          raise exception 'WMS_WEIGHT_TOLERANCE';
-        end if;
       end if;
     end if;
-
-    if v_req_vol then
-      if v_measured_volume is null then
-        if v_hu.measured_at is not null and v_hu.volume_m3 is not null and v_hu.volume_m3 > 0 then
-          v_measured_volume := v_hu.volume_m3;
-        else
-          raise exception 'WMS_VOLUME_TOLERANCE';
-        end if;
-      end if;
-      if v_expected_volume is null or v_expected_volume <= 0 then
+    if v_req_vol and v_measured_volume is null
+       and coalesce(nullif(v_hu.volume_m3, 0), v_expected_volume, 0) <= 0 then
+      raise exception 'WMS_VOLUME_TOLERANCE';
+    end if;
+    if v_measured_volume is not null then
+      if v_measured_volume <= 0 then raise exception 'WMS_VOLUME_TOLERANCE'; end if;
+      if v_expected_volume > 0 and
+         abs(v_measured_volume - v_expected_volume) / v_expected_volume * 100.0 > v_vol_tol then
         raise exception 'WMS_VOLUME_TOLERANCE';
-      elsif abs(v_measured_volume - v_expected_volume) / v_expected_volume * 100.0 > v_vol_tol then
-        raise exception 'WMS_VOLUME_TOLERANCE';
-      end if;
-    elsif v_measured_volume is not null then
-      -- MUST-2: Medición voluntaria cuando require_volume_measurement = false.
-      -- Si se dispone de valor esperado, se valida tolerancia; si no hay valor esperado, no se penaliza al operario.
-      if v_expected_volume is not null and v_expected_volume > 0 then
-        if abs(v_measured_volume - v_expected_volume) / v_expected_volume * 100.0 > v_vol_tol then
-          raise exception 'WMS_VOLUME_TOLERANCE';
-        end if;
       end if;
     end if;
 
@@ -1395,7 +1384,10 @@ begin
     ) returning * into v_task;
 
     insert into public.audit_events (tenant_id, entity_type, entity_id, action, actor_user_id, source_channel, before_data, after_data)
-    values (p_tenant, 'HANDLING_UNIT', v_hu.id, 'LOAD', p_actor, 'FORNEXA_WMS', v_before, to_jsonb(v_hu));
+    values (p_tenant, 'HANDLING_UNIT', v_hu.id, 'LOAD', p_actor, 'FORNEXA_WMS', v_before,
+      to_jsonb(v_hu) || jsonb_build_object(
+        'weight_source', case when v_measured_weight is not null then 'OPERATOR_INPUT' when (v_before->>'gross_weight_kg')::numeric > 0 then 'SGA_DECLARED' else 'CONTENTS_ESTIMATE' end,
+        'volume_source', case when v_measured_volume is not null then 'OPERATOR_INPUT' when (v_before->>'volume_m3')::numeric > 0 then 'SGA_DECLARED' else 'CONTENTS_ESTIMATE' end));
 
     return jsonb_build_object('ok', true, 'action', 'LOAD', 'hu', to_jsonb(v_hu), 'task_id', v_task.id);
 

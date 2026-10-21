@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server.js";
-import { getAuthenticatedContext, type AuthenticatedContext } from "../../../lib/auth-context.ts";
+import { getAuthenticatedContext } from "../../../lib/auth-context.ts";
 import { createSupabaseAdmin } from "../../../lib/supabase-admin.ts";
 import { loadWmsData } from "../../../lib/wms-loader.ts";
 import { validateWmsActionPayloadSecurity, wmsRpcFailure, type WmsAction } from "../../../lib/wms.ts";
@@ -17,11 +17,8 @@ function response(data: unknown, status = 200) {
   });
 }
 
-export async function GET(
-  request: Request,
-  context?: { params?: any; auth?: AuthenticatedContext | null },
-) {
-  const auth = context?.auth !== undefined ? context.auth : await getAuthenticatedContext();
+export async function GET(request: Request) {
+  const auth = await getAuthenticatedContext();
   if (!auth) {
     return response({ error: "No autorizado.", code: "WMS_FORBIDDEN" }, 401);
   }
@@ -42,15 +39,8 @@ export async function GET(
   }
 }
 
-export async function POST(
-  request: Request,
-  context?: {
-    params?: any;
-    auth?: AuthenticatedContext | null;
-    rpcClient?: { rpc: (name: string, args: Record<string, unknown>) => Promise<any> };
-  },
-) {
-  const auth = context?.auth !== undefined ? context.auth : await getAuthenticatedContext();
+export async function POST(request: Request) {
+  const auth = await getAuthenticatedContext();
   if (!auth) {
     return response({ error: "No autorizado.", code: "WMS_FORBIDDEN" }, 401);
   }
@@ -130,7 +120,7 @@ export async function POST(
         ? body.idempotency_key.trim()
         : null;
 
-    const db = context?.rpcClient ?? createSupabaseAdmin();
+    const db = createSupabaseAdmin();
     const result = await db.rpc("fornexa_wms_action", {
       p_tenant: auth.tenantId,
       p_actor: auth.userId,
