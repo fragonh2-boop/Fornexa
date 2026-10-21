@@ -1,48 +1,180 @@
 #!/usr/bin/env node
 /**
  * FORNEXA — WMS M7 (C-3) DB-First Migration Runner & Rehearsal Harness
- * Mandato: Slack 1792572558.748239 (hilo 1792476822.608479)
+ * Mandatos: Slack 1792572558.748239, 1792575155.895109, 1792576499.291259
  *
  * Arquitectura de Ejecución (Single Owner BEGIN / COMMIT):
  * 1. Dueño Único de Transacción: El runner abre `BEGIN;`, ejecuta DDL + DML + inserción
  *    en el ledger de migraciones (`supabase_migrations.schema_migrations`) y cierra con `COMMIT;`
  *    (o `ROLLBACK;` en modo `--dry-run` / ensayo), eliminando dobles BEGIN y commits prematuros.
- * 2. Preflight Read-Only:
+ * 2. Gate de Destino Fail-Closed:
+ *    - Validación estricta ANTES de cualquier conexión o ejecución SQL.
+ *    - Denylist explícita de producción (*.supabase.co, *.supabase.net, gqkjqhpmyejmehbuombk).
+ *    - Solo loopback (127.0.0.1 / localhost) o PGlite permitidos por defecto.
+ *    - `--apply-live` exige flag explícito de confirmación y variable de entorno FORNEXA_APPLY_C3_AUTHORIZED=true.
+ * 3. Atomicidad DDL + Ledger:
+ *    - Inserción en `supabase_migrations.schema_migrations` dentro de la MISMA transacción, sin try/catch.
+ *    - Comprobación previa de versión ya aplicada (rechazo fail-closed sin ON CONFLICT DO UPDATE).
+ * 4. Integridad y Checksums:
+ *    - Hash pinning estricto contra HEAD 024d0b1 (SHA-256 f3d944d7..., 69.678 bytes).
+ * 5. Preflight y Preimagen Persistida:
  *    - Timeout preventivo: `SET LOCAL lock_timeout = '5s'`, `SET LOCAL statement_timeout = '30s'`.
- *    - Captura de preimagen de `public.fornexa_wms_action` mediante `pg_get_functiondef` para reversibilidad Nivel 2.
- *    - Verificación de inventario de tablas (`handling_units`, `warehouse_behavior_policies`).
- * 3. Integridad y Checksums:
- *    - Calcula y certifica SHA-256 y tamaño exacto de `20261019120000_wms_c3_server_load_controls.sql`.
- * 4. Post-condiciones Estrictas:
- *    - Validación de columnas agregadas en `handling_units`.
- *    - Validación de índice `idx_handling_units_state_control`.
- *    - Validación de funciones `fornexa_wms_policy_bool` (immutable) y `fornexa_wms_action` (security definer).
- *    - Certificación de privilegios de ejecución (solo `service_role`, revocado a anon/authenticated).
- *    - Reporte de filas afectadas por el backfill acotado con `superseded_at is null`.
- * 5. Fail-Closed Guard:
- *    - Por defecto opera en modo `--dry-run` (BEGIN ... ROLLBACK).
- *    - Prohibido terminantemente aplicar SQL remoto sin autorización formal explícita (FAIL-CLOSED).
+ *    - Captura de preimagen de `public.fornexa_wms_action` con pg_get_functiondef para reversibilidad Nivel 2.
+ * 6. Post-condiciones Estrictas:
+ *    - 4 columnas en handling_units, índice idx_handling_units_state_control, inmutabilidad de política,
+ *      security definer en fornexa_wms_action y permisos exclusivos en service_role.
  */
 
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 
 const require = createRequire(import.meta.url);
 
-function sha256(content) {
+export const PINNED_C3_SQL_SHA256 = "f3d944d7620fc4fb53c9b6f8baf470c2645886d926424e43c2393fdcad6d3a3b";
+export const PINNED_C3_SQL_BYTES = 69678;
+export const MIGRATION_VERSION = "20261019120000";
+export const MIGRATION_NAME = "20261019120000_wms_c3_server_load_controls.sql";
+
+export function sha256(content) {
   return createHash("sha256").update(content).digest("hex");
 }
 
-async function getClient() {
-  // Soporte dual: PGlite en memoria (local) o pg.Client (CI/Postgres 16/staging)
-  const isPgLite = process.argv.includes("--pglite") || !process.env.POSTGRES_URL_NON_POOLING;
+export function validateDestination(targetUrl, options = {}) {
+  if (!targetUrl || typeof targetUrl !== "string") {
+    throw new Error("WMS_DESTINATION_INVALID: Target URL must be a non-empty string.");
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(targetUrl);
+  } catch (err) {
+    throw new Error(`WMS_DESTINATION_INVALID: Failed to parse connection URL: ${err.message}`);
+  }
+
+  const hostname = (parsed.hostname || "").toLowerCase();
+  const pathname = (parsed.pathname || "").toLowerCase();
+
+  // 1. Strict Production Denylist (FAIL-CLOSED)
+  const productionDenyKeywords = [
+    "supabase.co",
+    "supabase.net",
+    "gqkjqhpmyejmehbuombk",
+    "fornexa-prod",
+    "production",
+  ];
+  for (const kw of productionDenyKeywords) {
+    if (hostname.includes(kw) || pathname.includes(kw)) {
+      throw new Error(
+        `WMS_DESTINATION_FORBIDDEN: Destination '${hostname}' rejected by production fail-closed denylist keyword '${kw}'. Remote SQL execution via runner is strictly prohibited.`
+      );
+    }
+  }
+
+  // 2. Loopback allowlist check
+  const isLoopback = hostname === "127.0.0.1" || hostname === "localhost" || hostname === "::1";
+
+  if (!isLoopback) {
+    if (!options.allowRemoteStaging || options.authorizedStagingHost !== hostname) {
+      throw new Error(
+        `WMS_DESTINATION_FORBIDDEN: Target host '${hostname}' is not a permitted loopback destination (127.0.0.1/localhost) and is not explicitly authorized for staging.`
+      );
+    }
+  }
+
+  // 3. Apply live gate checks
+  if (options.applyLive === true) {
+    if (!isLoopback && !options.allowRemoteStaging) {
+      throw new Error("WMS_APPLY_GATE_CLOSED: Remote --apply-live is strictly forbidden.");
+    }
+    if (options.confirmApply !== true) {
+      throw new Error(
+        "WMS_APPLY_GATE_CLOSED: Applying live migration requires explicit confirmation flag --i-understand-this-modifies-database."
+      );
+    }
+    if (process.env.FORNEXA_APPLY_C3_AUTHORIZED !== "true") {
+      throw new Error(
+        "WMS_APPLY_GATE_CLOSED: Environment variable FORNEXA_APPLY_C3_AUTHORIZED=true is required to execute --apply-live."
+      );
+    }
+  }
+
+  return {
+    hostname,
+    isLoopback,
+    database: pathname.replace(/^\//, ""),
+  };
+}
+
+export function stripTopLevelTransactionDelimiters(sql) {
+  const lines = sql.split(/\r?\n/);
+  let inDollarQuote = false;
+  let activeTag = "";
+
+  const processed = lines.map((line) => {
+    let remaining = line;
+    while (true) {
+      if (!inDollarQuote) {
+        const match = remaining.match(/\$([A-Za-z0-9_]*)\$/);
+        if (match) {
+          inDollarQuote = true;
+          activeTag = match[0];
+          remaining = remaining.substring(match.index + activeTag.length);
+          continue;
+        }
+        break;
+      } else {
+        const closeIdx = remaining.indexOf(activeTag);
+        if (closeIdx !== -1) {
+          inDollarQuote = false;
+          remaining = remaining.substring(closeIdx + activeTag.length);
+          activeTag = "";
+          continue;
+        }
+        break;
+      }
+    }
+
+    // Only replace standalone begin/commit if OUTSIDE dollar quotes
+    if (!inDollarQuote) {
+      if (/^\s*begin\s*;\s*$/i.test(line)) {
+        return "-- [RUNNER MANAGED BEGIN]";
+      }
+      if (/^\s*commit\s*;\s*$/i.test(line)) {
+        return "-- [RUNNER MANAGED COMMIT]";
+      }
+      if (/^\s*rollback\s*;\s*$/i.test(line)) {
+        return "-- [RUNNER MANAGED ROLLBACK]";
+      }
+    }
+    return line;
+  });
+
+  return processed.join("\n");
+}
+
+export function isDirectCliExecution(argv = process.argv) {
+  if (!argv || !argv[1]) return false;
+  try {
+    const scriptPath = fileURLToPath(import.meta.url);
+    const invokedPath = resolve(argv[1]);
+    return scriptPath === invokedPath;
+  } catch {
+    return false;
+  }
+}
+
+export async function getClient(options = {}) {
+  const isPgLite = options.usePgLite || process.argv.includes("--pglite") || !process.env.POSTGRES_URL_NON_POOLING;
+  
   if (isPgLite) {
     const { PGlite } = await import("@electric-sql/pglite");
     const db = new PGlite();
     const repoRoot = resolve(import.meta.dirname, "../..");
+    
     // Rehearsal sandbox bootstrap
     await db.exec(`
       do $$ begin
@@ -81,34 +213,59 @@ async function getClient() {
     };
   }
 
+  // PostgreSQL client con validación de destino previa
+  const connStr = process.env.POSTGRES_URL_NON_POOLING?.trim();
+  validateDestination(connStr, options);
+
   const { Client } = require("pg");
-  const connStr = process.env.POSTGRES_URL_NON_POOLING.trim();
   const client = new Client({ connectionString: connStr });
   await client.connect();
   return {
     type: "pg",
     query: (sql, params) => client.query(sql, params),
-    exec: (sql) => client.query(sql),
+    exec: (sql) => client.query(sql), // client.query(sql) sin params usa Simple Query Protocol ('Q'), multi-sentencia nativo
     close: () => client.end(),
   };
 }
 
 export async function runC3Migration(options = {}) {
-  const dryRun = options.dryRun ?? (process.argv.includes("--dry-run") || !process.argv.includes("--apply-live"));
+  const isApplyLive = options.applyLive ?? process.argv.includes("--apply-live");
+  const confirmApply = options.confirmApply ?? process.argv.includes("--i-understand-this-modifies-database");
+  const dryRun = options.dryRun ?? (!isApplyLive || process.argv.includes("--dry-run"));
+
   const repoRoot = resolve(import.meta.dirname, "../..");
-  const migrationPath = resolve(repoRoot, "supabase/migrations/20261019120000_wms_c3_server_load_controls.sql");
+  const migrationPath = resolve(repoRoot, "supabase/migrations", MIGRATION_NAME);
   const migrationRaw = readFileSync(migrationPath, "utf-8");
   const migrationHash = sha256(migrationRaw);
   const migrationBytes = Buffer.byteLength(migrationRaw, "utf-8");
 
-  console.log(`[WMS C-3 RUNNER] Preparando migración 20261019120000_wms_c3_server_load_controls.sql`);
-  console.log(`[WMS C-3 RUNNER] Hash SHA-256: ${migrationHash} (${migrationBytes} bytes)`);
+  // Hash Pinning estricto contra HEAD 024d0b1
+  if (migrationHash !== PINNED_C3_SQL_SHA256) {
+    throw new Error(
+      `WMS_INTEGRITY_MISMATCH: Migration hash ${migrationHash} does not match pinned hash ${PINNED_C3_SQL_SHA256}`
+    );
+  }
+  if (migrationBytes !== PINNED_C3_SQL_BYTES) {
+    throw new Error(
+      `WMS_INTEGRITY_MISMATCH: Migration size ${migrationBytes} bytes does not match pinned size ${PINNED_C3_SQL_BYTES}`
+    );
+  }
+
+  console.log(`[WMS C-3 RUNNER] Preparando migración ${MIGRATION_NAME}`);
+  console.log(`[WMS C-3 RUNNER] Hash SHA-256 verificado: ${migrationHash} (${migrationBytes} bytes)`);
   console.log(`[WMS C-3 RUNNER] Modo ejecución: ${dryRun ? "DRY-RUN / REHEARSAL (BEGIN ... ROLLBACK)" : "APPLY VINCULANTE (BEGIN ... COMMIT)"}`);
 
-  const client = await getClient();
+  const client = await getClient({
+    applyLive: isApplyLive,
+    confirmApply,
+    usePgLite: options.usePgLite,
+    allowRemoteStaging: options.allowRemoteStaging,
+    authorizedStagingHost: options.authorizedStagingHost,
+  });
+
   const receipt = {
-    version: "20261019120000",
-    name: "20261019120000_wms_c3_server_load_controls.sql",
+    version: MIGRATION_VERSION,
+    name: MIGRATION_NAME,
     sha256: migrationHash,
     bytes: migrationBytes,
     dry_run: dryRun,
@@ -122,20 +279,22 @@ export async function runC3Migration(options = {}) {
   try {
     // ── PASO 1: Preflight Read-Only ──────────────────────────────────────────
     console.log("[WMS C-3 RUNNER] Ejecutando Fase 1: Preflight read-only...");
-    
-    // Captura de preimagen de fornexa_wms_action si ya existe en catálogo
-    try {
-      const fnPreRes = await client.query(`
-        select pg_get_functiondef(p.oid) as def
-          from pg_proc p
-          join pg_namespace n on n.oid = p.pronamespace
-         where n.nspname = 'public' and p.proname = 'fornexa_wms_action'
-         limit 1;
-      `);
-      receipt.preflight.preimage_fornexa_wms_action = fnPreRes.rows?.[0]?.def || null;
-      console.log(`  ✔ Preimagen de fornexa_wms_action capturada (${receipt.preflight.preimage_fornexa_wms_action ? "EXISTENTE" : "INEXISTENTE"})`);
-    } catch {
-      receipt.preflight.preimage_fornexa_wms_action = null;
+
+    const fnPreRes = await client.query(`
+      select pg_get_functiondef(p.oid) as def
+        from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'public' and p.proname = 'fornexa_wms_action'
+       limit 1;
+    `);
+    const preimage = fnPreRes.rows?.[0]?.def || null;
+    receipt.preflight.preimage_fornexa_wms_action = preimage;
+    console.log(`  ✔ Preimagen de fornexa_wms_action capturada (${preimage ? "EXISTENTE" : "INEXISTENTE"})`);
+
+    if (options.persistPreimage && preimage) {
+      const preimagePath = resolve(repoRoot, "docs/verification/fornexa_wms_action_preimage.sql");
+      writeFileSync(preimagePath, preimage, "utf-8");
+      receipt.preflight.preimage_persisted_path = preimagePath;
     }
 
     // ── PASO 2: Transacción Atómica con Dueño Único (Single Owner) ───────────
@@ -146,41 +305,43 @@ export async function runC3Migration(options = {}) {
     await client.exec("SET LOCAL lock_timeout = '5s';");
     await client.exec("SET LOCAL statement_timeout = '30s';");
 
-    // Preparación de SQL sin delimitadores redundantes BEGIN; ... COMMIT;
-    // para evitar warnings de nested transaction y commits prematuros en el runner
-    let sqlToExecute = migrationRaw
-      .replace(/^\s*begin\s*;\s*$/im, "-- [RUNNER MANAGED BEGIN]")
-      .replace(/^\s*commit\s*;\s*$/im, "-- [RUNNER MANAGED COMMIT]");
-
+    // Preparación de SQL neutralizando delimitadores top-level respetando dollar-quoting
+    const sqlToExecute = stripTopLevelTransactionDelimiters(migrationRaw);
     await client.exec(sqlToExecute);
     console.log("  ✔ Sentencias DDL/DML ejecutadas dentro de la transacción atómica");
 
-    // Inserción en ledger schema_migrations
-    try {
-      await client.exec(`
-        create schema if not exists supabase_migrations;
-        create table if not exists supabase_migrations.schema_migrations (
-          version text primary key,
-          statements text[],
-          name text
-        );
-      `);
-      await client.query(`
-        insert into supabase_migrations.schema_migrations (version, statements, name)
-        values ($1, array[$2], $3)
-        on conflict (version) do update set statements = excluded.statements, name = excluded.name;
-      `, ["20261019120000", "20261019120000_wms_c3_server_load_controls.sql", "20261019120000_wms_c3_server_load_controls.sql"]);
-      console.log("  ✔ Ledger supabase_migrations.schema_migrations actualizado atómicamente");
-      receipt.postconditions.ledger_recorded = true;
-    } catch (e) {
-      console.warn("  ⚠ Inserción en schema_migrations emitida o no soportada en sandbox:", e.message);
-      receipt.postconditions.ledger_recorded = false;
+    // ── Inserción atómica en ledger schema_migrations (SIN try/catch) ────────
+    await client.exec(`
+      create schema if not exists supabase_migrations;
+      create table if not exists supabase_migrations.schema_migrations (
+        version text primary key,
+        statements text[],
+        name text
+      );
+    `);
+
+    // Comprobación de versión existente (fail-closed, sin ON CONFLICT DO UPDATE)
+    const existingVersionRes = await client.query(`
+      select version from supabase_migrations.schema_migrations where version = $1;
+    `, [MIGRATION_VERSION]);
+
+    if (existingVersionRes.rows && existingVersionRes.rows.length > 0) {
+      throw new Error(
+        `WMS_MIGRATION_ALREADY_RECORDED: Version ${MIGRATION_VERSION} is already recorded in schema_migrations. Refusing to overwrite or re-apply.`
+      );
     }
+
+    await client.query(`
+      insert into supabase_migrations.schema_migrations (version, statements, name)
+      values ($1, array[$2], $3);
+    `, [MIGRATION_VERSION, MIGRATION_NAME, MIGRATION_NAME]);
+    console.log("  ✔ Ledger supabase_migrations.schema_migrations insertado atómicamente");
+    receipt.postconditions.ledger_recorded = true;
 
     // ── PASO 3: Verificación de Post-condiciones dentro de la unidad atómica ───
     console.log("[WMS C-3 RUNNER] Ejecutando Fase 3: Post-condiciones de esquema y permisos...");
-    
-    // Columnas handling_units
+
+    // 1. Columnas handling_units
     const colsRes = await client.query(`
       select column_name
         from information_schema.columns
@@ -191,14 +352,44 @@ export async function runC3Migration(options = {}) {
     assert.equal(foundCols.length, 4, "Las 4 columnas C-3 deben existir en handling_units");
     receipt.postconditions.columns_verified = foundCols;
 
-    // Privilegios EXECUTE en service_role
-    const privRes = await client.query(`
-      select has_function_privilege('service_role', 'public.fornexa_wms_action(uuid,uuid,text,jsonb,text)', 'EXECUTE') as priv_action,
-             has_function_privilege('service_role', 'public.fornexa_wms_policy_bool(jsonb,text,boolean)', 'EXECUTE') as priv_policy;
+    // 2. Índice idx_handling_units_state_control
+    const idxRes = await client.query(`
+      select indexname
+        from pg_indexes
+       where schemaname = 'public'
+         and tablename = 'handling_units'
+         and indexname = 'idx_handling_units_state_control';
     `);
-    assert.equal(privRes.rows[0].priv_action, true, "service_role debe poseer EXECUTE en fornexa_wms_action");
-    assert.equal(privRes.rows[0].priv_policy, true, "service_role debe poseer EXECUTE en fornexa_wms_policy_bool");
-    receipt.postconditions.service_role_execute = true;
+    assert.equal(idxRes.rows.length, 1, "El índice idx_handling_units_state_control debe existir");
+    receipt.postconditions.index_verified = true;
+
+    // 3. Inmutabilidad y Security Definer
+    const fnPropsRes = await client.query(`
+      select p.proname, p.provolatile, p.prosecdef
+        from pg_proc p
+        join pg_namespace n on n.oid = p.pronamespace
+       where n.nspname = 'public' and p.proname in ('fornexa_wms_policy_bool', 'fornexa_wms_action');
+    `);
+    const policyFn = fnPropsRes.rows.find(r => r.proname === "fornexa_wms_policy_bool");
+    const actionFn = fnPropsRes.rows.find(r => r.proname === "fornexa_wms_action");
+    assert.ok(policyFn, "Función fornexa_wms_policy_bool debe existir");
+    assert.equal(policyFn.provolatile, "i", "fornexa_wms_policy_bool debe ser IMMUTABLE ('i')");
+    assert.ok(actionFn, "Función fornexa_wms_action debe existir");
+    assert.equal(actionFn.prosecdef, true, "fornexa_wms_action debe ser SECURITY DEFINER");
+    receipt.postconditions.functions_verified = true;
+
+    // 4. Privilegios EXECUTE exclusivos en service_role (revocado de anon/authenticated)
+    const privRes = await client.query(`
+      select has_function_privilege('service_role', 'public.fornexa_wms_action(uuid,uuid,text,jsonb,text)', 'EXECUTE') as priv_action_service,
+             has_function_privilege('service_role', 'public.fornexa_wms_policy_bool(jsonb,text,boolean)', 'EXECUTE') as priv_policy_service,
+             has_function_privilege('anon', 'public.fornexa_wms_action(uuid,uuid,text,jsonb,text)', 'EXECUTE') as priv_action_anon,
+             has_function_privilege('authenticated', 'public.fornexa_wms_action(uuid,uuid,text,jsonb,text)', 'EXECUTE') as priv_action_auth;
+    `);
+    assert.equal(privRes.rows[0].priv_action_service, true, "service_role debe poseer EXECUTE en fornexa_wms_action");
+    assert.equal(privRes.rows[0].priv_policy_service, true, "service_role debe poseer EXECUTE en fornexa_wms_policy_bool");
+    assert.equal(privRes.rows[0].priv_action_anon, false, "anon NO debe poseer EXECUTE en fornexa_wms_action (revocado)");
+    assert.equal(privRes.rows[0].priv_action_auth, false, "authenticated NO debe poseer EXECUTE en fornexa_wms_action (revocado)");
+    receipt.postconditions.privileges_verified = true;
 
     // ── PASO 4: Cierre de Transacción ─────────────────────────────────────────
     if (dryRun) {
@@ -226,7 +417,7 @@ export async function runC3Migration(options = {}) {
   }
 }
 
-if (process.argv[1]?.endsWith("run-c3-migration.mjs")) {
+if (isDirectCliExecution()) {
   runC3Migration()
     .then(r => {
       console.log(`[WMS C-3 RUNNER] Veredicto: ${r.status}`);

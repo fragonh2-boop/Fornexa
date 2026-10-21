@@ -1130,6 +1130,87 @@ test("M7 C-3 — Subsanaciones Claude SQL (MUST-A, MUST-B, MUST-C, MUST-D)", () 
   );
 });
 
+test("M7 C-3 — Runner Transaccional: Validación de Destinos (MUST-1 Gate Fail-Closed)", async () => {
+  const { validateDestination } = await import("../scripts/wms/run-c3-migration.mjs");
+
+  // 1. Rechazo inmediato de hosts en denylist de producción
+  assert.throws(
+    () => validateDestination("postgres://postgres:pw@gqkjqhpmyejmehbuombk.supabase.co:5432/postgres"),
+    /WMS_DESTINATION_FORBIDDEN.*production fail-closed denylist/i,
+  );
+  assert.throws(
+    () => validateDestination("postgres://postgres:pw@other-prod.supabase.net:5432/postgres"),
+    /WMS_DESTINATION_FORBIDDEN/i,
+  );
+
+  // 2. Rechazo de hosts remotos no autorizados
+  assert.throws(
+    () => validateDestination("postgres://postgres:pw@192.168.1.100:5432/fornexa"),
+    /WMS_DESTINATION_FORBIDDEN.*not a permitted loopback/i,
+  );
+
+  // 3. Aceptación de loopback para rehearsal
+  const loopback = validateDestination("postgres://postgres:pw@127.0.0.1:5432/fornexa_test");
+  assert.equal(loopback.isLoopback, true);
+  assert.equal(loopback.hostname, "127.0.0.1");
+
+  // 4. Bloqueo de --apply-live sin flags ni env autorizados
+  assert.throws(
+    () => validateDestination("postgres://postgres:pw@127.0.0.1:5432/fornexa_test", { applyLive: true, confirmApply: false }),
+    /WMS_APPLY_GATE_CLOSED.*explicit confirmation flag/i,
+  );
+});
+
+test("M7 C-3 — Runner Transaccional: Delimitadores, Guard de Importación y Hash Pinning", async () => {
+  const {
+    stripTopLevelTransactionDelimiters,
+    isDirectCliExecution,
+    PINNED_C3_SQL_SHA256,
+    PINNED_C3_SQL_BYTES,
+  } = await import("../scripts/wms/run-c3-migration.mjs");
+
+  // 1. Hash pinning coincide con el archivo en disco
+  const diskSql = readFileSync(C3_MIGRATION_PATH, "utf-8");
+  const { createHash } = await import("node:crypto");
+  const actualHash = createHash("sha256").update(diskSql).digest("hex");
+  const actualBytes = Buffer.byteLength(diskSql, "utf-8");
+  assert.equal(actualHash, PINNED_C3_SQL_SHA256, "Hash fijado debe coincidir con HEAD");
+  assert.equal(actualBytes, PINNED_C3_SQL_BYTES, "Bytes fijados deben coincidir con HEAD");
+
+  // 2. Neutralización de begin; commit; rollback; fuera de dollar quotes
+  const sampleSql = `
+BEGIN;
+create table test (id int);
+do $$
+begin
+  -- inside dollar quote, should NOT be modified
+  perform 1;
+end;
+$$;
+COMMIT;
+`;
+  const stripped = stripTopLevelTransactionDelimiters(sampleSql);
+  assert.ok(stripped.includes("-- [RUNNER MANAGED BEGIN]"), "BEGIN top-level debe neutralizarse");
+  assert.ok(stripped.includes("-- [RUNNER MANAGED COMMIT]"), "COMMIT top-level debe neutralizarse");
+  assert.ok(stripped.includes("begin\n  -- inside dollar quote"), "BEGIN interno de función debe preservarse intacto");
+
+  // 3. Guard de importación CLI
+  assert.equal(isDirectCliExecution(["node", "/path/to/other.js"]), false);
+});
+
+test("M7 C-3 — Runner Transaccional: Ejecución Rehearsal PGlite y Post-condiciones Atómicas", async () => {
+  const { runC3Migration } = await import("../scripts/wms/run-c3-migration.mjs");
+  const receipt = await runC3Migration({ usePgLite: true, dryRun: true });
+
+  assert.equal(receipt.status, "SUCCESS_DRY_RUN", "Rehearsal en PGlite debe completar con SUCCESS_DRY_RUN");
+  assert.equal(receipt.postconditions.ledger_recorded, true, "Ledger debe insertarse atómicamente");
+  assert.equal(receipt.postconditions.columns_verified.length, 4, "Las 4 columnas deben validarse en postcondiciones");
+  assert.equal(receipt.postconditions.index_verified, true, "El índice debe validarse en postcondiciones");
+  assert.equal(receipt.postconditions.functions_verified, true, "Las funciones deben validarse en postcondiciones");
+  assert.equal(receipt.postconditions.privileges_verified, true, "Privilegios service_role exclusivos deben validarse");
+});
+
+
 
 
 
