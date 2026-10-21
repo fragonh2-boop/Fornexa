@@ -6,10 +6,12 @@
 --
 -- ROLLBACK INSTRUCTIONS & REVERSIBILITY GUARANTEES (MUST-2 / PROTECTED ROLLBACK):
 -- 1. Nivel 1 (Rollback Operativo Inmediato - Cero DDL / Sin Downtime):
---    Desactivar la exigencia de control físico y medición en políticas de almacén:
+--    Desactivar la exigencia de control físico y medición en políticas de almacén activas:
 --    UPDATE public.warehouse_behavior_policies
 --       SET params = jsonb_set(jsonb_set(params, '{require_state_control_on_load}', 'false'::jsonb), '{require_weight_measurement}', 'false'::jsonb),
---           updated_at = now();
+--           updated_at = now()
+--     WHERE superseded_at is null;
+--    (Acotado a políticas activas superseded_at is null, filtrable por warehouse_id según necesidad).
 -- 2. Nivel 2 (Rollback de RPC Protegido - Apagado Fail-Closed sin Reabrir Bypass E1):
 --    Aplicar supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql.
 --    CONDICIÓN VINCULANTE (SHOULD-I): Solo válido si no hay migraciones posteriores a
@@ -865,6 +867,25 @@ begin
              completed_at = v_ts
        where tenant_id = p_tenant and id = v_task.id
        returning * into v_task;
+
+      -- MUST-C: Release reserved quantity from source quant upon confirming REPLENISH
+      if v_task.task_type = 'REPLENISH' and v_task.source_bin_id is not null then
+        update public.inventory_quants
+           set quantity_reserved = greatest(0, quantity_reserved - v_task.quantity),
+               updated_at = v_ts
+         where id = (
+           select id from public.inventory_quants
+            where tenant_id = p_tenant
+              and warehouse_id = v_task.warehouse_id
+              and bin_id = v_task.source_bin_id
+              and product_id = v_task.product_id
+              and (v_task.hu_id is null or hu_id = v_task.hu_id)
+              and quantity_reserved > 0
+            order by quantity_reserved desc, updated_at desc
+            limit 1
+         );
+      end if;
+
       insert into public.audit_events (tenant_id, entity_type, entity_id, action, actor_user_id, source_channel, before_data, after_data)
       values (p_tenant, 'WAREHOUSE_TASK', v_task.id, p_action, p_actor, 'FORNEXA_WMS', v_before, to_jsonb(v_task));
       return jsonb_build_object('ok', true, 'action', p_action, 'task', to_jsonb(v_task));
@@ -910,7 +931,18 @@ begin
     -- C-3 Policy derivation: consolidation behavior is derived strictly from server policy
     v_consolidation := coalesce(v_policy->>'consolidation', 'YES');
 
-    -- MUST-5: Select source quant, deducting any pending replenishment tasks from the same source bin to prevent double consumption
+    -- MUST-C: Lock candidate source quants to serialize concurrent replenishment planning across sessions/destinations
+    perform 1
+       from public.inventory_quants iq
+      where iq.tenant_id = p_tenant
+        and iq.warehouse_id = v_warehouse_id
+        and iq.product_id = v_product_id
+        and iq.flow_state = 'STORED'
+        and iq.stock_status = 'AVAILABLE'
+      order by iq.expiry_date asc nulls last, iq.created_at asc
+        for update;
+
+    -- MUST-5 & MUST-C: Select source quant, evaluating unreserved stock and deducting any pending replenishment tasks
     select * into v_quant
       from public.inventory_quants iq
      where iq.tenant_id = p_tenant
@@ -959,12 +991,19 @@ begin
       end if;
     end if;
 
+    -- MUST-C: Persist stock reservation directly on the source quant to prevent double consumption across sessions
+    update public.inventory_quants
+       set quantity_reserved = quantity_reserved + v_qty,
+           updated_at = v_ts
+     where tenant_id = p_tenant and id = v_quant.id
+     returning * into v_quant;
+
     insert into public.warehouse_tasks (
       tenant_id, warehouse_id, task_type, state, source_bin_id, destination_bin_id,
       hu_id, product_id, quantity, uom, idempotency_key, reject_detail
     ) values (
       p_tenant, v_warehouse_id, 'REPLENISH', 'READY', v_quant.bin_id, v_bin_id,
-      v_quant.hu_id, v_product_id, v_qty, v_quant.uom, v_idem, v_fingerprint
+      v_quant.hu_id, v_product_id, v_qty, v_quant.uom, v_idem, null
     ) returning * into v_task;
 
     insert into public.audit_events (tenant_id, entity_type, entity_id, action, actor_user_id, source_channel, before_data, after_data)
@@ -1036,7 +1075,7 @@ begin
       ) values (
         p_tenant, v_hu.warehouse_id, 'CONTROL_STATE', 'FAILED', v_hu.id, v_idem,
         coalesce(nullif(p_payload->>'reject_code', ''), 'PHYSICAL_CHECK_FAILED'),
-        v_fingerprint,
+        coalesce(nullif(p_payload->>'reject_detail', ''), 'Physical state inspection rejected'),
         v_ts, v_ts
       ) returning * into v_task;
 
@@ -1053,12 +1092,13 @@ begin
        where tenant_id = p_tenant and id = v_hu.id
        returning * into v_hu;
 
+      -- SHOULD-4: reject_detail must be NULL on PASSED tasks to avoid domain field pollution
       insert into public.warehouse_tasks (
         tenant_id, warehouse_id, task_type, state, hu_id, idempotency_key,
         reject_detail, started_at, completed_at
       ) values (
         p_tenant, v_hu.warehouse_id, 'CONTROL_STATE', 'DONE', v_hu.id, v_idem,
-        v_fingerprint, v_ts, v_ts
+        null, v_ts, v_ts
       ) returning * into v_task;
 
       insert into public.audit_events (tenant_id, entity_type, entity_id, action, actor_user_id, source_channel, before_data, after_data)
@@ -1104,14 +1144,18 @@ begin
       join public.products p on p.id = huc.product_id and p.tenant_id = p_tenant
      where huc.tenant_id = p_tenant and huc.handling_unit_id = v_hu.id;
 
-    v_expected_weight := case when v_computed_weight > 0 then v_computed_weight else v_hu.gross_weight_kg end;
-    v_expected_volume := case when v_computed_volume > 0 then v_computed_volume else v_hu.volume_m3 end;
+    -- MUST-B: Expected weight & volume derive strictly from contents.
+    -- No fallback to v_hu.gross_weight_kg or v_hu.volume_m3 to prevent circular self-confirmation (fail-closed).
+    v_expected_weight := case when v_computed_weight > 0 then v_computed_weight else null end;
+    v_expected_volume := case when v_computed_volume > 0 then v_computed_volume else null end;
 
     v_measured_weight := nullif(p_payload->>'measured_weight_kg', '')::numeric(10,3);
     v_measured_volume := nullif(p_payload->>'measured_volume_m3', '')::numeric(10,4);
     v_weight_tol := coalesce((v_policy->>'weight_tolerance_pct')::numeric(6,2), 5.0);
     v_vol_tol := coalesce((v_policy->>'volume_tolerance_pct')::numeric(6,2), 10.0);
 
+    -- SHOULD-5: Asimetría deliberada de defaults: require_state_control_on_load es true por defecto (fail-closed de control físico),
+    -- mientras que require_weight_measurement y require_volume_measurement son false por defecto (opt-in de pesaje/cubicaje).
     v_req_weight := public.fornexa_wms_policy_bool(v_policy, 'require_weight_measurement', false);
     v_req_vol := public.fornexa_wms_policy_bool(v_policy, 'require_volume_measurement', false);
 
@@ -1232,14 +1276,18 @@ begin
       join public.products p on p.id = huc.product_id and p.tenant_id = p_tenant
      where huc.tenant_id = p_tenant and huc.handling_unit_id = v_hu.id;
 
-    v_expected_weight := case when v_computed_weight > 0 then v_computed_weight else v_hu.gross_weight_kg end;
-    v_expected_volume := case when v_computed_volume > 0 then v_computed_volume else v_hu.volume_m3 end;
+    -- MUST-B: Expected weight & volume derive strictly from contents.
+    -- No fallback to v_hu.gross_weight_kg or v_hu.volume_m3 to prevent circular self-confirmation (fail-closed).
+    v_expected_weight := case when v_computed_weight > 0 then v_computed_weight else null end;
+    v_expected_volume := case when v_computed_volume > 0 then v_computed_volume else null end;
 
     v_measured_weight := nullif(p_payload->>'measured_weight_kg', '')::numeric(10,3);
     v_measured_volume := nullif(p_payload->>'measured_volume_m3', '')::numeric(10,4);
     v_weight_tol := coalesce((v_policy->>'weight_tolerance_pct')::numeric(6,2), 5.0);
     v_vol_tol := coalesce((v_policy->>'volume_tolerance_pct')::numeric(6,2), 10.0);
 
+    -- SHOULD-5: Asimetría deliberada de defaults: require_state_control_on_load es true por defecto (fail-closed de control físico),
+    -- mientras que require_weight_measurement y require_volume_measurement son false por defecto (opt-in de pesaje/cubicaje).
     v_req_weight := public.fornexa_wms_policy_bool(v_policy, 'require_weight_measurement', false);
     v_req_vol := public.fornexa_wms_policy_bool(v_policy, 'require_volume_measurement', false);
 
@@ -1341,6 +1389,12 @@ begin
       raise exception 'WMS_FORBIDDEN';
     end if;
     v_warehouse_id := (p_payload->>'warehouse_id')::uuid;
+    -- MUST-D: Validate warehouse belongs to p_tenant to prevent cross-tenant referencing
+    if v_warehouse_id is null or not exists (
+      select 1 from public.warehouses where tenant_id = p_tenant and id = v_warehouse_id
+    ) then
+      raise exception 'WMS_FORBIDDEN';
+    end if;
     update public.warehouse_behavior_policies
        set superseded_at = v_ts,
            updated_at = v_ts
@@ -1375,6 +1429,12 @@ begin
       raise exception 'WMS_FORBIDDEN';
     end if;
     v_warehouse_id := (p_payload->>'warehouse_id')::uuid;
+    -- MUST-D: Validate warehouse belongs to p_tenant to prevent cross-tenant referencing
+    if v_warehouse_id is null or not exists (
+      select 1 from public.warehouses where tenant_id = p_tenant and id = v_warehouse_id
+    ) then
+      raise exception 'WMS_FORBIDDEN';
+    end if;
     insert into public.warehouse_resources (
       tenant_id, warehouse_id, code, name, resource_type, status,
       max_lift_height_m, max_weight_kg, certifications, shift_code, is_active
@@ -1422,15 +1482,19 @@ $$;
 -- de activar el requisito en las políticas activas preexistentes.
 -- Se aplica únicamente a políticas activas donde la clave esté indefinida (NULL o vacía),
 -- respetando estrictamente políticas donde se haya configurado explícitamente false de forma legítima.
+-- MUST-A: Se aplica estrictamente a políticas activas (superseded_at is null) donde la clave esté indefinida,
+-- garantizando la inmutabilidad de versiones históricas preexistentes.
 update public.warehouse_behavior_policies
    set params = jsonb_set(params, '{require_state_control_on_load}', 'true'::jsonb, true),
        updated_at = now()
  where params is not null
+   and superseded_at is null
    and (params->>'require_state_control_on_load' is null or params->>'require_state_control_on_load' = '');
 
--- Privilegios de funciones de servidor C-3 (SHOULD revokes)
+-- Privilegios de funciones de servidor C-3 (SHOULD revokes y grants a service_role)
 revoke all on function public.fornexa_wms_invalidate_hu_control() from public, anon, authenticated;
 revoke all on function public.fornexa_wms_policy_bool(jsonb, text, boolean) from public, anon, authenticated;
+grant execute on function public.fornexa_wms_policy_bool(jsonb, text, boolean) to service_role;
 revoke all on function public.fornexa_wms_action(uuid, uuid, text, jsonb, text) from public, anon, authenticated;
 grant execute on function public.fornexa_wms_action(uuid, uuid, text, jsonb, text) to service_role;
 

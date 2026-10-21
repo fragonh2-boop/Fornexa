@@ -1065,7 +1065,7 @@ test("M7 C-3 — Auditoría estática y anclaje sintáctico de cláusulas DDL (U
     "El script de rollback no debe eliminar columnas (DROP COLUMN prohibido sin importar mayúsculas/minúsculas)",
   );
 
-  // Revocación de privilegios en funciones auxiliares
+  // Revocación de privilegios en funciones auxiliares y concesión a service_role
   assert.ok(
     migrationSql.includes("revoke all on function public.fornexa_wms_invalidate_hu_control() from public, anon, authenticated"),
     "Se deben revocar privilegios públicos de fornexa_wms_invalidate_hu_control",
@@ -1073,6 +1073,60 @@ test("M7 C-3 — Auditoría estática y anclaje sintáctico de cláusulas DDL (U
   assert.ok(
     migrationSql.includes("revoke all on function public.fornexa_wms_policy_bool(jsonb, text, boolean) from public, anon, authenticated"),
     "Se deben revocar privilegios públicos de fornexa_wms_policy_bool",
+  );
+  assert.ok(
+    migrationSql.includes("grant execute on function public.fornexa_wms_policy_bool(jsonb, text, boolean) to service_role;"),
+    "Se debe otorgar execute a service_role para fornexa_wms_policy_bool",
+  );
+});
+
+test("M7 C-3 — Subsanaciones Claude SQL (MUST-A, MUST-B, MUST-C, MUST-D)", () => {
+  // MUST-A: Backfill acotado estrictamente a políticas activas (superseded_at is null)
+  assert.ok(
+    /update\s+public\.warehouse_behavior_policies[\s\S]*?superseded_at\s+is\s+null/i.test(migrationSql),
+    "El backfill debe acotarse estrictamente con superseded_at is null",
+  );
+
+  // MUST-B: Peso y volumen esperado sin fallback a gross_weight_kg (prevención de autoconfirmación fail-open)
+  assert.ok(
+    migrationSql.includes("v_expected_weight := case when v_computed_weight > 0 then v_computed_weight else null end;"),
+    "v_expected_weight debe calcularse estrictamente desde contenidos sin fallback a v_hu.gross_weight_kg",
+  );
+  assert.ok(
+    migrationSql.includes("v_expected_volume := case when v_computed_volume > 0 then v_computed_volume else null end;"),
+    "v_expected_volume debe calcularse estrictamente desde contenidos sin fallback a v_hu.volume_m3",
+  );
+
+  // MUST-C: Serialización origen y reserva persistente en REPLENISH
+  const replenishBlockMatch = migrationSql.match(/elsif\s+p_action\s+in\s*\(\s*'REPLENISH'[\s\S]*?\)\s+then([\s\S]*?)elsif\s+p_action\s*=\s*'CONTROL_STATE'/i);
+  assert.ok(replenishBlockMatch, "Debe existir el bloque REPLENISH");
+  const replenishBlock = replenishBlockMatch[1];
+  assert.ok(
+    /from\s+public\.inventory_quants\s+iq[\s\S]*?for\s+update/i.test(replenishBlock),
+    "REPLENISH debe bloquear quants origen con FOR UPDATE",
+  );
+  assert.ok(
+    /update\s+public\.inventory_quants\s+set\s+quantity_reserved\s*=\s*quantity_reserved\s*\+\s*v_qty/i.test(replenishBlock),
+    "REPLENISH debe incrementar quantity_reserved de forma duradera en el quant origen",
+  );
+  assert.ok(
+    /quantity_reserved\s*=\s*greatest\(0,\s*quantity_reserved\s*-\s*v_task\.quantity\)/i.test(replenishBlock),
+    "CONFIRM_TASK debe liberar quantity_reserved del quant origen",
+  );
+
+  // MUST-D: Validación explícita de warehouse perteneciente al tenant en UPSERT_POLICY y UPSERT_RESOURCE
+  assert.ok(
+    /from\s+public\.warehouses\s+where\s+tenant_id\s*=\s*p_tenant\s+and\s+id\s*=\s*v_warehouse_id/i.test(migrationSql),
+    "UPSERT_POLICY y UPSERT_RESOURCE deben validar que warehouse_id pertenezca a p_tenant",
+  );
+
+  // SHOULD-4: reject_detail = null en CONTROL_STATE PASSED
+  const controlStateBlockMatch = migrationSql.match(/elsif\s+p_action\s*=\s*'CONTROL_STATE'\s+then([\s\S]*?)elsif\s+p_action\s*=\s*'LABEL'/i);
+  assert.ok(controlStateBlockMatch, "Debe existir bloque CONTROL_STATE");
+  const csBlock = controlStateBlockMatch[1];
+  assert.ok(
+    /v_control_status\s*=\s*'PASSED'[\s\S]*?insert\s+into\s+public\.warehouse_tasks[\s\S]*?null,\s*v_ts,\s*v_ts/i.test(csBlock),
+    "CONTROL_STATE PASSED debe fijar reject_detail a null para no contaminar campos de dominio",
   );
 });
 

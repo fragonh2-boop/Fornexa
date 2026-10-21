@@ -747,6 +747,23 @@ export async function runHarness(options = {}) {
     "Role 'service_role' must possess EXECUTE privilege on public.fornexa_wms_action(uuid,uuid,text,jsonb,text)"
   );
 
+  // SHOULD-2: Check service_role EXECUTE privilege on fornexa_wms_policy_bool
+  let policyBoolServiceRolePrivilege = false;
+  try {
+    const polPrivRes = await db.query(
+      "select has_function_privilege('service_role', 'public.fornexa_wms_policy_bool(jsonb, text, boolean)', 'EXECUTE') as has_priv;"
+    );
+    policyBoolServiceRolePrivilege = polPrivRes?.rows?.[0]?.has_priv === true;
+  } catch (err) {
+    policyBoolServiceRolePrivilege = false;
+    console.error("  ✖ has_function_privilege for fornexa_wms_policy_bool failed:", err.message);
+  }
+  assert.equal(
+    policyBoolServiceRolePrivilege,
+    true,
+    "Role 'service_role' must possess EXECUTE privilege on public.fornexa_wms_policy_bool"
+  );
+
   receipt.musts.push({
     must: "MUST-EXECUTE",
     title: "Control estricto de privilegios EXECUTE en fornexa_wms_action (no-superuser denegado)",
@@ -1148,6 +1165,26 @@ export async function runHarness(options = {}) {
     }, "idem-rep-case-12");
     assert.equal(res.ok, true);
 
+    // MUST-C: Verificar efecto durable de reserva en inventory_quants.quantity_reserved
+    const qRow = (await db.query(`select quantity_reserved from inventory_quants where id = '${qId}'`)).rows[0];
+    assert.equal(Number(qRow.quantity_reserved), 10, "REPLENISH debe incrementar quantity_reserved de forma duradera en el quant");
+
+    // MUST-C: Confirmar tarea con CONFIRM_TASK y verificar liberación de quantity_reserved
+    const confRes = await executeAction("CONFIRM_TASK", { task_id: res.task.id });
+    assert.equal(confRes.ok, true);
+    const qRowAfterDone = (await db.query(`select quantity_reserved from inventory_quants where id = '${qId}'`)).rows[0];
+    assert.equal(Number(qRowAfterDone.quantity_reserved), 0, "CONFIRM_TASK debe decrementar quantity_reserved en el quant origen");
+
+    // Re-planificar reposición para continuar pruebas de error de saldo y concurrencia
+    const res2 = await executeAction("REPLENISH", {
+      warehouse_id: wh1,
+      product_id: prod1,
+      quant_id: qId,
+      destination_bin_id: binStage,
+      quantity: 10,
+    }, "idem-rep-case-12-bis");
+    assert.equal(res2.ok, true);
+
     // MUST-5: Segundo intento sobre el mismo destino falla cerrado con WMS_REPLENISHMENT_PENDING
     const errPending = await expectRpcError("REPLENISH", {
       warehouse_id: wh1,
@@ -1170,6 +1207,23 @@ export async function runHarness(options = {}) {
       quantity: 95, // 100 - 10 pendiente = 90 disponible, 95 excede
     }, "WMS_NO_SOURCE_STOCK");
     assert.equal(errExceed.error, "WMS_NO_SOURCE_STOCK");
+
+    // MUST-D: UPSERT_RESOURCE y UPSERT_POLICY validan pertenencia de warehouse_id a p_tenant
+    const foreignWh = "30000000-0000-4000-8000-000000000888";
+    const errForeignWhPolicy = await expectRpcError("UPSERT_POLICY", {
+      warehouse_id: foreignWh,
+      scope: "WAREHOUSE",
+      params: { require_state_control_on_load: true },
+    }, "WMS_FORBIDDEN");
+    assert.equal(errForeignWhPolicy.error, "WMS_FORBIDDEN");
+
+    const errForeignWhResource = await expectRpcError("UPSERT_RESOURCE", {
+      warehouse_id: foreignWh,
+      code: "FORK-FOREIGN",
+      name: "Foreign Warehouse Forklift",
+      resource_type: "FORKLIFT",
+    }, "WMS_FORBIDDEN");
+    assert.equal(errForeignWhResource.error, "WMS_FORBIDDEN");
 
     // MUST-1: Verificación de UPSERT_RESOURCE preservada de E1
     const resResource = await executeAction("UPSERT_RESOURCE", {
@@ -1291,6 +1345,15 @@ export async function runHarness(options = {}) {
     `);
 
     const errMissing = await expectRpcError("LOAD", { hu_id: huId, scanned_code: "HU-MUST4" }, "WMS_WEIGHT_TOLERANCE");
+
+    // MUST-B: HU with historical gross_weight_kg and measured_at, but no contents -> expected weight is incalculable and fails closed WMS_WEIGHT_TOLERANCE
+    const huNoContents = "70000000-0000-4000-8000-0000000000c1";
+    await runSql(`
+      insert into handling_units (id, tenant_id, warehouse_id, code, state, label_issued_at, gross_weight_kg, measured_at, state_controlled_at)
+      values ('${huNoContents}', '${tenantA}', '${strictWh}', 'HU-NOCONTENTS', 'PICKED_STAGED', now(), 50.0, now(), now());
+    `);
+    const errNoContents = await expectRpcError("LOAD", { hu_id: huNoContents, scanned_code: "HU-NOCONTENTS" }, "WMS_WEIGHT_TOLERANCE");
+    assert.equal(errNoContents.error, "WMS_WEIGHT_TOLERANCE", "HU sin contenidos con medicion obligatoria debe fallar cerrado sin autoconfirmarse con gross_weight_kg legado");
 
     const resSuccess = await executeAction("LOAD", { hu_id: huId, scanned_code: "HU-MUST4", measured_weight_kg: 20.0 });
     assert.equal(resSuccess.ok, true);
