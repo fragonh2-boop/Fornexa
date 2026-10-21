@@ -265,7 +265,7 @@ test("M7 C-3 — documento de resolución wms-m7-c3-contract-resolution.md cubre
   assert.ok(contractDoc.includes("### (e)"), "Debe documentar resolución (e)");
 });
 
-test("M7 C-3 — helper fornexa_wms_policy_bool define parsing seguro y previene errores 22P02 (MUST-A)", () => {
+test("M7 C-3 — Contrato DDL de fornexa_wms_policy_bool: firma, manejo seguro y ausencia de 22P02", () => {
   assert.ok(
     migrationSql.includes("create or replace function public.fornexa_wms_policy_bool"),
     "La migración debe definir la función helper fornexa_wms_policy_bool",
@@ -278,26 +278,10 @@ test("M7 C-3 — helper fornexa_wms_policy_bool define parsing seguro y previene
     !migrationSql.includes("::boolean"),
     "No debe existir ningún casteo crudo ::boolean en la migración para evitar error PostgreSQL 22P02",
   );
-
-  // Simulación funcional del evaluador seguro de políticas booleanas
-  function parsePolicyBool(policy: Record<string, unknown> | null, key: string, def = true): boolean {
-    if (!policy || !(key in policy)) return def;
-    const raw = String(policy[key] ?? "").trim().toLowerCase();
-    if (raw === "") return def;
-    if (["true", "1", "t", "yes", "si", "on"].includes(raw)) return true;
-    if (["false", "0", "f", "no", "off"].includes(raw)) return false;
-    return def;
-  }
-
-  assert.strictEqual(parsePolicyBool({ k: "true" }, "k"), true);
-  assert.strictEqual(parsePolicyBool({ k: "si" }, "k"), true);
-  assert.strictEqual(parsePolicyBool({ k: "1" }, "k"), true);
-  assert.strictEqual(parsePolicyBool({ k: "false" }, "k"), false);
-  assert.strictEqual(parsePolicyBool({ k: "0" }, "k"), false);
-  assert.strictEqual(parsePolicyBool({ k: "no" }, "k"), false);
-  assert.strictEqual(parsePolicyBool({ k: "invalid_syntax" }, "k", true), true);
-  assert.strictEqual(parsePolicyBool({ k: "" }, "k", true), true);
-  assert.strictEqual(parsePolicyBool(null, "k", true), true);
+  assert.ok(
+    migrationSql.includes("revoke all on function public.fornexa_wms_policy_bool(jsonb, text, boolean) from public, anon, authenticated"),
+    "Se deben revocar privilegios públicos de fornexa_wms_policy_bool",
+  );
 });
 
 test("M7 C-3 — CONTROL_STATE deriva v_rej_state estrictamente de disposition sin heurísticas LIKE (SHOULD-B y SHOULD-C)", () => {
@@ -411,35 +395,92 @@ test("M7 C-3 — lib/memorandum.ts modera la redacción de C-3 a 'En revisión i
   );
 });
 
+/**
+ * Función canónica de validación estricta de recibo relacional duradero.
+ * Falla de forma cerrada si:
+ * - El motor o base de datos no corresponden a la certificación homologada de contenedor (pg-socket / fornexa_test).
+ * - Faltan o son inválidos los hashes criptográficos (execution_sha, github_run_id, migration_sha256, rollback_sha256, harness_sha256).
+ * - Cualquiera de los 16 casos no tiene status "PASS" explícito individual.
+ * - Cualquiera de los MUSTs obligatorios no tiene status "PASS" explícito individual.
+ */
+export function validateRelationalReceipt(receipt: any): void {
+  assert.ok(receipt && typeof receipt === "object", "El recibo debe ser un objeto válido");
+  assert.equal(receipt.engine, "pg-socket", "El recibo duradero debe estar certificado con engine pg-socket");
+  assert.equal(receipt.database, "fornexa_test", "La base de datos del recibo debe ser fornexa_test");
+  assert.equal(receipt.certification_scope, "DURABLE_PG16_CONTAINER_CERTIFICATION");
+  assert.equal(receipt.concurrency_certified, true, "El recibo debe certificar concurrencia transaccional");
+
+  // Vinculación estricta de SHA y Run
+  assert.match(
+    receipt.execution_sha,
+    /^[0-9a-f]{40}$/i,
+    "execution_sha debe ser un commit SHA-1 hexadecimal de 40 caracteres",
+  );
+  assert.match(
+    String(receipt.github_run_id),
+    /^\d+$/,
+    "github_run_id debe ser un identificador numérico de ejecución CI",
+  );
+  assert.match(
+    receipt.migration_sha256,
+    /^[0-9a-f]{64}$/i,
+    "migration_sha256 debe ser un hash SHA-256 válido de 64 caracteres",
+  );
+  assert.match(
+    receipt.rollback_sha256,
+    /^[0-9a-f]{64}$/i,
+    "rollback_sha256 debe ser un hash SHA-256 válido de 64 caracteres",
+  );
+  assert.match(
+    receipt.harness_sha256,
+    /^[0-9a-f]{64}$/i,
+    "harness_sha256 debe ser un hash SHA-256 válido de 64 caracteres",
+  );
+
+  // Validación estricta de matriz de 16 casos
+  assert.equal(receipt.summary.total, 16, "El total de casos en summary debe ser exactamente 16");
+  assert.equal(receipt.summary.passed, 16, "El conteo passed en summary debe ser exactamente 16");
+  assert.equal(receipt.summary.failed, 0, "El conteo failed en summary debe ser 0");
+  assert.ok(Array.isArray(receipt.cases), "receipt.cases debe ser un array");
+  assert.equal(receipt.cases.length, 16, "receipt.cases debe contener exactamente 16 elementos");
+
+  for (let i = 0; i < 16; i++) {
+    const c = receipt.cases[i];
+    assert.equal(c.case, i + 1, `El caso en índice ${i} debe tener identificador case: ${i + 1}`);
+    assert.equal(
+      c.status,
+      "PASS",
+      `El caso ${i + 1} (${c.title}) debe certificar status PASS individual estricto (no se admite FAIL ni omisión)`,
+    );
+    assert.ok(typeof c.title === "string" && c.title.trim().length > 0, `El caso ${i + 1} debe incluir título descriptivo`);
+  }
+
+  // Validación estricta de MUSTs de seguridad y arquitectura
+  const requiredMusts = ["MUST-1", "MUST-2", "MUST-3", "MUST-4", "MUST-5", "MUST-RLS", "MUST-EXECUTE", "MUST-POLICY-BOOL"];
+  assert.ok(Array.isArray(receipt.musts), "receipt.musts debe ser un array");
+  const mustMap = new Map(receipt.musts.map((m: any) => [m.must, m]));
+
+  for (const mustKey of requiredMusts) {
+    assert.ok(mustMap.has(mustKey), `Debe existir ${mustKey} en receipt.musts`);
+    const m = mustMap.get(mustKey);
+    assert.equal(m.status, "PASS", `El requisito ${mustKey} debe certificar status: PASS explícito`);
+    assert.ok(typeof m.title === "string" && m.title.trim().length > 0, `El requisito ${mustKey} debe tener título`);
+    assert.ok(m.evidence && typeof m.evidence === "object", `El requisito ${mustKey} debe contener evidencia`);
+  }
+}
+
 test("M7 C-3 — Ejecución relacional en PostgreSQL 16 genera recibo duradero con 16 casos y MUSTs certificados (MUST-1)", () => {
   const receiptPath = resolve(import.meta.dirname, "../docs/verification/receipt-m7-c3-postgres.json");
   const rawReceipt = readFileSync(receiptPath, "utf-8");
   const receipt = JSON.parse(rawReceipt);
-  assert.equal(receipt.engine, "pg-socket", "El recibo duradero debe estar certificado con engine pg-socket");
-  assert.equal(receipt.database, "fornexa_test", "La base de datos del recibo debe ser fornexa_test");
-  assert.equal(receipt.certification_scope, "DURABLE_PG16_CONTAINER_CERTIFICATION");
-  assert.equal(receipt.concurrency_certified, true);
-  assert.ok(receipt.execution_sha, "Debe tener execution_sha registrado");
-  assert.ok(receipt.github_run_id, "Debe tener github_run_id registrado");
-  assert.ok(receipt.harness_sha256, "Debe tener harness_sha256 registrado");
-  assert.equal(receipt.summary.total, 16);
-  assert.equal(receipt.summary.passed, 16);
-  assert.equal(receipt.summary.failed, 0);
-  assert.equal(receipt.cases.length, 16);
 
-  // Musts certificados
+  // Validación estricta integral del recibo duradero
+  validateRelationalReceipt(receipt);
+
   const mustMap = new Map(receipt.musts.map((m: any) => [m.must, m]));
-  assert.ok(mustMap.has("MUST-1"), "Debe certificar MUST-1 explícito");
-  assert.ok(mustMap.has("MUST-2"), "Debe certificar MUST-2 (rollback protegido)");
-  assert.ok(mustMap.has("MUST-3"), "Debe certificar MUST-3 (CONTROL_STATE sin status)");
-  assert.ok(mustMap.has("MUST-4"), "Debe certificar MUST-4 (medición requerida)");
-  assert.ok(mustMap.has("MUST-5"), "Debe certificar MUST-5 (aislamiento previo a DDL)");
-  assert.ok(mustMap.has("MUST-RLS"), "Debe certificar MUST-RLS");
-  assert.ok(mustMap.has("MUST-EXECUTE"), "Debe certificar MUST-EXECUTE");
 
   // MUST-RLS detalle exacto emitido por el arnés
   const rlsMust = mustMap.get("MUST-RLS") as any;
-  assert.equal(rlsMust.status, "PASS");
   assert.equal(
     rlsMust.title,
     "Certificación de Row Level Security (RLS) activo y aislamiento comprobado entre tenants A/B",
@@ -455,7 +496,6 @@ test("M7 C-3 — Ejecución relacional en PostgreSQL 16 genera recibo duradero c
 
   // MUST-EXECUTE detalle exacto con sonda positiva has_function_privilege
   const execMust = mustMap.get("MUST-EXECUTE") as any;
-  assert.equal(execMust.status, "PASS");
   assert.equal(
     execMust.title,
     "Control estricto de privilegios EXECUTE en fornexa_wms_action (no-superuser denegado)",
@@ -467,13 +507,92 @@ test("M7 C-3 — Ejecución relacional en PostgreSQL 16 genera recibo duradero c
   assert.equal(execMust.evidence.anon_denied, true);
 });
 
+test("M7 C-3 — Validador de recibo detecta y rechaza recibos inválidos, corruptos o con falsos positivos (pruebas negativas)", () => {
+  const receiptPath = resolve(import.meta.dirname, "../docs/verification/receipt-m7-c3-postgres.json");
+  const rawReceipt = readFileSync(receiptPath, "utf-8");
+  const validReceipt = JSON.parse(rawReceipt);
+
+  // 1. Rechazo si un caso individual está en FAIL aunque summary.passed reporte 16
+  const badCaseReceipt = JSON.parse(JSON.stringify(validReceipt));
+  badCaseReceipt.cases[0].status = "FAIL";
+  assert.throws(
+    () => validateRelationalReceipt(badCaseReceipt),
+    /status PASS individual estricto/,
+    "Debe rechazar recibo si algún caso tiene status FAIL",
+  );
+
+  // 2. Rechazo si la lista de casos está incompleta (15 casos)
+  const incompleteCasesReceipt = JSON.parse(JSON.stringify(validReceipt));
+  incompleteCasesReceipt.cases.pop();
+  assert.throws(
+    () => validateRelationalReceipt(incompleteCasesReceipt),
+    /exactamente 16 elementos/,
+    "Debe rechazar recibo si la lista de casos no contiene 16 elementos",
+  );
+
+  // 3. Rechazo si un MUST no tiene status PASS
+  const badMustReceipt = JSON.parse(JSON.stringify(validReceipt));
+  const rlsMust = badMustReceipt.musts.find((m: any) => m.must === "MUST-RLS");
+  if (rlsMust) rlsMust.status = "FAIL";
+  assert.throws(
+    () => validateRelationalReceipt(badMustReceipt),
+    /status: PASS explícito/,
+    "Debe rechazar recibo si algún MUST tiene status FAIL",
+  );
+
+  // 4. Rechazo si falta un MUST obligatorio (p. ej. MUST-EXECUTE)
+  const missingMustReceipt = JSON.parse(JSON.stringify(validReceipt));
+  missingMustReceipt.musts = missingMustReceipt.musts.filter((m: any) => m.must !== "MUST-EXECUTE");
+  assert.throws(
+    () => validateRelationalReceipt(missingMustReceipt),
+    /Debe existir MUST-EXECUTE/,
+    "Debe rechazar recibo si falta un MUST obligatorio",
+  );
+
+  // 5. Rechazo si execution_sha no es un commit SHA de 40 hex (falso truthy)
+  const fakeShaReceipt = JSON.parse(JSON.stringify(validReceipt));
+  fakeShaReceipt.execution_sha = "not-a-valid-sha";
+  assert.throws(
+    () => validateRelationalReceipt(fakeShaReceipt),
+    /execution_sha/,
+    "Debe rechazar execution_sha no hexadecimal de 40 caracteres",
+  );
+
+  // 6. Rechazo si github_run_id no es numérico
+  const fakeRunReceipt = JSON.parse(JSON.stringify(validReceipt));
+  fakeRunReceipt.github_run_id = "run-fake-non-numeric";
+  assert.throws(
+    () => validateRelationalReceipt(fakeRunReceipt),
+    /github_run_id/,
+    "Debe rechazar github_run_id no numérico",
+  );
+
+  // 7. Rechazo si el engine no es pg-socket homologado
+  const fakeEngineReceipt = JSON.parse(JSON.stringify(validReceipt));
+  fakeEngineReceipt.engine = "pglite-wasm";
+  assert.throws(
+    () => validateRelationalReceipt(fakeEngineReceipt),
+    /engine pg-socket/,
+    "Debe rechazar recibo si no proviene del engine pg-socket homologado",
+  );
+
+  // 8. Rechazo si concurrency_certified es false
+  const noConcurrencyReceipt = JSON.parse(JSON.stringify(validReceipt));
+  noConcurrencyReceipt.concurrency_certified = false;
+  assert.throws(
+    () => validateRelationalReceipt(noConcurrencyReceipt),
+    /concurrencia transaccional/,
+    "Debe rechazar si concurrency_certified no es true",
+  );
+});
+
 test("M7 C-3 — Script de rollback protegido no reabre el bypass E1 ni elimina columnas (MUST-2)", () => {
   const rbPath = resolve(
     import.meta.dirname,
     "../supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql",
   );
   const rbSql = readFileSync(rbPath, "utf-8");
-  assert.ok(!rbSql.includes("drop column"), "Rollback protegido no debe eliminar columnas nulables");
+  assert.ok(!/drop\s+column/i.test(rbSql), "Rollback protegido no debe eliminar columnas (prohibido DROP COLUMN case-insensitive)");
   assert.ok(
     rbSql.includes("p_idempotency_key text default null"),
     "Rollback protegido debe preservar la firma exacta de fornexa_wms_action",
@@ -860,75 +979,100 @@ test("M7 C-3 — Arnés aborta fail-closed y rechaza falsos positivos si la sond
   await memDbB.close();
 });
 
-test("M7 C-3 — Subsanaciones de revisión independiente Grok (6 MUSTs y revocación de privilegios)", () => {
-  // MUST-1: UPSERT_RESOURCE preservado de E1 en fornexa_wms_action para OWNER/ADMIN/PLANNER
+test("M7 C-3 — Auditoría estática y anclaje sintáctico de cláusulas DDL (UPSERT_RESOURCE, delimitadores de transacción, políticas y rollback)", () => {
+  // MUST-1: UPSERT_RESOURCE en fornexa_wms_action restringido a OWNER/ADMIN/PLANNER y con insert
+  const upsertBlockMatch = migrationSql.match(/elsif\s+p_action\s*=\s*'UPSERT_RESOURCE'\s+then([\s\S]*?)else/i);
+  assert.ok(upsertBlockMatch, "fornexa_wms_action debe contener el bloque elsif p_action = 'UPSERT_RESOURCE'");
+  const upsertBlock = upsertBlockMatch[1];
   assert.ok(
-    migrationSql.includes("elsif p_action = 'UPSERT_RESOURCE' then"),
-    "fornexa_wms_action debe soportar UPSERT_RESOURCE (MUST-1)",
+    /v_role\s+not\s+in\s*\(\s*'OWNER'\s*,\s*'ADMIN'\s*,\s*'PLANNER'\s*\)/i.test(upsertBlock),
+    "El bloque UPSERT_RESOURCE debe restringirse ancladamente a OWNER, ADMIN y PLANNER",
   );
   assert.ok(
-    migrationSql.includes("v_role not in ('OWNER','ADMIN','PLANNER')"),
-    "UPSERT_RESOURCE debe restringirse estrictamente a OWNER, ADMIN y PLANNER (MUST-1)",
-  );
-  assert.ok(
-    migrationSql.includes("insert into public.warehouse_resources"),
-    "UPSERT_RESOURCE debe insertar en warehouse_resources (MUST-1)",
+    /insert\s+into\s+public\.warehouse_resources/i.test(upsertBlock),
+    "El bloque UPSERT_RESOURCE debe realizar insert into public.warehouse_resources",
   );
 
   // MUST-2: Envoltura atómica BEGIN ... COMMIT
   assert.ok(
     /^\s*begin;/m.test(migrationSql),
-    "La migración debe comenzar con BEGIN (MUST-2)",
+    "La migración debe comenzar con BEGIN atómico",
   );
   assert.ok(
     /commit;\s*$/m.test(migrationSql),
-    "La migración debe finalizar con COMMIT (MUST-2)",
+    "La migración debe finalizar con COMMIT atómico",
   );
 
   // MUST-3: Contrato de backfill sin sobreescribir false y actualizando updated_at
+  const backfillMatch = migrationSql.match(/\nupdate\s+public\.warehouse_behavior_policies[\s\S]*?require_state_control_on_load[\s\S]*?where[\s\S]*?;/i);
+  assert.ok(backfillMatch, "La migración debe contener la sentencia UPDATE de backfill de políticas");
+  const backfillClause = backfillMatch[0];
   assert.ok(
-    migrationSql.includes("params->>'require_state_control_on_load' is null or params->>'require_state_control_on_load' = ''"),
-    "El backfill de políticas debe aplicar solo cuando la clave esté indefinida o vacía (MUST-3)",
+    /params\s*->>\s*'require_state_control_on_load'\s+is\s+null\s+or\s+params\s*->>\s*'require_state_control_on_load'\s*=\s*''/i.test(backfillClause),
+    "El backfill debe aplicar estrictamente cuando require_state_control_on_load sea NULL o vacío, preservando false legítimos",
   );
   assert.ok(
-    migrationSql.includes("updated_at = now()"),
-    "El backfill de políticas debe actualizar updated_at (MUST-3)",
+    /updated_at\s*=\s*now\(\)/i.test(backfillClause),
+    "El backfill debe actualizar updated_at = now()",
   );
 
   // MUST-4: Preimagen real en auditoría de CONTROL_STATE
+  const controlStateBlockMatch = migrationSql.match(/elsif\s+p_action\s*=\s*'CONTROL_STATE'\s+then([\s\S]*?)elsif/i);
+  assert.ok(controlStateBlockMatch, "Debe existir el bloque CONTROL_STATE");
+  const controlStateBlock = controlStateBlockMatch[1];
+  const beforePos = controlStateBlock.indexOf("v_before := to_jsonb(v_hu);");
+  const updatePos = controlStateBlock.indexOf("update public.handling_units");
+  assert.ok(beforePos !== -1, "CONTROL_STATE debe asignar v_before := to_jsonb(v_hu)");
+  assert.ok(updatePos !== -1, "CONTROL_STATE debe mutar handling_units");
+  assert.ok(beforePos < updatePos, "v_before debe capturarse antes de la mutación de handling_units");
   assert.ok(
-    migrationSql.includes("v_before := to_jsonb(v_hu);"),
-    "CONTROL_STATE debe capturar v_before := to_jsonb(v_hu) antes de cualquier mutación (MUST-4)",
+    /insert\s+into\s+public\.audit_events[\s\S]*?v_before/i.test(controlStateBlock),
+    "CONTROL_STATE debe registrar v_before en audit_events",
   );
 
   // MUST-5: Serialización de bin destino y prevención de doble consumo en REPLENISH
+  const replenishBlockMatch = migrationSql.match(/elsif\s+p_action\s+in\s*\(\s*'REPLENISH'[\s\S]*?\)\s+then([\s\S]*?)elsif/i);
+  assert.ok(replenishBlockMatch, "Debe existir el bloque REPLENISH");
+  const replenishBlock = replenishBlockMatch[1];
   assert.ok(
-    migrationSql.includes("from public.warehouse_bins wb") && migrationSql.includes("for update"),
-    "REPLENISH debe bloquear y validar el bin destino con FOR UPDATE (MUST-5)",
+    /from\s+public\.warehouse_bins\s+wb[\s\S]*?for\s+update/i.test(replenishBlock),
+    "REPLENISH debe bloquear el bin destino con FOR UPDATE",
   );
   assert.ok(
-    migrationSql.includes("raise exception 'WMS_REPLENISHMENT_PENDING'"),
-    "REPLENISH debe rechazar tareas pendientes en destino con WMS_REPLENISHMENT_PENDING (MUST-5)",
+    /raise\s+exception\s+'WMS_REPLENISHMENT_PENDING'/i.test(replenishBlock),
+    "REPLENISH debe rechazar tareas pendientes en destino con WMS_REPLENISHMENT_PENDING",
   );
   assert.ok(
-    migrationSql.includes("wt.source_bin_id = iq.bin_id"),
-    "REPLENISH debe deducir tareas pendientes de reposición del saldo disponible origen (MUST-5)",
+    /wt\.source_bin_id\s*=\s*iq\.bin_id/i.test(replenishBlock),
+    "REPLENISH debe deducir tareas pendientes de reposición del saldo disponible origen",
   );
 
   // MUST-6: Cabecera y script de rollback documentan apagado fail-closed (WMS_ROLLBACK_ACTIVE)
   assert.ok(
     migrationSql.includes("Nivel 2 (Rollback de RPC Protegido - Apagado Fail-Closed sin Reabrir Bypass E1)"),
-    "La cabecera de la migración debe declarar apagado fail-closed en Nivel 2 (MUST-6)",
+    "La cabecera de la migración debe declarar apagado fail-closed en Nivel 2",
+  );
+  const rollbackSql = readFileSync(
+    resolve(import.meta.dirname, "../supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql"),
+    "utf-8",
+  );
+  assert.ok(
+    /raise\s+exception\s+'WMS_ROLLBACK_ACTIVE'/i.test(rollbackSql),
+    "El script de rollback debe invocar WMS_ROLLBACK_ACTIVE",
+  );
+  assert.ok(
+    !/drop\s+column/i.test(rollbackSql),
+    "El script de rollback no debe eliminar columnas (DROP COLUMN prohibido sin importar mayúsculas/minúsculas)",
   );
 
-  // SHOULD: Revocación de privilegios en funciones auxiliares
+  // Revocación de privilegios en funciones auxiliares
   assert.ok(
     migrationSql.includes("revoke all on function public.fornexa_wms_invalidate_hu_control() from public, anon, authenticated"),
-    "Se deben revocar privilegios públicos de fornexa_wms_invalidate_hu_control (SHOULD)",
+    "Se deben revocar privilegios públicos de fornexa_wms_invalidate_hu_control",
   );
   assert.ok(
     migrationSql.includes("revoke all on function public.fornexa_wms_policy_bool(jsonb, text, boolean) from public, anon, authenticated"),
-    "Se deben revocar privilegios públicos de fornexa_wms_policy_bool (SHOULD)",
+    "Se deben revocar privilegios públicos de fornexa_wms_policy_bool",
   );
 });
 

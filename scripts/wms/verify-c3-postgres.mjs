@@ -764,6 +764,44 @@ export async function runHarness(options = {}) {
   });
   console.log("  ✔ MUST-EXECUTE PASSED: authenticated and anon denied, service_role authorized with verified has_function_privilege");
 
+  // ── MUST-POLICY-BOOL: Relational execution of public.fornexa_wms_policy_bool in PostgreSQL ──
+  console.log("[WMS M7 C-3] Verifying public.fornexa_wms_policy_bool execution in PostgreSQL...");
+  const boolPermutations = [
+    { input: '{"k": "true"}', key: "k", def: false, expected: true },
+    { input: '{"k": "si"}', key: "k", def: false, expected: true },
+    { input: '{"k": "1"}', key: "k", def: false, expected: true },
+    { input: '{"k": "false"}', key: "k", def: true, expected: false },
+    { input: '{"k": "0"}', key: "k", def: true, expected: false },
+    { input: '{"k": "no"}', key: "k", def: true, expected: false },
+    { input: '{"k": "invalid_syntax"}', key: "k", def: true, expected: true },
+    { input: '{"k": ""}', key: "k", def: true, expected: true },
+    { input: null, key: "k", def: true, expected: true },
+  ];
+  for (const p of boolPermutations) {
+    const q =
+      p.input === null
+        ? `select public.fornexa_wms_policy_bool(null, '${p.key}', ${p.def}) as val;`
+        : `select public.fornexa_wms_policy_bool('${p.input}'::jsonb, '${p.key}', ${p.def}) as val;`;
+    const res = await db.query(q);
+    assert.equal(
+      res.rows[0].val,
+      p.expected,
+      `fornexa_wms_policy_bool failed for input ${p.input}, key ${p.key}`,
+    );
+  }
+  receipt.musts.push({
+    must: "MUST-POLICY-BOOL",
+    title:
+      "Evaluación relacional en PostgreSQL de public.fornexa_wms_policy_bool previene errores 22P02 y normaliza booleanos de política",
+    status: "PASS",
+    evidence: {
+      permutations_tested: boolPermutations.length,
+      all_matched: true,
+      tested_in_engine: clientType,
+    },
+  });
+  console.log("  ✔ MUST-POLICY-BOOL PASSED: All boolean parsing permutations evaluated in PostgreSQL engine");
+
   // Helper execution functions
   async function executeAction(action, payload, idem = null, tenant = tenantA, actor = actorA) {
     const res = await db.query(

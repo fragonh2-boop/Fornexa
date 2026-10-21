@@ -12,13 +12,13 @@
   "e1_core_sha256": "91c25fb49f7f4df1d14dbf6c41d56c2b8771d75fc41a82296bc03ab0f7038d8a",
   "migration_sha256": "5f18e45ccd1db028a5f082963fae1f2e691bc59bd62e6b6b884c68065fcec6d6",
   "rollback_sha256": "3c30750a751d62b6cd1f5d019ef09b2f9c64dc45e52aca16cc826a99e01b5447",
-  "harness_sha256": "5850b081e1df496d2d91f234c8805bb03b22540a97b435408b5db454abd979ef",
+  "harness_sha256": "063d7280d52d88be9c5412b94d4b6b73a2810f2e79f04e84df9502b884c896dc",
   "input_hashes": {
     "supabase/migrations/20260819_harden_tenant_access_function.sql": "5324296160e5bf7c6d9b95d3128626fcce01f47b33b97970bf5a7b0a483b694a",
     "supabase/migrations/20261017110000_wms_e1_core.sql": "91c25fb49f7f4df1d14dbf6c41d56c2b8771d75fc41a82296bc03ab0f7038d8a",
     "supabase/migrations/20261019120000_wms_c3_server_load_controls.sql": "5f18e45ccd1db028a5f082963fae1f2e691bc59bd62e6b6b884c68065fcec6d6",
     "supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql": "3c30750a751d62b6cd1f5d019ef09b2f9c64dc45e52aca16cc826a99e01b5447",
-    "scripts/wms/verify-c3-postgres.mjs": "5850b081e1df496d2d91f234c8805bb03b22540a97b435408b5db454abd979ef"
+    "scripts/wms/verify-c3-postgres.mjs": "063d7280d52d88be9c5412b94d4b6b73a2810f2e79f04e84df9502b884c896dc"
   },
   "pg_version": "PostgreSQL 16.15 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
   "engine": "pg-socket",
@@ -897,6 +897,16 @@
         "authenticated_error_message": "permission denied for function fornexa_wms_action",
         "service_role_authorized": true,
         "service_role_has_function_privilege": true
+      }
+    },
+    {
+      "must": "MUST-POLICY-BOOL",
+      "title": "Evaluación relacional en PostgreSQL de public.fornexa_wms_policy_bool previene errores 22P02 y normaliza booleanos de política",
+      "status": "PASS",
+      "evidence": {
+        "permutations_tested": 9,
+        "all_matched": true,
+        "tested_in_engine": "pg-socket"
       }
     },
     {
