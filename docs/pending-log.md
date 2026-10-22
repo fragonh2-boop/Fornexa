@@ -4,6 +4,8 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+- PR #140 integrada en main6eabee02, Vercel canónico READY/dominio correcto. C3 todavía sin aplicar (41 migraciones, 150 quants legados preservados en lectura); falta ejecutar workflow manual con sesión GitHub válida, leer/reconciliar resultado y verificar DB. Preparación de #138 alineada con main real y 70 pruebas locales PASS; no publicar/mergear aplicación antes de DB. CI566 de main pendiente de estado final en esta lectura.
+
 - Preparación local de reconciliación de #138 en `codex/c3-app-reconcile-20261022`: cinco conflictos resueltos y pruebas conservadas. 70 pruebas focales, tipos/lint/build locales PASS. Pendiente incorporar el main definitivo después de aplicar/verificar DB y pasar CI; no movida la PR de aplicación.
 
 ### 2026-10-22 — Integrar y ensayar el workflow corregido C3

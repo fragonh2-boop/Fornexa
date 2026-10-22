@@ -2,6 +2,14 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-22 — vía de datos integrada; aplicación productiva pendiente
+
+- PR #140 MERGED como `main 6eabee02d892f846554980fde82b9000a898b09a` (14:44 UTC), tree idéntico al HEAD f1ff. Vercel canónico `fornexa` PRODUCTION READY, despliegue `dpl_B7WYwS1oujpYnpmmqyuox29UGuBJ`, dominio `fornexasc.com` confirmado en ese mismo SHA. CI #565 SUCCESS; CI push #566 `39798408227` en progreso en la última lectura. No atribuir al estado viejo del run un fallo ni un éxito futuro.
+- Revisión primaria del delta de Work: Claude comentario #140 `6343547312`, aceptado sin MUST, seis SHOULD no bloqueantes. Baseline candidato cubierta por Deep en Slack `1792679710.103569` y `1792679710.152839`. Recibo PG17 literal entregado en #140 `6343721110` para addendum de lectura, sin regenerarlo.
+- Preflight productivo read-only: PG17.6, 41 migraciones, C3 ausente; políticas/HU/tareas/reservas 0; 150 quants legados con flow_state NULL y 150 movimientos. Confirmados índices únicos (tenant_id,id) de quants/orders. No se ejecutó DDL, seed ni operación WMS.
+- Bloqueo operativo: conector GitHub de Work sin workflow_dispatch y browser cloud sin sesión GitHub. El GPT coordinador declara que su rol no puede ejecutar escrituras productivas; no hay CLAIM suyo. Work mantiene la única ejecución pendiente y necesita login seguro o un operador autorizado por vía existente. Inputs preparados: branch main, SHA6eabee02d892f846554980fde82b9000a898b09a, confirm APPLY_WMS_C3 y aceptación de backfill vacía. Nunca reintentar sin leer el resultado/ledger si aparece COMMIT_UNKNOWN.
+- Rama de preparación de aplicación ya reconciliada con el main REAL, sin mover #138. Código funcional conservado de 3fe2c9b, 70 tests focales y tipos/lint/build locales PASS antes de este merge sin cambios funcionales. Tras apply/verificación: actualizar #138 con esta preparación, CI del nuevo HEAD y merge/deploy; comprobar SHA/READY/dominio y recorrido. No declarar C3 desplegado por el READY de la vía de datos.
+
 ## 2026-10-22 — preparación LOCAL de reconciliación de la aplicación
 
 - Rama local `codex/c3-app-reconcile-20261022`: merge de aplicación `3fe2c9b` con vía de datos `f1ffdaed`, sin mover PR #138 ni main. Resueltos cinco conflictos, conservando los 39 tests C3 (los 35 de datos más cuatro del runner), loader/mocks HTTP y job PG17. Los 35 tests compartidos se compararon byte a byte al retirar solo los cuatro tests del runner.
