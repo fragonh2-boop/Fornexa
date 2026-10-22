@@ -2,6 +2,14 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-22 — integración del candidato de aplicación y ensayo PG17
+
+- Base remota comprobada: PR #140 `773d7b8fbb42bc1a69745588a46e00e55985d5a8`; CI #562 SUCCESS, 364 tests web, 35 de certificación y 20/20 casos PG16. PR #138 sigue `3fe2c9b`; Claude cerró T1 en Slack `1792660904.565569`, sin MUST C3 pendiente de su revisión. Las notas inferiores de solicitud T1 son históricas.
+- Candidato de Claude recuperado desde PR #141 `ac5d65c7`: blob `44e7ce9506592be048c1b6acc4557324250005ff`, 33891 B, sha256 `89e9d3a4cfb7881a211684ad5f2f564fdb7bf462759bc1a5d186a09f29d3e2ec`. Se traslada al workflow real de #140, con un delta de Work: `psql -qAt` en la reconciliación para no capturar el tag COMMIT como dato. Nuevo hash `9d545284a35c8ef0662276eafb73ccacba7eb704621fcc712328bace7500abd4` (33892 B). El candidato original queda en #141; no se atribuye identidad al fichero modificado.
+- Pruebas locales ejecutadas: 14 URI sintéticas, seis resultados de reconciliación, apply no iniciado y sintaxis de los bloques shell PASS. Nuevo script `scripts/wms/verify-c3-apply-workflow.py`; CI añade un servicio PostgreSQL17 desechable para ejecutar el ensamblador real, rollback, bloqueo de políticas con dos sesiones y reconciliación ante COMMIT en vuelo. Ese ensayo real todavía no ha corrido en este checkpoint; no afirmar que PG17 está certificado antes de CI.
+- Deep Pro conserva la revisión independiente de #141. Coordinación informa entrega estática sin MUST de código, con W2/W3 pendientes de ejecución; no tengo aquí el informe primario local. Se solicita dictamen del nuevo delta/hash y evidencia CI posterior, sin duplicar autor/revisor. SQL, rollback, arnés C3 y aplicación no se modifican.
+- Ningún merge, dispatch, SQL productivo ni deploy. El conector de Work no expone dispatch; la ruta de ejecución autorizada debe concretarse cuando el workflow esté revisado y ensayado. No confundir traslado, CI o candidato en docs con migración aplicada.
+
 ## 2026-10-22 — PR #140: subsanación del gate de Memorandum
 
 - **CI #561 SUCCESS:** HEAD `81b850426f40b709147dd334b1f49b34f3df2484`, run `39754061575`, 363 tests web y 34 de certificación posterior, PostgreSQL 16.15 TCP 20/20 certificados, build/Mobile verdes. Artefacto `12415555113` descargado; ZIP sha256 `3e4604989319d7238d5ab304c3f362ff43d43eb67d732167a6cdd501a78185ef`, cinco hashes contrastados. Al revisar la separación se traslada también el test negativo de run/SHA ajenos, ubicado después de los cuatro tests exclusivos del runner en #138; estos cuatro siguen allí. Test adicional local PASS; el nuevo HEAD requiere su propia CI. Los MUST W1–W3 del YAML siguen abiertos.

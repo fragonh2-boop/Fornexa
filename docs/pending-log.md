@@ -4,6 +4,13 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-22 — Integrar y ensayar el workflow corregido C3
+
+- Candidato Claude de #141 trasladado a workflow activo, con corrección mínima de captura `psql -qAt` de Work. El hash difiere deliberadamente del candidato original; registrar y revisar ese delta, no reutilizar aprobación de otro blob.
+- Parser y reconciliación probados localmente con 14 URI, seis resultados, apply no iniciado y sintaxis shell PASS. CI prepara ensayo real en PostgreSQL17 aislado de aplicación/rollback y contención entre dos sesiones. Pendiente resultado CI y dictamen independiente sobre integración/evidencia.
+- Claude ya cerró T1 en #138; CI #562 de #140 está en verde. Las referencias inferiores a T1 pendiente y ausencia de diff pertenecen a checkpoints anteriores.
+- Persisten aplicación y verificación DB-first, reconciliación de #138, merge/deploy y comprobación productiva. No se ha aplicado SQL remoto ni despachado el workflow en esta preparación.
+
 ### 2026-10-22 — WMS C-3: gates de evidencia y vía de aplicación
 
 - **CI #560, resultado comprobado:** gate Memo, tipos, lint y tests web SUCCESS; arnés aborta con `42830` por bootstrap antiguo sin clave única de `inventory_quants`. Se incorpora la verificación correspondiente al SQL auditado: arnés de 20 casos, validador/pruebas de recibo, histórico y control del run actual en CI. Aplicación y runner siguen fuera de #140. 52 tests focales locales, tipos/lint/build PASS; PGlite 20/20 suplementario (0 certificados TCP). Nueva CI pendiente.
