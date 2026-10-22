@@ -4,6 +4,12 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-22 — WMS C-3: gates de evidencia y vía de aplicación
+
+- PR #138 `3fe2c9b25cb90b8dd246f56aa2f303bb10993ca0`: CI #559 SUCCESS; pendiente revisión independiente del delta T1 por Claude. Recibo original #557 y contraste obligatorio con el run actual en CI.
+- PR #140: CI #558 falló en Memorandum antes del arnés. Este ajuste incorpora el hito real y actualiza fecha/cobertura sin alterar los tres blobs originales. Pendientes CI posterior y revisión independiente del YAML; comprobar compatibilidad del arnés heredado con el SQL nuevo mediante ejecución, no inferir la causa de un rojo futuro.
+- No se ha aplicado la migración ni ejecutado merge/deploy en esta preparación. Mantener base de datos antes que aplicación; ninguna aprobación se deduce de igualdad de hashes o de CI de otra PR.
+
 ## Actualización verificada — 2026-10-19 11:30 CEST (P0)
 
 - **WMS M7 C-3 NO COMPLETAMENTE OPERATIVO:** PR #134 y PR #135 ya están fusionadas en el código de `main cc52ff38549792b5ad9049aa2462b436a1438731`; CI #528 completó SUCCESS y Vercel `fornexa` Production READY en ese mismo SHA. Es un estado de despliegue **web**, no de activación completa del WMS.

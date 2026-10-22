@@ -18,8 +18,8 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "19 oct 2026";
-export const memorandumCommitCoverage = 672;
+export const memorandumUpdatedAt = "22 oct 2026";
+export const memorandumCommitCoverage = 669;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -193,6 +193,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.10.22-1",
+    date: "22 oct 2026",
+    surface: ["Plataforma"],
+    title: "Preparación de la aplicación de controles de carga en Almacenes",
+    purpose: "Preparar la actualización de la base de datos antes del despliegue de la aplicación.",
+    outcome: "Se incorpora una vía manual de aplicación con comprobaciones del contenido de la migración y de su reversión, precondiciones y verificaciones de estructura y datos. Está pendiente de revisión y ensayo; la incorporación del workflow no ejecuta la migración ni acredita su aplicación en producción.",
+    status: "Canal interno",
+  },
   {
     version: "2026.10.17-3",
     date: "17 oct 2026",

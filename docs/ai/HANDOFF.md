@@ -2,6 +2,13 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-22 — PR #140: subsanación del gate de Memorandum
+
+- Rama remota `chore/wms-c3-data-layer-apply-path`, base comprobada `65166adc64d14beb3b836f3b7843f8f876f188a6`. CI #558 falló en el gate de Memorandum; el arnés no se ejecutó. Se actualizan el hito público, fecha, cobertura y la expectativa de fecha del test, sin modificar SQL, rollback ni YAML.
+- La vía manual está preparada, no aplicada. Revisión independiente del YAML en curso; no considerar su igualdad de bytes una aprobación de diseño. No hay merge, dispatch, SQL remoto ni deploy en esta preparación.
+- PR #138 tiene corrección T1 publicada en `3fe2c9b25cb90b8dd246f56aa2f303bb10993ca0`; CI #559 SUCCESS, 381 tests y certificación posterior al arnés en verde. Recibo original #557 restaurado sin editar; CI exige procedencia del run actual. Delta solicitado a Claude; no darlo por aprobado antes de su dictamen.
+- Siguiente: ejecutar CI de este ajuste, registrar su primera causa real si falla y reconciliar dependencias de validación del SQL nuevo sin omitir gates. Conservar el orden base de datos antes que aplicación. Los estados históricos inferiores no sustituyen este checkpoint.
+
 ## Estado operativo verificado — 2026-10-19 11:30 CEST
 
 **P0 — WMS M7 DB-first pendiente.** `main cc52ff38549792b5ad9049aa2462b436a1438731` incorpora PR #134 y PR #135; GitHub Actions #528 SUCCESS y Vercel Production READY en el mismo SHA. **No es equivalente a C-3 operativo:** Supabase prod `gqkjqhpmyejmehbuombk` registra 41 migraciones, terminando en WMS `20261017110000_wms_e1_core`; no registra `20261019120000_wms_c3_server_load_controls.sql`. Verificación SQL read-only: faltan `handling_units.state_controlled_at`, `handling_units.measured_at` y la RPC helper `fornexa_wms_policy_bool`.
