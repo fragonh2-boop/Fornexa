@@ -429,7 +429,7 @@ export function computeRuntimeInputHashes(): Record<string, string> {
  * - Bajo pg-socket, summary.not_certified no es estrictamente 0.
  * - certification_scope no deriva dinámicamente de la versión mayor de PostgreSQL del motor.
  */
-export function validateRelationalReceipt(receipt: any, options: { expectedEngine?: string } = {}): void {
+export function validateRelationalReceipt(receipt: any, options: { expectedEngine?: string; expectedRunId?: string; expectedExecutionSha?: string } = {}): void {
   const targetEngine = options.expectedEngine ?? "pg-socket";
   assert.ok(receipt && typeof receipt === "object", "El recibo debe ser un objeto válido");
   assert.equal(receipt.engine, targetEngine, `El recibo duradero debe estar certificado con engine ${targetEngine}`);
@@ -460,6 +460,14 @@ export function validateRelationalReceipt(receipt: any, options: { expectedEngin
     "github_run_id debe ser un identificador numérico de ejecución CI",
   );
   assert.match(receipt.base_sha, /^[0-9a-f]{40}$/i, "base_sha debe ser un SHA válido");
+  if (options.expectedRunId !== undefined) {
+    assert.match(options.expectedRunId, /^\d+$/, "El run actual esperado debe estar definido");
+    assert.equal(String(receipt.github_run_id), options.expectedRunId, "El recibo debe pertenecer al GITHUB_RUN_ID actual");
+  }
+  if (options.expectedExecutionSha !== undefined) {
+    assert.equal(receipt.execution_sha, options.expectedExecutionSha, "El recibo debe corresponder al GITHUB_SHA ejecutado");
+  }
+
 
   // MUST-T1: Vincular por CONTENIDO en runtime, no por commit estático
   const runtimeHashes = computeRuntimeInputHashes();
@@ -561,8 +569,18 @@ test("M7 C-3 — Valida el recibo relacional activo de certificación (MUST-T1 y
   const rawReceipt = readFileSync(receiptPath, "utf-8");
   const receipt = JSON.parse(rawReceipt);
 
-  // Validación estricta integral del recibo duradero
-  validateRelationalReceipt(receipt);
+  // Offline: validate a genuine prior run by content. Post-harness CI: require
+  // the newly produced receipt to belong to this exact run and merge-ref.
+  const currentRun = process.env.WMS_CURRENT_RUN_RECEIPT === "true";
+  if (currentRun) {
+    assert.match(process.env.GITHUB_RUN_ID ?? "", /^\d+$/, "GITHUB_RUN_ID requerido para certificación del run actual");
+    assert.match(process.env.GITHUB_SHA ?? "", /^[0-9a-f]{40}$/i, "GITHUB_SHA requerido para certificación del run actual");
+    assert.equal(receipt.github_ref, process.env.GITHUB_REF, "El recibo debe corresponder al ref del run actual");
+  }
+  validateRelationalReceipt(receipt, currentRun ? {
+    expectedRunId: process.env.GITHUB_RUN_ID,
+    expectedExecutionSha: process.env.GITHUB_SHA,
+  } : {});
 
   const mustMap = new Map(receipt.musts.map((m: any) => [m.must, m]));
 
@@ -1407,4 +1425,14 @@ test("C3 runner refuses apply in PGlite and dryRun=false without explicit apply"
   await assert.rejects(() => runC3Migration({ applyLive: true, usePgLite: true, confirmApply: true }), /WMS_APPLY_GATE_CLOSED/);
   await assert.rejects(() => runC3Migration({ dryRun: false, usePgLite: true }), /WMS_APPLY_GATE_CLOSED/);
   await assert.rejects(() => runC3Migration({ applyLive: true, dryRun: true }), /WMS_APPLY_GATE_CLOSED/);
+});
+
+
+test("C3 rejects receipts from a different CI run or execution SHA", () => {
+  const receipt = JSON.parse(readFileSync(resolve(import.meta.dirname, "../docs/verification/receipt-m7-c3-postgres.json"), "utf-8"));
+  validateRelationalReceipt(receipt, { expectedRunId: String(receipt.github_run_id), expectedExecutionSha: receipt.execution_sha });
+  assert.throws(() => validateRelationalReceipt(receipt, { expectedRunId: String(Number(receipt.github_run_id) + 1) }), /GITHUB_RUN_ID actual/);
+  const otherSha = receipt.execution_sha === "0".repeat(40) ? "1".repeat(40) : "0".repeat(40);
+  assert.throws(() => validateRelationalReceipt(receipt, { expectedExecutionSha: otherSha }), /GITHUB_SHA ejecutado/);
+  assert.throws(() => validateRelationalReceipt(receipt, { expectedRunId: "" }), /run actual esperado/);
 });

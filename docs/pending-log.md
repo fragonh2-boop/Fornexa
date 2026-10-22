@@ -4,6 +4,12 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-22 — C3 T1: recibo auténtico y vinculación de CI
+- **Estado:** ABIERTO hasta CI y revisión del delta. Se sustituye la instancia inconsistente por el JSON ORIGINAL de CI557 (run39730412618) con sus cinco inputs verificados y sin cambiar metadatos.
+- **Mecanismo:** CI retira la salida heredada antes del arnés; la validación posterior exige run, SHA de ejecución y ref actuales. Pruebas negativas para recibos de otra ejecución.
+- **Límites:** SQL/rollback/runner/arnés no cambian. La vía de datos #140 se revisa aparte; no hay merge, deploy ni SQL remoto por esta corrección. E2 permanece detrás de C3.
+
+
 ### 2026-10-21 — C3 #138: correcciones preparadas; CI y revisión pendientes
 - **Estado:** ABIERTO. Delta de ChatGPT Work sobre `7c62694c` en la rama existente, tras pausa de Gemini; sin merge, deploy ni SQL remoto.
 - **Aceptación de negocio cerrada:** dato SGA vigente editable; reservas de distintas órdenes con mismo origen/destino permitidas. Stock100→60+40 admitido y60+60 sin sobreasignación, sin liberar reserva ajena al confirmar.

@@ -2,6 +2,13 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-22 — C3: procedencia auténtica del recibo y validación del run actual
+
+- Base: PR #138 en `a399ebdf1b717a1e2eaf8c877098fce0c0c931c4`. Dictamen de Claude: mecanismos T1/T2 cerrados; instancia del recibo inconsistente pendiente.
+- Se descarga el artefacto original 12405092282 de CI557/run39730412618, se comprueba el ZIP y los cinco hashes contra el árbol y se copia su JSON sin editar bytes ni metadatos. SHA256 del recibo auténtico: `77aea23ec8b80dc70dc4e99198adc2f68290baa7807514b938978bd8ac11f9f8` (39950 bytes). El snapshot auténtico demuestra ese run anterior; no se hace pasar por el nuevo commit.
+- CI elimina el recibo heredado antes del arnés y valida GITHUB_RUN_ID/GITHUB_SHA/GITHUB_REF del recibo recién emitido en el paso posterior. Se añaden rechazos para run/SHA diferentes. SQL, rollback, runner y arnés permanecen idénticos al objeto ya revisado.
+- Pendiente: publicar y contrastar CI del delta, revalidación de Claude. PR #140 sigue separada e inerte, pendiente de corrección del Memorandum, dependencias de validación y revisión independiente del workflow. Orden conservado: datos antes del código; sin SQL remoto, dispatch, infraestructura, merge ni deploy en esta preparación.
+
 ## 2026-10-21 — C3 PR #138: relevo de preparación y decisiones SGA/reposición
 
 - Base de trabajo: `feat/wms-c3-server-controls-real-post`, padre `7c62694c38699e9f4e185d6b2257122ef3eb7f36`; main remoto comprobado `b7cbb2fe249650985caf631630cbf4a7460baa88`. Gemini confirmó pausa y ausencia de diff pendiente; ChatGPT Work prepara este delta, Claude nativo conserva revisión independiente.

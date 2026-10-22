@@ -72,9 +72,14 @@ jobs:
           PGUSER: postgres
           PGPASSWORD: testpassword123
           USE_REAL_POSTGRES: "true"
-        run: node scripts/wms/verify-c3-postgres.mjs
+        run: |
+          # Never upload a committed receipt if the harness aborts before writing.
+          rm -f docs/verification/receipt-m7-c3-postgres.json
+          node scripts/wms/verify-c3-postgres.mjs
 
       - name: Validate WMS C-3 Relational Receipt (Post-Harness Certification)
+        env:
+          WMS_CURRENT_RUN_RECEIPT: "true"
         run: node --experimental-test-module-mocks --import ./scripts/test-register.mjs --experimental-strip-types --test tests/wms-c3-server-controls.test.ts
 
       - name: Upload WMS C-3 Verification Receipt
