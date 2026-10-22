@@ -6,6 +6,8 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ### 2026-10-22 — WMS C-3: gates de evidencia y vía de aplicación
 
+- **CI #560, resultado comprobado:** gate Memo, tipos, lint y tests web SUCCESS; arnés aborta con `42830` por bootstrap antiguo sin clave única de `inventory_quants`. Se incorpora la verificación correspondiente al SQL auditado: arnés de 20 casos, validador/pruebas de recibo, histórico y control del run actual en CI. Aplicación y runner siguen fuera de #140. 52 tests focales locales, tipos/lint/build PASS; PGlite 20/20 suplementario (0 certificados TCP). Nueva CI pendiente.
+- **Workflow manual, cambios requeridos:** revisión independiente `https://github.com/fragonh2-boop/Fornexa/pull/140#issuecomment-6337078920`: W1 fijar destino canónico, W2 serializar precondición/backfill, W3 distinguir resultado de COMMIT desconocido de rollback. Devolución a Claude autor; no hay aprobación de apply ni diff suyo recibido aún.
 - PR #138 `3fe2c9b25cb90b8dd246f56aa2f303bb10993ca0`: CI #559 SUCCESS; pendiente revisión independiente del delta T1 por Claude. Recibo original #557 y contraste obligatorio con el run actual en CI.
 - PR #140: CI #558 falló en Memorandum antes del arnés. Este ajuste incorpora el hito real y actualiza fecha/cobertura sin alterar los tres blobs originales. Pendientes CI posterior y revisión independiente del YAML; comprobar compatibilidad del arnés heredado con el SQL nuevo mediante ejecución, no inferir la causa de un rojo futuro.
 - No se ha aplicado la migración ni ejecutado merge/deploy en esta preparación. Mantener base de datos antes que aplicación; ninguna aprobación se deduce de igualdad de hashes o de CI de otra PR.

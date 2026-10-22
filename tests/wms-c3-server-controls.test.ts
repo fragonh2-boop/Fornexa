@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
 import test from "node:test";
 import { WMS_ACTIONS, isHuColumnMissingError, executeWmsActionApi, validateWmsActionPayloadSecurity, type WmsAction } from "../lib/wms.ts";
+// @ts-expect-error - import dynamic harness case registry
+import { getExpectedCases } from "../scripts/wms/verify-c3-postgres.mjs";
 
 const C3_MIGRATION_PATH = resolve(
   import.meta.dirname,
@@ -264,7 +268,7 @@ test("M7 C-3 — documento de resolución wms-m7-c3-contract-resolution.md cubre
   assert.ok(contractDoc.includes("### (e)"), "Debe documentar resolución (e)");
 });
 
-test("M7 C-3 — helper fornexa_wms_policy_bool define parsing seguro y previene errores 22P02 (MUST-A)", () => {
+test("M7 C-3 — Contrato DDL de fornexa_wms_policy_bool: firma, manejo seguro y ausencia de 22P02", () => {
   assert.ok(
     migrationSql.includes("create or replace function public.fornexa_wms_policy_bool"),
     "La migración debe definir la función helper fornexa_wms_policy_bool",
@@ -277,26 +281,10 @@ test("M7 C-3 — helper fornexa_wms_policy_bool define parsing seguro y previene
     !migrationSql.includes("::boolean"),
     "No debe existir ningún casteo crudo ::boolean en la migración para evitar error PostgreSQL 22P02",
   );
-
-  // Simulación funcional del evaluador seguro de políticas booleanas
-  function parsePolicyBool(policy: Record<string, unknown> | null, key: string, def = true): boolean {
-    if (!policy || !(key in policy)) return def;
-    const raw = String(policy[key] ?? "").trim().toLowerCase();
-    if (raw === "") return def;
-    if (["true", "1", "t", "yes", "si", "on"].includes(raw)) return true;
-    if (["false", "0", "f", "no", "off"].includes(raw)) return false;
-    return def;
-  }
-
-  assert.strictEqual(parsePolicyBool({ k: "true" }, "k"), true);
-  assert.strictEqual(parsePolicyBool({ k: "si" }, "k"), true);
-  assert.strictEqual(parsePolicyBool({ k: "1" }, "k"), true);
-  assert.strictEqual(parsePolicyBool({ k: "false" }, "k"), false);
-  assert.strictEqual(parsePolicyBool({ k: "0" }, "k"), false);
-  assert.strictEqual(parsePolicyBool({ k: "no" }, "k"), false);
-  assert.strictEqual(parsePolicyBool({ k: "invalid_syntax" }, "k", true), true);
-  assert.strictEqual(parsePolicyBool({ k: "" }, "k", true), true);
-  assert.strictEqual(parsePolicyBool(null, "k", true), true);
+  assert.ok(
+    migrationSql.includes("revoke all on function public.fornexa_wms_policy_bool(jsonb, text, boolean) from public, anon, authenticated"),
+    "Se deben revocar privilegios públicos de fornexa_wms_policy_bool",
+  );
 });
 
 test("M7 C-3 — CONTROL_STATE deriva v_rej_state estrictamente de disposition sin heurísticas LIKE (SHOULD-B y SHOULD-C)", () => {
@@ -410,15 +398,369 @@ test("M7 C-3 — lib/memorandum.ts modera la redacción de C-3 a 'En revisión i
   );
 });
 
-test("M7 C-3 — Ejecución local relacional en PostgreSQL genera recibo con pre/postestado de 16 casos (MUST-1)", () => {
+const EXPECTED_INPUT_FILES = [
+  "supabase/migrations/20260819_harden_tenant_access_function.sql",
+  "supabase/migrations/20261017110000_wms_e1_core.sql",
+  "supabase/migrations/20261019120000_wms_c3_server_load_controls.sql",
+  "supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql",
+  "scripts/wms/verify-c3-postgres.mjs",
+] as const;
+
+export function computeRuntimeInputHashes(): Record<string, string> {
+  const root = resolve(import.meta.dirname, "..");
+  const hashes: Record<string, string> = {};
+  for (const relPath of EXPECTED_INPUT_FILES) {
+    const fullPath = resolve(root, relPath);
+    const content = readFileSync(fullPath);
+    hashes[relPath] = createHash("sha256").update(content).digest("hex");
+  }
+  return hashes;
+}
+
+/**
+ * Función canónica de validación estricta de recibo relacional duradero (MUST-T1 y MUST-T2).
+ * Falla de forma cerrada si:
+ * - El motor o base de datos no corresponden a la certificación homologada de contenedor (pg-socket / fornexa_test).
+ * - Faltan o son inválidos los metadatos de procedencia (execution_sha, github_run_id, base_sha).
+ * - Los hashes de input no coinciden en RUNTIME con los ficheros del árbol (MUST-T1).
+ * - La matriz de casos difiere del registro dinámico exportado por el arnés (MUST-T2).
+ * - Cualquiera de los casos esperados no tiene status "PASS" explícito individual.
+ * - Cualquiera de los MUSTs obligatorios no tiene status "PASS" explícito individual.
+ * - Bajo pg-socket, summary.not_certified no es estrictamente 0.
+ * - certification_scope no deriva dinámicamente de la versión mayor de PostgreSQL del motor.
+ */
+export function validateRelationalReceipt(receipt: any, options: { expectedEngine?: string; expectedRunId?: string; expectedExecutionSha?: string } = {}): void {
+  const targetEngine = options.expectedEngine ?? "pg-socket";
+  assert.ok(receipt && typeof receipt === "object", "El recibo debe ser un objeto válido");
+  assert.equal(receipt.engine, targetEngine, `El recibo duradero debe estar certificado con engine ${targetEngine}`);
+  assert.equal(receipt.database, "fornexa_test", "La base de datos del recibo debe ser fornexa_test");
+
+  // MUST-T2: Dynamic certification scope based on engine postgres major version
+  if (receipt.engine === "pg-socket") {
+    const pgMajor = receipt.pg_version ? receipt.pg_version.match(/^PostgreSQL\s+(\d+)/)?.[1] || "16" : "16";
+    assert.equal(
+      receipt.certification_scope,
+      `DURABLE_PG${pgMajor}_CONTAINER_CERTIFICATION`,
+      `certification_scope debe derivar dinámicamente de PostgreSQL ${pgMajor}`,
+    );
+    assert.equal(receipt.concurrency_certified, true, "El recibo debe certificar concurrencia transaccional");
+  } else {
+    assert.equal(receipt.certification_scope, "SUPPLEMENTARY_SANDBOX_PGLITE");
+  }
+
+  // Vinculación estricta de procedencia
+  assert.match(
+    receipt.execution_sha,
+    /^[0-9a-f]{40}$/i,
+    "execution_sha debe ser un commit o merge-ref SHA-1 hexadecimal de 40 caracteres",
+  );
+  assert.match(
+    String(receipt.github_run_id),
+    /^\d+$/,
+    "github_run_id debe ser un identificador numérico de ejecución CI",
+  );
+  assert.match(receipt.base_sha, /^[0-9a-f]{40}$/i, "base_sha debe ser un SHA válido");
+  if (options.expectedRunId !== undefined) {
+    assert.match(options.expectedRunId, /^\d+$/, "El run actual esperado debe estar definido");
+    assert.equal(String(receipt.github_run_id), options.expectedRunId, "El recibo debe pertenecer al GITHUB_RUN_ID actual");
+  }
+  if (options.expectedExecutionSha !== undefined) {
+    assert.equal(receipt.execution_sha, options.expectedExecutionSha, "El recibo debe corresponder al GITHUB_SHA ejecutado");
+  }
+
+
+  // MUST-T1: Vincular por CONTENIDO en runtime, no por commit estático
+  const runtimeHashes = computeRuntimeInputHashes();
+  assert.ok(receipt.input_hashes && typeof receipt.input_hashes === "object", "El recibo debe incluir input_hashes");
+  for (const [filePath, expectedHash] of Object.entries(runtimeHashes)) {
+    assert.equal(
+      receipt.input_hashes[filePath],
+      expectedHash,
+      `input_hashes['${filePath}'] debe coincidir en runtime con el árbol ejecutado (${expectedHash})`,
+    );
+  }
+  // Coherencia con hashes de primer nivel
+  assert.equal(
+    receipt.migration_sha256,
+    runtimeHashes["supabase/migrations/20261019120000_wms_c3_server_load_controls.sql"],
+    "migration_sha256 debe coincidir con hash runtime de la migración",
+  );
+  assert.equal(
+    receipt.rollback_sha256,
+    runtimeHashes["supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql"],
+    "rollback_sha256 debe coincidir con hash runtime del rollback protegido",
+  );
+  assert.equal(
+    receipt.harness_sha256,
+    runtimeHashes["scripts/wms/verify-c3-postgres.mjs"],
+    "harness_sha256 debe coincidir con hash runtime del arnés",
+  );
+  assert.equal(
+    receipt.tenant_access_sha256,
+    runtimeHashes["supabase/migrations/20260819_harden_tenant_access_function.sql"],
+  );
+  assert.equal(
+    receipt.e1_core_sha256,
+    runtimeHashes["supabase/migrations/20261017110000_wms_e1_core.sql"],
+  );
+
+  // MUST-T2: Registro dinámico de casos derivado del arnés sin pin estático a 16 o 20
+  const expectedCases = getExpectedCases(receipt.engine);
+  assert.ok(Array.isArray(receipt.cases), "receipt.cases debe ser un array");
+  assert.equal(
+    receipt.cases.length,
+    expectedCases.length,
+    `receipt.cases debe contener exactamente ${expectedCases.length} elementos (derivados dinámicamente del arnés)`,
+  );
+  assert.equal(
+    receipt.summary.total,
+    expectedCases.length,
+    `El total de casos en summary (${receipt.summary.total}) debe coincidir con los casos esperados (${expectedCases.length})`,
+  );
+  assert.equal(
+    receipt.summary.passed,
+    expectedCases.length,
+    `El conteo passed en summary (${receipt.summary.passed}) debe ser exactamente ${expectedCases.length}`,
+  );
+  assert.equal(receipt.summary.failed, 0, "El conteo failed en summary debe ser 0");
+  assert.equal(
+    receipt.summary.passed + receipt.summary.failed,
+    receipt.summary.total,
+    "Coherencia interna: passed + failed === total",
+  );
+
+  if (receipt.engine === "pg-socket") {
+    assert.equal(receipt.summary.not_certified, 0, "Bajo pg-socket, summary.not_certified debe ser estrictamente 0");
+    assert.equal(
+      receipt.summary.certified,
+      expectedCases.length,
+      `Bajo pg-socket, summary.certified debe ser ${expectedCases.length}`,
+    );
+  }
+
+  for (let i = 0; i < expectedCases.length; i++) {
+    const c = receipt.cases[i];
+    const ec = expectedCases[i];
+    assert.equal(c.case, ec.case, `El caso en índice ${i} debe tener identificador case: ${ec.case}`);
+    assert.equal(c.title, ec.title, `El caso ${c.case} debe tener título exacto derivado del arnés: "${ec.title}"`);
+    assert.equal(
+      c.status,
+      "PASS",
+      `El caso ${c.case} (${c.title}) debe certificar status PASS individual estricto (no se admite FAIL ni omisión)`,
+    );
+  }
+
+  // Validación estricta de MUSTs de seguridad y arquitectura
+  const requiredMusts = ["MUST-1", "MUST-2", "MUST-3", "MUST-4", "MUST-5", "MUST-RLS", "MUST-EXECUTE", "MUST-POLICY-BOOL"];
+  assert.ok(Array.isArray(receipt.musts), "receipt.musts debe ser un array");
+  const mustMap = new Map<string, any>(receipt.musts.map((m: any) => [m.must, m]));
+
+  for (const mustKey of requiredMusts) {
+    assert.ok(mustMap.has(mustKey), `Debe existir ${mustKey} en receipt.musts`);
+    const m: any = mustMap.get(mustKey);
+    assert.equal(m.status, "PASS", `El requisito ${mustKey} debe certificar status: PASS explícito`);
+    assert.ok(typeof m.title === "string" && m.title.trim().length > 0, `El requisito ${mustKey} debe tener título`);
+    assert.ok(m.evidence && typeof m.evidence === "object", `El requisito ${mustKey} debe contener evidencia`);
+  }
+}
+
+test("M7 C-3 — Valida el recibo relacional activo de certificación (MUST-T1 y MUST-T2)", () => {
   const receiptPath = resolve(import.meta.dirname, "../docs/verification/receipt-m7-c3-postgres.json");
   const rawReceipt = readFileSync(receiptPath, "utf-8");
   const receipt = JSON.parse(rawReceipt);
-  assert.equal(receipt.summary.total, 16);
-  assert.equal(receipt.summary.passed, 16);
-  assert.equal(receipt.summary.failed, 0);
-  assert.ok(receipt.cases.length === 16);
-  assert.ok(receipt.musts.length >= 4);
+
+  // Offline: validate a genuine prior run by content. Post-harness CI: require
+  // the newly produced receipt to belong to this exact run and merge-ref.
+  const currentRun = process.env.WMS_CURRENT_RUN_RECEIPT === "true";
+  if (currentRun) {
+    assert.match(process.env.GITHUB_RUN_ID ?? "", /^\d+$/, "GITHUB_RUN_ID requerido para certificación del run actual");
+    assert.match(process.env.GITHUB_SHA ?? "", /^[0-9a-f]{40}$/i, "GITHUB_SHA requerido para certificación del run actual");
+    assert.equal(receipt.github_ref, process.env.GITHUB_REF, "El recibo debe corresponder al ref del run actual");
+  }
+  validateRelationalReceipt(receipt, currentRun ? {
+    expectedRunId: process.env.GITHUB_RUN_ID,
+    expectedExecutionSha: process.env.GITHUB_SHA,
+  } : {});
+
+  const mustMap = new Map(receipt.musts.map((m: any) => [m.must, m]));
+
+  // MUST-RLS detalle exacto emitido por el arnés
+  const rlsMust = mustMap.get("MUST-RLS") as any;
+  assert.equal(
+    rlsMust.title,
+    "Certificación de Row Level Security (RLS) activo y aislamiento comprobado entre tenants A/B",
+  );
+  assert.ok(Array.isArray(rlsMust.evidence.tables_relrowsecurity));
+  assert.equal(rlsMust.evidence.tables_relrowsecurity.length, 4);
+  assert.ok(
+    rlsMust.evidence.tables_relrowsecurity.every((t: any) => t.relrowsecurity === true),
+    "Todas las tablas WMS deben tener relrowsecurity = true",
+  );
+  assert.equal(rlsMust.evidence.probes.direct_mutations_denied_for_authenticated.sqlstate, "42501");
+  assert.equal(rlsMust.evidence.probes.anon_denied.sqlstate, "42501");
+
+  // MUST-EXECUTE detalle exacto con sonda positiva has_function_privilege
+  const execMust = mustMap.get("MUST-EXECUTE") as any;
+  assert.equal(
+    execMust.title,
+    "Control estricto de privilegios EXECUTE en fornexa_wms_action (no-superuser denegado)",
+  );
+  assert.equal(execMust.evidence.service_role_has_function_privilege, true);
+  assert.equal(execMust.evidence.authenticated_sqlstate, "42501");
+  assert.equal(execMust.evidence.anon_sqlstate, "42501");
+  assert.equal(execMust.evidence.authenticated_denied, true);
+  assert.equal(execMust.evidence.anon_denied, true);
+});
+
+test("M7 C-3 — Recibo histórico de CI #537 está desacoplado y es explícitamente no certificante de este HEAD (MUST-T1)", () => {
+  const histPath = resolve(import.meta.dirname, "../docs/verification/historical/receipt-m7-c3-postgres-ci537.json");
+  const rawHist = readFileSync(histPath, "utf-8");
+  const hist = JSON.parse(rawHist);
+
+  assert.equal(hist.github_run_number, "537");
+  assert.equal(hist.summary.total, 16);
+  // No certifica este HEAD porque sus input_hashes difieren del árbol actual
+  const runtimeHashes = computeRuntimeInputHashes();
+  assert.notEqual(
+    hist.input_hashes["supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql"],
+    runtimeHashes["supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql"],
+    "El recibo histórico de CI 537 tiene hash de rollback obsoleto y no certifica el HEAD actual",
+  );
+  assert.notEqual(
+    hist.execution_sha,
+    "481e2f46386bd58772564f7aca4f00a62bb29e0d",
+    "El recibo histórico de CI 537 pertenece a ejecución previa",
+  );
+  // Al pasar por el validador estricto debe ser rechazado
+  assert.throws(
+    () => validateRelationalReceipt(hist),
+    /debe coincidir en runtime/,
+    "El validador relacional debe rechazar el recibo histórico de CI 537 por hashes obsoletos",
+  );
+});
+
+test("M7 C-3 — Validador de recibo detecta y rechaza recibos inválidos, corruptos o con falsos positivos (pruebas negativas)", () => {
+  const receiptPath = resolve(import.meta.dirname, "../docs/verification/receipt-m7-c3-postgres.json");
+  const rawReceipt = readFileSync(receiptPath, "utf-8");
+  const validReceipt = JSON.parse(rawReceipt);
+
+  // 1. Rechazo si un caso individual está en FAIL aunque summary.passed reporte 20
+  const badCaseReceipt = JSON.parse(JSON.stringify(validReceipt));
+  badCaseReceipt.cases[0].status = "FAIL";
+  assert.throws(
+    () => validateRelationalReceipt(badCaseReceipt),
+    /status PASS individual estricto/,
+    "Debe rechazar recibo si algún caso tiene status FAIL",
+  );
+
+  // 2. Rechazo si la lista de casos está incompleta (falta 1 caso)
+  const incompleteCasesReceipt = JSON.parse(JSON.stringify(validReceipt));
+  incompleteCasesReceipt.cases.pop();
+  assert.throws(
+    () => validateRelationalReceipt(incompleteCasesReceipt),
+    /elementos \(derivados dinámicamente del arnés\)/,
+    "Debe rechazar recibo si la lista de casos no coincide con getExpectedCases",
+  );
+
+  // 3. Rechazo si el título de un caso está alterado
+  const badTitleReceipt = JSON.parse(JSON.stringify(validReceipt));
+  badTitleReceipt.cases[0].title = "Título adulterado no coincidente con el arnés";
+  assert.throws(
+    () => validateRelationalReceipt(badTitleReceipt),
+    /título exacto derivado del arnés/,
+    "Debe rechazar recibo si el título de un caso no coincide con el arnés",
+  );
+
+  // 4. Rechazo si un MUST no tiene status PASS
+  const badMustReceipt = JSON.parse(JSON.stringify(validReceipt));
+  const rlsMust = badMustReceipt.musts.find((m: any) => m.must === "MUST-RLS");
+  if (rlsMust) rlsMust.status = "FAIL";
+  assert.throws(
+    () => validateRelationalReceipt(badMustReceipt),
+    /status: PASS explícito/,
+    "Debe rechazar recibo si algún MUST tiene status FAIL",
+  );
+
+  // 5. Rechazo si falta un MUST obligatorio (p. ej. MUST-EXECUTE)
+  const missingMustReceipt = JSON.parse(JSON.stringify(validReceipt));
+  missingMustReceipt.musts = missingMustReceipt.musts.filter((m: any) => m.must !== "MUST-EXECUTE");
+  assert.throws(
+    () => validateRelationalReceipt(missingMustReceipt),
+    /Debe existir MUST-EXECUTE/,
+    "Debe rechazar recibo si falta un MUST obligatorio",
+  );
+
+  // 6. Rechazo si execution_sha no es un commit SHA de 40 hex (falso truthy)
+  const fakeShaReceipt = JSON.parse(JSON.stringify(validReceipt));
+  fakeShaReceipt.execution_sha = "not-a-valid-sha";
+  assert.throws(
+    () => validateRelationalReceipt(fakeShaReceipt),
+    /execution_sha/,
+    "Debe rechazar execution_sha no hexadecimal de 40 caracteres",
+  );
+
+  // 7. Rechazo si github_run_id no es numérico
+  const fakeRunReceipt = JSON.parse(JSON.stringify(validReceipt));
+  fakeRunReceipt.github_run_id = "run-fake-non-numeric";
+  assert.throws(
+    () => validateRelationalReceipt(fakeRunReceipt),
+    /github_run_id/,
+    "Debe rechazar github_run_id no numérico",
+  );
+
+  // 8. Rechazo si el engine no es pg-socket homologado
+  const fakeEngineReceipt = JSON.parse(JSON.stringify(validReceipt));
+  fakeEngineReceipt.engine = "pglite-wasm";
+  assert.throws(
+    () => validateRelationalReceipt(fakeEngineReceipt),
+    /engine pg-socket/,
+    "Debe rechazar recibo si no proviene del engine pg-socket homologado",
+  );
+
+  // 9. Rechazo si concurrency_certified es false bajo pg-socket
+  const noConcurrencyReceipt = JSON.parse(JSON.stringify(validReceipt));
+  noConcurrencyReceipt.concurrency_certified = false;
+  assert.throws(
+    () => validateRelationalReceipt(noConcurrencyReceipt),
+    /concurrencia transaccional/,
+    "Debe rechazar si concurrency_certified no es true",
+  );
+
+  // 10. MUST-T1: Rechazo si input_hashes difiere de los hashes runtime del árbol
+  const badHashReceipt = JSON.parse(JSON.stringify(validReceipt));
+  badHashReceipt.input_hashes["scripts/wms/verify-c3-postgres.mjs"] = "0000000000000000000000000000000000000000000000000000000000000000";
+  assert.throws(
+    () => validateRelationalReceipt(badHashReceipt),
+    /input_hashes\['scripts\/wms\/verify-c3-postgres\.mjs'\] debe coincidir en runtime/,
+    "Debe rechazar recibo si un hash de input_hashes difiere del árbol en runtime",
+  );
+
+  // 11. MUST-T2: Rechazo si summary.not_certified > 0 bajo pg-socket
+  const notCertifiedReceipt = JSON.parse(JSON.stringify(validReceipt));
+  notCertifiedReceipt.summary.not_certified = 1;
+  assert.throws(
+    () => validateRelationalReceipt(notCertifiedReceipt),
+    /summary\.not_certified debe ser estrictamente 0/,
+    "Debe rechazar recibo bajo pg-socket si summary.not_certified > 0",
+  );
+
+  // 12. MUST-T2: Rechazo si contadores son incoherentes (passed + failed !== total)
+  const incoherentCountersReceipt = JSON.parse(JSON.stringify(validReceipt));
+  incoherentCountersReceipt.summary.total = 99;
+  assert.throws(
+    () => validateRelationalReceipt(incoherentCountersReceipt),
+    /coincidir con los casos esperados/,
+    "Debe rechazar recibo si los contadores de summary son incoherentes",
+  );
+
+  // 13. MUST-T2: Rechazo si certification_scope no concuerda con la versión de PostgreSQL
+  const badScopeReceipt = JSON.parse(JSON.stringify(validReceipt));
+  badScopeReceipt.certification_scope = "DURABLE_PG14_CONTAINER_CERTIFICATION";
+  assert.throws(
+    () => validateRelationalReceipt(badScopeReceipt),
+    /certification_scope debe derivar dinámicamente/,
+    "Debe rechazar recibo si certification_scope no corresponde a la versión de PostgreSQL",
+  );
 });
 
 test("M7 C-3 — Script de rollback protegido no reabre el bypass E1 ni elimina columnas (MUST-2)", () => {
@@ -427,7 +769,7 @@ test("M7 C-3 — Script de rollback protegido no reabre el bypass E1 ni elimina 
     "../supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql",
   );
   const rbSql = readFileSync(rbPath, "utf-8");
-  assert.ok(!rbSql.includes("drop column"), "Rollback protegido no debe eliminar columnas nulables");
+  assert.ok(!/drop\s+column/i.test(rbSql), "Rollback protegido no debe eliminar columnas (prohibido DROP COLUMN case-insensitive)");
   assert.ok(
     rbSql.includes("p_idempotency_key text default null"),
     "Rollback protegido debe preservar la firma exacta de fornexa_wms_action",
@@ -600,7 +942,10 @@ test("M7 C-3 SHOULD-1 — documento de contrato no cita códigos inexistentes co
 
 test("M7 C-3 SHOULD-2 — validateDisposableDatabase rechaza base con tablas sin marcador sintético y autoriza con marcador o vacía (MUST-5 guard)", async () => {
   // @ts-expect-error - import dynamic from local .mjs harness script
-  const { validateDisposableDatabase, validateIsolation } = await import("../scripts/wms/verify-c3-postgres.mjs");
+  const { validateDisposableDatabase, validateIsolation, checkIsDirectExecution, isDirectExecution, runHarness } = await import("../scripts/wms/verify-c3-postgres.mjs");
+
+  // Al importar desde el test runner, la guarda de ejecución directa DEBE ser estrictamente false (cero efectos secundarios)
+  assert.equal(isDirectExecution, false, "Al importar el arnés desde test runner, isDirectExecution debe ser estrictamente false");
 
   // 1. Base externa con tablas ajenas en 'public' SIN marcador sintético -> DEBE LANZAR [SECURITY_FATAL MUST-5]
   const mockAlienDb = {
@@ -653,10 +998,26 @@ test("M7 C-3 SHOULD-2 — validateDisposableDatabase rechaza base con tablas sin
     await validateDisposableDatabase(mockPgliteDb, "pglite-wasm");
   });
 
-  // 5. Host y DB isolation validator
+  // 5. Host y DB isolation validator exhaustivo
   assert.throws(
     () => validateIsolation({ host: "192.168.1.100", database: "fornexa_test" }),
     /\[SECURITY_FATAL MUST-5\] Target host '192.168.1.100' is NOT a local loopback address/,
+  );
+  assert.throws(
+    () => validateIsolation({ host: "", database: "fornexa_test" }),
+    /\[SECURITY_FATAL MUST-5\] Target host '' is NOT a local loopback address/,
+  );
+  assert.throws(
+    () => validateIsolation({ host: "supabase", database: "fornexa_test" }),
+    /\[SECURITY_FATAL MUST-5\] Target host 'supabase' is NOT a local loopback address/,
+  );
+  assert.throws(
+    () => validateIsolation({ database: "fornexa_test" } as any),
+    /\[SECURITY_FATAL MUST-5\] Target host 'undefined' is NOT a local loopback address/,
+  );
+  assert.throws(
+    () => validateIsolation({ host: "127.0.0.1", database: "" }),
+    /\[SECURITY_FATAL MUST-5\] Target database is required/,
   );
   assert.throws(
     () => validateIsolation({ host: "127.0.0.1", database: "production" }),
@@ -666,10 +1027,15 @@ test("M7 C-3 SHOULD-2 — validateDisposableDatabase rechaza base con tablas sin
     () => validateIsolation({ host: "127.0.0.1", database: "postgres" }),
     /\[SECURITY_FATAL MUST-5\] Target database 'postgres' is a forbidden production or system database/,
   );
+  assert.throws(
+    () => validateIsolation({ host: "127.0.0.1", database: "supabase" }),
+    /\[SECURITY_FATAL MUST-5\] Target database 'supabase' is a forbidden production or system database/,
+  );
   assert.doesNotThrow(() => validateIsolation({ host: "127.0.0.1", database: "fornexa_test" }));
   assert.doesNotThrow(() => validateIsolation({ host: "localhost", database: "fornexa_test" }));
+  assert.doesNotThrow(() => validateIsolation({ host: "::1", database: "fornexa_test" }));
 
-  // 6. Comprobación estática: validateDisposableDatabase se invoca antes de drop schema public cascade
+  // 6. Comprobación estática de orden en arnés
   const harnessScript = readFileSync(resolve(import.meta.dirname, "../scripts/wms/verify-c3-postgres.mjs"), "utf-8");
   const idxValidate = harnessScript.indexOf("validateDisposableDatabase(db, clientType)");
   const idxDropSchema = harnessScript.indexOf("drop schema if exists public cascade");
@@ -679,8 +1045,287 @@ test("M7 C-3 SHOULD-2 — validateDisposableDatabase rechaza base con tablas sin
     idxValidate < idxDropSchema,
     "validateDisposableDatabase DEBE llamarse estrictamente antes de drop schema public cascade",
   );
+
+  // 7. Comprobación DINÁMICA de ejecución real del arnés: runHarness aborta antes de ejecutar cualquier DDL destructivo
+  let ddlExecutedByHarness = false;
+  const mockAlienDbForHarness = {
+    query: async (sqlText: string) => {
+      const lower = typeof sqlText === "string" ? sqlText.toLowerCase() : "";
+      if (lower.includes("select version()") || lower.includes("select version();")) {
+        return { rows: [{ ver: "PostgreSQL 16.15 (test mock)" }] };
+      }
+      if (lower.includes("drop schema") || lower.includes("create schema") || lower.includes("create table")) {
+        ddlExecutedByHarness = true;
+      }
+      if (lower.includes("information_schema.tables")) {
+        return { rows: [{ table_name: "orders" }, { table_name: "users" }] };
+      }
+      return { rows: [] };
+    },
+    exec: async (sqlText: string) => {
+      const lower = typeof sqlText === "string" ? sqlText.toLowerCase() : "";
+      if (lower.includes("drop schema") || lower.includes("create schema") || lower.includes("create table")) {
+        ddlExecutedByHarness = true;
+      }
+      return [];
+    },
+  };
+
+  await assert.rejects(
+    async () => {
+      // Invoca el arnés real pasando la BD con tablas preexistentes no desechables
+      await runHarness({ db: mockAlienDbForHarness, clientType: "pg-socket", skipReceipt: true });
+    },
+    /\[SECURITY_FATAL MUST-5\] Target database contains non-disposable existing tables/,
+  );
+  assert.equal(
+    ddlExecutedByHarness,
+    false,
+    "runHarness DEBE abortar antes de ejecutar cualquier DDL destructivo (drop/create schema) si validateDisposableDatabase rechaza la base",
+  );
+
+  // 8. Certificación simétrica de checkIsDirectExecution (eliminación del fallo de endsWith)
+  const scriptMetaUrl = new URL("../scripts/wms/verify-c3-postgres.mjs", import.meta.url).href;
+  const scriptAbsPath = fileURLToPath(scriptMetaUrl);
+
+  // Invocaciones legítimas
+  assert.equal(checkIsDirectExecution(scriptAbsPath, scriptMetaUrl), true, "Ruta absoluta canónica resuelta debe retornar true");
+  assert.equal(checkIsDirectExecution("./scripts/wms/verify-c3-postgres.mjs", scriptMetaUrl), true, "Ruta relativa resuelta debe retornar true");
+
+  // Falsos positivos que el endsWith frágil aceptaba erróneamente:
+  assert.equal(checkIsDirectExecution("c3-postgres.mjs", scriptMetaUrl), false, "Sufijo corto c3-postgres.mjs debe ser estrictamente false");
+  assert.equal(checkIsDirectExecution("postgres.mjs", scriptMetaUrl), false, "Sufijo corto postgres.mjs debe ser estrictamente false");
+  assert.equal(checkIsDirectExecution("gres.mjs", scriptMetaUrl), false, "Sufijo corto gres.mjs debe ser estrictamente false");
+  assert.equal(checkIsDirectExecution(".mjs", scriptMetaUrl), false, "Sufijo .mjs debe ser estrictamente false");
+  assert.equal(checkIsDirectExecution("s", scriptMetaUrl), false, "Sufijo de un caracter 's' debe ser estrictamente false");
+
+  // Runners y scripts de prueba
+  assert.equal(checkIsDirectExecution("/usr/local/bin/node", scriptMetaUrl), false, "Runner 'node' debe ser estrictamente false");
+  assert.equal(checkIsDirectExecution("tests/wms-c3-server-controls.test.ts", scriptMetaUrl), false, "Test runner debe ser estrictamente false");
+  assert.equal(checkIsDirectExecution("", scriptMetaUrl), false, "Cadena vacía debe ser false");
+  assert.equal(checkIsDirectExecution(undefined, scriptMetaUrl), false, "Undefined debe ser false");
 });
 
+test("M7 C-3 — Arnés aborta fail-closed y rechaza falsos positivos si la sonda has_function_privilege falla (MUST-EXECUTE)", async () => {
+  // Verificamos que si la base de datos lanza un error en has_function_privilege o devuelve false,
+  // runHarness aborta fail-closed y NO marca service_role_authorized = true ni emite PASS.
+  // @ts-expect-error - import dynamic from local .mjs harness script
+  const { runHarness } = await import("../scripts/wms/verify-c3-postgres.mjs");
+  const { PGlite } = await import("@electric-sql/pglite");
 
+  // Caso A: La consulta has_function_privilege lanza un error (simulando firma inexistente o fallo de motor)
+  const memDbA = new PGlite();
+  const dbErroringPrivilege = {
+    query: async (sqlText: string, params: any[]) => {
+      if (typeof sqlText === "string" && sqlText.includes("has_function_privilege")) {
+        throw new Error('function "public.fornexa_wms_action(uuid,uuid,text,jsonb,jsonb)" does not exist');
+      }
+      return memDbA.query(sqlText, params);
+    },
+    exec: (sqlText: string) => memDbA.exec(sqlText),
+  };
 
+  await assert.rejects(
+    async () => {
+      await runHarness({ db: dbErroringPrivilege, clientType: "pglite", skipReceipt: true });
+    },
+    /Role 'service_role' must possess EXECUTE privilege on public\.fornexa_wms_action/,
+    "runHarness DEBE abortar con AssertionError si la consulta has_function_privilege lanza error",
+  );
+  await memDbA.close();
+
+  // Caso B: La consulta has_function_privilege devuelve has_priv = false
+  const memDbB = new PGlite();
+  const dbFalsePrivilege = {
+    query: async (sqlText: string, params: any[]) => {
+      if (typeof sqlText === "string" && sqlText.includes("has_function_privilege")) {
+        return { rows: [{ has_priv: false }] };
+      }
+      return memDbB.query(sqlText, params);
+    },
+    exec: (sqlText: string) => memDbB.exec(sqlText),
+  };
+
+  await assert.rejects(
+    async () => {
+      await runHarness({ db: dbFalsePrivilege, clientType: "pglite", skipReceipt: true });
+    },
+    /Role 'service_role' must possess EXECUTE privilege on public\.fornexa_wms_action/,
+    "runHarness DEBE abortar con AssertionError si service_role carece del privilegio EXECUTE (has_priv = false)",
+  );
+  await memDbB.close();
+});
+
+test("M7 C-3 — Auditoría estática y anclaje sintáctico de cláusulas DDL (UPSERT_RESOURCE, delimitadores de transacción, políticas y rollback)", () => {
+  // MUST-1: UPSERT_RESOURCE en fornexa_wms_action restringido a OWNER/ADMIN/PLANNER y con insert
+  const upsertBlockMatch = migrationSql.match(/elsif\s+p_action\s*=\s*'UPSERT_RESOURCE'\s+then([\s\S]*?)else/i);
+  assert.ok(upsertBlockMatch, "fornexa_wms_action debe contener el bloque elsif p_action = 'UPSERT_RESOURCE'");
+  const upsertBlock = upsertBlockMatch[1];
+  assert.ok(
+    /v_role\s+not\s+in\s*\(\s*'OWNER'\s*,\s*'ADMIN'\s*,\s*'PLANNER'\s*\)/i.test(upsertBlock),
+    "El bloque UPSERT_RESOURCE debe restringirse ancladamente a OWNER, ADMIN y PLANNER",
+  );
+  assert.ok(
+    /insert\s+into\s+public\.warehouse_resources/i.test(upsertBlock),
+    "El bloque UPSERT_RESOURCE debe realizar insert into public.warehouse_resources",
+  );
+
+  // MUST-2: Envoltura atómica BEGIN ... COMMIT
+  assert.ok(
+    /^\s*begin;/m.test(migrationSql),
+    "La migración debe comenzar con BEGIN atómico",
+  );
+  assert.ok(
+    /commit;\s*$/m.test(migrationSql),
+    "La migración debe finalizar con COMMIT atómico",
+  );
+
+  // MUST-3: Contrato de backfill sin sobreescribir false y actualizando updated_at
+  const backfillMatch = migrationSql.match(/\nupdate\s+public\.warehouse_behavior_policies[\s\S]*?require_state_control_on_load[\s\S]*?where[\s\S]*?;/i);
+  assert.ok(backfillMatch, "La migración debe contener la sentencia UPDATE de backfill de políticas");
+  const backfillClause = backfillMatch[0];
+  assert.ok(
+    /params\s*->>\s*'require_state_control_on_load'\s+is\s+null\s+or\s+params\s*->>\s*'require_state_control_on_load'\s*=\s*''/i.test(backfillClause),
+    "El backfill debe aplicar estrictamente cuando require_state_control_on_load sea NULL o vacío, preservando false legítimos",
+  );
+  assert.ok(
+    /updated_at\s*=\s*now\(\)/i.test(backfillClause),
+    "El backfill debe actualizar updated_at = now()",
+  );
+
+  // MUST-4: Preimagen real en auditoría de CONTROL_STATE
+  const controlStateBlockMatch = migrationSql.match(/elsif\s+p_action\s*=\s*'CONTROL_STATE'\s+then([\s\S]*?)elsif/i);
+  assert.ok(controlStateBlockMatch, "Debe existir el bloque CONTROL_STATE");
+  const controlStateBlock = controlStateBlockMatch[1];
+  const beforePos = controlStateBlock.indexOf("v_before := to_jsonb(v_hu);");
+  const updatePos = controlStateBlock.indexOf("update public.handling_units");
+  assert.ok(beforePos !== -1, "CONTROL_STATE debe asignar v_before := to_jsonb(v_hu)");
+  assert.ok(updatePos !== -1, "CONTROL_STATE debe mutar handling_units");
+  assert.ok(beforePos < updatePos, "v_before debe capturarse antes de la mutación de handling_units");
+  assert.ok(
+    /insert\s+into\s+public\.audit_events[\s\S]*?v_before/i.test(controlStateBlock),
+    "CONTROL_STATE debe registrar v_before en audit_events",
+  );
+
+  // MUST-5 & MUST-3: Serialización de bin destino y evaluación de disponible duradero en REPLENISH
+  const replenishBlockMatch = migrationSql.match(/elsif\s+p_action\s+in\s*\(\s*'REPLENISH'[\s\S]*?\)\s+then([\s\S]*?)elsif\s+p_action\s*=\s*'CONTROL_STATE'/i);
+  assert.ok(replenishBlockMatch, "Debe existir el bloque REPLENISH");
+  const replenishBlock = replenishBlockMatch[1];
+  assert.ok(
+    /from\s+public\.warehouse_bins\s+wb[\s\S]*?for\s+update/i.test(replenishBlock),
+    "REPLENISH debe bloquear el bin destino con FOR UPDATE",
+  );
+  assert.ok(
+    !/raise\s+exception\s+'WMS_REPLENISHMENT_PENDING'/i.test(replenishBlock),
+    "REPLENISH admite órdenes distintas al mismo destino con saldo suficiente",
+  );
+  assert.ok(
+    /\(iq\.quantity_on_hand\s*-\s*iq\.quantity_reserved\)\s*>=\s*v_qty/i.test(replenishBlock),
+    "REPLENISH debe evaluar saldo disponible sin mezclar reservas totales con tareas pendientes (MUST-3)",
+  );
+
+  // MUST-6: Cabecera y script de rollback documentan apagado fail-closed (WMS_ROLLBACK_ACTIVE)
+  assert.ok(
+    migrationSql.includes("Nivel 2 (Rollback de RPC Protegido - Apagado Fail-Closed sin Reabrir Bypass E1)"),
+    "La cabecera de la migración debe declarar apagado fail-closed en Nivel 2",
+  );
+  const rollbackSql = readFileSync(
+    resolve(import.meta.dirname, "../supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql"),
+    "utf-8",
+  );
+  assert.ok(
+    /raise\s+exception\s+'WMS_ROLLBACK_ACTIVE'/i.test(rollbackSql),
+    "El script de rollback debe invocar WMS_ROLLBACK_ACTIVE",
+  );
+  assert.ok(
+    !/drop\s+column/i.test(rollbackSql),
+    "El script de rollback no debe eliminar columnas (DROP COLUMN prohibido sin importar mayúsculas/minúsculas)",
+  );
+
+  // Revocación de privilegios en funciones auxiliares y concesión a service_role
+  assert.ok(
+    migrationSql.includes("revoke all on function public.fornexa_wms_invalidate_hu_control() from public, anon, authenticated"),
+    "Se deben revocar privilegios públicos de fornexa_wms_invalidate_hu_control",
+  );
+  assert.ok(
+    migrationSql.includes("revoke all on function public.fornexa_wms_policy_bool(jsonb, text, boolean) from public, anon, authenticated"),
+    "Se deben revocar privilegios públicos de fornexa_wms_policy_bool",
+  );
+  assert.ok(
+    migrationSql.includes("grant execute on function public.fornexa_wms_policy_bool(jsonb, text, boolean) to service_role;"),
+    "Se debe otorgar execute a service_role para fornexa_wms_policy_bool",
+  );
+});
+
+test("M7 C-3 — Subsanaciones Claude SQL (MUST-1, MUST-2, MUST-3, MUST-4)", () => {
+  // MUST-A: Backfill acotado estrictamente a políticas activas (superseded_at is null)
+  assert.ok(
+    /update\s+public\.warehouse_behavior_policies[\s\S]*?superseded_at\s+is\s+null/i.test(migrationSql),
+    "El backfill debe acotarse estrictamente con superseded_at is null",
+  );
+
+  // MUST-2: Inversión del fallback: peso y volumen esperado legítimo de partida/SGA (v_hu.gross_weight_kg / volume_m3)
+  assert.ok(
+    migrationSql.includes("v_expected_weight := coalesce(nullif(v_hu.gross_weight_kg, 0), nullif(v_computed_weight, 0));"),
+    "v_expected_weight debe calcularse desde contenidos con fallback a dato legítimo v_hu.gross_weight_kg",
+  );
+  assert.ok(
+    migrationSql.includes("v_expected_volume := coalesce(nullif(v_hu.volume_m3, 0), nullif(v_computed_volume, 0));"),
+    "v_expected_volume debe calcularse desde contenidos con fallback a dato legítimo v_hu.volume_m3",
+  );
+  assert.ok(
+    migrationSql.includes("if v_expected_weight > 0 and"),
+    "Medición voluntaria de peso no debe abortar si el valor esperado es nulo",
+  );
+
+  // MUST-3 & MUST-C: Disponibilidad sin greatest y reserva duradera en REPLENISH
+  const replenishBlockMatch = migrationSql.match(/elsif\s+p_action\s+in\s*\(\s*'REPLENISH'[\s\S]*?\)\s+then([\s\S]*?)elsif\s+p_action\s*=\s*'CONTROL_STATE'/i);
+  assert.ok(replenishBlockMatch, "Debe existir el bloque REPLENISH");
+  const replenishBlock = replenishBlockMatch[1];
+  assert.ok(
+    /from\s+public\.inventory_quants\s+iq[\s\S]*?for\s+update/i.test(replenishBlock),
+    "REPLENISH debe bloquear quants origen con FOR UPDATE",
+  );
+  assert.ok(
+    /\(iq\.quantity_on_hand\s*-\s*iq\.quantity_reserved\)\s*>=\s*v_qty/i.test(replenishBlock),
+    "REPLENISH debe evaluar disponible con (quantity_on_hand - quantity_reserved) >= v_qty directamente sin mezclar con subconjunto de tareas",
+  );
+  assert.ok(
+    /update\s+public\.inventory_quants\s+set\s+quantity_reserved\s*=\s*quantity_reserved\s*\+\s*v_qty/i.test(replenishBlock),
+    "REPLENISH debe incrementar quantity_reserved de forma duradera en el quant origen",
+  );
+
+  // MUST-4: Identidad durable de reservas en warehouse_tasks y liberación exacta
+  assert.ok(
+    /foreign key\s*\(tenant_id,\s*source_quant_id\)\s+references public\.inventory_quants\(tenant_id,\s*id\)/i.test(migrationSql),
+    "warehouse_tasks debe incluir columna source_quant_id",
+  );
+  assert.ok(
+    /v_task\.source_quant_id\s+is\s+not\s+null/i.test(replenishBlock),
+    "CONFIRM_TASK debe liberar quantity_reserved usando source_quant_id exacto",
+  );
+
+  // MUST-D: Validación explícita de warehouse perteneciente al tenant en UPSERT_POLICY y UPSERT_RESOURCE
+  assert.ok(
+    /from\s+public\.warehouses\s+where\s+tenant_id\s*=\s*p_tenant\s+and\s+id\s*=\s*v_warehouse_id/i.test(migrationSql),
+    "UPSERT_POLICY y UPSERT_RESOURCE deben validar que warehouse_id pertenezca a p_tenant",
+  );
+
+  // MUST-1: Reversión de SHOULD-4: reject_detail almacena v_fingerprint para garantizar replay idempotente
+  const controlStateBlockMatch = migrationSql.match(/elsif\s+p_action\s*=\s*'CONTROL_STATE'\s+then([\s\S]*?)elsif\s+p_action\s*=\s*'LABEL'/i);
+  assert.ok(controlStateBlockMatch, "Debe existir bloque CONTROL_STATE");
+  const csBlock = controlStateBlockMatch[1];
+  assert.ok(
+    /v_control_status\s*=\s*'PASSED'[\s\S]*?insert\s+into\s+public\.warehouse_tasks[\s\S]*?v_fingerprint,\s*v_ts,\s*v_ts/i.test(csBlock),
+    "CONTROL_STATE PASSED debe fijar reject_detail a v_fingerprint para replay idempotente de servidor",
+  );
+  assert.ok(
+    /v_control_status\s*=\s*'REJECTED'[\s\S]*?insert\s+into\s+public\.warehouse_tasks[\s\S]*?v_fingerprint,\s*v_ts,\s*v_ts/i.test(csBlock),
+    "CONTROL_STATE REJECTED debe fijar reject_detail a v_fingerprint para replay idempotente de servidor",
+  );
+  assert.ok(
+    /p_action\s+in\s*\(\s*'REPLENISH'[\s\S]*?insert\s+into\s+public\.warehouse_tasks[\s\S]*?v_fingerprint,\s*v_quant\.id/i.test(migrationSql),
+    "REPLENISH debe fijar reject_detail a v_fingerprint y source_quant_id a v_quant.id",
+  );
+});
 
