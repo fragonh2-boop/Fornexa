@@ -6,18 +6,21 @@
 --
 -- ROLLBACK INSTRUCTIONS & REVERSIBILITY GUARANTEES (MUST-2 / PROTECTED ROLLBACK):
 -- 1. Nivel 1 (Rollback Operativo Inmediato - Cero DDL / Sin Downtime):
---    Desactivar la exigencia de control físico y medición en políticas de almacén:
+--    Desactivar la exigencia de control físico y medición en políticas de almacén activas:
 --    UPDATE public.warehouse_behavior_policies
 --       SET params = jsonb_set(jsonb_set(params, '{require_state_control_on_load}', 'false'::jsonb), '{require_weight_measurement}', 'false'::jsonb),
---           updated_at = now();
--- 2. Nivel 2 (Rollback de RPC Protegido - Sin Reabrir Bypass E1):
+--           updated_at = now()
+--     WHERE superseded_at is null;
+--    (Acotado a políticas activas superseded_at is null, filtrable por warehouse_id según necesidad).
+-- 2. Nivel 2 (Rollback de RPC Protegido - Apagado Fail-Closed sin Reabrir Bypass E1):
 --    Aplicar supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql.
 --    CONDICIÓN VINCULANTE (SHOULD-I): Solo válido si no hay migraciones posteriores a
 --    20261019120000_wms_c3_server_load_controls.sql que modifiquen fornexa_wms_action.
---    Dicha definición preserva el cómputo seguro de peso/volumen esperado en servidor y la
---    consolidación exclusiva por política, sin aceptar parámetros manipulados del payload.
---    Las columnas state_controlled_at/by y measured_at/by se conservan nulables para preservar
---    el histórico y evitar contención o pérdida de datos.
+--    Dicha definición ejecuta un apagado preventivo deliberado fail-closed (CONTROL_STATE -> WMS_FORBIDDEN,
+--    demás acciones -> WMS_ROLLBACK_ACTIVE), impidiendo cualquier bypass operacional sin relajar
+--    políticas ni reabrir el bypass de cliente legado de E1.
+--    Las columnas state_controlled_at/by y measured_at/by y sus índices se conservan intactos
+--    para preservar el histórico de auditoría sin contención ni pérdida de datos.
 -- 3. Note on inventory state integrity:
 --    handling_units.state values 'QUARANTINE' and 'DAMAGED' and inventory_quants.stock_status
 --    values 'QUARANTINE' and 'DAMAGED' are already defined in the core E1 domain
@@ -33,10 +36,14 @@
 --    b) Para almacenes con stock legado en tránsito, fijar explícitamente require_state_control_on_load = false
 --       en la política de almacén correspondiente antes de la carga.
 -- 5. NOTA DE ORDEN DE EJECUCIÓN Y ATOMICIDAD (MUST-1):
+--    Toda la migración está envuelta en un bloque transaccional atómico único (BEGIN ... COMMIT).
 --    El backfill de require_state_control_on_load se ubica al final de la migración (sección 4),
---    tras definir fornexa_wms_action con soporte de CONTROL_STATE, y debe ejecutarse en un único
---    bloque transaccional atómico (BEGIN ... COMMIT).
+--    tras definir fornexa_wms_action con soporte de CONTROL_STATE y controles de servidor.
+--    Aplica exclusivamente a políticas donde require_state_control_on_load esté indefinido (NULL o vacío),
+--    sin sobreescribir políticas donde se haya configurado explícitamente false de forma legítima.
 -- ============================================================================
+
+begin;
 
 -- ── 1. Schema Alterations: Add State Control & Measurement Columns to Handling Units ────────
 alter table public.handling_units
@@ -48,6 +55,37 @@ alter table public.handling_units
 create index if not exists idx_handling_units_state_control
   on public.handling_units(tenant_id, warehouse_id, state_controlled_at)
   where state_controlled_at is not null;
+
+alter table public.warehouse_tasks
+  drop constraint if exists warehouse_tasks_task_type_check;
+
+alter table public.warehouse_tasks
+  add constraint warehouse_tasks_task_type_check check (task_type in (
+    'RECEIVE_CHECK','PUTAWAY','REPLENISH','PICK','PACK','LABEL','LOAD','COUNT','TRANSFER','CONTROL_STATE'
+  ));
+
+alter table public.warehouse_tasks
+  drop constraint if exists warehouse_tasks_state_check;
+
+alter table public.warehouse_tasks
+  add constraint warehouse_tasks_state_check check (state in (
+    'PROPOSED','READY','ASSIGNED','IN_PROGRESS','DONE','REJECTED','CANCELLED','FAILED'
+  ));
+
+-- MUST-4: Persist source quant identity on tasks to prevent cross-quant mismatch and enable exact reservation release
+alter table public.warehouse_tasks
+  add column if not exists source_quant_id uuid,
+  add column if not exists order_id uuid;
+alter table public.warehouse_tasks
+  add constraint warehouse_tasks_source_quant_tenant_fk
+    foreign key (tenant_id, source_quant_id) references public.inventory_quants(tenant_id, id)
+    on delete set null (source_quant_id),
+  add constraint warehouse_tasks_order_tenant_fk
+    foreign key (tenant_id, order_id) references public.orders(tenant_id, id) on delete restrict;
+
+create index if not exists idx_warehouse_tasks_source_quant
+  on public.warehouse_tasks(tenant_id, source_quant_id)
+  where source_quant_id is not null;
 
 -- ── 2. Automatic Control & Measurement Invalidation Trigger on Mutation ────────────
 create or replace function public.fornexa_wms_invalidate_hu_control()
@@ -151,6 +189,7 @@ create or replace function public.fornexa_wms_policy_bool(
 ) returns boolean
 language plpgsql
 immutable
+set search_path = ''
 as $$
 declare
   v_raw text;
@@ -271,7 +310,14 @@ begin
                    coalesce(upper(trim(p_payload->>'status')), '') || ':' ||
                    coalesce(p_payload->>'reject_code', '') || ':' ||
                    coalesce(p_payload->>'reason', '') || ':' ||
-                   coalesce(upper(trim(p_payload->>'disposition')), '');
+                   coalesce(upper(trim(p_payload->>'disposition')), '') || ':' ||
+                   coalesce(p_payload->>'order_id', '') || ':' ||
+                   coalesce(p_payload->>'task_id', '') || ':' ||
+                   coalesce(p_payload->>'warehouse_id', '') || ':' ||
+                   coalesce(p_payload->>'product_id', '') || ':' ||
+                   coalesce(p_payload->>'measured_weight_kg', '') || ':' ||
+                   coalesce(p_payload->>'measured_volume_m3', '') || ':' ||
+                   coalesce(p_payload->>'scanned_code', '');
 
   if v_idem is not null then
     select * into v_existing_task
@@ -281,7 +327,10 @@ begin
        for update;
 
     if found then
-      if v_existing_task.state in ('DONE', 'FAILED') and coalesce(v_existing_task.reject_detail, v_fingerprint) = v_fingerprint then
+      if (v_existing_task.state in ('DONE', 'FAILED') or
+          (p_action = 'REPLENISH' and v_existing_task.task_type = 'REPLENISH'
+           and v_existing_task.state in ('PROPOSED','READY','ASSIGNED','IN_PROGRESS')))
+         and v_existing_task.reject_detail = v_fingerprint then
         return jsonb_build_object(
           'ok', true,
           'idempotent_replay', true,
@@ -843,6 +892,33 @@ begin
              completed_at = v_ts
        where tenant_id = p_tenant and id = v_task.id
        returning * into v_task;
+
+      -- MUST-4 & MUST-C: Release reserved quantity from exact source quant upon confirming REPLENISH
+      if v_task.task_type = 'REPLENISH' then
+        if v_task.source_quant_id is not null then
+          update public.inventory_quants
+             set quantity_reserved = greatest(0, quantity_reserved - v_task.quantity),
+                 updated_at = v_ts
+           where id = v_task.source_quant_id and tenant_id = p_tenant;
+        elsif v_task.source_bin_id is not null then
+          -- Fallback for legacy tasks prior to source_quant_id
+          update public.inventory_quants
+             set quantity_reserved = greatest(0, quantity_reserved - v_task.quantity),
+                 updated_at = v_ts
+           where id = (
+             select id from public.inventory_quants
+              where tenant_id = p_tenant
+                and warehouse_id = v_task.warehouse_id
+                and bin_id = v_task.source_bin_id
+                and product_id = v_task.product_id
+                and (v_task.hu_id is null or hu_id = v_task.hu_id)
+                and quantity_reserved > 0
+              order by quantity_reserved desc, updated_at desc
+              limit 1
+           );
+        end if;
+      end if;
+
       insert into public.audit_events (tenant_id, entity_type, entity_id, action, actor_user_id, source_channel, before_data, after_data)
       values (p_tenant, 'WAREHOUSE_TASK', v_task.id, p_action, p_actor, 'FORNEXA_WMS', v_before, to_jsonb(v_task));
       return jsonb_build_object('ok', true, 'action', p_action, 'task', to_jsonb(v_task));
@@ -852,18 +928,55 @@ begin
     v_product_id := (p_payload->>'product_id')::uuid;
     v_bin_id := (p_payload->>'destination_bin_id')::uuid;
     v_qty := coalesce(nullif(p_payload->>'quantity', '')::numeric(12,3), 1);
+    if v_qty <= 0 then raise exception 'WMS_FORBIDDEN'; end if;
+
+    -- MUST-5: Lock and validate destination bin to serialize concurrent replenishment planning
+    select * into v_bin
+      from public.warehouse_bins wb
+     where wb.tenant_id = p_tenant
+       and wb.warehouse_id = v_warehouse_id
+       and wb.id = v_bin_id
+       for update;
+    if not found then
+      raise exception 'WMS_FORBIDDEN';
+    end if;
+
+    -- Distinct preparation orders may replenish the same destination concurrently.
+    -- The destination row lock serializes the policy check, not the lifetime of tasks.
+    -- MUST-5: Lock quants in destination bin to serialize consolidation evaluation
+    perform 1
+       from public.inventory_quants iq
+      where iq.tenant_id = p_tenant
+        and iq.bin_id = v_bin_id
+        for update;
+
     v_policy := public.fornexa_wms_effective_policy(p_tenant, v_warehouse_id, null, v_product_id);
 
     -- C-3 Policy derivation: consolidation behavior is derived strictly from server policy
     v_consolidation := coalesce(v_policy->>'consolidation', 'YES');
 
+    -- MUST-C: Lock candidate source quants to serialize concurrent replenishment planning across sessions/destinations
+    perform 1
+       from public.inventory_quants iq
+      where iq.tenant_id = p_tenant
+        and iq.warehouse_id = v_warehouse_id
+        and iq.product_id = v_product_id
+        and iq.flow_state in ('STORED', 'RESERVED')
+        and iq.stock_status in ('AVAILABLE', 'RESERVED')
+      order by iq.expiry_date asc nulls last, iq.created_at asc
+        for update;
+
+    -- MUST-3 & MUST-C: Evaluate available balance directly against durable reservation:
+    -- (iq.quantity_on_hand - iq.quantity_reserved) >= v_qty without mixing total reservations with task subsets.
     select * into v_quant
       from public.inventory_quants iq
      where iq.tenant_id = p_tenant
        and iq.warehouse_id = v_warehouse_id
        and iq.product_id = v_product_id
-       and iq.flow_state = 'STORED'
-       and iq.stock_status = 'AVAILABLE'
+       and iq.flow_state in ('STORED', 'RESERVED')
+       and iq.stock_status in ('AVAILABLE', 'RESERVED')
+       and iq.bin_id <> v_bin_id
+       and (nullif(p_payload->>'quant_id', '') is null or iq.id = (p_payload->>'quant_id')::uuid)
        and (iq.quantity_on_hand - iq.quantity_reserved) >= v_qty
      order by iq.expiry_date asc nulls last, iq.created_at asc
      limit 1
@@ -896,12 +1009,38 @@ begin
       end if;
     end if;
 
+    -- Pending tasks are incoming stock for consolidation policy, but never imply
+    -- blanket destination exclusivity. Compatible orders may share the same bin.
+    if v_consolidation = 'BY_BATCH' and exists (
+      select 1 from public.warehouse_tasks wt
+      join public.inventory_quants sq on sq.tenant_id = wt.tenant_id and sq.id = wt.source_quant_id
+       where wt.tenant_id = p_tenant and wt.destination_bin_id = v_bin_id
+         and wt.task_type = 'REPLENISH' and wt.state in ('PROPOSED','READY','ASSIGNED','IN_PROGRESS')
+         and wt.product_id = v_product_id and sq.batch_number is distinct from v_quant.batch_number
+    ) then
+      raise exception 'WMS_CONSOLIDATION_CONFLICT';
+    elsif v_consolidation = 'NO' and exists (
+      select 1 from public.warehouse_tasks wt
+       where wt.tenant_id = p_tenant and wt.destination_bin_id = v_bin_id
+         and wt.task_type = 'REPLENISH' and wt.state in ('PROPOSED','READY','ASSIGNED','IN_PROGRESS')
+    ) then
+      raise exception 'WMS_CONSOLIDATION_CONFLICT';
+    end if;
+
+    -- MUST-C: Persist stock reservation directly on the source quant to prevent double consumption across sessions
+    update public.inventory_quants
+       set quantity_reserved = quantity_reserved + v_qty,
+           updated_at = v_ts
+     where tenant_id = p_tenant and id = v_quant.id
+     returning * into v_quant;
+
+    -- MUST-1 & MUST-4: Persist source_quant_id for exact release and v_fingerprint in reject_detail for idempotent replay
     insert into public.warehouse_tasks (
       tenant_id, warehouse_id, task_type, state, source_bin_id, destination_bin_id,
-      hu_id, product_id, quantity, uom, idempotency_key, reject_detail
+      hu_id, product_id, quantity, uom, idempotency_key, reject_detail, source_quant_id, order_id
     ) values (
       p_tenant, v_warehouse_id, 'REPLENISH', 'READY', v_quant.bin_id, v_bin_id,
-      v_quant.hu_id, v_product_id, v_qty, v_quant.uom, v_idem, v_fingerprint
+      v_quant.hu_id, v_product_id, v_qty, v_quant.uom, v_idem, v_fingerprint, v_quant.id, nullif(p_payload->>'order_id', '')::uuid
     ) returning * into v_task;
 
     insert into public.audit_events (tenant_id, entity_type, entity_id, action, actor_user_id, source_channel, before_data, after_data)
@@ -919,6 +1058,9 @@ begin
     if not found then
       raise exception 'WMS_FORBIDDEN';
     end if;
+
+    -- MUST-4: Capture true pre-image before state mutation for exhaustive audit tracking
+    v_before := to_jsonb(v_hu);
 
     if (p_payload ? 'warehouse_id') and nullif(p_payload->>'warehouse_id', '') is not null
        and (p_payload->>'warehouse_id')::uuid <> v_hu.warehouse_id then
@@ -964,6 +1106,7 @@ begin
              updated_at = v_ts
        where tenant_id = p_tenant and hu_id = v_hu.id;
 
+      -- MUST-1: reject_detail stores v_fingerprint for server-enforced idempotent replay verification
       insert into public.warehouse_tasks (
         tenant_id, warehouse_id, task_type, state, hu_id, idempotency_key,
         reject_code, reject_detail, started_at, completed_at
@@ -987,6 +1130,7 @@ begin
        where tenant_id = p_tenant and id = v_hu.id
        returning * into v_hu;
 
+      -- MUST-1: reject_detail stores v_fingerprint for server-enforced idempotent replay verification
       insert into public.warehouse_tasks (
         tenant_id, warehouse_id, task_type, state, hu_id, idempotency_key,
         reject_detail, started_at, completed_at
@@ -1038,57 +1182,41 @@ begin
       join public.products p on p.id = huc.product_id and p.tenant_id = p_tenant
      where huc.tenant_id = p_tenant and huc.handling_unit_id = v_hu.id;
 
-    v_expected_weight := case when v_computed_weight > 0 then v_computed_weight else v_hu.gross_weight_kg end;
-    v_expected_volume := case when v_computed_volume > 0 then v_computed_volume else v_hu.volume_m3 end;
+    -- MUST-2: Current partida/SGA values take precedence; contents/products are only an estimate when no declaration exists.
+    v_expected_weight := coalesce(nullif(v_hu.gross_weight_kg, 0), nullif(v_computed_weight, 0));
+    v_expected_volume := coalesce(nullif(v_hu.volume_m3, 0), nullif(v_computed_volume, 0));
 
     v_measured_weight := nullif(p_payload->>'measured_weight_kg', '')::numeric(10,3);
     v_measured_volume := nullif(p_payload->>'measured_volume_m3', '')::numeric(10,4);
     v_weight_tol := coalesce((v_policy->>'weight_tolerance_pct')::numeric(6,2), 5.0);
     v_vol_tol := coalesce((v_policy->>'volume_tolerance_pct')::numeric(6,2), 10.0);
 
-    v_req_weight := public.fornexa_wms_policy_bool(v_policy, 'require_weight_measurement', false)
-                    or (v_policy ? 'weight_tolerance_pct' and nullif(v_policy->>'weight_tolerance_pct', '') is not null);
-    v_req_vol := public.fornexa_wms_policy_bool(v_policy, 'require_volume_measurement', false)
-                 or (v_policy ? 'volume_tolerance_pct' and nullif(v_policy->>'volume_tolerance_pct', '') is not null);
+    -- SHOULD-5: Asimetría deliberada de defaults: require_state_control_on_load es true por defecto (fail-closed de control físico),
+    -- mientras que require_weight_measurement y require_volume_measurement son false por defecto (opt-in de pesaje/cubicaje).
+    v_req_weight := public.fornexa_wms_policy_bool(v_policy, 'require_weight_measurement', false);
+    v_req_vol := public.fornexa_wms_policy_bool(v_policy, 'require_volume_measurement', false);
 
-    if v_req_weight then
-      if v_measured_weight is null then
-        if v_hu.measured_at is not null and v_hu.gross_weight_kg is not null and v_hu.gross_weight_kg > 0 then
-          v_measured_weight := v_hu.gross_weight_kg;
-        else
-          raise exception 'WMS_WEIGHT_TOLERANCE';
-        end if;
-      end if;
-      if v_expected_weight is null or v_expected_weight <= 0 then
-        raise exception 'WMS_WEIGHT_TOLERANCE';
-      elsif abs(v_measured_weight - v_expected_weight) / v_expected_weight * 100.0 > v_weight_tol then
-        raise exception 'WMS_WEIGHT_TOLERANCE';
-      end if;
-    elsif v_measured_weight is not null then
-      if v_expected_weight is null or v_expected_weight <= 0 then
-        raise exception 'WMS_WEIGHT_TOLERANCE';
-      elsif abs(v_measured_weight - v_expected_weight) / v_expected_weight * 100.0 > v_weight_tol then
+    -- Fran: the current SGA declaration suffices, even when these flags are true.
+    -- Only an explicitly supplied measurement is compared and stamped as measured.
+    if v_req_weight and v_measured_weight is null
+       and coalesce(nullif(v_hu.gross_weight_kg, 0), v_expected_weight, 0) <= 0 then
+      raise exception 'WMS_WEIGHT_TOLERANCE';
+    end if;
+    if v_measured_weight is not null then
+      if v_measured_weight <= 0 then raise exception 'WMS_WEIGHT_TOLERANCE'; end if;
+      if v_expected_weight > 0 and
+         abs(v_measured_weight - v_expected_weight) / v_expected_weight * 100.0 > v_weight_tol then
         raise exception 'WMS_WEIGHT_TOLERANCE';
       end if;
     end if;
-
-    if v_req_vol then
-      if v_measured_volume is null then
-        if v_hu.measured_at is not null and v_hu.volume_m3 is not null and v_hu.volume_m3 > 0 then
-          v_measured_volume := v_hu.volume_m3;
-        else
-          raise exception 'WMS_VOLUME_TOLERANCE';
-        end if;
-      end if;
-      if v_expected_volume is null or v_expected_volume <= 0 then
-        raise exception 'WMS_VOLUME_TOLERANCE';
-      elsif abs(v_measured_volume - v_expected_volume) / v_expected_volume * 100.0 > v_vol_tol then
-        raise exception 'WMS_VOLUME_TOLERANCE';
-      end if;
-    elsif v_measured_volume is not null then
-      if v_expected_volume is null or v_expected_volume <= 0 then
-        raise exception 'WMS_VOLUME_TOLERANCE';
-      elsif abs(v_measured_volume - v_expected_volume) / v_expected_volume * 100.0 > v_vol_tol then
+    if v_req_vol and v_measured_volume is null
+       and coalesce(nullif(v_hu.volume_m3, 0), v_expected_volume, 0) <= 0 then
+      raise exception 'WMS_VOLUME_TOLERANCE';
+    end if;
+    if v_measured_volume is not null then
+      if v_measured_volume <= 0 then raise exception 'WMS_VOLUME_TOLERANCE'; end if;
+      if v_expected_volume > 0 and
+         abs(v_measured_volume - v_expected_volume) / v_expected_volume * 100.0 > v_vol_tol then
         raise exception 'WMS_VOLUME_TOLERANCE';
       end if;
     end if;
@@ -1112,7 +1240,10 @@ begin
     ) returning * into v_task;
 
     insert into public.audit_events (tenant_id, entity_type, entity_id, action, actor_user_id, source_channel, before_data, after_data)
-    values (p_tenant, 'HANDLING_UNIT', v_hu.id, 'LABEL', p_actor, 'FORNEXA_WMS', v_before, to_jsonb(v_hu));
+    values (p_tenant, 'HANDLING_UNIT', v_hu.id, 'LABEL', p_actor, 'FORNEXA_WMS', v_before,
+      to_jsonb(v_hu) || jsonb_build_object(
+        'weight_source', case when v_measured_weight is not null then 'OPERATOR_INPUT' when (v_before->>'gross_weight_kg')::numeric > 0 then 'SGA_DECLARED' else 'CONTENTS_ESTIMATE' end,
+        'volume_source', case when v_measured_volume is not null then 'OPERATOR_INPUT' when (v_before->>'volume_m3')::numeric > 0 then 'SGA_DECLARED' else 'CONTENTS_ESTIMATE' end));
 
     return jsonb_build_object('ok', true, 'action', 'LABEL', 'hu', to_jsonb(v_hu), 'task_id', v_task.id);
 
@@ -1168,57 +1299,41 @@ begin
       join public.products p on p.id = huc.product_id and p.tenant_id = p_tenant
      where huc.tenant_id = p_tenant and huc.handling_unit_id = v_hu.id;
 
-    v_expected_weight := case when v_computed_weight > 0 then v_computed_weight else v_hu.gross_weight_kg end;
-    v_expected_volume := case when v_computed_volume > 0 then v_computed_volume else v_hu.volume_m3 end;
+    -- MUST-2: Current partida/SGA values take precedence; contents/products are only an estimate when no declaration exists.
+    v_expected_weight := coalesce(nullif(v_hu.gross_weight_kg, 0), nullif(v_computed_weight, 0));
+    v_expected_volume := coalesce(nullif(v_hu.volume_m3, 0), nullif(v_computed_volume, 0));
 
     v_measured_weight := nullif(p_payload->>'measured_weight_kg', '')::numeric(10,3);
     v_measured_volume := nullif(p_payload->>'measured_volume_m3', '')::numeric(10,4);
     v_weight_tol := coalesce((v_policy->>'weight_tolerance_pct')::numeric(6,2), 5.0);
     v_vol_tol := coalesce((v_policy->>'volume_tolerance_pct')::numeric(6,2), 10.0);
 
-    v_req_weight := public.fornexa_wms_policy_bool(v_policy, 'require_weight_measurement', false)
-                    or (v_policy ? 'weight_tolerance_pct' and nullif(v_policy->>'weight_tolerance_pct', '') is not null);
-    v_req_vol := public.fornexa_wms_policy_bool(v_policy, 'require_volume_measurement', false)
-                 or (v_policy ? 'volume_tolerance_pct' and nullif(v_policy->>'volume_tolerance_pct', '') is not null);
+    -- SHOULD-5: Asimetría deliberada de defaults: require_state_control_on_load es true por defecto (fail-closed de control físico),
+    -- mientras que require_weight_measurement y require_volume_measurement son false por defecto (opt-in de pesaje/cubicaje).
+    v_req_weight := public.fornexa_wms_policy_bool(v_policy, 'require_weight_measurement', false);
+    v_req_vol := public.fornexa_wms_policy_bool(v_policy, 'require_volume_measurement', false);
 
-    if v_req_weight then
-      if v_measured_weight is null then
-        if v_hu.measured_at is not null and v_hu.gross_weight_kg is not null and v_hu.gross_weight_kg > 0 then
-          v_measured_weight := v_hu.gross_weight_kg;
-        else
-          raise exception 'WMS_WEIGHT_TOLERANCE';
-        end if;
-      end if;
-      if v_expected_weight is null or v_expected_weight <= 0 then
-        raise exception 'WMS_WEIGHT_TOLERANCE';
-      elsif abs(v_measured_weight - v_expected_weight) / v_expected_weight * 100.0 > v_weight_tol then
-        raise exception 'WMS_WEIGHT_TOLERANCE';
-      end if;
-    elsif v_measured_weight is not null then
-      if v_expected_weight is null or v_expected_weight <= 0 then
-        raise exception 'WMS_WEIGHT_TOLERANCE';
-      elsif abs(v_measured_weight - v_expected_weight) / v_expected_weight * 100.0 > v_weight_tol then
+    -- Fran: the current SGA declaration suffices, even when these flags are true.
+    -- Only an explicitly supplied measurement is compared and stamped as measured.
+    if v_req_weight and v_measured_weight is null
+       and coalesce(nullif(v_hu.gross_weight_kg, 0), v_expected_weight, 0) <= 0 then
+      raise exception 'WMS_WEIGHT_TOLERANCE';
+    end if;
+    if v_measured_weight is not null then
+      if v_measured_weight <= 0 then raise exception 'WMS_WEIGHT_TOLERANCE'; end if;
+      if v_expected_weight > 0 and
+         abs(v_measured_weight - v_expected_weight) / v_expected_weight * 100.0 > v_weight_tol then
         raise exception 'WMS_WEIGHT_TOLERANCE';
       end if;
     end if;
-
-    if v_req_vol then
-      if v_measured_volume is null then
-        if v_hu.measured_at is not null and v_hu.volume_m3 is not null and v_hu.volume_m3 > 0 then
-          v_measured_volume := v_hu.volume_m3;
-        else
-          raise exception 'WMS_VOLUME_TOLERANCE';
-        end if;
-      end if;
-      if v_expected_volume is null or v_expected_volume <= 0 then
-        raise exception 'WMS_VOLUME_TOLERANCE';
-      elsif abs(v_measured_volume - v_expected_volume) / v_expected_volume * 100.0 > v_vol_tol then
-        raise exception 'WMS_VOLUME_TOLERANCE';
-      end if;
-    elsif v_measured_volume is not null then
-      if v_expected_volume is null or v_expected_volume <= 0 then
-        raise exception 'WMS_VOLUME_TOLERANCE';
-      elsif abs(v_measured_volume - v_expected_volume) / v_expected_volume * 100.0 > v_vol_tol then
+    if v_req_vol and v_measured_volume is null
+       and coalesce(nullif(v_hu.volume_m3, 0), v_expected_volume, 0) <= 0 then
+      raise exception 'WMS_VOLUME_TOLERANCE';
+    end if;
+    if v_measured_volume is not null then
+      if v_measured_volume <= 0 then raise exception 'WMS_VOLUME_TOLERANCE'; end if;
+      if v_expected_volume > 0 and
+         abs(v_measured_volume - v_expected_volume) / v_expected_volume * 100.0 > v_vol_tol then
         raise exception 'WMS_VOLUME_TOLERANCE';
       end if;
     end if;
@@ -1269,7 +1384,10 @@ begin
     ) returning * into v_task;
 
     insert into public.audit_events (tenant_id, entity_type, entity_id, action, actor_user_id, source_channel, before_data, after_data)
-    values (p_tenant, 'HANDLING_UNIT', v_hu.id, 'LOAD', p_actor, 'FORNEXA_WMS', v_before, to_jsonb(v_hu));
+    values (p_tenant, 'HANDLING_UNIT', v_hu.id, 'LOAD', p_actor, 'FORNEXA_WMS', v_before,
+      to_jsonb(v_hu) || jsonb_build_object(
+        'weight_source', case when v_measured_weight is not null then 'OPERATOR_INPUT' when (v_before->>'gross_weight_kg')::numeric > 0 then 'SGA_DECLARED' else 'CONTENTS_ESTIMATE' end,
+        'volume_source', case when v_measured_volume is not null then 'OPERATOR_INPUT' when (v_before->>'volume_m3')::numeric > 0 then 'SGA_DECLARED' else 'CONTENTS_ESTIMATE' end));
 
     return jsonb_build_object('ok', true, 'action', 'LOAD', 'hu', to_jsonb(v_hu), 'task_id', v_task.id);
 
@@ -1279,6 +1397,12 @@ begin
       raise exception 'WMS_FORBIDDEN';
     end if;
     v_warehouse_id := (p_payload->>'warehouse_id')::uuid;
+    -- MUST-D: Validate warehouse belongs to p_tenant to prevent cross-tenant referencing
+    if v_warehouse_id is null or not exists (
+      select 1 from public.warehouses where tenant_id = p_tenant and id = v_warehouse_id
+    ) then
+      raise exception 'WMS_FORBIDDEN';
+    end if;
     update public.warehouse_behavior_policies
        set superseded_at = v_ts,
            updated_at = v_ts
@@ -1307,6 +1431,51 @@ begin
 
     return jsonb_build_object('ok', true, 'action', 'UPSERT_POLICY', 'policy', v_after);
 
+  -- ── ACTION: UPSERT_RESOURCE (Preservada de E1 sin bypass) ──────────────────
+  elsif p_action = 'UPSERT_RESOURCE' then
+    if v_role not in ('OWNER','ADMIN','PLANNER') then
+      raise exception 'WMS_FORBIDDEN';
+    end if;
+    v_warehouse_id := (p_payload->>'warehouse_id')::uuid;
+    -- MUST-D: Validate warehouse belongs to p_tenant to prevent cross-tenant referencing
+    if v_warehouse_id is null or not exists (
+      select 1 from public.warehouses where tenant_id = p_tenant and id = v_warehouse_id
+    ) then
+      raise exception 'WMS_FORBIDDEN';
+    end if;
+    insert into public.warehouse_resources (
+      tenant_id, warehouse_id, code, name, resource_type, status,
+      max_lift_height_m, max_weight_kg, certifications, shift_code, is_active
+    ) values (
+      p_tenant,
+      v_warehouse_id,
+      p_payload->>'code',
+      p_payload->>'name',
+      p_payload->>'resource_type',
+      coalesce(p_payload->>'status', 'AVAILABLE'),
+      nullif(p_payload->>'max_lift_height_m', '')::numeric(5,2),
+      nullif(p_payload->>'max_weight_kg', '')::numeric(10,2),
+      coalesce(array(select jsonb_array_elements_text(coalesce(p_payload->'certifications', '[]'::jsonb))), '{}'),
+      nullif(p_payload->>'shift_code', ''),
+      case when lower(trim(coalesce(p_payload->>'is_active', ''))) in ('false', '0', 'no', 'off') then false else true end
+    )
+    on conflict (tenant_id, warehouse_id, code) do update set
+      name = excluded.name,
+      resource_type = excluded.resource_type,
+      status = excluded.status,
+      max_lift_height_m = excluded.max_lift_height_m,
+      max_weight_kg = excluded.max_weight_kg,
+      certifications = excluded.certifications,
+      shift_code = excluded.shift_code,
+      is_active = excluded.is_active,
+      updated_at = v_ts
+    returning * into v_resource;
+
+    insert into public.audit_events (tenant_id, entity_type, entity_id, action, actor_user_id, source_channel, before_data, after_data)
+    values (p_tenant, 'WAREHOUSE_RESOURCE', v_resource.id, 'UPSERT_RESOURCE', p_actor, 'FORNEXA_WMS', null, to_jsonb(v_resource));
+
+    return jsonb_build_object('ok', true, 'action', 'UPSERT_RESOURCE', 'resource', to_jsonb(v_resource));
+
   else
     raise exception 'WMS_FORBIDDEN';
   end if;
@@ -1315,12 +1484,63 @@ $$;
 
 -- ── 4. Rollout Safety: Default Active Warehouse Policies to Require State Control (MUST-1) ──
 -- NOTA DE SEGURIDAD OPERATIVA Y TRANSACCIONAL:
--- Esta migración debe ejecutarse dentro de un bloque transaccional atómico único (BEGIN ... COMMIT).
+-- Esta migración se ejecuta dentro de un bloque transaccional atómico único (BEGIN ... COMMIT).
 -- El backfill de require_state_control_on_load se ubica al final de la migración para asegurar que
 -- la función fornexa_wms_action ya incorpore el soporte de CONTROL_STATE y validación de carga antes
 -- de activar el requisito en las políticas activas preexistentes.
+-- Se aplica únicamente a políticas activas donde la clave esté indefinida (NULL o vacía),
+-- respetando estrictamente políticas donde se haya configurado explícitamente false de forma legítima.
+-- MUST-A: Se aplica estrictamente a políticas activas (superseded_at is null) donde la clave esté indefinida,
+-- garantizando la inmutabilidad de versiones históricas preexistentes.
 update public.warehouse_behavior_policies
-   set params = jsonb_set(params, '{require_state_control_on_load}', 'true'::jsonb, true)
+   set params = jsonb_set(params, '{require_state_control_on_load}', 'true'::jsonb, true),
+       updated_at = now()
  where params is not null
+   and superseded_at is null
    and (params->>'require_state_control_on_load' is null or params->>'require_state_control_on_load' = '');
+
+-- MUST-3 & MUST-4: Backfill quantity_reserved and source_quant_id for any pre-existing active REPLENISH tasks
+with legacy_replenish as (
+  select wt.tenant_id, wt.warehouse_id, wt.source_bin_id, wt.product_id, wt.hu_id, sum(wt.quantity) as total_qty
+    from public.warehouse_tasks wt
+   where wt.task_type = 'REPLENISH'
+     and wt.state in ('PROPOSED','READY','ASSIGNED','IN_PROGRESS')
+     and wt.source_bin_id is not null
+   group by wt.tenant_id, wt.warehouse_id, wt.source_bin_id, wt.product_id, wt.hu_id
+)
+update public.inventory_quants iq
+   set quantity_reserved = iq.quantity_reserved + lr.total_qty,
+       updated_at = now()
+  from legacy_replenish lr
+ where iq.tenant_id = lr.tenant_id
+   and iq.warehouse_id = lr.warehouse_id
+   and iq.bin_id = lr.source_bin_id
+   and iq.product_id = lr.product_id
+   and (lr.hu_id is null or iq.hu_id = lr.hu_id);
+
+update public.warehouse_tasks wt
+   set source_quant_id = (
+     select iq.id
+       from public.inventory_quants iq
+      where iq.tenant_id = wt.tenant_id
+        and iq.warehouse_id = wt.warehouse_id
+        and iq.bin_id = wt.source_bin_id
+        and iq.product_id = wt.product_id
+        and (wt.hu_id is null or iq.hu_id = wt.hu_id)
+      order by iq.quantity_reserved desc, iq.updated_at desc
+      limit 1
+   )
+ where wt.task_type = 'REPLENISH'
+   and wt.source_quant_id is null
+   and wt.source_bin_id is not null
+   and wt.state in ('PROPOSED','READY','ASSIGNED','IN_PROGRESS');
+
+-- Privilegios de funciones de servidor C-3 (SHOULD revokes y grants a service_role)
+revoke all on function public.fornexa_wms_invalidate_hu_control() from public, anon, authenticated;
+revoke all on function public.fornexa_wms_policy_bool(jsonb, text, boolean) from public, anon, authenticated;
+grant execute on function public.fornexa_wms_policy_bool(jsonb, text, boolean) to service_role;
+revoke all on function public.fornexa_wms_action(uuid, uuid, text, jsonb, text) from public, anon, authenticated;
+grant execute on function public.fornexa_wms_action(uuid, uuid, text, jsonb, text) to service_role;
+
+commit;
 
