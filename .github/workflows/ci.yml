@@ -74,6 +74,9 @@ jobs:
           USE_REAL_POSTGRES: "true"
         run: node scripts/wms/verify-c3-postgres.mjs
 
+      - name: Validate WMS C-3 Relational Receipt (Post-Harness Certification)
+        run: node --experimental-test-module-mocks --import ./scripts/test-register.mjs --experimental-strip-types --test tests/wms-c3-server-controls.test.ts
+
       - name: Upload WMS C-3 Verification Receipt
         if: always()
         uses: actions/upload-artifact@v4

@@ -2,8 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
 import test from "node:test";
 import { WMS_ACTIONS, isHuColumnMissingError, executeWmsActionApi, validateWmsActionPayloadSecurity, type WmsAction } from "../lib/wms.ts";
+// @ts-expect-error - import dynamic harness case registry
+import { getExpectedCases } from "../scripts/wms/verify-c3-postgres.mjs";
 
 const C3_MIGRATION_PATH = resolve(
   import.meta.dirname,
@@ -395,64 +398,148 @@ test("M7 C-3 — lib/memorandum.ts modera la redacción de C-3 a 'En revisión i
   );
 });
 
+const EXPECTED_INPUT_FILES = [
+  "supabase/migrations/20260819_harden_tenant_access_function.sql",
+  "supabase/migrations/20261017110000_wms_e1_core.sql",
+  "supabase/migrations/20261019120000_wms_c3_server_load_controls.sql",
+  "supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql",
+  "scripts/wms/verify-c3-postgres.mjs",
+] as const;
+
+export function computeRuntimeInputHashes(): Record<string, string> {
+  const root = resolve(import.meta.dirname, "..");
+  const hashes: Record<string, string> = {};
+  for (const relPath of EXPECTED_INPUT_FILES) {
+    const fullPath = resolve(root, relPath);
+    const content = readFileSync(fullPath);
+    hashes[relPath] = createHash("sha256").update(content).digest("hex");
+  }
+  return hashes;
+}
+
 /**
- * Función canónica de validación estricta de recibo relacional duradero.
+ * Función canónica de validación estricta de recibo relacional duradero (MUST-T1 y MUST-T2).
  * Falla de forma cerrada si:
  * - El motor o base de datos no corresponden a la certificación homologada de contenedor (pg-socket / fornexa_test).
- * - Faltan o son inválidos los hashes criptográficos (execution_sha, github_run_id, migration_sha256, rollback_sha256, harness_sha256).
- * - Cualquiera de los 16 casos no tiene status "PASS" explícito individual.
+ * - Faltan o son inválidos los metadatos de procedencia (execution_sha, github_run_id, base_sha).
+ * - Los hashes de input no coinciden en RUNTIME con los ficheros del árbol (MUST-T1).
+ * - La matriz de casos difiere del registro dinámico exportado por el arnés (MUST-T2).
+ * - Cualquiera de los casos esperados no tiene status "PASS" explícito individual.
  * - Cualquiera de los MUSTs obligatorios no tiene status "PASS" explícito individual.
+ * - Bajo pg-socket, summary.not_certified no es estrictamente 0.
+ * - certification_scope no deriva dinámicamente de la versión mayor de PostgreSQL del motor.
  */
-export function validateRelationalReceipt(receipt: any): void {
+export function validateRelationalReceipt(receipt: any, options: { expectedEngine?: string } = {}): void {
+  const targetEngine = options.expectedEngine ?? "pg-socket";
   assert.ok(receipt && typeof receipt === "object", "El recibo debe ser un objeto válido");
-  assert.equal(receipt.engine, "pg-socket", "El recibo duradero debe estar certificado con engine pg-socket");
+  assert.equal(receipt.engine, targetEngine, `El recibo duradero debe estar certificado con engine ${targetEngine}`);
   assert.equal(receipt.database, "fornexa_test", "La base de datos del recibo debe ser fornexa_test");
-  assert.equal(receipt.certification_scope, "DURABLE_PG16_CONTAINER_CERTIFICATION");
-  assert.equal(receipt.concurrency_certified, true, "El recibo debe certificar concurrencia transaccional");
 
-  // Vinculación estricta de SHA y Run
+  // MUST-T2: Dynamic certification scope based on engine postgres major version
+  if (receipt.engine === "pg-socket") {
+    const pgMajor = receipt.pg_version ? receipt.pg_version.match(/^PostgreSQL\s+(\d+)/)?.[1] || "16" : "16";
+    assert.equal(
+      receipt.certification_scope,
+      `DURABLE_PG${pgMajor}_CONTAINER_CERTIFICATION`,
+      `certification_scope debe derivar dinámicamente de PostgreSQL ${pgMajor}`,
+    );
+    assert.equal(receipt.concurrency_certified, true, "El recibo debe certificar concurrencia transaccional");
+  } else {
+    assert.equal(receipt.certification_scope, "SUPPLEMENTARY_SANDBOX_PGLITE");
+  }
+
+  // Vinculación estricta de procedencia
   assert.match(
     receipt.execution_sha,
     /^[0-9a-f]{40}$/i,
-    "execution_sha debe ser un commit SHA-1 hexadecimal de 40 caracteres",
+    "execution_sha debe ser un commit o merge-ref SHA-1 hexadecimal de 40 caracteres",
   );
   assert.match(
     String(receipt.github_run_id),
     /^\d+$/,
     "github_run_id debe ser un identificador numérico de ejecución CI",
   );
-  assert.match(
+  assert.match(receipt.base_sha, /^[0-9a-f]{40}$/i, "base_sha debe ser un SHA válido");
+
+  // MUST-T1: Vincular por CONTENIDO en runtime, no por commit estático
+  const runtimeHashes = computeRuntimeInputHashes();
+  assert.ok(receipt.input_hashes && typeof receipt.input_hashes === "object", "El recibo debe incluir input_hashes");
+  for (const [filePath, expectedHash] of Object.entries(runtimeHashes)) {
+    assert.equal(
+      receipt.input_hashes[filePath],
+      expectedHash,
+      `input_hashes['${filePath}'] debe coincidir en runtime con el árbol ejecutado (${expectedHash})`,
+    );
+  }
+  // Coherencia con hashes de primer nivel
+  assert.equal(
     receipt.migration_sha256,
-    /^[0-9a-f]{64}$/i,
-    "migration_sha256 debe ser un hash SHA-256 válido de 64 caracteres",
+    runtimeHashes["supabase/migrations/20261019120000_wms_c3_server_load_controls.sql"],
+    "migration_sha256 debe coincidir con hash runtime de la migración",
   );
-  assert.match(
+  assert.equal(
     receipt.rollback_sha256,
-    /^[0-9a-f]{64}$/i,
-    "rollback_sha256 debe ser un hash SHA-256 válido de 64 caracteres",
+    runtimeHashes["supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql"],
+    "rollback_sha256 debe coincidir con hash runtime del rollback protegido",
   );
-  assert.match(
+  assert.equal(
     receipt.harness_sha256,
-    /^[0-9a-f]{64}$/i,
-    "harness_sha256 debe ser un hash SHA-256 válido de 64 caracteres",
+    runtimeHashes["scripts/wms/verify-c3-postgres.mjs"],
+    "harness_sha256 debe coincidir con hash runtime del arnés",
+  );
+  assert.equal(
+    receipt.tenant_access_sha256,
+    runtimeHashes["supabase/migrations/20260819_harden_tenant_access_function.sql"],
+  );
+  assert.equal(
+    receipt.e1_core_sha256,
+    runtimeHashes["supabase/migrations/20261017110000_wms_e1_core.sql"],
   );
 
-  // Validación estricta de matriz de 16 casos
-  assert.equal(receipt.summary.total, 16, "El total de casos en summary debe ser exactamente 16");
-  assert.equal(receipt.summary.passed, 16, "El conteo passed en summary debe ser exactamente 16");
-  assert.equal(receipt.summary.failed, 0, "El conteo failed en summary debe ser 0");
+  // MUST-T2: Registro dinámico de casos derivado del arnés sin pin estático a 16 o 20
+  const expectedCases = getExpectedCases(receipt.engine);
   assert.ok(Array.isArray(receipt.cases), "receipt.cases debe ser un array");
-  assert.equal(receipt.cases.length, 16, "receipt.cases debe contener exactamente 16 elementos");
+  assert.equal(
+    receipt.cases.length,
+    expectedCases.length,
+    `receipt.cases debe contener exactamente ${expectedCases.length} elementos (derivados dinámicamente del arnés)`,
+  );
+  assert.equal(
+    receipt.summary.total,
+    expectedCases.length,
+    `El total de casos en summary (${receipt.summary.total}) debe coincidir con los casos esperados (${expectedCases.length})`,
+  );
+  assert.equal(
+    receipt.summary.passed,
+    expectedCases.length,
+    `El conteo passed en summary (${receipt.summary.passed}) debe ser exactamente ${expectedCases.length}`,
+  );
+  assert.equal(receipt.summary.failed, 0, "El conteo failed en summary debe ser 0");
+  assert.equal(
+    receipt.summary.passed + receipt.summary.failed,
+    receipt.summary.total,
+    "Coherencia interna: passed + failed === total",
+  );
 
-  for (let i = 0; i < 16; i++) {
+  if (receipt.engine === "pg-socket") {
+    assert.equal(receipt.summary.not_certified, 0, "Bajo pg-socket, summary.not_certified debe ser estrictamente 0");
+    assert.equal(
+      receipt.summary.certified,
+      expectedCases.length,
+      `Bajo pg-socket, summary.certified debe ser ${expectedCases.length}`,
+    );
+  }
+
+  for (let i = 0; i < expectedCases.length; i++) {
     const c = receipt.cases[i];
-    assert.equal(c.case, i + 1, `El caso en índice ${i} debe tener identificador case: ${i + 1}`);
+    const ec = expectedCases[i];
+    assert.equal(c.case, ec.case, `El caso en índice ${i} debe tener identificador case: ${ec.case}`);
+    assert.equal(c.title, ec.title, `El caso ${c.case} debe tener título exacto derivado del arnés: "${ec.title}"`);
     assert.equal(
       c.status,
       "PASS",
-      `El caso ${i + 1} (${c.title}) debe certificar status PASS individual estricto (no se admite FAIL ni omisión)`,
+      `El caso ${c.case} (${c.title}) debe certificar status PASS individual estricto (no se admite FAIL ni omisión)`,
     );
-    assert.ok(typeof c.title === "string" && c.title.trim().length > 0, `El caso ${i + 1} debe incluir título descriptivo`);
   }
 
   // Validación estricta de MUSTs de seguridad y arquitectura
@@ -469,7 +556,7 @@ export function validateRelationalReceipt(receipt: any): void {
   }
 }
 
-test("M7 C-3 — Valida la forma del recibo histórico de CI #537 (no ejecuta PostgreSQL)", () => {
+test("M7 C-3 — Valida el recibo relacional activo de certificación (MUST-T1 y MUST-T2)", () => {
   const receiptPath = resolve(import.meta.dirname, "../docs/verification/receipt-m7-c3-postgres.json");
   const rawReceipt = readFileSync(receiptPath, "utf-8");
   const receipt = JSON.parse(rawReceipt);
@@ -507,12 +594,39 @@ test("M7 C-3 — Valida la forma del recibo histórico de CI #537 (no ejecuta Po
   assert.equal(execMust.evidence.anon_denied, true);
 });
 
+test("M7 C-3 — Recibo histórico de CI #537 está desacoplado y es explícitamente no certificante de este HEAD (MUST-T1)", () => {
+  const histPath = resolve(import.meta.dirname, "../docs/verification/historical/receipt-m7-c3-postgres-ci537.json");
+  const rawHist = readFileSync(histPath, "utf-8");
+  const hist = JSON.parse(rawHist);
+
+  assert.equal(hist.github_run_number, "537");
+  assert.equal(hist.summary.total, 16);
+  // No certifica este HEAD porque sus input_hashes difieren del árbol actual
+  const runtimeHashes = computeRuntimeInputHashes();
+  assert.notEqual(
+    hist.input_hashes["supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql"],
+    runtimeHashes["supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql"],
+    "El recibo histórico de CI 537 tiene hash de rollback obsoleto y no certifica el HEAD actual",
+  );
+  assert.notEqual(
+    hist.execution_sha,
+    "481e2f46386bd58772564f7aca4f00a62bb29e0d",
+    "El recibo histórico de CI 537 pertenece a ejecución previa",
+  );
+  // Al pasar por el validador estricto debe ser rechazado
+  assert.throws(
+    () => validateRelationalReceipt(hist),
+    /debe coincidir en runtime/,
+    "El validador relacional debe rechazar el recibo histórico de CI 537 por hashes obsoletos",
+  );
+});
+
 test("M7 C-3 — Validador de recibo detecta y rechaza recibos inválidos, corruptos o con falsos positivos (pruebas negativas)", () => {
   const receiptPath = resolve(import.meta.dirname, "../docs/verification/receipt-m7-c3-postgres.json");
   const rawReceipt = readFileSync(receiptPath, "utf-8");
   const validReceipt = JSON.parse(rawReceipt);
 
-  // 1. Rechazo si un caso individual está en FAIL aunque summary.passed reporte 16
+  // 1. Rechazo si un caso individual está en FAIL aunque summary.passed reporte 20
   const badCaseReceipt = JSON.parse(JSON.stringify(validReceipt));
   badCaseReceipt.cases[0].status = "FAIL";
   assert.throws(
@@ -521,16 +635,25 @@ test("M7 C-3 — Validador de recibo detecta y rechaza recibos inválidos, corru
     "Debe rechazar recibo si algún caso tiene status FAIL",
   );
 
-  // 2. Rechazo si la lista de casos está incompleta (15 casos)
+  // 2. Rechazo si la lista de casos está incompleta (falta 1 caso)
   const incompleteCasesReceipt = JSON.parse(JSON.stringify(validReceipt));
   incompleteCasesReceipt.cases.pop();
   assert.throws(
     () => validateRelationalReceipt(incompleteCasesReceipt),
-    /exactamente 16 elementos/,
-    "Debe rechazar recibo si la lista de casos no contiene 16 elementos",
+    /elementos \(derivados dinámicamente del arnés\)/,
+    "Debe rechazar recibo si la lista de casos no coincide con getExpectedCases",
   );
 
-  // 3. Rechazo si un MUST no tiene status PASS
+  // 3. Rechazo si el título de un caso está alterado
+  const badTitleReceipt = JSON.parse(JSON.stringify(validReceipt));
+  badTitleReceipt.cases[0].title = "Título adulterado no coincidente con el arnés";
+  assert.throws(
+    () => validateRelationalReceipt(badTitleReceipt),
+    /título exacto derivado del arnés/,
+    "Debe rechazar recibo si el título de un caso no coincide con el arnés",
+  );
+
+  // 4. Rechazo si un MUST no tiene status PASS
   const badMustReceipt = JSON.parse(JSON.stringify(validReceipt));
   const rlsMust = badMustReceipt.musts.find((m: any) => m.must === "MUST-RLS");
   if (rlsMust) rlsMust.status = "FAIL";
@@ -540,7 +663,7 @@ test("M7 C-3 — Validador de recibo detecta y rechaza recibos inválidos, corru
     "Debe rechazar recibo si algún MUST tiene status FAIL",
   );
 
-  // 4. Rechazo si falta un MUST obligatorio (p. ej. MUST-EXECUTE)
+  // 5. Rechazo si falta un MUST obligatorio (p. ej. MUST-EXECUTE)
   const missingMustReceipt = JSON.parse(JSON.stringify(validReceipt));
   missingMustReceipt.musts = missingMustReceipt.musts.filter((m: any) => m.must !== "MUST-EXECUTE");
   assert.throws(
@@ -549,7 +672,7 @@ test("M7 C-3 — Validador de recibo detecta y rechaza recibos inválidos, corru
     "Debe rechazar recibo si falta un MUST obligatorio",
   );
 
-  // 5. Rechazo si execution_sha no es un commit SHA de 40 hex (falso truthy)
+  // 6. Rechazo si execution_sha no es un commit SHA de 40 hex (falso truthy)
   const fakeShaReceipt = JSON.parse(JSON.stringify(validReceipt));
   fakeShaReceipt.execution_sha = "not-a-valid-sha";
   assert.throws(
@@ -558,7 +681,7 @@ test("M7 C-3 — Validador de recibo detecta y rechaza recibos inválidos, corru
     "Debe rechazar execution_sha no hexadecimal de 40 caracteres",
   );
 
-  // 6. Rechazo si github_run_id no es numérico
+  // 7. Rechazo si github_run_id no es numérico
   const fakeRunReceipt = JSON.parse(JSON.stringify(validReceipt));
   fakeRunReceipt.github_run_id = "run-fake-non-numeric";
   assert.throws(
@@ -567,7 +690,7 @@ test("M7 C-3 — Validador de recibo detecta y rechaza recibos inválidos, corru
     "Debe rechazar github_run_id no numérico",
   );
 
-  // 7. Rechazo si el engine no es pg-socket homologado
+  // 8. Rechazo si el engine no es pg-socket homologado
   const fakeEngineReceipt = JSON.parse(JSON.stringify(validReceipt));
   fakeEngineReceipt.engine = "pglite-wasm";
   assert.throws(
@@ -576,13 +699,49 @@ test("M7 C-3 — Validador de recibo detecta y rechaza recibos inválidos, corru
     "Debe rechazar recibo si no proviene del engine pg-socket homologado",
   );
 
-  // 8. Rechazo si concurrency_certified es false
+  // 9. Rechazo si concurrency_certified es false bajo pg-socket
   const noConcurrencyReceipt = JSON.parse(JSON.stringify(validReceipt));
   noConcurrencyReceipt.concurrency_certified = false;
   assert.throws(
     () => validateRelationalReceipt(noConcurrencyReceipt),
     /concurrencia transaccional/,
     "Debe rechazar si concurrency_certified no es true",
+  );
+
+  // 10. MUST-T1: Rechazo si input_hashes difiere de los hashes runtime del árbol
+  const badHashReceipt = JSON.parse(JSON.stringify(validReceipt));
+  badHashReceipt.input_hashes["scripts/wms/verify-c3-postgres.mjs"] = "0000000000000000000000000000000000000000000000000000000000000000";
+  assert.throws(
+    () => validateRelationalReceipt(badHashReceipt),
+    /input_hashes\['scripts\/wms\/verify-c3-postgres\.mjs'\] debe coincidir en runtime/,
+    "Debe rechazar recibo si un hash de input_hashes difiere del árbol en runtime",
+  );
+
+  // 11. MUST-T2: Rechazo si summary.not_certified > 0 bajo pg-socket
+  const notCertifiedReceipt = JSON.parse(JSON.stringify(validReceipt));
+  notCertifiedReceipt.summary.not_certified = 1;
+  assert.throws(
+    () => validateRelationalReceipt(notCertifiedReceipt),
+    /summary\.not_certified debe ser estrictamente 0/,
+    "Debe rechazar recibo bajo pg-socket si summary.not_certified > 0",
+  );
+
+  // 12. MUST-T2: Rechazo si contadores son incoherentes (passed + failed !== total)
+  const incoherentCountersReceipt = JSON.parse(JSON.stringify(validReceipt));
+  incoherentCountersReceipt.summary.total = 99;
+  assert.throws(
+    () => validateRelationalReceipt(incoherentCountersReceipt),
+    /coincidir con los casos esperados/,
+    "Debe rechazar recibo si los contadores de summary son incoherentes",
+  );
+
+  // 13. MUST-T2: Rechazo si certification_scope no concuerda con la versión de PostgreSQL
+  const badScopeReceipt = JSON.parse(JSON.stringify(validReceipt));
+  badScopeReceipt.certification_scope = "DURABLE_PG14_CONTAINER_CERTIFICATION";
+  assert.throws(
+    () => validateRelationalReceipt(badScopeReceipt),
+    /certification_scope debe derivar dinámicamente/,
+    "Debe rechazar recibo si certification_scope no corresponde a la versión de PostgreSQL",
   );
 });
 

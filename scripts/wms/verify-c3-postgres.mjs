@@ -17,6 +17,40 @@ const ROOT = resolve(__dirname, "../..");
 
 const BASE_SHA = "b7cbb2fe249650985caf631630cbf4a7460baa88";
 
+// ── MUST-T2: Dynamic Case Registry Derived Directly from Harness ──
+export function getExpectedCases(clientType = "pg-socket") {
+  return [
+    { case: 1, title: "LOAD con state_controlled_at null falla cerrado con WMS_CONTROL_PENDING" },
+    { case: 2, title: "LABEL ignora expected_weight_kg inyectado y usa suma de contenidos de BD" },
+    { case: 3, title: "LABEL con esperado incalculable y peso exigido por política falla cerrado WMS_WEIGHT_TOLERANCE" },
+    { case: 4, title: "LOAD con peso medido fuera de tolerancia rechaza con WMS_WEIGHT_TOLERANCE" },
+    { case: 5, title: "LOAD con volumen medido fuera de tolerancia rechaza con WMS_VOLUME_TOLERANCE" },
+    { case: 6, title: "CONTROL_STATE PASSED sobre PICKED_STAGED registra marcas y auditoría" },
+    { case: 7, title: "CONTROL_STATE sobre HU en estado LOADED rechaza con WMS_FORBIDDEN" },
+    { case: 8, title: "CONTROL_STATE REJECTED transiciona a QUARANTINE y reconcilia quants" },
+    { case: 9, title: "Replay idempotente de CONTROL_STATE con misma key devuelve resultado previo" },
+    {
+      case: 10,
+      title:
+        clientType === "pg-socket"
+          ? "Dos sesiones TCP concurrentes se serializan con FOR UPDATE y contención real"
+          : "Dos llamadas concurrentes en bucle de eventos (simulación en PGlite WASM; contención real certificada en CI PostgreSQL 16)",
+    },
+    { case: 11, title: "Mutación de contenidos invalida state_controlled_at y measured_at" },
+    { case: 12, title: "REPLENISH ignora consolidation inyectada en payload, serializa destino y previene doble consumo" },
+    { case: 13, title: "Política require_state_control_on_load = false autoriza LOAD sin control previo" },
+    { case: 14, title: "Cross-docking autorizado (allow_cross_dock = true) permite LOAD desde STAGING_CHECKED" },
+    { case: 15, title: "Operación sobre HU de otro tenant rechaza estrictamente con WMS_FORBIDDEN" },
+    { case: 16, title: "Fallo transaccional revierte íntegramente sin marcas huérfanas" },
+    { case: 17, title: "Órdenes distintas: stock100 admite60+40 y rechaza60+60, mismo/diferente destino" },
+    { case: 18, title: "FK de origen y CHECK de reservas impiden cruces de tenant y sobreasignación" },
+    { case: 19, title: "LABEL/LOAD aceptan dato SGA editado sin inventar medición física" },
+    { case: 20, title: "Consolidación de servidor también verifica las reservas entrantes" },
+  ];
+}
+
+export const WMS_HARNESS_EXPECTED_CASES = getExpectedCases("pg-socket");
+
 // ── MUST-5: Pre-flight Host and Database Isolation Validator ──
 export function validateIsolation({ host, database } = {}) {
   const allowedHosts = ["127.0.0.1", "localhost", "::1"];
@@ -401,7 +435,7 @@ export async function runHarness(options = {}) {
     github_ref: githubRef,
     certification_scope:
       clientType === "pg-socket"
-        ? "DURABLE_PG16_CONTAINER_CERTIFICATION"
+        ? `DURABLE_PG${(pgVersion && pgVersion.match(/^PostgreSQL\s+(\d+)/)?.[1]) || "16"}_CONTAINER_CERTIFICATION`
         : "SUPPLEMENTARY_SANDBOX_PGLITE",
     concurrency_certified: clientType === "pg-socket",
     baseline_scope: "PARTIAL_MASTER_DATA_WITH_QUANT_BALANCE_STATUS_AND_FLOW_CONSTRAINTS",

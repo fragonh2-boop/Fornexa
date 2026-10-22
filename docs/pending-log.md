@@ -9,7 +9,7 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 - **Aceptación de negocio cerrada:** dato SGA vigente editable; reservas de distintas órdenes con mismo origen/destino permitidas. Stock100→60+40 admitido y60+60 sin sobreasignación, sin liberar reserva ajena al confirmar.
 - **Preparado:** RPC y FK de tenant, identidad de orden, procedencia de peso/volumen, endpoint con autenticación propia y mocks de módulos en tests, evidencias persistentes y gates del runner. El arnés añade casos17–20 (concurrencia de reservas, FK/CHECK, SGA, consolidación entrante).
 - **Verificado localmente:** 65 pruebas focales, PGlite20/20 complementario, tipos/lint/build. La suite general registra un timeout del test DATA150 de lock vacío, también aislado, sin cambios en ese subsistema. No se debilita ni elimina esa prueba; contrastar en CI.
-- **Siguiente:** CI del SHA publicado con PostgreSQL16 TCP, revisión delta de Claude nativo y plan DB-first revisado. Actualizar contrato E2 #139 con las decisiones finales; no implementar E2 por esta entrega. Mantener histórico JSON de CI537 identificado como histórico y usar el artefacto del run actual como evidencia.
+- **Siguiente:** CI del SHA publicado con PostgreSQL16 TCP, validación post-arnés del recibo activo, revisión delta de Claude nativo y plan DB-first revisado. Actualizar contrato E2 #139 con las decisiones finales; no implementar E2 por esta entrega. El histórico JSON de CI537 queda archivado en docs/verification/historical/ como no certificante y la certificación se apoya en el artefacto dinámico del run actual.
 
 
 ## Actualización verificada — 2026-10-19 11:30 CEST (P0)
