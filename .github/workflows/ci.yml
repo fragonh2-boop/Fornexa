@@ -9,6 +9,44 @@ permissions:
   contents: read
 
 jobs:
+  rehearse-c3-apply-pg17:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: fornexa_apply_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-ci-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify workflow on disposable PostgreSQL 17
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGDATABASE: fornexa_apply_test
+          PGUSER: postgres
+          PGPASSWORD: synthetic-ci-password
+        run: |
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update && sudo apt-get install -y postgresql-client
+          fi
+          python3 scripts/wms/verify-c3-apply-workflow.py --postgres
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: receipt-c3-workflow-pg17
+          path: docs/verification/receipt-c3-workflow-pg17.json
+          if-no-files-found: error
+
   validate:
     runs-on: ubuntu-latest
     services:

@@ -4,6 +4,24 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+- Preparación local de reconciliación de #138 en `codex/c3-app-reconcile-20261022`: cinco conflictos resueltos y pruebas conservadas. 70 pruebas focales, tipos/lint/build locales PASS. Pendiente incorporar el main definitivo después de aplicar/verificar DB y pasar CI; no movida la PR de aplicación.
+
+### 2026-10-22 — Integrar y ensayar el workflow corregido C3
+
+- CI #564 del HEAD `904b2c0` falló en el contexto del ensayo PG17: el parser de entorno omitía nombres con dígitos como SHA256. Corregido el script y añadida prueba local del recibo de intento; no cambiar SQL/workflow por ese fallo. Pendiente nueva CI real.
+- Candidato Claude de #141 trasladado a workflow activo, con corrección mínima de captura `psql -qAt` de Work. El hash difiere deliberadamente del candidato original; registrar y revisar ese delta, no reutilizar aprobación de otro blob.
+- Parser y reconciliación probados localmente con 14 URI, seis resultados, apply no iniciado y sintaxis shell PASS. CI prepara ensayo real en PostgreSQL17 aislado de aplicación/rollback y contención entre dos sesiones. Pendiente resultado CI y dictamen independiente sobre integración/evidencia.
+- Claude ya cerró T1 en #138; CI #562 de #140 está en verde. Las referencias inferiores a T1 pendiente y ausencia de diff pertenecen a checkpoints anteriores.
+- Persisten aplicación y verificación DB-first, reconciliación de #138, merge/deploy y comprobación productiva. No se ha aplicado SQL remoto ni despachado el workflow en esta preparación.
+
+### 2026-10-22 — WMS C-3: gates de evidencia y vía de aplicación
+
+- **CI #560, resultado comprobado:** gate Memo, tipos, lint y tests web SUCCESS; arnés aborta con `42830` por bootstrap antiguo sin clave única de `inventory_quants`. Se incorpora la verificación correspondiente al SQL auditado: arnés de 20 casos, validador/pruebas de recibo, histórico y control del run actual en CI. Aplicación y runner siguen fuera de #140. 52 tests focales locales, tipos/lint/build PASS; PGlite 20/20 suplementario (0 certificados TCP). Nueva CI pendiente.
+- **Workflow manual, cambios requeridos:** revisión independiente `https://github.com/fragonh2-boop/Fornexa/pull/140#issuecomment-6337078920`: W1 fijar destino canónico, W2 serializar precondición/backfill, W3 distinguir resultado de COMMIT desconocido de rollback. Devolución a Claude autor; no hay aprobación de apply ni diff suyo recibido aún.
+- PR #138 `3fe2c9b25cb90b8dd246f56aa2f303bb10993ca0`: CI #559 SUCCESS; pendiente revisión independiente del delta T1 por Claude. Recibo original #557 y contraste obligatorio con el run actual en CI.
+- PR #140: CI #558 falló en Memorandum antes del arnés. Este ajuste incorpora el hito real y actualiza fecha/cobertura sin alterar los tres blobs originales. Pendientes CI posterior y revisión independiente del YAML; comprobar compatibilidad del arnés heredado con el SQL nuevo mediante ejecución, no inferir la causa de un rojo futuro.
+- No se ha aplicado la migración ni ejecutado merge/deploy en esta preparación. Mantener base de datos antes que aplicación; ninguna aprobación se deduce de igualdad de hashes o de CI de otra PR.
+
 ### 2026-10-22 — C3 T1: recibo auténtico y vinculación de CI
 - **Estado:** ABIERTO hasta CI y revisión del delta. Se sustituye la instancia inconsistente por el JSON ORIGINAL de CI557 (run39730412618) con sus cinco inputs verificados y sin cambiar metadatos.
 - **Mecanismo:** CI retira la salida heredada antes del arnés; la validación posterior exige run, SHA de ejecución y ref actuales. Pruebas negativas para recibos de otra ejecución.

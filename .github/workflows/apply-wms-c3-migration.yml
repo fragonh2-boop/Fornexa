@@ -1,0 +1,664 @@
+name: Apply WMS C-3 Migration (Manual)
+
+concurrency:
+  group: wms-c3-apply
+  cancel-in-progress: false
+
+# WMS C-3 Production Migration Workflow
+# Autor del SQL: Gemini / ChatGPT Work (PR #138)
+# Revisor exact-HEAD del SQL: Claude, sesion nativa (dictamenes 1792581001.625779 y 1792602602.663169)
+# Orden de factores acordado: claude/c3-plan-rollout-orden-20261022.md (Slack 1792643102.870839)
+#
+# PRINCIPIOS (heredados de apply-wms-migration.yml y endurecidos):
+# 1. Pin por CONTENIDO, no por commit: se fijan sha256 y bytes del SQL y del rollback.
+#    No se fija un EXPECTED_TARGET_SHA porque el SHA del commit de merge no puede
+#    conocerse antes de que ese commit exista (misma razon que MUST-T1).
+# 2. El SHA solicitado debe ser ANCESTRO de origin/main, es decir estar ya en su
+#    historia: 'git merge-base --is-ancestor TARGET_SHA origin/main'. (Correccion de
+#    redaccion senalada en la revision 6337427558; el comando siempre fue el correcto.)
+# 3. Se verifica que los delimitadores de transaccion estan donde se auditaron:
+#    un unico `begin;` en la linea 46 y un unico `commit;` en la linea 1545.
+# 4. Transaccion unica atomica: la transaccion se abre ANTES de capturar y comprobar,
+#    con bloqueo de politicas; el cuerpo se inserta sin su 'begin;' embebido ->
+#    postcondiciones -> alta en el ledger con el SQL REALMENTE EJECUTADO -> COMMIT.
+#    Cualquier fallo aborta y produccion queda intacta.
+# 5. Guarda fail-closed de politicas: el backfill del final de la migracion fija
+#    require_state_control_on_load = true en politicas activas con la clave indefinida.
+#    El analisis de riesgo se hizo con 0 politicas en produccion; si existiera alguna,
+#    el workflow SE NIEGA a aplicar y exige decision humana explicita.
+# 6. Invariantes de legado por igualdad antes/despues, no por numeros magicos.
+# 7. lock_timeout, ON_ERROR_STOP=1 y cero interpolacion de inputs dentro de run:.
+# 8. Session pooler obligatorio (puerto 5432): el modo transaccional rompe la atomicidad.
+# 9. Identidad del destino fijada por proyecto, base, endpoint y allowlist de parametros
+#    de la query de conexion; se rechaza por omision cualquier clave no permitida.
+# 10. El resultado NO se deduce de la ausencia de recibo: se reconcilia en una
+#    transaccion de solo lectura que espera al apply en vuelo y clasifica COMMITTED /
+#    COMMITTED_WITH_CLIENT_ERROR / FAILED_BEFORE_COMMIT / COMMIT_UNKNOWN / NOT_STARTED.
+#    El job solo termina en verde con COMMITTED.
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: 'SHA (40 hex) del commit, en origin/main, que contiene la migracion C-3'
+        required: true
+        type: string
+      confirm:
+        description: 'Confirmacion obligatoria (escribe exactamente APPLY_WMS_C3)'
+        required: true
+        type: string
+      accept_policy_backfill:
+        description: 'Solo si existen politicas activas sin la clave definida: escribe ACCEPT_POLICY_BACKFILL para autorizar que pasen a require_state_control_on_load = true'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    name: Aplicar migracion C-3 en produccion (transaccion atomica)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CONFIRM: ${{ inputs.confirm }}
+      TARGET_SHA: ${{ inputs.sha }}
+      ACCEPT_BACKFILL: ${{ inputs.accept_policy_backfill }}
+      MIGRATION_FILE: supabase/migrations/20261019120000_wms_c3_server_load_controls.sql
+      EXPECTED_MIGRATION_SHA256: deb9cb2f2f375084d01985785ce59b485b8c0a8887d3f445d8d7ab311d907f46
+      EXPECTED_MIGRATION_BYTES: 73038
+      EXPECTED_BEGIN_LINE: 46
+      EXPECTED_COMMIT_LINE: 1545
+      ROLLBACK_FILE: supabase/migrations/rollback/20261019120000_wms_c3_rollback_protected.sql
+      EXPECTED_ROLLBACK_SHA256: e9fd03deeeea13d32e7cc2ae4cefbce771a2ecf37646a568f9636ebf4e084ee4
+      EXPECTED_ROLLBACK_BYTES: 2486
+      MIGRATION_VERSION: '20261019120000'
+      MIGRATION_NAME: wms_c3_server_load_controls
+      LEDGER_TAG: FORNEXA_C3_LEDGER
+      EXPECTED_DB_PROJECT_REF: gqkjqhpmyejmehbuombk
+      EXPECTED_DB_NAME: postgres
+      EXPECTED_HOST_SUFFIX: .pooler.supabase.com
+      EXPECTED_DB_PORT: '5432'
+
+    steps:
+      - name: Comprobar la confirmacion literal y la forma del SHA (sin interpolacion)
+        run: |
+          if [ "$CONFIRM" != "APPLY_WMS_C3" ]; then
+            echo "::error::Falta la confirmacion obligatoria. Escribe exactamente APPLY_WMS_C3 en el campo 'confirm'."
+            exit 1
+          fi
+          if [ ${#TARGET_SHA} -ne 40 ]; then
+            echo "::error::El SHA debe tener exactamente 40 caracteres."
+            exit 1
+          fi
+          case "$TARGET_SHA" in
+            *[!0-9a-f]* | "") echo "::error::El SHA debe ser hexadecimal en minuscula."; exit 1 ;;
+          esac
+          echo "Confirmacion aceptada. SHA solicitado: $TARGET_SHA."
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.sha }}
+          fetch-depth: 0
+
+      - name: Verificar arbol, pertenencia a main y pin por contenido
+        run: |
+          ACTUAL_SHA=$(git rev-parse HEAD)
+          if [ "$ACTUAL_SHA" != "$TARGET_SHA" ]; then
+            echo "::error::El checkout ($ACTUAL_SHA) no coincide con el SHA solicitado ($TARGET_SHA)."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$TARGET_SHA" origin/main; then
+            echo "::error::El SHA ($TARGET_SHA) no pertenece ni desciende de origin/main."
+            exit 1
+          fi
+          for F in "$MIGRATION_FILE" "$ROLLBACK_FILE"; do
+            if [ ! -f "$F" ]; then
+              echo "::error::No existe $F en este commit."
+              exit 1
+            fi
+          done
+
+          M_BYTES=$(wc -c < "$MIGRATION_FILE" | tr -d ' ')
+          M_SHA=$(sha256sum "$MIGRATION_FILE" | cut -d' ' -f1)
+          if [ "$M_BYTES" != "$EXPECTED_MIGRATION_BYTES" ] || [ "$M_SHA" != "$EXPECTED_MIGRATION_SHA256" ]; then
+            echo "::error::La migracion no coincide con el pin auditado. Leido: $M_BYTES bytes / $M_SHA. Esperado: $EXPECTED_MIGRATION_BYTES bytes / $EXPECTED_MIGRATION_SHA256."
+            exit 1
+          fi
+
+          R_BYTES=$(wc -c < "$ROLLBACK_FILE" | tr -d ' ')
+          R_SHA=$(sha256sum "$ROLLBACK_FILE" | cut -d' ' -f1)
+          if [ "$R_BYTES" != "$EXPECTED_ROLLBACK_BYTES" ] || [ "$R_SHA" != "$EXPECTED_ROLLBACK_SHA256" ]; then
+            echo "::error::El rollback protegido no coincide con el pin auditado. Sin rollback verificado no se aplica. Leido: $R_BYTES bytes / $R_SHA."
+            exit 1
+          fi
+
+          echo "Pin por contenido verificado: migracion $M_BYTES bytes / $M_SHA; rollback $R_BYTES bytes / $R_SHA."
+
+      - name: Verificar los delimitadores de transaccion auditados
+        run: |
+          BEGIN_COUNT=$(grep -c '^begin;$' "$MIGRATION_FILE" || true)
+          COMMIT_COUNT=$(grep -c '^commit;$' "$MIGRATION_FILE" || true)
+          if [ "$BEGIN_COUNT" != "1" ] || [ "$COMMIT_COUNT" != "1" ]; then
+            echo "::error::Se exige exactamente un 'begin;' y un 'commit;' en columna 0. Leido: begin=$BEGIN_COUNT commit=$COMMIT_COUNT."
+            exit 1
+          fi
+          BEGIN_LINE=$(grep -n '^begin;$' "$MIGRATION_FILE" | cut -d: -f1)
+          COMMIT_LINE=$(grep -n '^commit;$' "$MIGRATION_FILE" | cut -d: -f1)
+          if [ "$BEGIN_LINE" != "$EXPECTED_BEGIN_LINE" ] || [ "$COMMIT_LINE" != "$EXPECTED_COMMIT_LINE" ]; then
+            echo "::error::Los delimitadores se han movido respecto a la auditoria (begin=$BEGIN_LINE commit=$COMMIT_LINE; esperado $EXPECTED_BEGIN_LINE/$EXPECTED_COMMIT_LINE)."
+            exit 1
+          fi
+          if grep -q "$LEDGER_TAG" "$MIGRATION_FILE"; then
+            echo "::error::El SQL contiene la etiqueta de dollar-quoting reservada $LEDGER_TAG."
+            exit 1
+          fi
+          echo "Delimitadores verificados: begin; en $BEGIN_LINE, commit; en $COMMIT_LINE."
+
+      - name: Fijar y verificar la identidad del destino sin imprimirlo
+        env:
+          PG: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+        run: |
+          python3 -I - << 'PY'
+          import os, re
+          from urllib.parse import urlsplit
+
+          ALLOWED_QUERY = {"sslmode", "connect_timeout", "application_name"}
+          KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+          def fail(msg):
+              print(f"::error::{msg} No se imprime el valor.")
+              raise SystemExit(1)
+
+          pg = os.environ.get("PG", "")
+          if not pg.strip():
+              fail("Falta el secreto POSTGRES_URL_NON_POOLING.")
+
+          expected_user = "postgres." + os.environ["EXPECTED_DB_PROJECT_REF"]
+          expected_db = os.environ["EXPECTED_DB_NAME"]
+          expected_suffix = os.environ["EXPECTED_HOST_SUFFIX"]
+          expected_port = int(os.environ["EXPECTED_DB_PORT"])
+
+          parts = urlsplit(pg)
+
+          if parts.scheme not in ("postgres", "postgresql"):
+              fail("El esquema de la cadena de conexion no es postgres ni postgresql.")
+
+          seen = set()
+          for raw in filter(None, parts.query.split("&")):
+              raw_key = raw.split("=", 1)[0]
+              if not KEY_RE.match(raw_key):
+                  fail("Clave de query con forma invalida o percent-encoding en la clave.")
+              key = raw_key.lower()
+              if key in seen:
+                  fail(f"Clave de query duplicada: {key}.")
+              seen.add(key)
+              if key not in ALLOWED_QUERY:
+                  fail(f"Parametro de conexion no permitido en la query: {key}.")
+
+          if parts.fragment:
+              fail("La cadena de conexion no debe llevar fragmento.")
+
+          try:
+              port = parts.port
+          except ValueError:
+              fail("El puerto de la cadena de conexion no es numerico.")
+
+          if parts.username is None:
+              fail("La cadena de conexion no declara usuario en la parte jerarquica.")
+          if parts.username != expected_user:
+              fail("El usuario de conexion no corresponde al proyecto autorizado.")
+          if not parts.hostname:
+              fail("La cadena de conexion no declara host en la parte jerarquica.")
+          if not parts.hostname.endswith(expected_suffix):
+              fail("El endpoint no es el pooler esperado.")
+          if port != expected_port:
+              fail(f"El puerto debe ser {expected_port} (modo sesion); el transaccional rompe la atomicidad.")
+
+          path = parts.path.lstrip("/")
+          if "/" in path:
+              fail("La ruta de la cadena de conexion tiene segmentos inesperados.")
+          if path != expected_db:
+              fail("La base de datos de destino no es la esperada.")
+
+          print("Destino verificado: esquema, proyecto, endpoint, puerto, base y query en allowlist. Ningun valor impreso.")
+          PY
+
+      - name: Asegurar cliente psql
+        run: |
+          if ! command -v psql &> /dev/null; then
+            sudo apt-get update && sudo apt-get install -y postgresql-client
+          fi
+          psql --version
+
+      - name: Ensamblar la transaccion atomica unica
+        run: |
+          OUT=/tmp/apply_wms_c3.sql
+
+          # El input NUNCA se interpola: solo se compara, y se emite un literal constante.
+          if [ "$ACCEPT_BACKFILL" = "ACCEPT_POLICY_BACKFILL" ]; then
+            printf "select set_config('fornexa.accept_backfill', 'ACCEPT_POLICY_BACKFILL', false);\n" > /tmp/c3_accept.sql
+            echo "Autorizacion explicita de backfill de politicas: presente."
+          else
+            : > /tmp/c3_accept.sql
+            echo "Autorizacion explicita de backfill de politicas: ausente (guarda fail-closed activa)."
+          fi
+
+          cat << 'PRE_EOF' > "$OUT"
+          \set ON_ERROR_STOP 1
+          SET lock_timeout = '10s';
+          SET statement_timeout = '120s';
+
+          begin;
+
+          -- MUST-W2: la transaccion se abre ANTES de capturar y comprobar, y se excluyen
+          -- escrituras de politicas hasta COMMIT permitiendo lecturas.
+          lock table public.warehouse_behavior_policies in share row exclusive mode;
+
+          -- ── Captura de invariantes previos en tabla temporal de sesion ──
+          create temp table _c3_pre as
+          select
+            (select count(*) from public.inventory_quants) as quants,
+            (select count(*) from public.inventory_quants where flow_state is null) as quants_flow_null,
+            (select count(*) from public.inventory_movements) as movements,
+            (select count(*) from public.warehouse_behavior_policies) as policies,
+            (select count(*) from public.warehouse_resources) as resources,
+            (select count(*) from public.handling_units) as hus,
+            (select count(*) from public.handling_unit_contents) as hu_contents,
+            (select count(*) from public.stock_reservations) as reservations,
+            (select count(*) from public.warehouse_tasks) as tasks;
+
+          -- MUST-W2: estado por fila de la clave, no solo el recuento.
+          create temp table _c3_pre_policies as
+          select id, (params->>'require_state_control_on_load') as key_before
+            from public.warehouse_behavior_policies
+           where superseded_at is null;
+
+          -- ── Autorizacion explicita de backfill, si se aporto (literal constante) ──
+          PRE_EOF
+          cat /tmp/c3_accept.sql >> "$OUT"
+          cat << 'PRE2_EOF' >> "$OUT"
+
+          -- ── Precondiciones (fuera de la transaccion de migracion) ──
+          DO $PRECHECK$
+          DECLARE
+            v_e1_tables int;
+            v_c3_hu_cols int;
+            v_c3_task_cols int;
+            v_fn_action int;
+            v_policies_undefined int;
+            v_accept text := current_setting('fornexa.accept_backfill', true);
+            r record;
+          BEGIN
+            IF EXISTS (SELECT 1 FROM supabase_migrations.schema_migrations WHERE version = '20261019120000') THEN
+              RAISE EXCEPTION 'PRECONDITION_FAILED: la version 20261019120000 ya esta registrada en el ledger';
+            END IF;
+
+            SELECT count(*)::int INTO v_e1_tables
+              FROM information_schema.tables
+             WHERE table_schema = 'public'
+               AND table_name IN ('warehouse_behavior_policies','warehouse_resources','handling_units',
+                                  'handling_unit_contents','stock_reservations','warehouse_tasks');
+            IF v_e1_tables <> 6 THEN
+              RAISE EXCEPTION 'PRECONDITION_FAILED: C-3 exige E1 aplicado; se esperaban 6 tablas E1 y hay %', v_e1_tables;
+            END IF;
+
+            SELECT count(*)::int INTO v_fn_action
+              FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+             WHERE n.nspname = 'public' AND p.proname = 'fornexa_wms_action';
+            IF v_fn_action <> 1 THEN
+              RAISE EXCEPTION 'PRECONDITION_FAILED: se esperaba exactamente una fornexa_wms_action previa y hay %', v_fn_action;
+            END IF;
+
+            SELECT count(*)::int INTO v_c3_hu_cols
+              FROM information_schema.columns
+             WHERE table_schema='public' AND table_name='handling_units'
+               AND column_name IN ('state_controlled_at','state_controlled_by');
+            SELECT count(*)::int INTO v_c3_task_cols
+              FROM information_schema.columns
+             WHERE table_schema='public' AND table_name='warehouse_tasks'
+               AND column_name IN ('source_quant_id','order_id');
+            IF v_c3_hu_cols <> 0 OR v_c3_task_cols <> 0 THEN
+              RAISE EXCEPTION 'PRECONDITION_FAILED: ya existen columnas C-3 (handling_units=%, warehouse_tasks=%); el estado no es el auditado', v_c3_hu_cols, v_c3_task_cols;
+            END IF;
+
+            -- Guarda fail-closed del backfill de politicas
+            SELECT count(*)::int INTO v_policies_undefined
+              FROM public.warehouse_behavior_policies
+             WHERE superseded_at IS NULL
+               AND (params->>'require_state_control_on_load' IS NULL OR params->>'require_state_control_on_load' = '');
+            IF v_policies_undefined > 0 AND coalesce(v_accept,'') <> 'ACCEPT_POLICY_BACKFILL' THEN
+              RAISE EXCEPTION 'PRECONDITION_FAILED: % politicas activas pasarian a require_state_control_on_load = true por el backfill. El analisis de riesgo se hizo con 0 politicas. Repite el dispatch con accept_policy_backfill = ACCEPT_POLICY_BACKFILL si es deliberado.', v_policies_undefined;
+            END IF;
+
+            SELECT * INTO r FROM _c3_pre;
+            RAISE NOTICE 'PRECONDITIONS_PASSED: quants=% (null=%), movements=%, policies=%, resources=%, hus=%, contents=%, reservations=%, tasks=%, politicas_a_backfillear=%',
+              r.quants, r.quants_flow_null, r.movements, r.policies, r.resources, r.hus, r.hu_contents, r.reservations, r.tasks, v_policies_undefined;
+          END $PRECHECK$;
+          PRE2_EOF
+
+          # Cuerpo de la migracion: lineas 1..(commit-1) con el begin; embebido retirado,
+          # porque la transaccion ya esta abierta (MUST-W2). El pin sha256/bytes cubre el
+          # fichero fuente; la unica linea suprimida es la verificada como 'begin;' en
+          # EXPECTED_BEGIN_LINE, y la supresion es deterministica y auditable.
+          BODY_LINES=$((EXPECTED_COMMIT_LINE - 1))
+          head -n "$BODY_LINES" "$MIGRATION_FILE" | sed "${EXPECTED_BEGIN_LINE}d" > /tmp/c3_body.sql
+          cat /tmp/c3_body.sql >> "$OUT"
+
+          cat << 'POST_EOF' >> "$OUT"
+
+          -- ── Postcondiciones dentro de la MISMA transaccion ──
+          DO $POSTCHECK$
+          DECLARE
+            v_cols int;
+            v_fk int;
+            v_trg int;
+            v_secdef boolean;
+            v_config text[];
+            pre record;
+            t text;
+            v_rls boolean;
+            v_accept text := current_setting('fornexa.accept_backfill', true);
+          BEGIN
+            SELECT * INTO pre FROM _c3_pre;
+
+            -- 1. Columnas C-3 presentes
+            SELECT count(*)::int INTO v_cols
+              FROM information_schema.columns
+             WHERE table_schema='public'
+               AND ((table_name='handling_units'
+                     AND column_name IN ('state_controlled_at','state_controlled_by','measured_at','measured_by'))
+                 OR (table_name='warehouse_tasks'
+                     AND column_name IN ('source_quant_id','order_id')));
+            IF v_cols <> 6 THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: se esperaban 6 columnas C-3 y hay %', v_cols;
+            END IF;
+
+            -- 2. FK compuestas por tenant (aislamiento multi-tenant en la capa de datos)
+            SELECT count(*)::int INTO v_fk
+              FROM pg_constraint
+             WHERE contype = 'f'
+               AND conrelid = 'public.warehouse_tasks'::regclass
+               AND ((conname = 'warehouse_tasks_source_quant_tenant_fk'
+                     AND confrelid = 'public.inventory_quants'::regclass)
+                 OR (conname = 'warehouse_tasks_order_tenant_fk'
+                     AND confrelid = 'public.orders'::regclass));
+            IF v_fk <> 2 THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: las FK por tenant no apuntan a las relaciones esperadas (%)', v_fk;
+            END IF;
+
+            -- 3. Trigger de invalidacion de control
+            SELECT count(*)::int INTO v_trg
+              FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
+             WHERE NOT t.tgisinternal
+               AND ((t.tgname = 'trg_wms_invalidate_hu_control' AND c.relname = 'handling_unit_contents')
+                 OR (t.tgname = 'trg_wms_invalidate_hu_control_quants' AND c.relname = 'inventory_quants'));
+            IF v_trg <> 2 THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: se esperaban los dos triggers de invalidacion y hay %', v_trg;
+            END IF;
+
+            -- 4. fornexa_wms_action: SECURITY DEFINER con search_path vacio
+            SELECT prosecdef, proconfig INTO v_secdef, v_config
+              FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+             WHERE n.nspname='public' AND p.proname='fornexa_wms_action';
+            IF v_secdef IS NULL OR v_secdef = false THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: fornexa_wms_action debe ser SECURITY DEFINER';
+            END IF;
+            IF v_config IS NULL OR NOT ('search_path=' = ANY(v_config) OR 'search_path=""' = ANY(v_config)) THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: fornexa_wms_action debe fijar search_path vacio';
+            END IF;
+
+            -- 5. Privilegios EXECUTE
+            IF has_function_privilege('anon', 'public.fornexa_wms_action(uuid, uuid, text, jsonb, text)', 'EXECUTE')
+               OR has_function_privilege('authenticated', 'public.fornexa_wms_action(uuid, uuid, text, jsonb, text)', 'EXECUTE') THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: fornexa_wms_action no debe conceder EXECUTE a anon ni authenticated';
+            END IF;
+            IF NOT has_function_privilege('service_role', 'public.fornexa_wms_action(uuid, uuid, text, jsonb, text)', 'EXECUTE') THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: service_role debe conservar EXECUTE sobre fornexa_wms_action';
+            END IF;
+            IF has_function_privilege('anon', 'public.fornexa_wms_policy_bool(jsonb, text, boolean)', 'EXECUTE')
+               OR has_function_privilege('authenticated', 'public.fornexa_wms_policy_bool(jsonb, text, boolean)', 'EXECUTE') THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: fornexa_wms_policy_bool no debe conceder EXECUTE a anon ni authenticated';
+            END IF;
+
+            -- 6. RLS sigue activo en las 8 tablas
+            FOR t IN SELECT unnest(ARRAY['warehouse_behavior_policies','warehouse_resources','handling_units',
+                                         'handling_unit_contents','stock_reservations','warehouse_tasks',
+                                         'inventory_quants','inventory_movements']) LOOP
+              SELECT c.relrowsecurity INTO v_rls
+                FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+               WHERE n.nspname='public' AND c.relname=t;
+              IF v_rls IS NULL OR NOT v_rls THEN
+                RAISE EXCEPTION 'POSTCONDITION_FAILED: la tabla % ha perdido RLS', t;
+              END IF;
+            END LOOP;
+
+            -- 7. Invariantes de legado y de datos operativos: igualdad antes/despues
+            IF (SELECT count(*) FROM public.inventory_quants) <> pre.quants
+               OR (SELECT count(*) FROM public.inventory_quants WHERE flow_state IS NULL) <> pre.quants_flow_null THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: la migracion ha alterado inventory_quants (antes %/% null)', pre.quants, pre.quants_flow_null;
+            END IF;
+            IF (SELECT count(*) FROM public.inventory_movements) <> pre.movements THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: la migracion ha alterado inventory_movements (antes %)', pre.movements;
+            END IF;
+            IF (SELECT count(*) FROM public.warehouse_resources) <> pre.resources
+               OR (SELECT count(*) FROM public.handling_units) <> pre.hus
+               OR (SELECT count(*) FROM public.handling_unit_contents) <> pre.hu_contents
+               OR (SELECT count(*) FROM public.stock_reservations) <> pre.reservations
+               OR (SELECT count(*) FROM public.warehouse_tasks) <> pre.tasks THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: la migracion ha creado o borrado datos operativos WMS';
+            END IF;
+            IF (SELECT count(*) FROM public.warehouse_behavior_policies) <> pre.policies THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: el numero de politicas ha cambiado (antes %)', pre.policies;
+            END IF;
+
+            -- MUST-W2: ninguna politica con clave ya definida puede haber cambiado
+            IF EXISTS (
+              SELECT 1
+                FROM public.warehouse_behavior_policies p
+                JOIN _c3_pre_policies b ON b.id = p.id
+               WHERE coalesce(b.key_before, '') <> ''
+                 AND coalesce(p.params->>'require_state_control_on_load', '')
+                     IS DISTINCT FROM coalesce(b.key_before, '')
+            ) THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: el backfill ha alterado una politica cuya clave ya estaba definida';
+            END IF;
+
+            -- MUST-W2: sin autorizacion explicita, ninguna politica puede haber cambiado
+            IF coalesce(v_accept, '') <> 'ACCEPT_POLICY_BACKFILL' AND EXISTS (
+              SELECT 1
+                FROM public.warehouse_behavior_policies p
+                JOIN _c3_pre_policies b ON b.id = p.id
+               WHERE coalesce(p.params->>'require_state_control_on_load', '')
+                     IS DISTINCT FROM coalesce(b.key_before, '')
+            ) THEN
+              RAISE EXCEPTION 'POSTCONDITION_FAILED: se han activado politicas sin ACCEPT_POLICY_BACKFILL';
+            END IF;
+
+            RAISE NOTICE 'POSTCONDITIONS_PASSED: columnas, FK por tenant, trigger, DEFINER/search_path, privilegios, RLS e invariantes de datos verificados dentro de la transaccion.';
+          END $POSTCHECK$;
+
+          POST_EOF
+
+          # ── Alta en el ledger con el SQL REALMENTE EJECUTADO (no el nombre del fichero) ──
+          {
+            printf "insert into supabase_migrations.schema_migrations (version, name, statements)\n"
+            printf "values ('%s', '%s', array[\$%s\$" "$MIGRATION_VERSION" "$MIGRATION_NAME" "$LEDGER_TAG"
+          } >> "$OUT"
+          cat /tmp/c3_body.sql >> "$OUT"
+          {
+            printf "\$%s\$]);\n" "$LEDGER_TAG"
+            printf "\n"
+          } >> "$OUT"
+
+          cat << 'TAIL_EOF' >> "$OUT"
+          DO $LEGACY$
+          BEGIN
+            IF EXISTS (SELECT 1 FROM information_schema.tables
+                        WHERE table_schema='public' AND table_name='fornexa_schema_migrations') THEN
+              EXECUTE $q$insert into public.fornexa_schema_migrations (version, description)
+                         values ('20261019120000','wms_c3_server_load_controls')
+                         on conflict (version) do nothing$q$;
+            END IF;
+          END $LEGACY$;
+
+          COMMIT;
+          TAIL_EOF
+
+          echo "Script ensamblado en $OUT ($(wc -l < "$OUT") lineas, $(wc -c < "$OUT") bytes)."
+
+      - name: Registrar intento antes de ejecutar
+        run: |
+          mkdir -p docs/verification
+          cat > /tmp/receipt-wms-c3-apply.json << JSON
+          {
+            "task_id": "WMS-C3-APPLY",
+            "phase": "PRODUCTION_MIGRATION_APPLY",
+            "mode": "SINGLE_ATOMIC_TRANSACTION",
+            "status": "ATTEMPT_STARTED",
+            "attempted_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "target_sha": "${TARGET_SHA}",
+            "migration_file": "${MIGRATION_FILE}",
+            "migration_sha256": "${EXPECTED_MIGRATION_SHA256}",
+            "migration_bytes": ${EXPECTED_MIGRATION_BYTES},
+            "rollback_file": "${ROLLBACK_FILE}",
+            "rollback_sha256": "${EXPECTED_ROLLBACK_SHA256}",
+            "version": "${MIGRATION_VERSION}",
+            "name": "${MIGRATION_NAME}",
+            "github_run_id": "${GITHUB_RUN_ID}"
+          }
+          JSON
+          cp /tmp/receipt-wms-c3-apply.json docs/verification/receipt-wms-c3-apply.json
+          cat docs/verification/receipt-wms-c3-apply.json
+
+      - name: Aplicar en produccion (psql, ON_ERROR_STOP=1, transaccion unica)
+        id: apply_migration
+        env:
+          PG: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+        run: |
+          set +e
+          psql -X -v ON_ERROR_STOP=1 "$PG" -f /tmp/apply_wms_c3.sql > /tmp/apply_wms_c3.log 2>&1
+          PSQL_RC=$?
+          set -e
+          tail -n 40 /tmp/apply_wms_c3.log || true
+          echo "PSQL_RC=$PSQL_RC" >> "$GITHUB_ENV"
+          echo "psql termino con codigo $PSQL_RC. El resultado lo decide la reconciliacion, no este codigo."
+
+      - name: Reconciliar el resultado real en una sola transaccion de solo lectura
+        if: always() && steps.apply_migration.outcome != ''
+        env:
+          PG: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+        run: |
+          if [ -z "${PSQL_RC+x}" ]; then
+            echo "OUTCOME=NOT_STARTED" >> "$GITHUB_ENV"
+            echo "::error::El paso de aplicacion no llego a ejecutarse; no se conecta al destino."
+            exit 1
+          fi
+
+          cat > /tmp/c3_reconcile.sql << 'SQL'
+          \set ON_ERROR_STOP 1
+          set lock_timeout = '30s';
+          set statement_timeout = '45s';
+          begin read only;
+          -- MUST-W3: espera a que un apply en vuelo resuelva. El ALTER TABLE del cuerpo
+          -- mantiene ACCESS EXCLUSIVE sobre handling_units hasta COMMIT o ROLLBACK; si no
+          -- se puede tomar ACCESS SHARE dentro de lock_timeout, el resultado es INDETERMINADO.
+          lock table public.handling_units in access share mode;
+          select
+            (select count(*) from supabase_migrations.schema_migrations where version = '__VERSION__')
+            || '|' ||
+            (select count(*) from information_schema.columns
+              where table_schema = 'public'
+                and ((table_name = 'handling_units'
+                      and column_name in ('state_controlled_at','state_controlled_by','measured_at','measured_by'))
+                  or (table_name = 'warehouse_tasks'
+                      and column_name in ('source_quant_id','order_id')))) as evidence;
+          commit;
+          SQL
+          sed -i "s/__VERSION__/${MIGRATION_VERSION}/" /tmp/c3_reconcile.sql
+
+          set +e
+          EVIDENCE=$(psql -X -qAt -f /tmp/c3_reconcile.sql "$PG" 2>/tmp/c3_reconcile.err | tail -n 1)
+          RC_REC=$?
+          set -e
+          tail -n 10 /tmp/c3_reconcile.err || true
+
+          LEDGER=${EVIDENCE%%|*}
+          COLS=${EVIDENCE##*|}
+
+          if [ "$RC_REC" != "0" ] || [ -z "$EVIDENCE" ]; then
+            OUTCOME=COMMIT_UNKNOWN
+          elif [ "$LEDGER" = "1" ] && [ "$COLS" = "6" ]; then
+            if [ "$PSQL_RC" = "0" ]; then OUTCOME=COMMITTED; else OUTCOME=COMMITTED_WITH_CLIENT_ERROR; fi
+          elif [ "$LEDGER" = "0" ] && [ "$COLS" = "0" ]; then
+            if [ "$PSQL_RC" = "0" ]; then OUTCOME=COMMIT_UNKNOWN; else OUTCOME=FAILED_BEFORE_COMMIT; fi
+          else
+            OUTCOME=COMMIT_UNKNOWN
+          fi
+
+          echo "OUTCOME=$OUTCOME" >> "$GITHUB_ENV"
+          python3 -I - "$OUTCOME" "${PSQL_RC}" "$RC_REC" "${LEDGER:-}" "${COLS:-}" << 'PY'
+          import json, sys, datetime
+          outcome, psql_rc, rc_rec, ledger, cols = sys.argv[1:6]
+          path = "docs/verification/receipt-wms-c3-apply.json"
+          data = json.load(open(path))
+          data["status"] = outcome
+          data["psql_rc"] = psql_rc
+          data["reconcile_rc"] = rc_rec
+          data["resolved_at"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          data["reconciliation"] = {
+              "mode": "SINGLE_READ_ONLY_TX_WITH_ACCESS_SHARE_LOCK",
+              "ledger_rows": ledger,
+              "c3_columns": cols,
+          }
+          data["ledger_stores_executed_sql"] = outcome in ("COMMITTED", "COMMITTED_WITH_CLIENT_ERROR")
+          json.dump(data, open(path, "w"), indent=2, ensure_ascii=False)
+          print(json.dumps(data, indent=2, ensure_ascii=False))
+          PY
+
+          if [ "$OUTCOME" != "COMMITTED" ]; then
+            echo "::error::Resultado $OUTCOME. El job falla hasta revision operacional. PROHIBIDO reintentar a ciegas: resolver releyendo ledger y esquema en el mismo destino."
+            exit 1
+          fi
+
+      - name: Publicar recibo y logs como artefactos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wms-c3-apply-evidence
+          path: |
+            docs/verification/receipt-wms-c3-apply.json
+            /tmp/apply_wms_c3.log
+            /tmp/c3_reconcile.err
+          if-no-files-found: warn
+          retention-days: 90
+          overwrite: true
+
+      - name: Resumen
+        if: always()
+        run: |
+          {
+            echo "### Aplicacion de la migracion WMS C-3 en produccion"
+            echo ""
+            echo "- SHA aplicado: \`${TARGET_SHA}\`"
+            echo "- Version en ledger: \`${MIGRATION_VERSION}\` (\`${MIGRATION_NAME}\`)"
+            echo "- sha256 verificado: \`${EXPECTED_MIGRATION_SHA256}\` (${EXPECTED_MIGRATION_BYTES} bytes)"
+            echo "- Rollback auditado: \`${EXPECTED_ROLLBACK_SHA256}\`"
+            echo "- Run: \`${GITHUB_RUN_ID}\`"
+            echo "- Codigo de psql: \`${PSQL_RC:-no ejecutado}\`"
+            echo "- Resultado reconciliado: \`${OUTCOME:-NOT_STARTED}\`"
+            echo ""
+            case "${OUTCOME:-NOT_STARTED}" in
+              COMMITTED)
+                echo "Aplicada y verificada dentro de la transaccion, y confirmada por lectura del destino. Siguiente paso del plan: verificacion post-apply en lectura y despues merge de PR #138." ;;
+              COMMITTED_WITH_CLIENT_ERROR)
+                echo "**Aplicada, pero el cliente no confirmo.** La evidencia de ledger y esquema confirma el COMMIT con psql en error. Requiere revision operacional antes de continuar." ;;
+              FAILED_BEFORE_COMMIT)
+                echo "**Fallo antes del COMMIT, comprobado por lectura tras tomar el lock:** ni el ledger ni las columnas C-3 estan presentes, asi que la transaccion no se aplico." ;;
+              COMMIT_UNKNOWN)
+                echo "**Resultado INDETERMINADO.** No se afirma rollback: la reconciliacion no pudo resolverlo (timeout de lock, desconexion o estado mixto). No reintentar a ciegas; resolver releyendo ledger y esquema en el mismo destino." ;;
+              *)
+                echo "**No se llego a ejecutar la aplicacion.**" ;;
+            esac
+          } >> "$GITHUB_STEP_SUMMARY"
