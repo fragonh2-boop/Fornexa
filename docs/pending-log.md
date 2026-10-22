@@ -6,6 +6,7 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ### 2026-10-22 — Integrar y ensayar el workflow corregido C3
 
+- CI #564 del HEAD `904b2c0` falló en el contexto del ensayo PG17: el parser de entorno omitía nombres con dígitos como SHA256. Corregido el script y añadida prueba local del recibo de intento; no cambiar SQL/workflow por ese fallo. Pendiente nueva CI real.
 - Candidato Claude de #141 trasladado a workflow activo, con corrección mínima de captura `psql -qAt` de Work. El hash difiere deliberadamente del candidato original; registrar y revisar ese delta, no reutilizar aprobación de otro blob.
 - Parser y reconciliación probados localmente con 14 URI, seis resultados, apply no iniciado y sintaxis shell PASS. CI prepara ensayo real en PostgreSQL17 aislado de aplicación/rollback y contención entre dos sesiones. Pendiente resultado CI y dictamen independiente sobre integración/evidencia.
 - Claude ya cerró T1 en #138; CI #562 de #140 está en verde. Las referencias inferiores a T1 pendiente y ausencia de diff pertenecen a checkpoints anteriores.

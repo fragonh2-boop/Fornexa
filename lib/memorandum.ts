@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "22 oct 2026";
-export const memorandumCommitCoverage = 672;
+export const memorandumCommitCoverage = 673;
 
 export const memorandumPending: MemorandumPending[] = [
   {

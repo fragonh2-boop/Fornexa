@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/apply-wms-c3-migration.yml"
 TEXT = WORKFLOW.read_text()
 ENV = {}
-for key, value in re.findall(r"^      ([A-Z_]+): (.+)$", TEXT, re.M):
+for key, value in re.findall(r"^      ([A-Z][A-Z0-9_]*): (.+)$", TEXT, re.M):
     if "${{" not in value:
         ENV[key] = value.strip("'\"")
 
@@ -83,6 +83,12 @@ def mock_checks():
         assert shell(GUARD, {"PG": uri}, check=False).returncode == 0
     for uri in bad:
         assert shell(GUARD, {"PG": uri}, check=False).returncode != 0
+    with tempfile.TemporaryDirectory(prefix="c3-attempt-metadata-") as d:
+        shell(ATTEMPT, {"TARGET_SHA": "0" * 40, "GITHUB_RUN_ID": "synthetic"}, cwd=d)
+        metadata = read_receipt(d)
+        assert metadata["migration_sha256"] == ENV["EXPECTED_MIGRATION_SHA256"]
+        assert metadata["rollback_sha256"] == ENV["EXPECTED_ROLLBACK_SHA256"]
+        assert metadata["migration_bytes"] == int(ENV["EXPECTED_MIGRATION_BYTES"])
     cases = [
         ("0", "1|6", 0, "COMMITTED", 0),
         ("2", "1|6", 0, "COMMITTED_WITH_CLIENT_ERROR", 1),
@@ -157,9 +163,8 @@ def real_checks():
 
     def resolve(root, rc, expected, expected_exit):
         extra = context(root, rc)
-        shell(ATTEMPT, extra, cwd=root)
         r = shell(RECONCILE, extra, cwd=root, check=False)
-        assert r.returncode == expected_exit, r.stdout + r.stderr
+        assert r.returncode == expected_exit, r.stdout + r.stderr + Path('/tmp/apply_wms_c3.log').read_text()[-4000:]
         receipt = read_receipt(root)
         assert receipt["status"] == expected, receipt
         return receipt
@@ -175,12 +180,16 @@ def real_checks():
     records = []
     with tempfile.TemporaryDirectory(prefix="c3-workflow-pg17-") as d:
         reset()
+        shell(ATTEMPT, context(d, 0), cwd=d)
         shell(APPLY, context(d, 0), cwd=d)
+        rc = re.findall(r"PSQL_RC=(\d+)", (Path(d) / 'env').read_text())[-1]
+        assert rc == '0', Path('/tmp/apply_wms_c3.log').read_text()[-4000:]
         records.append(resolve(d, 0, "COMMITTED", 0))
         assert sql("select statements[1] from supabase_migrations.schema_migrations;") == Path('/tmp/c3_body.sql').read_text().strip()
         reset()
         p = Path('/tmp/apply_wms_c3.sql')
         p.write_text(p.read_text().replace('insert into supabase_migrations.schema_migrations', 'select 1/0;\ninsert into supabase_migrations.schema_migrations', 1))
+        shell(ATTEMPT, context(d, 0), cwd=d)
         shell(APPLY, context(d, 0), cwd=d)
         rc = re.findall(r"PSQL_RC=(\d+)", (Path(d) / 'env').read_text())[-1]
         assert rc != "0"
@@ -210,11 +219,11 @@ def real_checks():
         reset()
         p = Path('/tmp/apply_wms_c3.sql')
         p.write_text(p.read_text().replace('\nCOMMIT;\n', '\nselect pg_sleep(1.5);\nCOMMIT;\n', 1))
+        extra = context(d, 2) | {'PGAPPNAME':'c3_readback_b'}
+        shell(ATTEMPT, extra, cwd=d)
         a = subprocess.Popen(['psql','-X','-q','-v','ON_ERROR_STOP=1','-f',str(p)],
                              stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
         wait_for("select exists(select 1 from pg_locks where relation='public.handling_units'::regclass and mode='AccessExclusiveLock' and granted);")
-        extra = context(d, 2) | {'PGAPPNAME':'c3_readback_b'}
-        shell(ATTEMPT, extra, cwd=d)
         b = subprocess.Popen(['bash','-euo','pipefail','-c',RECONCILE], cwd=d,
                              env=os.environ | ENV | extra, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         wait_for("select exists(select 1 from pg_stat_activity where application_name='c3_readback_b' and wait_event_type='Lock');")
