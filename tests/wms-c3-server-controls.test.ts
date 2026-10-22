@@ -1329,3 +1329,11 @@ test("M7 C-3 — Subsanaciones Claude SQL (MUST-1, MUST-2, MUST-3, MUST-4)", () 
   );
 });
 
+test("C3 rejects receipts from a different CI run or execution SHA", () => {
+  const receipt = JSON.parse(readFileSync(resolve(import.meta.dirname, "../docs/verification/receipt-m7-c3-postgres.json"), "utf-8"));
+  validateRelationalReceipt(receipt, { expectedRunId: String(receipt.github_run_id), expectedExecutionSha: receipt.execution_sha });
+  assert.throws(() => validateRelationalReceipt(receipt, { expectedRunId: String(Number(receipt.github_run_id) + 1) }), /GITHUB_RUN_ID actual/);
+  const otherSha = receipt.execution_sha === "0".repeat(40) ? "1".repeat(40) : "0".repeat(40);
+  assert.throws(() => validateRelationalReceipt(receipt, { expectedExecutionSha: otherSha }), /GITHUB_SHA ejecutado/);
+  assert.throws(() => validateRelationalReceipt(receipt, { expectedRunId: "" }), /run actual esperado/);
+});
