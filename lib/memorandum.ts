@@ -19,13 +19,13 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "23 oct 2026";
-export const memorandumCommitCoverage = 696;
+export const memorandumCommitCoverage = 676;
 
 export const memorandumPending: MemorandumPending[] = [
   {
     area: "Funcional",
     title: "Almacenes — reglas de reposición, propuestas y lote sintético (E2 / F4 / F5)",
-    summary: "El núcleo operativo de Almacenes (recepción con chequeo en playa, ubicación dirigida, reservas por línea, picking con rotación FIFO/LIFO/FEFO, recursos, políticas jerárquicas y control de etiqueta, estado, peso y volumen antes de la carga) ya está implementado y su migración E1 aplicada y verificada en producción, con los 30 códigos de rechazo acreditados mediante ensayo transaccional y sonda con pre/postestado medido y diagnóstico explícito de fixtures ausentes (SHOULD-1 y robustez M5 verificados en producción). La migración C-3 ya se ha aplicado y verificado. En revisión independiente de M7 (C-3), queda la entrega de aplicación y se ajustan las políticas para aceptar el peso y volumen vigentes de SGA, editables, y las reposiciones de distintas órdenes hacia una misma ubicación, con saldo reservado compartido y pruebas de concurrencia. Se refuerza la trazabilidad de los ensayos de cada entrega. Continúan en revisión el control de estado físico y las políticas de carga en servidor (CONTROL_STATE PASSED/REJECTED atómico, cálculo relacional de pesos y volúmenes, trigger de invalidación de control y consolidación por política en servidor). Quedan pendientes la entrega E2 (reglas de reposición min/max y consolidación en cola), la carga del lote sintético de escenarios de almacén y la verificación funcional punto a punto en producción.",
+    summary: "El núcleo operativo de Almacenes (recepción con chequeo en playa, ubicación dirigida, reservas por línea, picking con rotación FIFO/LIFO/FEFO, recursos, políticas jerárquicas y control de etiqueta, estado, peso y volumen antes de la carga) ya está implementado y su migración E1 aplicada y verificada en producción, con los 30 códigos de rechazo acreditados mediante ensayo transaccional y sonda con pre/postestado medido y diagnóstico explícito de fixtures ausentes (SHOULD-1 y robustez M5 verificados en producción). La migración C-3 está aplicada y el código de aplicación está desplegado en producción tras revisión independiente. Admite el peso y volumen vigentes y editables de SGA y las reposiciones de distintas órdenes hacia una misma ubicación, respetando el saldo reservado compartido. La verificación funcional autenticada en producción sigue pendiente; el despliegue no acredita por sí solo el recorrido completo de controles de estado y carga. Quedan pendientes la entrega E2 (reglas de reposición min/max y consolidación en cola), la carga del lote sintético de escenarios de almacén y la verificación funcional punto a punto en producción.",
     priority: "Ahora",
     state: "En seguimiento",
   },
@@ -198,9 +198,9 @@ export const memorandumReleases: MemorandumRelease[] = [
     date: "23 oct 2026",
     surface: ["Plataforma"],
     title: "Almacenes — validación de solicitudes y diagnóstico de lecturas",
-    purpose: "Preparar la aplicación de controles de carga sobre la base de datos ya actualizada.",
-    outcome: "Se rechazan solicitudes mal formadas antes de operar, se distinguen errores de entrada de fallos del servicio y las incidencias de permisos o conexión se muestran como error de lectura. La entrega de aplicación sigue pendiente de validación, revisión y despliegue; la actualización de base de datos ya está aplicada y verificada.",
-    status: "Preproducción",
+    purpose: "Entregar la aplicación de controles de carga sobre la base de datos ya actualizada.",
+    outcome: "Se rechazan solicitudes mal formadas antes de operar, se distinguen errores de entrada de fallos del servicio y las incidencias de permisos o conexión se muestran como error de lectura. La aplicación está desplegada tras CI y revisión independiente, con comprobación del dominio y rechazo del acceso sin sesión. La verificación funcional autenticada sigue pendiente; la actualización de base de datos ya está aplicada y verificada.",
+    status: "Producción",
   },
   {
     version: "2026.10.22-1",
@@ -208,7 +208,7 @@ export const memorandumReleases: MemorandumRelease[] = [
     surface: ["Plataforma"],
     title: "Preparación de la aplicación de controles de carga en Almacenes",
     purpose: "Preparar la actualización de la base de datos antes del despliegue de la aplicación.",
-    outcome: "Se incorpora una vía manual de aplicación con comprobaciones del destino, del contenido de la migración y de su reversión, precondiciones y verificaciones de estructura y datos. La verificación automatizada comprueba la procedencia de los resultados y distingue aplicación confirmada, fallo e incertidumbre. El ensayo aislado de aplicación, aborto ante errores y concurrencia ha pasado. La integración pasó revisión y la migración se aplicó mediante la vía manual, con estructura e historial verificados y datos conservados. La aplicación y su verificación funcional siguen pendientes de entrega.",
+    outcome: "Se incorpora una vía manual de aplicación con comprobaciones del destino, del contenido de la migración y de su reversión, precondiciones y verificaciones de estructura y datos. La verificación automatizada comprueba la procedencia de los resultados y distingue aplicación confirmada, fallo e incertidumbre. El ensayo aislado de aplicación, aborto ante errores y concurrencia ha pasado. La integración pasó revisión y la migración se aplicó mediante la vía manual, con estructura e historial verificados y datos conservados. La aplicación se entregó posteriormente; la verificación funcional autenticada permanece pendiente.",
     status: "Canal interno",
   },
   {

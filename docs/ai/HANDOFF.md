@@ -2,6 +2,18 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-23 — PR #138 fusionada y aplicación READY (09:17 UTC)
+
+- PR #138 squash-merged con expected HEAD `efd94714264d9e7ab160768b4494a8fcf7ef94ed`; main resultante `3572cf420a82f1ddfd43298850a1a725e1e9b30a`, árbol `9737f7f0ea3d60d3a83fd01519aae34cfdbd291e`, idéntico al revisado y ensayado. CI PR #567 `39906890094` SUCCESS (387/387 web, 39/39 post-arnés, PG16 TCP20/20 y ensayo PG17). CI main #568 `39930412217` SUCCESS en el merge exacto.
+- Revisión independiente de Claude y aclaración #138 `6361091640`: MERGE YES, cero MUST; S1/S2/S6/S9 cerrados. S11 es S3 preexistente, no regresión. Una revisión independiente suficiente según AGENTS y reglas vigentes; no se cambiaron políticas ni se usó bypass. Work asumió integración en Slack `1792746839.833879`, superando el relevo pendiente a otra consola.
+- Vercel canónico `fornexa` PRODUCTION READY: `dpl_2f78YgRGrpGV2aAm5aLs2NpeC2WM`, alias `fornexasc.com` resuelve al merge exacto. Smoke sin sesión sobre dominio ya actualizado: `/` y `/memorandum` 200; `/dashboard/almacenes` 307 a login; GET y POST `/api/wms` 401 `WMS_FORBIDDEN`. El POST de sonda solo llevaba un campo de autoridad y fue rechazado antes de RPC.
+- DB-first confirmado de nuevo en lectura: 42 migraciones, C3 presente, un statement ejecutado de 73022 bytes y md5 `051905956a1d369abdde83c7ef56f963`; fichero fuente auditado de 73038 bytes. No se repitió migración, seed, F4 ni operación de movimientos. No confundir los bytes del fichero con el cuerpo ejecutado.
+- **Límite:** falta POST con sesión operativa legítima que demuestre 400 ante campo de autoridad, RLS/aislamiento funcional productivo y recorrido WMS/E2/DATA150. No hay credenciales de operador disponibles en Work; no se fabricaron roles ni sesión. Despliegue de aplicación completado, WMS no cerrado.
+- Esta PR de cierre, rama `codex/c3-release-closeout-20261023`, actualiza Memorandum a Producción para la entrega de aplicación y mantiene explícita la verificación autenticada pendiente. Validación local del cierre: 57 pruebas focales, tipos, lint de los archivos modificados y build PASS; CI de la PR y revisión pendientes. El test de estado del Memorandum pasa a comprobar esa separación en su modelo de datos; no altera pruebas de RPC, recibo, autenticación ni SQL. Cobertura de commits recalculada como linaje de main tras squash incluyendo este cierre: 676, frente a los 696 del linaje de la rama pre-squash; no se atribuye ejecución nueva a recibos anteriores.
+- Siguiente delta separado: SHOULD-12, retirar el recibo heredado inmediatamente después de Checkout antes de cualquier gate y evitar subirlo en fallos tempranos. También pendientes S3/S11 (probar auth real antes de distinguir 401/503), S7/S8/S10/S13/S14/S15 y PG17 completo. #141 cerrada como transporte superado por #140, sin merge ni borrado de evidencia. E2 #139 sigue draft/contrato; #137 queda como cierre documental anterior pendiente de reconciliar.
+
+## Historial de preparación — superado por el despliegue anterior
+
 ## 2026-10-23 — C3 aplicada; subsanación de aplicación para PR #138
 
 - Estado vivo contrastado: main `6eabee02d892f846554980fde82b9000a898b09a`; Vercel canónico READY y dominio en ese SHA. Workflow manual `39819461511` SUCCESS, ejecutado el 22-oct 17:04 UTC. Lectura propia del ledger: 42 migraciones; C3 `20261019120000`, un statement, 73022 bytes, md5 `051905956a1d369abdde83c7ef56f963`. No repetir dispatch: la base de datos ya está aplicada.

@@ -4,9 +4,15 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
-- C3 DB aplicada: workflow `39819461511` SUCCESS; ledger verificado con 42 migraciones y cuerpo ejecutado de 73022 bytes/md5 `051905956a1d369abdde83c7ef56f963`. No relanzar migración. Main `6eabee02`, CI566 SUCCESS y dominio canónico READY corresponden a la vía de datos, no a la aplicación #138.
-- Aplicación #138 abierta en `3fe2c9b`. Preparación sobre reconciliación `9ed302a6`: corregir S1/S2/S6 (payload inválido, clasificación de errores, fallbacks de lectura), comentario S5 y documentos caducados. Pendientes validación, publicación, CI y revisión del nuevo HEAD antes de merge/deploy; cierre documental posterior al READY y smoke.
+- **Verificación funcional C3 pendiente:** aplicación #138 ya fusionada y READY en `3572cf420a82f1ddfd43298850a1a725e1e9b30a`; CI main568 SUCCESS, dominio exacto y smoke público correctos. Falta POST 400 con sesión operativa legítima, RLS/aislamiento funcional y recorrido WMS/E2/DATA150. No simular sesión/roles ni declarar WMS cerrado.
+- **SHOULD-12 (siguiente delta separado):** mover retirada del recibo heredado al paso posterior inmediato a Checkout; hoy un fallo previo al arnés puede subir el recibo versionado como artefacto de un run fallido. No modificó ni invalidó el gate ejercitado en verde de #138.
+- **Deudas de revisión:** S3/S11 es deuda de auth previa, no regresión; primero cubrir getAuthenticatedContext real, después diferenciar 401/503. S13 clasificación de esquema y S15 observabilidad se mantienen como SHOULD. PG16 TCP20/20 y ensayo PG17 parcial no certifican todo en PG17 ni la cadena completa de migraciones.
 - Mantener como seguimiento S7 (limit antes del filtro por almacén), S8 (roles duplicados), S10 (mapeo por subcadena), observabilidad y pruebas reales de autenticación/aislamiento. Mocks de contexto no certifican getUser, cookies ni RLS. El smoke 400 exige sesión operativa legítima; sin sesión debe ser 401. Sin seed/F4 ni ensayo de movimientos productivos por esta preparación.
+
+## DONE
+
+- **2026-10-23 — entrega de aplicación #138:** squash `3572cf4`, CI567/568 SUCCESS, Vercel `fornexa` READY y `fornexasc.com` en ese SHA. Smoke 200 público, 307 a login, GET/POST WMS401 sin sesión. Claude MERGE YES / cero MUST en comentario6361091640. Datos C3 aplicados previamente por workflow39819461511 y ledger de 73022bytes verificado; no repetido SQL. Cierre de entrega de aplicación, no de verificación funcional WMS.
+- **2026-10-23 — #141:** cerrada como transporte superado por #140; candidato y rama conservados. Workflow activo difiere por el `psql -qAt` revisado; no afirmar identidad byte a byte del candidato original.
 
 ### Historial operativo
 
