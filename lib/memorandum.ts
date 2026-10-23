@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "23 oct 2026";
-export const memorandumCommitCoverage = 676;
+export const memorandumCommitCoverage = 677;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -193,6 +193,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.10.23-2",
+    date: "23 oct 2026",
+    surface: ["Plataforma"],
+    title: "Comprobaciones automatizadas con resultados de la ejecución actual",
+    purpose: "Mantener la trazabilidad de las verificaciones de cada entrega.",
+    outcome: "Preparada una mejora para retirar resultados anteriores al iniciar las comprobaciones y emitir y validar los nuevos antes de ejecutar las pruebas que los necesitan. La comprobación inicial detectó una dependencia de orden que se ha corregido. Pendiente de validación completa en integración continua, revisión y despliegue.",
+    status: "Preproducción",
+  },
   {
     version: "2026.10.23-1",
     date: "23 oct 2026",
