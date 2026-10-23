@@ -54,8 +54,18 @@ export async function POST(request: Request) {
     );
   }
 
+  let body: Record<string, unknown>;
   try {
-    const body = (await request.json()) as Record<string, unknown>;
+    const parsed: unknown = await request.json();
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return response({ error: "Solicitud de almacén no válida." }, 400);
+    }
+    body = parsed as Record<string, unknown>;
+  } catch {
+    return response({ error: "JSON no válido." }, 400);
+  }
+
+  try {
     const rawAction = String(body.action ?? "");
     const securityViolation = validateWmsActionPayloadSecurity(rawAction, body.payload);
     if (securityViolation) {
@@ -81,39 +91,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const payload =
-      body.payload && typeof body.payload === "object" && !Array.isArray(body.payload)
-        ? (body.payload as Record<string, unknown>)
-        : {};
-
-    if (
-      "state_controlled" in payload ||
-      "expected_weight_kg" in payload ||
-      "expected_volume_m3" in payload
-    ) {
-      return response(
-        {
-          error:
-            "WMS_FORBIDDEN: Los campos de control de estado y magnitudes esperadas son de cálculo exclusivo en servidor y no pueden enviarse desde el cliente.",
-          code: "WMS_FORBIDDEN",
-        },
-        400,
-      );
-    }
-
-    if (
-      action === "REPLENISH" &&
-      ("consolidation" in payload || "conflicting_batch" in payload)
-    ) {
-      return response(
-        {
-          error:
-            "WMS_FORBIDDEN: La política de consolidación es de cálculo exclusivo en servidor y no puede ser anulada desde el cliente.",
-          code: "WMS_FORBIDDEN",
-        },
-        400,
-      );
-    }
+    // Shape and authority fields have already passed the shared validator.
+    const payload = body.payload as Record<string, unknown>;
 
     const idempotencyKey =
       typeof body.idempotency_key === "string" && body.idempotency_key.trim().length > 0
@@ -140,8 +119,8 @@ export async function POST(request: Request) {
     return response({ result: result.data });
   } catch {
     return response(
-      { error: "Solicitud de almacén no válida." },
-      400,
+      { error: "No se pudo completar la operación de almacén.", code: "WMS_UNEXPECTED_ERROR" },
+      503,
     );
   }
 }

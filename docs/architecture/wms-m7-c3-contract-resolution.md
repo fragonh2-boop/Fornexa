@@ -55,6 +55,9 @@ Estas decisiones sustituyen las exigencias anteriores de medición nueva y exclu
     - `consolidation` (en acción `REPLENISH`)
     - `conflicting_batch` (en acción `REPLENISH`)
   - Se erradica por completo la alternativa ambigua de "ignorar silenciosamente".
+  - El cuerpo HTTP y su `payload` deben ser objetos JSON. Un `payload` nulo, omitido, array o escalar se rechaza con 400 `WMS_FORBIDDEN` antes del RPC; no se convierte en un objeto vacío. JSON sintácticamente inválido o un cuerpo no objeto produce 400. Estas condiciones de HTTP no cambian la normalización nula del RPC.
+  - Una excepción de creación del cliente o ejecución RPC produce 503, con respuesta genérica sin detalles internos. Los errores tipados devueltos por el RPC conservan su mapeo del catálogo. La autenticación precede a estas validaciones: sin sesión válida se responde 401.
+  - Las lecturas solo pueden usar compatibilidad de esquema cuando coincidan un código de columna/tabla ausente y el identificador esperado. Una incidencia de permisos, autenticación o red propaga error de lectura y nunca se presenta como un almacén vacío. El contexto de autenticación mockeado en tests de ruta no certifica cookies, `getUser()` ni RLS funcional.
 - **Frontera del Servidor (RPC `fornexa_wms_action`)**:
   - Los esperados se calculan o leen exclusivamente del modelo relacional:
     - `expected_weight_kg`: `v_hu.gross_weight_kg`; si es nulo o $\le 0$, se calcula desde $\sum(\text{quantity} \times \text{products.gross\_weight\_kg})$ en `handling_unit_contents`.

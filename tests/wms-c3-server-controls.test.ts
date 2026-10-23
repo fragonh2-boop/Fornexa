@@ -55,31 +55,16 @@ test("M7 C-3 — lib/wms declara CONTROL_STATE en WMS_ACTIONS y columnas de cont
 });
 
 test("M7 C-3 — app/api/wms/route.ts rechaza con HTTP 400 determinista cualquier intento de usurpación de autoridad cliente", () => {
-  // Verificación estática de las validaciones en POST
+  // The real route delegates to the same authority validator used below.
   assert.ok(
-    apiRoute.includes('"state_controlled" in payload'),
-    "API debe rechazar explícitamente state_controlled en payload",
+    apiRoute.includes("validateWmsActionPayloadSecurity(rawAction, body.payload)"),
+    "API debe usar la validación común antes del RPC",
   );
-  assert.ok(
-    apiRoute.includes('"expected_weight_kg" in payload'),
-    "API debe rechazar explícitamente expected_weight_kg en payload",
-  );
-  assert.ok(
-    apiRoute.includes('"expected_volume_m3" in payload'),
-    "API debe rechazar explícitamente expected_volume_m3 en payload",
-  );
-  assert.ok(
-    apiRoute.includes('"consolidation" in payload'),
-    "API debe rechazar explícitamente consolidation en payload para REPLENISH",
-  );
-  assert.ok(
-    apiRoute.includes('"conflicting_batch" in payload'),
-    "API debe rechazar explícitamente conflicting_batch en payload para REPLENISH",
-  );
-  assert.ok(
-    apiRoute.includes("400"),
-    "API debe devolver status 400 ante payloads con parámetros prohibidos",
-  );
+  for (const field of ["state_controlled", "expected_weight_kg", "expected_volume_m3", "consolidation", "conflicting_batch"]) {
+    const violation = validateWmsActionPayloadSecurity("REPLENISH", { [field]: true });
+    assert.equal(violation?.status, 400, field);
+    assert.equal(violation?.code, "WMS_FORBIDDEN", field);
+  }
 });
 
 test("M7 C-3 — WmsWorkspace no envía parámetros de autoridad cliente y expone acción CONTROL_STATE", () => {

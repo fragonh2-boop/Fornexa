@@ -4,9 +4,13 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
-- PR #140 integrada en main6eabee02, Vercel canónico READY/dominio correcto. C3 todavía sin aplicar (41 migraciones, 150 quants legados preservados en lectura); falta ejecutar workflow manual con sesión GitHub válida, leer/reconciliar resultado y verificar DB. Preparación de #138 alineada con main real y 70 pruebas locales PASS; no publicar/mergear aplicación antes de DB. CI566 de main pendiente de estado final en esta lectura.
+- C3 DB aplicada: workflow `39819461511` SUCCESS; ledger verificado con 42 migraciones y cuerpo ejecutado de 73022 bytes/md5 `051905956a1d369abdde83c7ef56f963`. No relanzar migración. Main `6eabee02`, CI566 SUCCESS y dominio canónico READY corresponden a la vía de datos, no a la aplicación #138.
+- Aplicación #138 abierta en `3fe2c9b`. Preparación sobre reconciliación `9ed302a6`: corregir S1/S2/S6 (payload inválido, clasificación de errores, fallbacks de lectura), comentario S5 y documentos caducados. Pendientes validación, publicación, CI y revisión del nuevo HEAD antes de merge/deploy; cierre documental posterior al READY y smoke.
+- Mantener como seguimiento S7 (limit antes del filtro por almacén), S8 (roles duplicados), S10 (mapeo por subcadena), observabilidad y pruebas reales de autenticación/aislamiento. Mocks de contexto no certifican getUser, cookies ni RLS. El smoke 400 exige sesión operativa legítima; sin sesión debe ser 401. Sin seed/F4 ni ensayo de movimientos productivos por esta preparación.
 
-- Preparación local de reconciliación de #138 en `codex/c3-app-reconcile-20261022`: cinco conflictos resueltos y pruebas conservadas. 70 pruebas focales, tipos/lint/build locales PASS. Pendiente incorporar el main definitivo después de aplicar/verificar DB y pasar CI; no movida la PR de aplicación.
+### Historial operativo
+
+Los checkpoints siguientes son históricos; sus referencias a DB C3 pendiente quedan superadas por el estado anterior del 23-oct.
 
 ### 2026-10-22 — Integrar y ensayar el workflow corregido C3
 

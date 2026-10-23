@@ -3,6 +3,14 @@ import { EMPTY_WMS_DATA, isHuColumnMissingError, type WmsOverviewData } from "./
 
 export { isHuColumnMissingError };
 
+// Compatibility fallback requires both a schema error code and the expected
+// missing identifier. Permission/network errors must never appear as no stock.
+function missingSchemaIdentifier(error: { code?: string; message?: string }, codes: string[], names: string[]) {
+  if (!codes.includes(error.code ?? "")) return false;
+  const identifiers: string[] = (error.message ?? "").match(/[a-z_][a-z_0-9]*/gi) ?? [];
+  return names.some((name) => identifiers.includes(name));
+}
+
 export async function loadWmsData(
   tenantId: string,
   warehouseId?: string,
@@ -92,6 +100,9 @@ export async function loadWmsData(
     .limit(1000);
 
   if (quantsE1.error) {
+    if (!missingSchemaIdentifier(quantsE1.error, ["42703", "PGRST204"], ["flow_state", "hu_id"])) {
+      throw new Error("No se pudo cargar el inventario de almacenes.", { cause: quantsE1.error });
+    }
     schemaReady = false;
     const quantsFallback = await db
       .from("inventory_quants")
@@ -102,7 +113,7 @@ export async function loadWmsData(
       .order("updated_at", { ascending: false })
       .limit(1000);
     if (quantsFallback.error) {
-      throw new Error("No se pudo cargar el inventario de almacenes.");
+      throw new Error("No se pudo cargar el inventario de almacenes.", { cause: quantsFallback.error });
     }
     quantsData = (quantsFallback.data ?? []).map((q: any) => ({
       ...q,
@@ -178,7 +189,10 @@ export async function loadWmsData(
     const stRes = e1Results[4];
     const taskRes = e1Results[5];
 
-    if (husRes.error && isHuColumnMissingError(husRes.error)) {
+    if (husRes.error && isHuColumnMissingError(husRes.error) && missingSchemaIdentifier(
+      husRes.error, ["42703", "PGRST204"],
+      ["state_controlled_at", "state_controlled_by", "measured_at", "measured_by"],
+    )) {
       // Fallback without C-3 columns strictly if migration is not applied yet (MUST-2)
       husRes = await db
         .from("handling_units")
@@ -190,7 +204,16 @@ export async function loadWmsData(
         .limit(1000);
     }
 
-    if (polRes.error || resRes.error || husRes.error || contRes.error || stRes.error || taskRes.error) {
+    const e1Tables = ["warehouse_behavior_policies", "warehouse_resources", "handling_units", "handling_unit_contents", "stock_reservations", "warehouse_tasks"];
+    const e1Errors = [polRes, resRes, husRes, contRes, stRes, taskRes]
+      .map((result, index) => ({ error: result.error, table: e1Tables[index] }))
+      .filter((result) => result.error);
+    const operationalError = e1Errors.find(({ error, table }) =>
+      !missingSchemaIdentifier(error, ["42P01", "PGRST205"], [table]));
+    if (operationalError) {
+      throw new Error("No se pudieron cargar los datos operativos de almacenes.", { cause: operationalError.error });
+    }
+    if (e1Errors.length > 0) {
       schemaReady = false;
     } else {
       policies = (polRes.data ?? []) as any;

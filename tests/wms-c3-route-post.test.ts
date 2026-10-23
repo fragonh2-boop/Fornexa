@@ -56,7 +56,8 @@ function createPostRequest(body: unknown, headers: Record<string, string> = {}) 
 
 test("M7 C-3 POST /api/wms — rechaza solicitudes no autenticadas con HTTP 401 WMS_FORBIDDEN", async () => {
   const req = createPostRequest({ action: "LOAD", payload: { hu_id: "70000000-0000-4000-8000-000000000001" } });
-  // Invoking POST with no second argument uses real getAuthenticatedContext() which returns null outside request scope
+  // The server auth module is mocked to return null: this verifies the route's
+  // 401 response, not getUser(), cookies or real membership/RLS enforcement.
   const res = await POST(req);
   assert.equal(res.status, 401);
   const data = (await res.json()) as { code: string; error: string };
@@ -195,6 +196,31 @@ test("M7 C-3 POST /api/wms — rechaza acciones no reconocidas con HTTP 400 WMS_
   assert.equal(rpcInvoked, false);
   const data = (await res.json()) as { code: string };
   assert.equal(data.code, "WMS_FORBIDDEN");
+});
+
+test("C3 rejects malformed payloads and envelopes before creating any RPC call", async () => {
+  let calls = 0;
+  const rpcClient = { rpc: async () => { calls++; return { data: {}, error: null }; } };
+  for (const payload of [undefined, null, [], [{ state_controlled: true }], "stock", 42, false]) {
+    const res = await postAs(createPostRequest({ action: "LOAD", payload }), { auth: OPERATOR_AUTH, rpcClient });
+    assert.equal(res.status, 400);
+    assert.equal((await res.json()).code, "WMS_FORBIDDEN");
+  }
+  for (const body of [null, [], "LOAD", 12]) {
+    assert.equal((await postAs(createPostRequest(body), { auth: OPERATOR_AUTH, rpcClient })).status, 400);
+  }
+  assert.equal(calls, 0);
+});
+
+test("C3 separates invalid JSON (400) from thrown infrastructure failures (503)", async () => {
+  const invalidJson = new Request("https://localhost/api/wms", { method: "POST", body: "{broken" });
+  assert.equal((await postAs(invalidJson, { auth: OPERATOR_AUTH })).status, 400);
+  const rpcClient = { rpc: async () => { throw new Error("private database detail"); } };
+  const res = await postAs(createPostRequest({ action: "LOAD", payload: {} }), { auth: OPERATOR_AUTH, rpcClient });
+  assert.equal(res.status, 503);
+  const body = await res.text();
+  assert.ok(body.includes("WMS_UNEXPECTED_ERROR"));
+  assert.ok(!body.includes("private database detail"));
 });
 
 test("M7 C-3 POST /api/wms — solicitud legítima delega a RPC garantizando aislamiento de tenant y actor autenticado", async () => {
