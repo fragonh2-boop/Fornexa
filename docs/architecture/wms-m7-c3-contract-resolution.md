@@ -1,5 +1,16 @@
 # WMS M7 · Resolución de Contrato Técnico y Arquitectura C-3
 
+## Decisiones vigentes de negocio — 21 oct 2026
+
+Estas decisiones sustituyen las exigencias anteriores de medición nueva y exclusividad del destino descritas en las notas históricas de este documento.
+
+- Peso/volumen: basta el dato vigente de SGA, heredado de la creación de partida o editado posteriormente, también con `require_weight_measurement` / `require_volume_measurement` activos. La ausencia total de un valor válido continúa rechazándose si la política lo exige. Un dato heredado no recibe marcas de medición física ni un contraste artificial de desviación cero. Las entradas explícitas conservan su validación de tolerancia y procedencia.
+- Varias órdenes de preparación pueden reservar desde el mismo origen hacia el mismo destino de picking/preparación. Se conserva `order_id` por tarea y se controla el saldo agregado; no se rechaza por la mera existencia de otra tarea pendiente. La política de consolidación sigue siendo de servidor.
+- Casos 17–20 del arnés: 100→60+40 / 60+60, mismo o diferente destino; FK entre tenant y quant y CHECK de saldo; SGA editado sin nueva medición; consolidación de reservas entrantes. En PostgreSQL16 el caso17 usa dos sesiones TCP con barrera de bloqueo. PGlite solo aporta un ensayo complementario secuencial para ese caso.
+- El recibo JSON de CI #537 ha sido archivado en `docs/verification/historical/receipt-m7-c3-postgres-ci537.json` y es estrictamente no certificante del HEAD actual (MUST-T1). La certificación activa vigente es el artefacto emitido dinámicamente por el contenedor de PostgreSQL 16 sobre el commit ejecutado (`docs/verification/receipt-m7-c3-postgres.json`, con 20 casos derivados dinámicamente del arnés, MUST-T2). El arnés declara `full_production_migration_chain=false`: prueba las migraciones WMS y las restricciones de saldo/estado pertinentes sobre un esquema maestro parcial; no certifica toda la base de producción. Los contadores distinguen ejecución de certificación por motor.
+- El runner nunca confirma desde PGlite ni emite `COMMITTED_LIVE`. Un apply sobre un destino permitido exige evidencia persistida antes de COMMIT y registra el SQL ejecutado en el ledger. Producción sigue excluida de este runner; su ejecución exige un plan separado revisado.
+
+
 **TASK_ID**: `WMS-RESEARCH-20261017`  
 **Hito**: M7 (Implementación Local C-3 · Controles de Carga y Políticas en Servidor)  
 **Base**: `main 45f6c25a9f2a604b4400a9baa818d221837e896e` (Merge PR #133)  
@@ -44,6 +55,9 @@
     - `consolidation` (en acción `REPLENISH`)
     - `conflicting_batch` (en acción `REPLENISH`)
   - Se erradica por completo la alternativa ambigua de "ignorar silenciosamente".
+  - El cuerpo HTTP y su `payload` deben ser objetos JSON. Un `payload` nulo, omitido, array o escalar se rechaza con 400 `WMS_FORBIDDEN` antes del RPC; no se convierte en un objeto vacío. JSON sintácticamente inválido o un cuerpo no objeto produce 400. Estas condiciones de HTTP no cambian la normalización nula del RPC.
+  - Una excepción de creación del cliente o ejecución RPC produce 503, con respuesta genérica sin detalles internos. Los errores tipados devueltos por el RPC conservan su mapeo del catálogo. La autenticación precede a estas validaciones: sin sesión válida se responde 401.
+  - Las lecturas solo pueden usar compatibilidad de esquema cuando coincidan un código de columna/tabla ausente y el identificador esperado. Una incidencia de permisos, autenticación o red propaga error de lectura y nunca se presenta como un almacén vacío. El contexto de autenticación mockeado en tests de ruta no certifica cookies, `getUser()` ni RLS funcional.
 - **Frontera del Servidor (RPC `fornexa_wms_action`)**:
   - Los esperados se calculan o leen exclusivamente del modelo relacional:
     - `expected_weight_kg`: `v_hu.gross_weight_kg`; si es nulo o $\le 0$, se calcula desde $\sum(\text{quantity} \times \text{products.gross\_weight\_kg})$ en `handling_unit_contents`.
@@ -89,7 +103,7 @@
 
 ---
 
-## 2. Matriz de Aceptación Local (16 Casos M6)
+## 2. Matriz histórica M6 (16 casos; ampliada a 20 arriba)
 
 | # | Escenario de Prueba | Comportamiento Esperado | Tipo de Verificación Actual |
 |---|---|---|---|
@@ -112,7 +126,7 @@
 
 ### Distinción Técnica y Entorno Local:
 - **Aserción Estática de Contrato (`tests/wms-c3-server-controls.test.ts`)**: 26 pruebas unitarias en Node.js que verifican tipos TypeScript, exports, parsing de políticas booleanas, orden de ejecución en migraciones, rechazos en ruta API y guards de control.
-- **Harness de Ejecución Relacional Local (`scripts/wms/verify-c3-postgres.mjs`)**: Ejecución exitosa de suite PostgreSQL 16 relacional en sandbox sintético aislado mediante motor `@electric-sql/pglite` (WebAssembly oficial compilado de PostgreSQL 16), sin dependencias externas ni conexión a red ni tocar producción.
+- **Harness de Ejecución Relacional Local (`scripts/wms/verify-c3-postgres.mjs`)**: Ensayo relacional complementario aislado con `@electric-sql/pglite`; su versión real se registra en el recibo y no se equipara al PostgreSQL 16 TCP de CI.
 - **Recibo Durable**: Generado y persistido en `docs/verification/receipt-m7-c3-postgres.json` registrando versión, SHA, preestado, postestado y aserción de cada caso (16/16 PASS).
 
 ---
@@ -254,7 +268,7 @@ Tras la revisión de DeepSeek en el hilo de Slack sobre el HEAD `9a0ae20374e1fe8
 
 4. **MUST-4 (Medición Física Obligatoria y Persistencia de Trazabilidad)**:
    - Se añadieron a `handling_units` las columnas `measured_at timestamptz` y `measured_by uuid references auth.users(id) on delete set null`.
-   - En `LABEL` y `LOAD`, cuando la política de almacén exige medición (`require_weight_measurement` o tolerancia configurada), la omisión de `measured_weight_kg` o `measured_volume_m3` por parte del cliente falla cerrado con `WMS_WEIGHT_TOLERANCE` o `WMS_VOLUME_TOLERANCE`.
+   - En `LABEL` y `LOAD`, cuando la política exige el dato de peso o volumen, el dato vigente de SGA es suficiente; solo su ausencia total produce `WMS_WEIGHT_TOLERANCE` o `WMS_VOLUME_TOLERANCE`. Las entradas explícitas se validan frente a tolerancias sin exigir una medición nueva universal.
    - Al registrarse mediciones válidas dentro de tolerancia, la RPC persiste atómicamente `measured_at = v_ts` y `measured_by = p_actor` en `handling_units`.
    - `lib/wms.ts` y `lib/wms-loader.ts` se sincronizan para exponer y consumir estas columnas con discriminación estricta de errores (`isHuColumnMissingError`).
 
@@ -309,7 +323,7 @@ Tras la revisión de DeepSeek en `review-134-9d63d5c/REVIEW-DEEPSEEK-d8a0ec2.md`
    - Se suprimen los fallbacks silenciosos `|| hu.gross_weight_kg` y `|| hu.volume_m3` que transformaban la omisión de medición por parte del operario en una supuesta confirmación idéntica al valor esperado de la HU.
    - Los campos de entrada interactiva inician con valor vacío (`""`).
    - Se incorpora un campo visible e interactivo para volumen medido (`measured_volume_m3`), complementando al de peso medido (`measured_weight_kg`).
-   - Si el operario deja ambos campos vacíos, la UI no envía valores ficticios, garantizando que el servidor aplique la política de almacén correspondiente: cuando la política de almacén exige medición obligatoria (`require_weight_measurement` o tolerancia configurada) y la medición no se suministra, el servidor rechaza la operación fail-closed con `WMS_WEIGHT_TOLERANCE` (reutilizando el código de tolerancia del catálogo cerrado de la migración para rechazar cargas sin medición acreditada sin introducir códigos no tipados).
+   - Si el operario deja ambos campos vacíos, la UI no envía valores ficticios, garantizando que el servidor aplique la política de almacén correspondiente: el servidor acepta el dato vigente de SGA, también si esas políticas están activas; rechaza si no dispone de un valor válido y no inventa marcas de medición sobre datos heredados.
 
 4. **Declaración de Alcance de Stubs Sintéticos y Gates**:
    - Se declara formalmente que el arnés relacional `verify-c3-postgres.mjs` aísla y certifica la lógica transaccional del RPC `fornexa_wms_action`, triggers relacionales, cálculo de tolerancias, atomicidad y serialización de concurrencia bajo PostgreSQL 16.

@@ -55,31 +55,16 @@ test("M7 C-3 — lib/wms declara CONTROL_STATE en WMS_ACTIONS y columnas de cont
 });
 
 test("M7 C-3 — app/api/wms/route.ts rechaza con HTTP 400 determinista cualquier intento de usurpación de autoridad cliente", () => {
-  // Verificación estática de las validaciones en POST
+  // The real route delegates to the same authority validator used below.
   assert.ok(
-    apiRoute.includes('"state_controlled" in payload'),
-    "API debe rechazar explícitamente state_controlled en payload",
+    apiRoute.includes("validateWmsActionPayloadSecurity(rawAction, body.payload)"),
+    "API debe usar la validación común antes del RPC",
   );
-  assert.ok(
-    apiRoute.includes('"expected_weight_kg" in payload'),
-    "API debe rechazar explícitamente expected_weight_kg en payload",
-  );
-  assert.ok(
-    apiRoute.includes('"expected_volume_m3" in payload'),
-    "API debe rechazar explícitamente expected_volume_m3 en payload",
-  );
-  assert.ok(
-    apiRoute.includes('"consolidation" in payload'),
-    "API debe rechazar explícitamente consolidation en payload para REPLENISH",
-  );
-  assert.ok(
-    apiRoute.includes('"conflicting_batch" in payload'),
-    "API debe rechazar explícitamente conflicting_batch en payload para REPLENISH",
-  );
-  assert.ok(
-    apiRoute.includes("400"),
-    "API debe devolver status 400 ante payloads con parámetros prohibidos",
-  );
+  for (const field of ["state_controlled", "expected_weight_kg", "expected_volume_m3", "consolidation", "conflicting_batch"]) {
+    const violation = validateWmsActionPayloadSecurity("REPLENISH", { [field]: true });
+    assert.equal(violation?.status, 400, field);
+    assert.equal(violation?.code, "WMS_FORBIDDEN", field);
+  }
 });
 
 test("M7 C-3 — WmsWorkspace no envía parámetros de autoridad cliente y expone acción CONTROL_STATE", () => {
@@ -1328,6 +1313,105 @@ test("M7 C-3 — Subsanaciones Claude SQL (MUST-1, MUST-2, MUST-3, MUST-4)", () 
     "REPLENISH debe fijar reject_detail a v_fingerprint y source_quant_id a v_quant.id",
   );
 });
+
+test("M7 C-3 — Runner Transaccional: Validación de Destinos (MUST-1 Gate Fail-Closed)", async () => {
+  // @ts-expect-error - import dynamic from local .mjs runner script
+  const { validateDestination } = await import("../scripts/wms/run-c3-migration.mjs");
+
+  // 1. Rechazo inmediato de hosts en denylist de producción
+  assert.throws(
+    () => validateDestination("postgres://postgres:pw@gqkjqhpmyejmehbuombk.supabase.co:5432/postgres"),
+    /WMS_DESTINATION_FORBIDDEN.*production fail-closed denylist/i,
+  );
+  assert.throws(
+    () => validateDestination("postgres://postgres:pw@other-prod.supabase.net:5432/postgres"),
+    /WMS_DESTINATION_FORBIDDEN/i,
+  );
+
+  // 2. Rechazo de hosts remotos no autorizados
+  assert.throws(
+    () => validateDestination("postgres://postgres:pw@192.168.1.100:5432/fornexa"),
+    /WMS_DESTINATION_FORBIDDEN.*not a permitted loopback/i,
+  );
+
+  // 3. Aceptación de loopback para rehearsal
+  const loopback = validateDestination("postgres://postgres:pw@127.0.0.1:5432/fornexa_test");
+  assert.equal(loopback.isLoopback, true);
+  assert.equal(loopback.hostname, "127.0.0.1");
+
+  // 4. Bloqueo de --apply-live sin flags ni env autorizados
+  assert.throws(
+    () => validateDestination("postgres://postgres:pw@127.0.0.1:5432/fornexa_test", { applyLive: true, confirmApply: false }),
+    /WMS_APPLY_GATE_CLOSED.*explicit confirmation flag/i,
+  );
+});
+
+test("M7 C-3 — Runner Transaccional: Delimitadores, Guard de Importación y Hash Pinning", async () => {
+  const {
+    stripTopLevelTransactionDelimiters,
+    isDirectCliExecution,
+    PINNED_C3_SQL_SHA256,
+    PINNED_C3_SQL_BYTES,
+    // @ts-expect-error - import dynamic from local .mjs runner script
+  } = await import("../scripts/wms/run-c3-migration.mjs");
+
+  // 1. Hash pinning coincide con el archivo en disco
+  const diskSql = readFileSync(C3_MIGRATION_PATH, "utf-8");
+  const { createHash } = await import("node:crypto");
+  const actualHash = createHash("sha256").update(diskSql).digest("hex");
+  const actualBytes = Buffer.byteLength(diskSql, "utf-8");
+  assert.equal(actualHash, PINNED_C3_SQL_SHA256, "Hash fijado debe coincidir con HEAD");
+  assert.equal(actualBytes, PINNED_C3_SQL_BYTES, "Bytes fijados deben coincidir con HEAD");
+
+  // 2. Neutralización de begin; commit; rollback; fuera de dollar quotes
+  const sampleSql = `
+BEGIN;
+create table test (id int);
+do $$
+begin
+  -- inside dollar quote, should NOT be modified
+  perform 1;
+end;
+$$;
+COMMIT;
+`;
+  const stripped = stripTopLevelTransactionDelimiters(sampleSql);
+  assert.ok(stripped.includes("-- [RUNNER MANAGED BEGIN]"), "BEGIN top-level debe neutralizarse");
+  assert.ok(stripped.includes("-- [RUNNER MANAGED COMMIT]"), "COMMIT top-level debe neutralizarse");
+  assert.ok(stripped.includes("begin\n  -- inside dollar quote"), "BEGIN interno de función debe preservarse intacto");
+
+  // 3. Guard de importación CLI
+  assert.equal(isDirectCliExecution(["node", "/path/to/other.js"]), false);
+});
+
+test("M7 C-3 — Runner Transaccional: Ejecución Rehearsal PGlite y Post-condiciones Atómicas", async () => {
+  // @ts-expect-error - import dynamic from local .mjs runner script
+  const { runC3Migration } = await import("../scripts/wms/run-c3-migration.mjs");
+  const receipt = await runC3Migration({ usePgLite: true, dryRun: true });
+
+  assert.equal(receipt.status, "SUCCESS_DRY_RUN", "Rehearsal en PGlite debe completar con SUCCESS_DRY_RUN");
+  assert.equal(receipt.postconditions.ledger_recorded, true, "Ledger debe insertarse atómicamente");
+  assert.equal(receipt.postconditions.columns_verified.length, 4, "Las 4 columnas deben validarse en postcondiciones");
+  assert.equal(receipt.postconditions.index_verified, true, "El índice debe validarse en postcondiciones");
+  assert.equal(receipt.postconditions.functions_verified, true, "Las funciones deben validarse en postcondiciones");
+  assert.equal(receipt.postconditions.privileges_verified, true, "Privilegios service_role exclusivos deben validarse");
+});
+
+
+
+
+
+
+
+
+test("C3 runner refuses apply in PGlite and dryRun=false without explicit apply", async () => {
+  // @ts-expect-error - local mjs runner
+  const { runC3Migration } = await import("../scripts/wms/run-c3-migration.mjs");
+  await assert.rejects(() => runC3Migration({ applyLive: true, usePgLite: true, confirmApply: true }), /WMS_APPLY_GATE_CLOSED/);
+  await assert.rejects(() => runC3Migration({ dryRun: false, usePgLite: true }), /WMS_APPLY_GATE_CLOSED/);
+  await assert.rejects(() => runC3Migration({ applyLive: true, dryRun: true }), /WMS_APPLY_GATE_CLOSED/);
+});
+
 
 test("C3 rejects receipts from a different CI run or execution SHA", () => {
   const receipt = JSON.parse(readFileSync(resolve(import.meta.dirname, "../docs/verification/receipt-m7-c3-postgres.json"), "utf-8"));

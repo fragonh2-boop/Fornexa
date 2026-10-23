@@ -289,17 +289,15 @@ export interface WmsHandlingUnit {
 
 /**
  * Checks whether an error from querying handling_units is strictly due to
- * missing C-3 columns (PostgreSQL error 42703 undefined_column or matching message).
+ * missing C-3 columns (42703 or PGRST204 with the expected column name).
  * Prevents masking network, RLS or authorization errors (MUST-2).
  */
 export function isHuColumnMissingError(err: any): boolean {
   return Boolean(
     err &&
       (err.code === "42703" ||
-        (typeof err.message === "string" &&
-          (err.message.includes("state_controlled") ||
-            err.message.includes("measured_at") ||
-            err.message.includes("undefined_column")))),
+        (err.code === "PGRST204" && typeof err.message === "string" &&
+          /\b(state_controlled_at|state_controlled_by|measured_at|measured_by)\b/.test(err.message))),
   );
 }
 
@@ -757,10 +755,14 @@ export function validateWmsActionPayloadSecurity(
     };
   }
 
-  const p =
-    payload && typeof payload === "object" && !Array.isArray(payload)
-      ? (payload as Record<string, unknown>)
-      : {};
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return {
+      error: "WMS_FORBIDDEN: El payload de almacén debe ser un objeto JSON.",
+      code: "WMS_FORBIDDEN",
+      status: 400,
+    };
+  }
+  const p = payload as Record<string, unknown>;
 
   if (
     "state_controlled" in p ||

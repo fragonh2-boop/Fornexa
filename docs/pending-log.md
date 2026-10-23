@@ -4,6 +4,14 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+- C3 DB aplicada: workflow `39819461511` SUCCESS; ledger verificado con 42 migraciones y cuerpo ejecutado de 73022 bytes/md5 `051905956a1d369abdde83c7ef56f963`. No relanzar migración. Main `6eabee02`, CI566 SUCCESS y dominio canónico READY corresponden a la vía de datos, no a la aplicación #138.
+- Aplicación #138 abierta en `3fe2c9b`. Preparación sobre reconciliación `9ed302a6`: corregir S1/S2/S6 (payload inválido, clasificación de errores, fallbacks de lectura), comentario S5 y documentos caducados. Pendientes validación, publicación, CI y revisión del nuevo HEAD antes de merge/deploy; cierre documental posterior al READY y smoke.
+- Mantener como seguimiento S7 (limit antes del filtro por almacén), S8 (roles duplicados), S10 (mapeo por subcadena), observabilidad y pruebas reales de autenticación/aislamiento. Mocks de contexto no certifican getUser, cookies ni RLS. El smoke 400 exige sesión operativa legítima; sin sesión debe ser 401. Sin seed/F4 ni ensayo de movimientos productivos por esta preparación.
+
+### Historial operativo
+
+Los checkpoints siguientes son históricos; sus referencias a DB C3 pendiente quedan superadas por el estado anterior del 23-oct.
+
 ### 2026-10-22 — Integrar y ensayar el workflow corregido C3
 
 - CI #564 del HEAD `904b2c0` falló en el contexto del ensayo PG17: el parser de entorno omitía nombres con dígitos como SHA256. Corregido el script y añadida prueba local del recibo de intento; no cambiar SQL/workflow por ese fallo. Pendiente nueva CI real.
@@ -19,6 +27,20 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 - PR #138 `3fe2c9b25cb90b8dd246f56aa2f303bb10993ca0`: CI #559 SUCCESS; pendiente revisión independiente del delta T1 por Claude. Recibo original #557 y contraste obligatorio con el run actual en CI.
 - PR #140: CI #558 falló en Memorandum antes del arnés. Este ajuste incorpora el hito real y actualiza fecha/cobertura sin alterar los tres blobs originales. Pendientes CI posterior y revisión independiente del YAML; comprobar compatibilidad del arnés heredado con el SQL nuevo mediante ejecución, no inferir la causa de un rojo futuro.
 - No se ha aplicado la migración ni ejecutado merge/deploy en esta preparación. Mantener base de datos antes que aplicación; ninguna aprobación se deduce de igualdad de hashes o de CI de otra PR.
+
+### 2026-10-22 — C3 T1: recibo auténtico y vinculación de CI
+- **Estado:** ABIERTO hasta CI y revisión del delta. Se sustituye la instancia inconsistente por el JSON ORIGINAL de CI557 (run39730412618) con sus cinco inputs verificados y sin cambiar metadatos.
+- **Mecanismo:** CI retira la salida heredada antes del arnés; la validación posterior exige run, SHA de ejecución y ref actuales. Pruebas negativas para recibos de otra ejecución.
+- **Límites:** SQL/rollback/runner/arnés no cambian. La vía de datos #140 se revisa aparte; no hay merge, deploy ni SQL remoto por esta corrección. E2 permanece detrás de C3.
+
+
+### 2026-10-21 — C3 #138: correcciones preparadas; CI y revisión pendientes
+- **Estado:** ABIERTO. Delta de ChatGPT Work sobre `7c62694c` en la rama existente, tras pausa de Gemini; sin merge, deploy ni SQL remoto.
+- **Aceptación de negocio cerrada:** dato SGA vigente editable; reservas de distintas órdenes con mismo origen/destino permitidas. Stock100→60+40 admitido y60+60 sin sobreasignación, sin liberar reserva ajena al confirmar.
+- **Preparado:** RPC y FK de tenant, identidad de orden, procedencia de peso/volumen, endpoint con autenticación propia y mocks de módulos en tests, evidencias persistentes y gates del runner. El arnés añade casos17–20 (concurrencia de reservas, FK/CHECK, SGA, consolidación entrante).
+- **Verificado localmente:** 65 pruebas focales, PGlite20/20 complementario, tipos/lint/build. La suite general registra un timeout del test DATA150 de lock vacío, también aislado, sin cambios en ese subsistema. No se debilita ni elimina esa prueba; contrastar en CI.
+- **Siguiente:** CI del SHA publicado con PostgreSQL16 TCP, validación post-arnés del recibo activo, revisión delta de Claude nativo y plan DB-first revisado. Actualizar contrato E2 #139 con las decisiones finales; no implementar E2 por esta entrega. El histórico JSON de CI537 queda archivado en docs/verification/historical/ como no certificante y la certificación se apoya en el artefacto dinámico del run actual.
+
 
 ## Actualización verificada — 2026-10-19 11:30 CEST (P0)
 

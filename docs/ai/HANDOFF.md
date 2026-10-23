@@ -2,6 +2,25 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-23 — C3 aplicada; subsanación de aplicación para PR #138
+
+- Estado vivo contrastado: main `6eabee02d892f846554980fde82b9000a898b09a`; Vercel canónico READY y dominio en ese SHA. Workflow manual `39819461511` SUCCESS, ejecutado el 22-oct 17:04 UTC. Lectura propia del ledger: 42 migraciones; C3 `20261019120000`, un statement, 73022 bytes, md5 `051905956a1d369abdde83c7ef56f963`. No repetir dispatch: la base de datos ya está aplicada.
+- PR #138 sigue abierta con HEAD `3fe2c9b`, sin merge ni despliegue de aplicación. Base de esta preparación: reconciliación remota `9ed302a6ca9d86baffee77cc8d46ab0ff1c88b9e`. Claude revisó reconciliación y frontera en comentarios #138 `6347366097`, `6347509226`, `6347790833`, sin MUST; exigió actualizar los documentos antes del merge.
+- Work retoma autoría de S1/S2/S6: payload y cuerpo deben ser objetos JSON; el validador compartido rechaza formas inválidas y campos de autoridad antes del RPC. El POST distingue JSON inválido (400) de excepciones de ejecución (503). El loader solo degrada por código de esquema y nombre esperado de columna/tabla; permisos, autenticación y red propagan error con causa en lugar de devolver inventario vacío. Se elimina la doble validación de autoridad en la ruta y se corrige el comentario S5: el contexto de autenticación está mockeado en tests.
+- No se modifican SQL, rollback, workflow de aplicación, runner ni arnés relacional. La verificación del ledger no certifica RLS funcional ni recorrido WMS productivo; las veinte operaciones siguen acreditadas en PG16 TCP y el ensayo de ensamblado/concurrencia en PG17 es un baseline parcial.
+- Validación local: 76 pruebas focales PASS, TypeScript PASS, lint sin errores (10 avisos existentes) y build de producción PASS. Suite completa: 386/387 PASS; único fallo, timeout conocido de DATA150 al recuperar un lock vacío en este entorno, sin cambios en ese subsistema. No debilitarlo: CI debe acreditar la suite completa y ambos jobs PG antes de merge. Publicación en #138, CI del HEAD exacto y revisión independiente pendientes en este checkpoint. Después: squash-merge con expected head, Vercel READY/SHA/dominio, smoke de lectura y PR de cierre documental. El 400 con campo de autoridad requiere una sesión operativa legítima; sin ella la respuesta correcta es 401. No fabricar credenciales ni roles para el smoke.
+- Seguimientos: paginación/filtro por almacén antes de limit (S7), política de roles duplicada (S8), mapeo por subcadena (S10), observabilidad/auth-context y cobertura real de autenticación; aislamiento funcional entre tenants y recorrido productivo no acreditados por mocks. E2 #139 y las deudas de recibos/ensayos permanecen abiertas.
+
+## Historial — los checkpoints siguientes describen observaciones anteriores
+
+Las referencias inferiores a C3 ausente, dispatch pendiente o Work como ejecutor pendiente quedan superadas por el checkpoint del 23-oct. Se preservan como historia, no como instrucciones vigentes.
+
+## 2026-10-22 — preparación LOCAL de reconciliación de la aplicación
+
+- Rama local `codex/c3-app-reconcile-20261022`: merge de aplicación `3fe2c9b` con vía de datos `f1ffdaed`, sin mover PR #138 ni main. Resueltos cinco conflictos, conservando los 39 tests C3 (los 35 de datos más cuatro del runner), loader/mocks HTTP y job PG17. Los 35 tests compartidos se compararon byte a byte al retirar solo los cuatro tests del runner.
+- Ensayo PG17 de CI #565 descargado/verificado: aplicación, aborto SQL y dos sesiones W2/W3 PASS; scope parcial explícito. La API de validate seguía queued al comprobarla, aunque sus logs completos incluyen 364+35 tests, PG16 20/20, build/Mobile y limpieza. No dar GO global sin estado final y revisión.
+- Validación local de esta reconciliación: 70 pruebas focales, tipos, lint (sin errores) y build PASS. Se conserva en rama aislada `codex/c3-app-reconcile-20261022`; incorporar main definitivo después de aplicar/verificar DB y pasar CI antes de mover/mergear #138. No hay SQL productivo ni deploy.
+
 ## 2026-10-22 — integración del candidato de aplicación y ensayo PG17
 
 - **Primer ensayo CI #564:** publicado HEAD `904b2c0e0eabe7256eb4a305f3eb3cd5f2fcba39`, run `39794840639`. El job PG17 ejecutó parser/reconciliación sintéticos y llegó a registrar el intento tras la primera aplicación, pero abortó por `EXPECTED_MIGRATION_SHA256: unbound variable`: el extractor de entorno del script de prueba omitía claves con dígitos. Se corrige la extracción y se añade regresión local de los metadatos completos del intento. No es evidencia de fallo del SQL ni de producción; el ensayo real sigue pendiente del nuevo CI.
@@ -22,6 +41,21 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 - La vía manual está preparada, no aplicada. Revisión independiente del YAML en curso; no considerar su igualdad de bytes una aprobación de diseño. No hay merge, dispatch, SQL remoto ni deploy en esta preparación.
 - PR #138 tiene corrección T1 publicada en `3fe2c9b25cb90b8dd246f56aa2f303bb10993ca0`; CI #559 SUCCESS, 381 tests y certificación posterior al arnés en verde. Recibo original #557 restaurado sin editar; CI exige procedencia del run actual. Delta solicitado a Claude; no darlo por aprobado antes de su dictamen.
 - Siguiente: ejecutar CI de este ajuste, registrar su primera causa real si falla y reconciliar dependencias de validación del SQL nuevo sin omitir gates. Conservar el orden base de datos antes que aplicación. Los estados históricos inferiores no sustituyen este checkpoint.
+
+## 2026-10-22 — C3: procedencia auténtica del recibo y validación del run actual
+
+- Base: PR #138 en `a399ebdf1b717a1e2eaf8c877098fce0c0c931c4`. Dictamen de Claude: mecanismos T1/T2 cerrados; instancia del recibo inconsistente pendiente.
+- Se descarga el artefacto original 12405092282 de CI557/run39730412618, se comprueba el ZIP y los cinco hashes contra el árbol y se copia su JSON sin editar bytes ni metadatos. SHA256 del recibo auténtico: `77aea23ec8b80dc70dc4e99198adc2f68290baa7807514b938978bd8ac11f9f8` (39950 bytes). El snapshot auténtico demuestra ese run anterior; no se hace pasar por el nuevo commit.
+- CI elimina el recibo heredado antes del arnés y valida GITHUB_RUN_ID/GITHUB_SHA/GITHUB_REF del recibo recién emitido en el paso posterior. Se añaden rechazos para run/SHA diferentes. SQL, rollback, runner y arnés permanecen idénticos al objeto ya revisado.
+- Pendiente: publicar y contrastar CI del delta, revalidación de Claude. PR #140 sigue separada e inerte, pendiente de corrección del Memorandum, dependencias de validación y revisión independiente del workflow. Orden conservado: datos antes del código; sin SQL remoto, dispatch, infraestructura, merge ni deploy en esta preparación.
+
+## 2026-10-21 — C3 PR #138: relevo de preparación y decisiones SGA/reposición
+
+- Base de trabajo: `feat/wms-c3-server-controls-real-post`, padre `7c62694c38699e9f4e185d6b2257122ef3eb7f36`; main remoto comprobado `b7cbb2fe249650985caf631630cbf4a7460baa88`. Gemini confirmó pausa y ausencia de diff pendiente; ChatGPT Work prepara este delta, Claude nativo conserva revisión independiente.
+- Decisiones del propietario: dato vigente de SGA suficiente y editable; órdenes distintas pueden compartir origen y destino de picking/preparación con saldo suficiente. Se incorporan al contrato C3, RPC, identidad de orden/reserva, trazabilidad y pruebas de comportamiento. La revisión de #139 debe reconciliar estas mismas decisiones después.
+- Se corrigen la referencia de stock por tenant, el aislamiento de dependencias de los tests HTTP y los límites/evidencias del runner. El recibo histórico no se presenta como ejecución actual; el arnés de 20 casos declara esquema maestro parcial y contadores de certificación separados.
+- Comprobaciones locales: 65 pruebas focales PASS, ensayo PGlite 20/20 (0 certificadas como PostgreSQL16), TypeScript y lint PASS, build de producción PASS con el Memorandum actualizado. Suite general: 378/379 PASS; el test DATA150 de recuperación de lock vacío agota 15s también aislado en este entorno; sus fuentes no se han modificado. La CI del nuevo SHA debe comprobar la suite completa y las dos sesiones reales de PostgreSQL16. No se sustituye por PGlite.
+- Pendiente: CI del nuevo commit, revalidación independiente del delta y plan DB-first concreto antes de merge/deploy. No se ha aplicado SQL remoto, creado seed, hecho merge ni desplegado. No declarar C3 terminado por esta preparación.
 
 ## Estado operativo verificado — 2026-10-19 11:30 CEST
 
