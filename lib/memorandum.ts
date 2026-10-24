@@ -18,7 +18,7 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "24 oct 2026";
+export const memorandumUpdatedAt = "23 oct 2026";
 export const memorandumCommitCoverage = 677;
 
 export const memorandumPending: MemorandumPending[] = [
@@ -194,8 +194,8 @@ export const memorandumPending: MemorandumPending[] = [
 
 export const memorandumReleases: MemorandumRelease[] = [
   {
-    version: "2026.10.24-1",
-    date: "24 oct 2026",
+    version: "2026.10.23-4",
+    date: "23 oct 2026",
     surface: ["Plataforma"],
     title: "Saneamiento de baseline Supabase Preview (customs_messages y customs_events tenant_id)",
     purpose: "Reparar la discrepancia histórica de baseline en Supabase Preview incorporando tenant_id en customs_messages y customs_events con preservación inmutable del ledger y auditoría literal-safe.",
