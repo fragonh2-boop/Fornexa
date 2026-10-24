@@ -794,6 +794,28 @@ export function wmsRpcFailure(error: { code?: string; message?: string } | null 
       };
     }
   }
+
+  const E2_ERROR_MESSAGES: Record<string, { status: number; message: string }> = {
+    WMS_SOURCE_STOCK_DEPLETED: { status: 409, message: "El stock de origen no está disponible o se ha agotado." },
+    WMS_DUPLICATE_KEY_PAYLOAD_MISMATCH: { status: 409, message: "Clave de idempotencia duplicada con payload divergente." },
+    WMS_ALREADY_EXECUTED: { status: 409, message: "La propuesta de reposición ya ha sido ejecutada." },
+    WMS_INVALID_STATE: { status: 422, message: "Estado de la propuesta no válido para la transición solicitada." },
+    WMS_IMMUTABLE_RECEIVED_AT: { status: 422, message: "No se puede alterar la fecha de recepción histórica de un quant." },
+    WMS_SAME_BIN_INVALID: { status: 422, message: "La ubicación origen y destino no pueden ser la misma." },
+    WMS_NOT_FOUND: { status: 404, message: "Registro no encontrado." },
+    WMS_RESERVATION_MISSING: { status: 409, message: "Falta la reserva de stock asociada a la propuesta." },
+  };
+
+  for (const [code, entry] of Object.entries(E2_ERROR_MESSAGES)) {
+    if (rawMessage.includes(code)) {
+      return {
+        status: entry.status,
+        code,
+        error: `${code}: ${entry.message}`,
+      };
+    }
+  }
+
   return {
     status: 503,
     code: error?.code ?? "WMS_UNEXPECTED_ERROR",

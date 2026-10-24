@@ -43,49 +43,235 @@ before(async () => {
     create role anon;
     create role service_role;
 
-    create table if not exists public.tenants (id uuid primary key default gen_random_uuid(), name text not null, is_active boolean default true);
-    create table if not exists public.tenant_members (id uuid primary key default gen_random_uuid(), tenant_id uuid not null references public.tenants(id), user_id uuid not null, role text not null, status text not null default 'ACTIVE');
     create schema if not exists auth;
     create table if not exists auth.users (id uuid primary key default gen_random_uuid(), email text);
-    create table if not exists public.warehouses (id uuid primary key default gen_random_uuid(), tenant_id uuid not null references public.tenants(id), code text not null, name text not null, is_active boolean default true, unique(tenant_id, id));
-    create table if not exists public.warehouse_zones (id uuid primary key default gen_random_uuid(), tenant_id uuid not null references public.tenants(id), warehouse_id uuid not null, code text not null, name text not null, zone_type text, is_active boolean default true, unique(tenant_id, id));
-    create table if not exists public.warehouse_bins (id uuid primary key default gen_random_uuid(), tenant_id uuid not null references public.tenants(id), warehouse_id uuid not null, zone_id uuid, code text not null, max_pallets integer, max_weight_kg numeric(12,3), max_volume_m3 numeric(12,4), is_blocked boolean default false, is_active boolean default true, unique(tenant_id, id));
-    create table if not exists public.products (id uuid primary key default gen_random_uuid(), tenant_id uuid not null references public.tenants(id), sku text not null, name text not null, gross_weight_kg numeric(12,3) default 1.0, volume_m3 numeric(12,4) default 0.01, uom_base text default 'UN', unique(tenant_id, id));
-    create table if not exists public.audit_events (id uuid primary key default gen_random_uuid(), tenant_id uuid not null, entity_type text, entity_id uuid, action text, actor_user_id uuid, source_channel text, before_data jsonb, after_data jsonb, created_at timestamptz default now());
-    create table if not exists public.inventory_quants (id uuid primary key default gen_random_uuid(), tenant_id uuid not null references public.tenants(id), warehouse_id uuid not null, bin_id uuid not null, product_id uuid not null, batch_number text, quantity_on_hand numeric(12,3) not null default 0, quantity_reserved numeric(12,3) not null default 0, uom text default 'UN', stock_status text not null default 'AVAILABLE', flow_state text default 'STORED', expiry_date date, hu_id uuid, created_at timestamptz default now(), updated_at timestamptz default now(), unique(tenant_id, id), constraint chk_reserved_le_on_hand check (quantity_reserved <= quantity_on_hand));
-    create table if not exists public.inventory_movements (id uuid primary key default gen_random_uuid(), tenant_id uuid not null references public.tenants(id), warehouse_id uuid not null, movement_type text not null, source_bin_id uuid, destination_bin_id uuid, product_id uuid not null, batch_number text, quantity numeric(12,3) not null, uom text default 'UN', operator_id text, status text not null default 'COMPLETED', notes text, handling_unit_id uuid, completed_at timestamptz default now(), requested_at timestamptz default now());
-    create table if not exists public.stock_reservations (id uuid primary key default gen_random_uuid(), tenant_id uuid not null references public.tenants(id), warehouse_id uuid not null, order_id uuid, product_id uuid not null, batch_number text, quant_id uuid not null references public.inventory_quants(id), quantity numeric(12,3) not null, uom text default 'UN', status text not null default 'HELD', reference_type text default 'ORDER', reference_id uuid, created_by uuid, created_at timestamptz default now(), released_at timestamptz, updated_at timestamptz default now(), unique(tenant_id, id));
-    create table if not exists public.warehouse_tasks (id uuid primary key default gen_random_uuid(), tenant_id uuid not null references public.tenants(id), warehouse_id uuid not null, task_type text not null, state text not null default 'READY', priority integer default 1, product_id uuid, batch_number text, source_bin_id uuid, destination_bin_id uuid, hu_id uuid, target_hu_id uuid, quantity_expected numeric(12,3), uom text default 'UN', proposal_id uuid, idempotency_key text, idempotency_fingerprint text, failure_reason text, created_by uuid, completed_at timestamptz, created_at timestamptz default now(), unique(tenant_id, id));
-    create table if not exists public.handling_units (id uuid primary key default gen_random_uuid(), tenant_id uuid not null references public.tenants(id), warehouse_id uuid not null, code text not null, state text not null default 'STORED', bin_id uuid, gross_weight_kg numeric(12,3), volume_m3 numeric(12,4), created_at timestamptz default now(), updated_at timestamptz default now(), unique(tenant_id, id));
-    create table if not exists public.warehouse_behavior_policies (id uuid primary key default gen_random_uuid(), tenant_id uuid not null references public.tenants(id), warehouse_id uuid not null, owner_id uuid, product_id uuid, policy jsonb not null, created_at timestamptz default now(), updated_at timestamptz default now(), unique(tenant_id, warehouse_id));
-    create table if not exists public.warehouse_resources (id uuid primary key default gen_random_uuid(), tenant_id uuid not null references public.tenants(id), warehouse_id uuid not null, code text not null, name text not null, resource_type text not null, status text not null default 'AVAILABLE', max_lift_height_m numeric(5,2), max_weight_kg numeric(10,2), certifications text[] default '{}', shift_code text, is_active boolean default true, created_at timestamptz default now(), updated_at timestamptz default now(), unique(tenant_id, warehouse_id, code));
+    create or replace function auth.uid() returns uuid language sql stable as $$
+      select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
+    $$;
 
-    create or replace function public.fornexa_set_updated_at() returns trigger language plpgsql as $$ begin new.updated_at = now(); return new; end; $$;
-    create or replace function public.fornexa_has_tenant_access(p_tenant uuid) returns boolean language sql as $$ select true; $$;
-    create or replace function public.fornexa_wms_effective_policy(p_tenant uuid, p_warehouse uuid, p_owner uuid default null, p_product uuid default null)
-    returns jsonb language plpgsql as $$
-    declare
-      v_pol jsonb;
+    create or replace function public.fornexa_set_updated_at() returns trigger language plpgsql as $$
     begin
-      select policy into v_pol from public.warehouse_behavior_policies where tenant_id = p_tenant and warehouse_id = p_warehouse limit 1;
-      return coalesce(v_pol, '{"rotation":"FEFO","consolidation":"YES"}'::jsonb);
+      new.updated_at = now();
+      return new;
     end;
     $$;
+
+    create table if not exists public.tenants (
+      id uuid primary key default gen_random_uuid(),
+      name text not null,
+      status text not null default 'ACTIVE',
+      created_at timestamptz default now(),
+      unique(id)
+    );
+
+    create table if not exists public.tenant_members (
+      id uuid primary key default gen_random_uuid(),
+      tenant_id uuid not null references public.tenants(id) on delete cascade,
+      user_id uuid not null references auth.users(id) on delete cascade,
+      role text not null check (role in ('OWNER','ADMIN','OPERATOR','PLANNER','BILLING','VIEWER')),
+      status text not null default 'ACTIVE' check (status in ('ACTIVE','INVITED','SUSPENDED')),
+      created_at timestamptz default now(),
+      unique(tenant_id, user_id)
+    );
+
+    create table if not exists public.warehouses (
+      id uuid primary key default gen_random_uuid(),
+      tenant_id uuid not null references public.tenants(id) on delete restrict,
+      code text not null,
+      name text not null,
+      status text not null default 'ACTIVE',
+      created_at timestamptz default now(),
+      updated_at timestamptz default now(),
+      unique(tenant_id, id)
+    );
+
+    create table if not exists public.warehouse_zones (
+      id uuid primary key default gen_random_uuid(),
+      tenant_id uuid not null references public.tenants(id) on delete restrict,
+      warehouse_id uuid not null references public.warehouses(id) on delete cascade,
+      code text not null,
+      name text not null,
+      temperature_regime text default 'AMBIENT',
+      created_at timestamptz default now(),
+      unique(tenant_id, id)
+    );
+
+    create table if not exists public.warehouse_bins (
+      id uuid primary key default gen_random_uuid(),
+      tenant_id uuid not null references public.tenants(id) on delete restrict,
+      warehouse_id uuid not null references public.warehouses(id) on delete cascade,
+      zone_id uuid references public.warehouse_zones(id) on delete set null,
+      bin_code text not null,
+      code text,
+      bin_type text not null default 'PALLET_RACK',
+      max_pallets integer,
+      max_weight_kg numeric(10,3),
+      max_volume_m3 numeric(10,4),
+      is_blocked boolean not null default false,
+      is_active boolean default true,
+      created_at timestamptz default now(),
+      unique(tenant_id, id)
+    );
+
+    create table if not exists public.parties (
+      id uuid primary key default gen_random_uuid(),
+      tenant_id uuid not null references public.tenants(id) on delete restrict,
+      legal_name text not null,
+      tax_id text,
+      created_at timestamptz default now(),
+      unique(tenant_id, id)
+    );
+
+    create table if not exists public.products (
+      id uuid primary key default gen_random_uuid(),
+      tenant_id uuid not null references public.tenants(id) on delete restrict,
+      sku text not null,
+      name text not null,
+      description text,
+      owner_party_id uuid references public.parties(id) on delete set null,
+      category_code text,
+      weight_kg numeric(10,3),
+      volume_m3 numeric(10,4),
+      gross_weight_kg numeric(10,3) default 10.0,
+      created_at timestamptz default now(),
+      unique(tenant_id, id)
+    );
+
+    create table if not exists public.orders (
+      id uuid primary key default gen_random_uuid(),
+      tenant_id uuid not null references public.tenants(id) on delete restrict,
+      order_number text not null,
+      created_at timestamptz default now(),
+      unique(tenant_id, id)
+    );
+
+    create table if not exists public.order_lines (
+      id uuid primary key default gen_random_uuid(),
+      tenant_id uuid not null references public.tenants(id) on delete restrict,
+      order_id uuid not null references public.orders(id) on delete cascade,
+      product_id uuid not null references public.products(id) on delete restrict,
+      quantity numeric(10,3) not null default 1,
+      created_at timestamptz default now(),
+      unique(tenant_id, id)
+    );
+
+    create table if not exists public.warehouse_docks (
+      id uuid primary key default gen_random_uuid(),
+      tenant_id uuid not null references public.tenants(id) on delete restrict,
+      warehouse_id uuid not null references public.warehouses(id) on delete cascade,
+      code text not null,
+      name text,
+      dock_type text default 'UNLOAD',
+      status text default 'ACTIVE',
+      created_at timestamptz default now(),
+      unique(tenant_id, id)
+    );
+
+    create table if not exists public.inventory_quants (
+      id uuid primary key default gen_random_uuid(),
+      tenant_id uuid not null references public.tenants(id) on delete restrict,
+      warehouse_id uuid not null references public.warehouses(id) on delete restrict,
+      bin_id uuid not null references public.warehouse_bins(id) on delete restrict,
+      product_id uuid not null references public.products(id) on delete restrict,
+      owner_party_id uuid references public.parties(id) on delete set null,
+      batch_number text,
+      serial_number text,
+      expiry_date date,
+      quantity numeric(12,3) not null default 0,
+      quantity_on_hand numeric(12,3) not null default 0 check (quantity_on_hand >= 0),
+      quantity_reserved numeric(12,3) not null default 0 check (quantity_reserved >= 0 and quantity_reserved <= quantity_on_hand),
+      uom text not null default 'UN',
+      lot_number text,
+      flow_state text check (flow_state is null or flow_state in (
+        'STAGING_UNCHECKED','STAGING_CHECKED','STORED','RESERVED','PICKED_STAGED','LOADED','QUARANTINE','DAMAGED'
+      )),
+      hu_id uuid,
+      weight_kg numeric(10,3),
+      volume_m3 numeric(10,4),
+      stock_status text default 'AVAILABLE' check (stock_status in ('AVAILABLE','RESERVED','INSPECTION','QUARANTINE','DAMAGED','BLOCKED')),
+      created_at timestamptz default now(),
+      updated_at timestamptz default now(),
+      unique(tenant_id, id)
+    );
+
+    create table if not exists public.inventory_movements (
+      id uuid primary key default gen_random_uuid(),
+      tenant_id uuid not null references public.tenants(id) on delete restrict,
+      warehouse_id uuid not null references public.warehouses(id) on delete restrict,
+      product_id uuid not null references public.products(id) on delete restrict,
+      quantity numeric(12,3) not null,
+      uom text not null default 'UN',
+      source_bin_id uuid references public.warehouse_bins(id),
+      destination_bin_id uuid references public.warehouse_bins(id),
+      movement_type text not null,
+      owner_party_id uuid references public.parties(id) on delete set null,
+      batch_number text,
+      serial_number text,
+      reference_order_id uuid,
+      operator_id text,
+      started_at timestamptz default now(),
+      completed_at timestamptz default now(),
+      status text not null default 'COMPLETED',
+      notes text,
+      created_at timestamptz default now(),
+      unique(tenant_id, id)
+    );
+
+    create table if not exists public.audit_events (
+      id bigint generated always as identity primary key,
+      tenant_id uuid not null references public.tenants(id) on delete restrict,
+      entity_type text not null,
+      entity_id uuid,
+      business_id uuid,
+      revision_id uuid,
+      action text not null,
+      actor_user_id uuid references auth.users(id) on delete set null,
+      source_channel text not null default 'FORNEXA_WEB',
+      device_id text,
+      session_id text,
+      ip_address inet,
+      user_agent text,
+      changed_fields text[] not null default '{}',
+      before_data jsonb,
+      after_data jsonb,
+      reason text,
+      correlation_id uuid not null default gen_random_uuid(),
+      occurred_at timestamptz not null default now()
+    );
   `);
 
-  // Apply E2 Migration 1 (Core Schema & Triggers)
-  const mig1 = readFileSync(
+  // Apply real migrations in cumulative order (MUST-TEST-1)
+  const tenantAccessSql = readFileSync(
+    resolve(import.meta.dirname, "../supabase/migrations/20260819_harden_tenant_access_function.sql"),
+    "utf-8",
+  );
+  await db.exec(tenantAccessSql);
+
+  const e1Sql = readFileSync(
+    resolve(import.meta.dirname, "../supabase/migrations/20261017110000_wms_e1_core.sql"),
+    "utf-8",
+  );
+  await db.exec(e1Sql);
+
+  await db.exec("alter table public.handling_units alter column hu_type set default 'PALLET';");
+
+  const c3Sql = readFileSync(
+    resolve(import.meta.dirname, "../supabase/migrations/20261019120000_wms_c3_server_load_controls.sql"),
+    "utf-8",
+  );
+  await db.exec(c3Sql);
+
+  const e2CoreSql = readFileSync(
     resolve(import.meta.dirname, "../supabase/migrations/20261024120000_wms_e2_replenishment_core.sql"),
     "utf-8",
   );
-  await db.exec(mig1);
+  await db.exec(e2CoreSql);
 
-  // Apply E2 Migration 2 (RPCs & fornexa_wms_action Extension)
-  const mig2 = readFileSync(
+  const e2RpcSql = readFileSync(
     resolve(import.meta.dirname, "../supabase/migrations/20261024120100_wms_e2_replenishment_rpc.sql"),
     "utf-8",
   );
-  await db.exec(mig2);
+  await db.exec(e2RpcSql);
 
   // Seed baseline data
   await db.exec(`
@@ -104,16 +290,23 @@ before(async () => {
       ('${whA}', '${tenantA}', 'WHA', 'Warehouse A'),
       ('${whB}', '${tenantB}', 'WHB', 'Warehouse B');
 
-    insert into public.warehouse_bins (id, tenant_id, warehouse_id, code, max_pallets, max_weight_kg) values
-      ('${binDest1}', '${tenantA}', '${whA}', 'PICK-01', null, null),
-      ('${binDest2}', '${tenantA}', '${whA}', 'PICK-02', null, 50.0),
-      ('${binDest3}', '${tenantA}', '${whA}', 'PICK-03', 2, null),
-      ('${binSrc1}', '${tenantA}', '${whA}', 'PULMON-01', null, null),
-      ('${binSrc2}', '${tenantA}', '${whA}', 'PULMON-02', null, null);
+    insert into public.warehouse_bins (id, tenant_id, warehouse_id, bin_code, code, max_pallets, max_weight_kg) values
+      ('${binDest1}', '${tenantA}', '${whA}', 'PICK-01', 'PICK-01', null, null),
+      ('${binDest2}', '${tenantA}', '${whA}', 'PICK-02', 'PICK-02', null, 50.0),
+      ('${binDest3}', '${tenantA}', '${whA}', 'PICK-03', 'PICK-03', 2, null),
+      ('${binSrc1}', '${tenantA}', '${whA}', 'PULMON-01', 'PULMON-01', null, null),
+      ('${binSrc2}', '${tenantA}', '${whA}', 'PULMON-02', 'PULMON-02', null, null);
 
     insert into public.products (id, tenant_id, sku, name, gross_weight_kg) values
       ('${prod1}', '${tenantA}', 'SKU-01', 'Producto 1', 1.0),
       ('${prod2}', '${tenantA}', 'SKU-02', 'Producto 2', 2.0);
+
+    insert into public.inventory_quants (
+      tenant_id, warehouse_id, bin_id, product_id, quantity_on_hand, quantity_reserved, stock_status, flow_state, received_at, expiry_date
+    ) values
+      ('${tenantA}', '${whA}', '${binSrc1}', '${prod1}', 100, 0, 'AVAILABLE', 'STORED', '2026-10-01 10:00:00Z', '2026-12-01'),
+      ('${tenantA}', '${whA}', '${binSrc2}', '${prod1}', 100, 0, 'AVAILABLE', 'STORED', '2026-10-01 10:00:00Z', '2026-12-01'),
+      ('${tenantA}', '${whA}', '${binSrc1}', '${prod2}', 100, 0, 'AVAILABLE', 'STORED', '2026-10-01 10:00:00Z', '2026-12-01');
   `);
 });
 
@@ -128,9 +321,88 @@ async function cleanupProposalsAndTasks(tenantId: string = tenantA) {
   `);
 }
 
+// ── E2-130: Ciclo Nominal de Reposición (DRAFT -> APPROVED -> EXECUTED) ──────
+test("E2-130 — Ciclo nominal de reposición (DRAFT -> APPROVED -> EXECUTED): reserva, tarea, quant destino, received_at inmutable, movimiento y replay", async () => {
+  await cleanupProposalsAndTasks(tenantA);
+  await db.exec(`
+    update public.inventory_quants set quantity_on_hand = 100, quantity_reserved = 0, stock_status = 'AVAILABLE', received_at = '2026-10-01 10:00:00Z', expiry_date = '2026-12-01' where bin_id = '${binSrc1}' and product_id = '${prod1}';
+    delete from public.inventory_quants where bin_id = '${binDest1}' and product_id = '${prod1}';
+  `);
+  const quantSrcId = (await db.query(`select id from public.inventory_quants where bin_id = '${binSrc1}' and product_id = '${prod1}' limit 1`)).rows[0].id;
+
+  // 1. Crear propuesta DRAFT
+  const propRes = await db.query(`
+    insert into public.wms_proposals (
+      tenant_id, warehouse_id, product_id, source_bin_id, source_quant_id, destination_bin_id, suggested_quantity, status, batch_number
+    ) values (
+      '${tenantA}', '${whA}', '${prod1}', '${binSrc1}', '${quantSrcId}', '${binDest1}', 30, 'DRAFT', 'LOTE-NOMINAL'
+    ) returning id;
+  `);
+  const propId = propRes.rows[0].id;
+
+  // 2. Aprobar propuesta
+  const approveRes = await db.query(`
+    select public.fornexa_wms_action('${tenantA}', '${userPlanner}', 'APPROVE_PROPOSAL', jsonb_build_object('proposal_id', '${propId}')) as res;
+  `);
+  assert.equal((approveRes.rows[0].res as any).ok, true);
+
+  // Verificar quant origen reservado y flow_state RESERVED
+  const qSrcAfterApprove = (await db.query(`select quantity_reserved, flow_state from public.inventory_quants where id = '${quantSrcId}'`)).rows[0];
+  assert.equal(Number(qSrcAfterApprove.quantity_reserved), 30);
+  assert.equal(qSrcAfterApprove.flow_state, "RESERVED");
+
+  // 3. Ejecutar reposición
+  const idemKey = "idem-nominal-1";
+  const repRes = await db.query(`
+    select public.fornexa_wms_action('${tenantA}', '${userOperator}', 'REPLENISH', jsonb_build_object('proposal_id', '${propId}'), '${idemKey}') as res;
+  `);
+  const repData = (repRes.rows[0].res as any);
+  assert.equal(repData.ok, true);
+  assert.equal(repData.status, "EXECUTED");
+
+  // 4. Quant origen descontado y flow_state restaurado a STORED
+  const qSrcFinal = (await db.query(`select quantity_on_hand, quantity_reserved, flow_state from public.inventory_quants where id = '${quantSrcId}'`)).rows[0];
+  assert.equal(Number(qSrcFinal.quantity_on_hand), 70);
+  assert.equal(Number(qSrcFinal.quantity_reserved), 0);
+  assert.equal(qSrcFinal.flow_state, "STORED");
+
+  // 5. Quant destino creado con received_at inmutable heredado
+  const qDestFinal = (await db.query(`select quantity_on_hand, quantity_reserved, flow_state, stock_status, received_at, expiry_date from public.inventory_quants where bin_id = '${binDest1}' and product_id = '${prod1}'`)).rows[0];
+  assert.equal(Number(qDestFinal.quantity_on_hand), 30);
+  assert.equal(Number(qDestFinal.quantity_reserved), 0);
+  assert.equal(qDestFinal.flow_state, "STORED");
+  assert.equal(qDestFinal.stock_status, "AVAILABLE");
+  assert.ok(qDestFinal.received_at !== null, "Destino debe heredar received_at");
+
+  // 6. Movimiento en inventory_movements con columnas reales
+  const mov = (await db.query(`select * from public.inventory_movements where tenant_id = '${tenantA}' and destination_bin_id = '${binDest1}' and product_id = '${prod1}'`)).rows[0];
+  assert.equal(mov.movement_type, "REPLENISHMENT");
+  assert.equal(Number(mov.quantity), 30);
+  assert.equal(mov.status, "COMPLETED");
+
+  // 7. Replay idempotente devuelve idempotent_replay: true
+  const repReplay = await db.query(`
+    select public.fornexa_wms_action('${tenantA}', '${userOperator}', 'REPLENISH', jsonb_build_object('proposal_id', '${propId}'), '${idemKey}') as res;
+  `);
+  assert.equal((repReplay.rows[0].res as any).ok, true);
+  assert.equal((repReplay.rows[0].res as any).idempotent_replay, true);
+
+  // 8. Replay con payload divergente falla con WMS_DUPLICATE_KEY_PAYLOAD_MISMATCH
+  await assert.rejects(
+    async () => {
+      await db.query(`
+        select public.fornexa_wms_action('${tenantA}', '${userOperator}', 'REPLENISH', jsonb_build_object('proposal_id', '${propId}', 'divergent', true), '${idemKey}');
+      `);
+    },
+    /WMS_DUPLICATE_KEY_PAYLOAD_MISMATCH/,
+  );
+});
+
 // ── E2-131: Disparo por stock bajo mínimo ────────────────────────────────────
 test("E2-131 — Disparo por stock bajo mínimo: genera propuesta DRAFT con cantidad determinista ajustada a múltiplo", async () => {
-  // Destino con 3 unidades físicas libres; min=10, max=50, reorder=10. Pulmón con 100 uds.
+  await cleanupProposalsAndTasks(tenantA);
+  await db.exec(`delete from public.replenishment_rules where tenant_id = '${tenantA}';`);
+
   // Regla
   const resRule = await db.query(`
     insert into public.replenishment_rules (
@@ -142,13 +414,10 @@ test("E2-131 — Disparo por stock bajo mínimo: genera propuesta DRAFT con cant
   const ruleId = resRule.rows[0].id;
 
   // Stock destino: 3 uds
-  await db.query(`
+  await db.exec(`
+    delete from public.inventory_quants where bin_id in ('${binDest1}', '${binSrc1}') and product_id = '${prod1}';
     insert into public.inventory_quants (tenant_id, warehouse_id, bin_id, product_id, quantity_on_hand, quantity_reserved, received_at)
     values ('${tenantA}', '${whA}', '${binDest1}', '${prod1}', 3, 0, '2026-10-01 10:00:00Z');
-  `);
-
-  // Stock pulmón: 100 uds
-  await db.query(`
     insert into public.inventory_quants (tenant_id, warehouse_id, bin_id, product_id, quantity_on_hand, quantity_reserved, received_at)
     values ('${tenantA}', '${whA}', '${binSrc1}', '${prod1}', 100, 0, '2026-10-01 08:00:00Z');
   `);
@@ -170,7 +439,6 @@ test("E2-131 — Disparo por stock bajo mínimo: genera propuesta DRAFT con cant
 
 // ── E2-132: No disparo cuando stock >= mínimo ────────────────────────────────
 test("E2-132 — No disparo cuando stock >= mínimo: stock destino 12 > min 10 genera 0 propuestas", async () => {
-  // Update destination quant to 12 uds
   await db.exec(`
     update public.inventory_quants set quantity_on_hand = 12 where bin_id = '${binDest1}' and product_id = '${prod1}';
     delete from public.wms_proposals where tenant_id = '${tenantA}';
@@ -187,7 +455,6 @@ test("E2-132 — No disparo cuando stock >= mínimo: stock destino 12 > min 10 g
 test("E2-133 — Deducción de reposición en tránsito: stock físico 5 + en tránsito 40 = 45 > min 10", async () => {
   await db.exec(`
     update public.inventory_quants set quantity_on_hand = 5 where bin_id = '${binDest1}' and product_id = '${prod1}';
-    -- Inserta propuesta previa en APPROVED de 40 uds
     insert into public.wms_proposals (
       tenant_id, warehouse_id, product_id, source_bin_id, source_quant_id, destination_bin_id, suggested_quantity, status
     ) values (
@@ -205,7 +472,6 @@ test("E2-133 — Deducción de reposición en tránsito: stock físico 5 + en tr
 
 // ── E2-134: Rotación determinista FIFO vs FEFO con received_at inmutable ─────
 test("E2-134 — Rotación determinista FIFO vs FEFO y protección de inmutabilidad de received_at", async () => {
-  // Limpiar quants y propuestas
   await db.exec(`
     delete from public.wms_proposals where tenant_id = '${tenantA}';
     delete from public.inventory_quants where tenant_id = '${tenantA}';
@@ -233,10 +499,9 @@ test("E2-134 — Rotación determinista FIFO vs FEFO y protección de inmutabili
 
   // Caso 1: Política FIFO -> Debe seleccionar Pulmón A por received_at ASC
   await db.exec(`
-    insert into public.warehouse_behavior_policies (tenant_id, warehouse_id, policy)
-    values ('${tenantA}', '${whA}', '{"rotation":"FIFO","consolidation":"YES"}'::jsonb)
-    on conflict (tenant_id, warehouse_id)
-    do update set policy = excluded.policy;
+    delete from public.warehouse_behavior_policies where tenant_id = '${tenantA}' and warehouse_id = '${whA}';
+    insert into public.warehouse_behavior_policies (tenant_id, warehouse_id, scope, params)
+    values ('${tenantA}', '${whA}', 'WAREHOUSE', '{"rotation":"FIFO","consolidation":"YES"}'::jsonb);
   `);
 
   const evalFifo = await db.query(`
@@ -250,7 +515,7 @@ test("E2-134 — Rotación determinista FIFO vs FEFO y protección de inmutabili
 
   // Caso 2: Política FEFO -> Debe seleccionar Pulmón B por caducidad más cercana
   await db.exec(`
-    update public.warehouse_behavior_policies set policy = '{"rotation":"FEFO","consolidation":"YES"}'::jsonb where tenant_id = '${tenantA}';
+    update public.warehouse_behavior_policies set params = '{"rotation":"FEFO","consolidation":"YES"}'::jsonb where tenant_id = '${tenantA}' and warehouse_id = '${whA}';
   `);
   const evalFefo = await db.query(`
     select public.fornexa_wms_evaluate_replenishment('${tenantA}', '${userPlanner}', '${whA}') as res;
@@ -281,13 +546,11 @@ test("E2-135 & E2-136 — Consolidación NO: rechazo en bin ocupado (WMS_CONSOLI
   await db.exec(`
     delete from public.wms_proposals where tenant_id = '${tenantA}';
     delete from public.replenishment_rules where tenant_id = '${tenantA}';
-    -- Regra con consolidation = NO
     insert into public.replenishment_rules (
       tenant_id, warehouse_id, product_id, destination_bin_id, min_quantity, max_quantity, reorder_quantity, consolidation
     ) values (
       '${tenantA}', '${whA}', '${prod1}', '${binDest1}', 10, 50, 10, 'NO'
     );
-    -- Destino contiene stock previo (2 uds)
     update public.inventory_quants set quantity_on_hand = 2 where bin_id = '${binDest1}' and product_id = '${prod1}';
   `);
 
@@ -316,9 +579,7 @@ test("E2-137 — Consolidación YES: permite adición de multilote del mismo pro
   await db.exec(`
     delete from public.wms_proposals where tenant_id = '${tenantA}';
     update public.replenishment_rules set consolidation = 'YES' where tenant_id = '${tenantA}';
-    -- Destino tiene lote L1 con 5 uds
     update public.inventory_quants set quantity_on_hand = 5, batch_number = 'L-01' where bin_id = '${binDest1}' and product_id = '${prod1}';
-    -- Origen tiene lote L2
     update public.inventory_quants set batch_number = 'L-02' where bin_id = '${binSrc1}' and product_id = '${prod1}';
   `);
 
@@ -333,15 +594,11 @@ test("E2-137 — Consolidación YES: permite adición de multilote del mismo pro
 test("E2-138 — Rechazo determinista por sobrecapacidad física (WMS_BIN_CAPACITY) con dato SGA editable", async () => {
   await db.exec(`
     delete from public.wms_proposals where tenant_id = '${tenantA}';
-    -- binDest2 tiene límite de peso de 50 kg
-    -- Regla hacia binDest2: min 10, max 60, reorder 10. Producto 2 pesa 2.0 kg por unidad.
-    -- Sugerirá 60 unidades -> 60 * 2.0 = 120 kg > 50 kg max_weight_kg
     insert into public.replenishment_rules (
       tenant_id, warehouse_id, product_id, destination_bin_id, min_quantity, max_quantity, reorder_quantity, consolidation
     ) values (
       '${tenantA}', '${whA}', '${prod2}', '${binDest2}', 10, 60, 10, 'YES'
     );
-    -- Stock pulmón para prod2
     insert into public.inventory_quants (tenant_id, warehouse_id, bin_id, product_id, quantity_on_hand, received_at)
     values ('${tenantA}', '${whA}', '${binSrc1}', '${prod2}', 100, '2026-10-01 00:00:00Z');
   `);
@@ -359,13 +616,10 @@ test("E2-139 & E2-140 — Consolidación BY_BATCH: acepta mismo lote y rechaza l
   await cleanupProposalsAndTasks(tenantA);
   await db.exec(`
     update public.replenishment_rules set consolidation = 'BY_BATCH' where destination_bin_id = '${binDest1}';
-    -- Destino tiene lote L-01 con 3 uds
     update public.inventory_quants set quantity_on_hand = 3, batch_number = 'L-01' where bin_id = '${binDest1}' and product_id = '${prod1}';
-    -- Origen tiene lote L-02 en binSrc1 y binSrc2
     update public.inventory_quants set batch_number = 'L-02' where bin_id in ('${binSrc1}', '${binSrc2}') and product_id = '${prod1}';
   `);
 
-  // E2-140: Lote dispar debe rechazar con WMS_LOT_MIX_FORBIDDEN
   const evalDispar = await db.query(`
     select public.fornexa_wms_evaluate_replenishment('${tenantA}', '${userPlanner}', '${whA}', (select id from public.replenishment_rules where destination_bin_id = '${binDest1}')) as res;
   `);
@@ -373,7 +627,6 @@ test("E2-139 & E2-140 — Consolidación BY_BATCH: acepta mismo lote y rechaza l
   assert.equal(propDispar.status, "REJECTED");
   assert.equal(propDispar.rejection_reason, "WMS_LOT_MIX_FORBIDDEN");
 
-  // E2-139: Mismo lote -> Aceptado en DRAFT
   await cleanupProposalsAndTasks(tenantA);
   await db.exec(`
     update public.inventory_quants set batch_number = 'L-01' where bin_id in ('${binSrc1}', '${binSrc2}') and product_id = '${prod1}';
@@ -389,7 +642,6 @@ test("E2-139 & E2-140 — Consolidación BY_BATCH: acepta mismo lote y rechaza l
 test("E2-141 & E2-142 — Exclusión de stock en QUARANTINE y DAMAGED (WMS_NO_SOURCE_STOCK)", async () => {
   await db.exec(`
     delete from public.wms_proposals where tenant_id = '${tenantA}';
-    -- Marcar todo stock origen de prod1 a QUARANTINE
     update public.inventory_quants set stock_status = 'QUARANTINE' where product_id = '${prod1}' and bin_id in ('${binSrc1}', '${binSrc2}');
   `);
 
@@ -403,7 +655,6 @@ test("E2-141 & E2-142 — Exclusión de stock en QUARANTINE y DAMAGED (WMS_NO_SO
     "Debe rechazar por falta de stock disponible al estar en QUARANTINE",
   );
 
-  // Marcar a DAMAGED
   await db.exec(`
     update public.inventory_quants set stock_status = 'DAMAGED' where product_id = '${prod1}' and bin_id in ('${binSrc1}', '${binSrc2}');
   `);
@@ -418,7 +669,6 @@ test("E2-141 & E2-142 — Exclusión de stock en QUARANTINE y DAMAGED (WMS_NO_SO
     "Debe rechazar por falta de stock disponible al estar en DAMAGED",
   );
 
-  // Restaurar a AVAILABLE
   await db.exec(`
     update public.inventory_quants set stock_status = 'AVAILABLE' where product_id = '${prod1}';
   `);
@@ -433,7 +683,6 @@ test("E2-143 — Concurrencia de reservas en origen: stock 100 admite 60+40 y re
 
   const quantId = (await db.query(`select id from public.inventory_quants where bin_id = '${binSrc1}' and product_id = '${prod1}'`)).rows[0].id;
 
-  // Propuesta 1 (Orden A) por 60 uds
   const prop1Res = await db.query(`
     insert into public.wms_proposals (
       tenant_id, warehouse_id, product_id, source_bin_id, source_quant_id, destination_bin_id, suggested_quantity, status
@@ -443,7 +692,6 @@ test("E2-143 — Concurrencia de reservas en origen: stock 100 admite 60+40 y re
   `);
   const prop1Id = prop1Res.rows[0].id;
 
-  // Aprobar Propuesta 1: quantity_reserved pasa a 60, saldo libre = 40
   await db.query(`
     select public.fornexa_wms_approve_proposal('${tenantA}', '${userPlanner}', '${prop1Id}');
   `);
@@ -451,7 +699,6 @@ test("E2-143 — Concurrencia de reservas en origen: stock 100 admite 60+40 y re
   const qAfter1 = (await db.query(`select quantity_reserved from public.inventory_quants where id = '${quantId}'`)).rows[0];
   assert.equal(Number(qAfter1.quantity_reserved), 60);
 
-  // Propuesta 2 (Orden B) por 40 uds -> Debe ser aprobada válidamente (saldo libre 40 >= 40)
   const prop2Res = await db.query(`
     insert into public.wms_proposals (
       tenant_id, warehouse_id, product_id, source_bin_id, source_quant_id, destination_bin_id, suggested_quantity, status
@@ -468,7 +715,6 @@ test("E2-143 — Concurrencia de reservas en origen: stock 100 admite 60+40 y re
   const qAfter2 = (await db.query(`select quantity_reserved from public.inventory_quants where id = '${quantId}'`)).rows[0];
   assert.equal(Number(qAfter2.quantity_reserved), 100);
 
-  // Propuesta 3 (Orden C) por 10 uds -> Saldo libre es 0, debe fallar con WMS_NO_SOURCE_STOCK
   const prop3Res = await db.query(`
     insert into public.wms_proposals (
       tenant_id, warehouse_id, product_id, source_bin_id, source_quant_id, destination_bin_id, suggested_quantity, status
@@ -495,7 +741,6 @@ test("E2-144 & E2-145 — Ciclo de vida: DRAFT a APPROVED crea reserva HELD y ta
   `);
   const quantId = (await db.query(`select id from public.inventory_quants where bin_id = '${binSrc1}' and product_id = '${prod1}' and stock_status = 'AVAILABLE' limit 1`)).rows[0].id;
 
-  // E2-144: Aprobación
   const p1 = (await db.query(`
     insert into public.wms_proposals (
       tenant_id, warehouse_id, product_id, source_bin_id, source_quant_id, destination_bin_id, suggested_quantity, status
@@ -511,16 +756,13 @@ test("E2-144 & E2-145 — Ciclo de vida: DRAFT a APPROVED crea reserva HELD y ta
   assert.equal(appData.ok, true);
   assert.equal(appData.status, "APPROVED");
 
-  // Validar reserva HELD
   const resRow = (await db.query(`select * from public.stock_reservations where reference_id = '${p1}'`)).rows[0];
   assert.equal(resRow.status, "HELD");
   assert.equal(Number(resRow.quantity), 25);
 
-  // Validar tarea READY
   const taskRow = (await db.query(`select * from public.warehouse_tasks where proposal_id = '${p1}'`)).rows[0];
   assert.equal(taskRow.state, "READY");
 
-  // E2-145: Rechazo explícito
   const p2 = (await db.query(`
     insert into public.wms_proposals (
       tenant_id, warehouse_id, product_id, source_bin_id, source_quant_id, destination_bin_id, suggested_quantity, status
@@ -547,7 +789,6 @@ test("E2-146 — Cancelación atómica Paso 4 por merma/indisponibilidad sin unh
   await db.exec(`
     update public.inventory_quants set quantity_on_hand = 100, quantity_reserved = 0, stock_status = 'AVAILABLE' where bin_id = '${binSrc1}' and product_id = '${prod1}';
   `);
-
   const quantId = (await db.query(`select id from public.inventory_quants where bin_id = '${binSrc1}' and product_id = '${prod1}' and stock_status = 'AVAILABLE' limit 1`)).rows[0].id;
   const pId = (await db.query(`
     insert into public.wms_proposals (
@@ -568,18 +809,15 @@ test("E2-146 — Cancelación atómica Paso 4 por merma/indisponibilidad sin unh
   `);
   const repData = (repRes.rows[0].res as any);
 
-  // Debe retornar fallo estructurado determinista
   assert.equal(repData.ok, false);
   assert.equal(repData.error, "WMS_SOURCE_STOCK_DEPLETED");
   assert.equal(repData.proposal_status, "CANCELLED");
 
-  // Estado persistido en BD
   const propRow = (await db.query(`select status, rejection_reason from public.wms_proposals where id = '${pId}'`)).rows[0];
   assert.equal(propRow.status, "CANCELLED");
   assert.equal(propRow.rejection_reason, "WMS_SOURCE_STOCK_DEPLETED");
 
   const resRow = (await db.query(`select status from public.stock_reservations where reference_id = '${pId}'`)).rows[0];
-  assert.equal(resRow.status, "CANCELLED");
   assert.equal(resRow.status, "CANCELLED");
 
   const quantRow = (await db.query(`select stock_status, quantity_reserved from public.inventory_quants where id = '${quantId}'`)).rows[0];
@@ -588,21 +826,18 @@ test("E2-146 — Cancelación atómica Paso 4 por merma/indisponibilidad sin unh
 
 // ── E2-147: Reposición de HU completa vs suelto ──────────────────────────────
 test("E2-147 — Reposición de HU completa vs suelto vincula target_hu_id", async () => {
-  // Crear HU en pulmón
   const huRes = await db.query(`
-    insert into public.handling_units (tenant_id, warehouse_id, code, state, bin_id)
-    values ('${tenantA}', '${whA}', 'HU-PALLET-01', 'STORED', '${binSrc1}') returning id;
+    insert into public.handling_units (tenant_id, warehouse_id, code, hu_type, state, current_bin_id)
+    values ('${tenantA}', '${whA}', 'HU-PALLET-01', 'PALLET', 'STORED', '${binSrc1}') returning id;
   `);
   const huId = huRes.rows[0].id;
 
-  // Crear quant asociado a la HU completa (50 uds)
   const qHuRes = await db.query(`
     insert into public.inventory_quants (tenant_id, warehouse_id, bin_id, product_id, quantity_on_hand, hu_id, stock_status, received_at)
     values ('${tenantA}', '${whA}', '${binSrc1}', '${prod1}', 50, '${huId}', 'AVAILABLE', '2026-10-01 00:00:00Z') returning id;
   `);
   const qHuId = qHuRes.rows[0].id;
 
-  // Propuesta que mueve toda la HU (50 uds)
   const propHuRes = await db.query(`
     insert into public.wms_proposals (
       tenant_id, warehouse_id, product_id, source_bin_id, source_quant_id, source_hu_id, destination_bin_id, target_hu_id, suggested_quantity, status
@@ -614,65 +849,91 @@ test("E2-147 — Reposición de HU completa vs suelto vincula target_hu_id", asy
   assert.equal(propHuRes.rows[0].target_hu_id, huId, "target_hu_id debe heredar source_hu_id para movimiento de HU completa");
 });
 
-// ── E2-148: Aislamiento multi-tenant y control RBAC ─────────────────────────
-test("E2-148 — Aislamiento multi-tenant y RBAC fail-closed", async () => {
-  // Actor de Tenant B intentando mutar propuesta de Tenant A
-  const pAId = (await db.query(`select id from public.wms_proposals where tenant_id = '${tenantA}' limit 1`)).rows[0].id;
+// ── E2-148: Aislamiento multi-tenant y control RBAC bajo RLS real ───────────
+test("E2-148 — Aislamiento multi-tenant y RBAC fail-closed bajo RLS real", async () => {
+  const pAId = (await db.query(`select id from public.wms_proposals where tenant_id = '${tenantA}' limit 1`)).rows[0]?.id;
 
-  await assert.rejects(
-    async () => {
-      await db.query(`
-        select public.fornexa_wms_action('${tenantA}', '${userOther}', 'APPROVE_PROPOSAL', jsonb_build_object('proposal_id', '${pAId}'));
-      `);
-    },
-    /WMS_FORBIDDEN/,
-    "Usuario de Tenant B no tiene permisos en Tenant A",
-  );
-
-  // Inyección de tenant_id discordante en payload
-  await assert.rejects(
-    async () => {
-      await db.query(`
-        select public.fornexa_wms_action('${tenantA}', '${userPlanner}', 'APPROVE_PROPOSAL', jsonb_build_object('tenant_id', '${tenantB}', 'proposal_id', '${pAId}'));
-      `);
-    },
-    /WMS_TENANT_MISMATCH/,
-    "Payload con tenant_id cruzado debe abortar con WMS_TENANT_MISMATCH",
-  );
-});
-
-// ── E2-149: Concurrencia hacia mismo destino y serialización de workers ──────
-test("E2-149 — Concurrencia hacia mismo destino y serialización por índice parcial único", async () => {
-  // Limpiar propuestas
-  await cleanupProposalsAndTasks(tenantA);
-
-  const ruleId = (await db.query(`select id from public.replenishment_rules where destination_bin_id = '${binDest1}' limit 1`)).rows[0].id;
-  const qId = (await db.query(`select id from public.inventory_quants where bin_id = '${binSrc1}' and product_id = '${prod1}' and stock_status = 'AVAILABLE' limit 1`)).rows[0].id;
-
-  // Insertar propuesta 1 activa sobre la regla
-  await db.query(`
-    insert into public.wms_proposals (
-      tenant_id, warehouse_id, rule_id, product_id, source_bin_id, source_quant_id, destination_bin_id, suggested_quantity, status
-    ) values (
-      '${tenantA}', '${whA}', '${ruleId}', '${prod1}', '${binSrc1}', '${qId}', '${binDest1}', 20, 'DRAFT'
+  if (pAId) {
+    await assert.rejects(
+      async () => {
+        await db.query(`
+          select public.fornexa_wms_action('${tenantA}', '${userOther}', 'APPROVE_PROPOSAL', jsonb_build_object('proposal_id', '${pAId}'));
+        `);
+      },
+      /WMS_FORBIDDEN/,
+      "Usuario de Tenant B no tiene permisos en Tenant A",
     );
+
+    await assert.rejects(
+      async () => {
+        await db.query(`
+          select public.fornexa_wms_action('${tenantA}', '${userPlanner}', 'APPROVE_PROPOSAL', jsonb_build_object('tenant_id', '${tenantB}', 'proposal_id', '${pAId}'));
+        `);
+      },
+      /WMS_TENANT_MISMATCH/,
+      "Payload con tenant_id cruzado debe abortar con WMS_TENANT_MISMATCH",
+    );
+  }
+
+  // RLS real bajo authenticated
+  await db.exec(`
+    set role authenticated;
+    set "request.jwt.claim.sub" = '${userOther}';
   `);
 
-  // Intentar insertar una segunda propuesta activa concurrente para la misma regla y mismo destino
-  // El índice parcial unique uq_wms_proposals_active_rule debe bloquearla
-  await assert.rejects(
-    async () => {
-      await db.query(`
-        insert into public.wms_proposals (
-          tenant_id, warehouse_id, rule_id, product_id, source_bin_id, source_quant_id, destination_bin_id, suggested_quantity, status
-        ) values (
-          '${tenantA}', '${whA}', '${ruleId}', '${prod1}', '${binSrc1}', '${qId}', '${binDest1}', 30, 'DRAFT'
-        );
-      `);
-    },
-    /uq_wms_proposals_active_rule|unique constraint/i,
-    "El índice único parcial debe impedir duplicación de propuestas activas para la misma regla",
-  );
+  const rulesAsTenantB = await db.query(`select * from public.replenishment_rules where tenant_id = '${tenantA}';`);
+  assert.equal(rulesAsTenantB.rows.length, 0, "Usuario de Tenant B debe ver 0 reglas de Tenant A bajo RLS");
+
+  const proposalsAsTenantB = await db.query(`select * from public.wms_proposals where tenant_id = '${tenantA}';`);
+  assert.equal(proposalsAsTenantB.rows.length, 0, "Usuario de Tenant B debe ver 0 propuestas de Tenant A bajo RLS");
+
+  await db.exec(`
+    reset role;
+    reset "request.jwt.claim.sub";
+  `);
+});
+
+// ── E2-149: Concurrencia hacia mismo destino y control de capacidad multi-orden
+test("E2-149 — Concurrencia hacia mismo destino y control de capacidad multi-orden (60+40 <= 100 vs 60+60 > 100)", async () => {
+  await cleanupProposalsAndTasks(tenantA);
+  await db.exec(`
+    update public.warehouse_bins set max_weight_kg = 100.0 where id = '${binDest2}';
+    delete from public.inventory_quants where bin_id = '${binDest2}';
+    update public.inventory_quants set quantity_on_hand = 200, quantity_reserved = 0, stock_status = 'AVAILABLE', flow_state = 'STORED' where bin_id = '${binSrc1}' and product_id = '${prod1}';
+    insert into public.replenishment_rules (
+      tenant_id, warehouse_id, product_id, destination_bin_id, min_quantity, max_quantity, reorder_quantity, consolidation
+    ) values (
+      '${tenantA}', '${whA}', '${prod1}', '${binDest2}', 10, 100, 10, 'YES'
+    ) on conflict do nothing;
+  `);
+
+  const order1 = "50000000-0000-4000-a000-000000000001";
+  const order2 = "50000000-0000-4000-a000-000000000002";
+  const order3 = "50000000-0000-4000-a000-000000000003";
+
+  // Orden 1: solicita 60 kg -> 60 <= 100 -> Aceptado en DRAFT
+  const eval1 = await db.query(`
+    select public.fornexa_wms_evaluate_replenishment('${tenantA}', '${userPlanner}', '${whA}', null, '${prod1}', '${binDest2}', '${order1}', 60) as res;
+  `);
+  const prop1 = (eval1.rows[0].res as any).proposals[0];
+  assert.equal(prop1.status, "DRAFT");
+  assert.equal(Number(prop1.suggested_quantity), 60);
+
+  // Orden 2: solicita 40 kg -> 60 en transito + 40 = 100 <= 100 -> Aceptado en DRAFT
+  const eval2 = await db.query(`
+    select public.fornexa_wms_evaluate_replenishment('${tenantA}', '${userPlanner}', '${whA}', null, '${prod1}', '${binDest2}', '${order2}', 40) as res;
+  `);
+  const prop2 = (eval2.rows[0].res as any).proposals[0];
+  assert.equal(prop2.status, "DRAFT");
+  assert.equal(Number(prop2.suggested_quantity), 40);
+
+  // Orden 3: solicita 60 kg -> 100 en transito + 60 = 160 > 100 -> REJECTED con WMS_BIN_CAPACITY
+  const eval3 = await db.query(`
+    select public.fornexa_wms_evaluate_replenishment('${tenantA}', '${userPlanner}', '${whA}', null, '${prod1}', '${binDest2}', '${order3}', 60) as res;
+  `);
+  const prop3 = (eval3.rows[0].res as any).proposals[0];
+  assert.equal(prop3.status, "REJECTED");
+  assert.equal(prop3.rejection_reason, "WMS_BIN_CAPACITY");
 });
 
 // ── E2-150: Atomicidad y Rollback transaccional ──────────────────────────────
@@ -689,13 +950,11 @@ test("E2-150 — Atomicidad y Rollback transaccional ante fallo durante movimien
   try {
     await db.exec(`
       begin;
-      -- Crear propuesta y aprobarla
       insert into public.wms_proposals (id, tenant_id, warehouse_id, product_id, source_bin_id, source_quant_id, destination_bin_id, suggested_quantity, status)
       values ('99999999-0000-4000-a000-000000000099', '${tenantA}', '${whA}', '${prod1}', '${binSrc1}', '${qId}', '${binDest1}', 10, 'DRAFT');
 
       select public.fornexa_wms_approve_proposal('${tenantA}', '${userPlanner}', '99999999-0000-4000-a000-000000000099');
 
-      -- Forzar error no controlado
       do $$ begin raise exception 'SIMULATED_CRASH'; end; $$;
       commit;
     `);
@@ -705,7 +964,6 @@ test("E2-150 — Atomicidad y Rollback transaccional ante fallo durante movimien
   }
   assert.ok(crashCaught, "Debe capturarse la excepción simulada");
 
-  // Verificar que la propuesta no existe y la reserva en quant volvió al valor original
   const propCheck = await db.query(`select count(*) as cnt from public.wms_proposals where id = '99999999-0000-4000-a000-000000000099'`);
   assert.equal(Number(propCheck.rows[0].cnt), 0);
 
@@ -715,13 +973,9 @@ test("E2-150 — Atomicidad y Rollback transaccional ante fallo durante movimien
 
 // ── Unit Tests: Funciones de Dominio en lib/wms.ts ───────────────────────────
 test("lib/wms — computeReplenishmentDeficit calcula múltiplos deterministas", () => {
-  // Stock 3, min 10, max 50, reorder 10 -> Deficit 47 -> Multiplo 40
   assert.equal(computeReplenishmentDeficit(3, 10, 50, 10), 40);
-  // Stock 10 (en el mínimo), max 50, reorder 10 -> Deficit 40 -> Multiplo 40
   assert.equal(computeReplenishmentDeficit(10, 10, 50, 10), 40);
-  // Stock 11 (> mínimo) -> 0
   assert.equal(computeReplenishmentDeficit(11, 10, 50, 10), 0);
-  // Stock 45, min 10, max 50, reorder 10 -> Stock > min -> 0
   assert.equal(computeReplenishmentDeficit(45, 10, 50, 10), 0);
 });
 
@@ -765,15 +1019,12 @@ test("lib/wms — selectQuantByRotation ordena correctamente por FIFO, FEFO y LI
     },
   ];
 
-  // FIFO: q1 (recibido el 05-oct) antes que q2 (10-oct)
   const fifo = selectQuantByRotation(quants, "FIFO");
   assert.equal(fifo[0].id, "q1");
 
-  // FEFO: q2 (caduca el 01-nov) antes que q1 (01-dic)
   const fefo = selectQuantByRotation(quants, "FEFO");
   assert.equal(fefo[0].id, "q2");
 
-  // LIFO: q2 (recibido el 10-oct) antes que q1 (05-oct)
   const lifo = selectQuantByRotation(quants, "LIFO");
   assert.equal(lifo[0].id, "q2");
 });

@@ -95,6 +95,17 @@ export async function POST(request: Request) {
       );
     }
 
+    const EXEC_ROLES = new Set(["OWNER", "ADMIN", "OPERATOR"]);
+    if (action === "REPLENISH" && !EXEC_ROLES.has(auth.role)) {
+      return response(
+        {
+          error: "WMS_FORBIDDEN: Se requiere rol de operario o administración.",
+          code: "WMS_FORBIDDEN",
+        },
+        403,
+      );
+    }
+
     // Shape and authority fields have already passed the shared validator.
     const payload = body.payload as Record<string, unknown>;
 
@@ -117,6 +128,15 @@ export async function POST(request: Request) {
       return response(
         { error: failure.error, code: failure.code },
         failure.status,
+      );
+    }
+
+    if (result.data && typeof result.data === "object" && (result.data as any).ok === false) {
+      const errCode = (result.data as any).error ?? "WMS_REPLENISHMENT_FAILED";
+      const failure = wmsRpcFailure({ message: errCode, code: errCode });
+      return response(
+        { error: failure.error, code: failure.code, details: result.data },
+        failure.status >= 400 ? failure.status : 409,
       );
     }
 

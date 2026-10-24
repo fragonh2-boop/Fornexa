@@ -199,7 +199,7 @@ export const memorandumReleases: MemorandumRelease[] = [
     surface: ["Web", "Plataforma"],
     title: "Almacenes — implementación runtime de reposición interna preventiva y dinámica (E2)",
     purpose: "Implementar el motor de reposición interna de almacén con cálculo determinista de déficit, propuestas, reservas HELD, rotación y ciclo de vida de tareas.",
-    outcome: "Implementadas las migraciones DDL y RPC para reglas de reposición (min/max, reorder, consolidación YES/NO/BY_BATCH), ciclo de vida de propuestas (DRAFT, APPROVED, REJECTED, EXECUTED, CANCELLED), reservas HELD en stock_reservations, tareas READY en warehouse_tasks, deduplicación de plazas por target_hu_id, rotación determinista FIFO/FEFO/LIFO con preservación inmutable de received_at, cancelación atómica en Paso 4 por merma sin unhandled RAISE, control de roles de planificación y ejecución, interfaz de usuario en Almacenes y suite de 19 pruebas locales cubriendo todos los escenarios E2-131 a E2-150.",
+    outcome: "Implementadas y subsanadas las migraciones DDL y RPC para reglas de reposición (min/max, reorder, consolidación YES/NO/BY_BATCH), ciclo de vida de propuestas (DRAFT, APPROVED, REJECTED, EXECUTED, CANCELLED), reservas HELD en stock_reservations, tareas READY en warehouse_tasks, deduplicación de plazas por target_hu_id, rotación determinista FIFO/FEFO/LIFO con preservación inmutable de received_at, cancelación atómica en Paso 4 por merma sin unhandled RAISE, control de roles de planificación y ejecución, interfaz de usuario en Almacenes y suite de 20 pruebas acumulativas bajo migraciones reales cubriendo E2-130 a E2-150.",
     status: "Preproducción",
   },
   {

@@ -135,13 +135,39 @@ create trigger trg_validate_proposal_bins
   before insert or update of source_bin_id, destination_bin_id, warehouse_id on public.wms_proposals
   for each row execute function public.fornexa_validate_proposal_bins();
 
+-- ── 3b. Cascade Rule Deactivation Trigger ───────────────────────────────────────
+create or replace function public.fornexa_wms_cascade_rule_deactivation()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if old.active = true and new.active = false then
+    update public.wms_proposals
+       set status = 'CANCELLED',
+           rejection_reason = 'RULE_DEACTIVATED',
+           updated_at = now()
+     where tenant_id = new.tenant_id
+       and rule_id = new.id
+       and status = 'DRAFT';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_cascade_rule_deactivation on public.replenishment_rules;
+create trigger trg_cascade_rule_deactivation
+  after update of active on public.replenishment_rules
+  for each row execute function public.fornexa_wms_cascade_rule_deactivation();
+
 -- ── 4. Extension on inventory_quants: Immutable received_at ──────────────────
 alter table public.inventory_quants
   add column if not exists received_at timestamptz;
 
 update public.inventory_quants q
    set received_at = coalesce(
-     (select min(coalesce(im.completed_at, im.requested_at))
+     (select min(coalesce(im.completed_at, im.created_at))
         from public.inventory_movements im
        where im.tenant_id = q.tenant_id
          and im.warehouse_id = q.warehouse_id
@@ -149,7 +175,7 @@ update public.inventory_quants q
          and im.destination_bin_id = q.bin_id
          and im.movement_type in ('RECEIPT', 'PUTAWAY')
          and (q.batch_number is null or im.batch_number = q.batch_number)),
-     (select min(coalesce(im.completed_at, im.requested_at))
+     (select min(coalesce(im.completed_at, im.created_at))
         from public.inventory_movements im
        where im.tenant_id = q.tenant_id
          and im.warehouse_id = q.warehouse_id
