@@ -18,8 +18,8 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "24 oct 2026";
-export const memorandumCommitCoverage = 678;
+export const memorandumUpdatedAt = "23 oct 2026";
+export const memorandumCommitCoverage = 677;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -194,8 +194,8 @@ export const memorandumPending: MemorandumPending[] = [
 
 export const memorandumReleases: MemorandumRelease[] = [
   {
-    version: "2026.10.24-1",
-    date: "24 oct 2026",
+    version: "2026.10.23-3",
+    date: "23 oct 2026",
     surface: ["Plataforma"],
     title: "Auditoría de base de datos — ejecutor oficial de captura en modo de solo lectura (READ ONLY)",
     purpose: "Implementar un ejecutor de captura oficial y seguro en modo de solo lectura con transaccionalidad estricta para la auditoría de migraciones y métricas referenciales de Supabase.",
