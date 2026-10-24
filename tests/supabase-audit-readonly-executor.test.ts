@@ -1,10 +1,11 @@
 // tests/supabase-audit-readonly-executor.test.ts
-// Tests for the Read-Only Supabase Audit Executor (scripts/audit/run-supabase-audit-readonly.mjs)
+// Tests for the Read-Only Supabase Audit Executor (scripts/audit/run-supabase-audit-readonly.ts)
 // Certifies:
 // 1. Kernel-level fail-closed read-only protection (PostgreSQL 25006).
-// 2. Connection string and host allowlist validation.
-// 3. Static audit SQL boundaries (BEGIN READ ONLY / ROLLBACK / 0 COMMIT).
+// 2. Connection string and host allowlist validation, query param filtering, and fragment rejection.
+// 3. Static audit SQL boundaries (BEGIN READ ONLY / ROLLBACK / 0 COMMIT) and canonical pin.
 // 4. In-memory execution, zero payload leakage, and 20260912 baseline preservation.
+// 5. Full relational execution on PGlite with realistic ledger scenarios (operational core, e1_core, c3_load_controls).
 
 import assert from "node:assert/strict";
 import { readFileSync, existsSync, unlinkSync } from "node:fs";
@@ -14,15 +15,42 @@ import { PGlite } from "@electric-sql/pglite";
 import {
   validateConnectionString,
   verify0912BaselineIntact,
+  verifyCanonicalSqlIntact,
   executeReadOnlyCapture,
+  loadCanonicalStatements,
+  EXPECTED_SQL_BYTES,
+  EXPECTED_SQL_SHA256,
 } from "../scripts/audit/run-supabase-audit-readonly.ts";
+import { splitSqlStatements } from "../scripts/sql-provenance.ts";
 
-test("ReadOnly Executor — Validación estricta de Connection String (Allowlist)", () => {
-  // Caso válido
+test("ReadOnly Executor — Validación estricta de Connection String (Allowlist, Query Params y Fragmentos)", () => {
+  // Caso válido base
   const valid = "postgresql://postgres.gqkjqhpmyejmehbuombk:secretpassword@aws-0-eu-central-1.pooler.supabase.com:5432/postgres";
   const res = validateConnectionString(valid);
   assert.equal(res.verified, true);
   assert.equal(res.projectRef, "gqkjqhpmyejmehbuombk");
+
+  // Query params permitidos
+  const withValidQuery = validateConnectionString(valid + "?sslmode=require&connect_timeout=10&application_name=fornexa_audit");
+  assert.equal(withValidQuery.verified, true);
+
+  // Caso inválido: fragmento presente (#...)
+  assert.throws(
+    () => validateConnectionString(valid + "#unauthorized_fragment"),
+    /Connection string must not contain fragment/,
+  );
+
+  // Caso inválido: query param no permitido
+  assert.throws(
+    () => validateConnectionString(valid + "?target_session_attrs=read-write"),
+    /Query parameter not permitted in connection string: target_session_attrs/,
+  );
+
+  // Caso inválido: clave duplicada
+  assert.throws(
+    () => validateConnectionString(valid + "?sslmode=require&sslmode=disable"),
+    /Duplicate query parameter in connection string: sslmode/,
+  );
 
   // Caso inválido: puerto incorrecto (6543 transaccional)
   assert.throws(
@@ -49,9 +77,13 @@ test("ReadOnly Executor — Validación estricta de Connection String (Allowlist
   );
 });
 
-test("ReadOnly Executor — Límites del script SQL (BEGIN READ ONLY, ROLLBACK, 0 COMMIT)", () => {
+test("ReadOnly Executor — Límites del script SQL (BEGIN READ ONLY, ROLLBACK, 0 COMMIT) y Pin por Contenido", () => {
   const sqlPath = resolve(import.meta.dirname, "../scripts/audit/capture-supabase-migration-audit.sql");
   assert.ok(existsSync(sqlPath), "Script SQL debe existir en el repositorio");
+
+  assert.equal(verifyCanonicalSqlIntact(), true, "El script SQL canónico debe cumplir su pin por contenido (bytes y SHA)");
+  assert.equal(EXPECTED_SQL_BYTES, 6606);
+  assert.equal(EXPECTED_SQL_SHA256, "14934a1f9d7af8e4521e79415a29c46810f79ef4a7b0a4965a6d6fdd595bc932");
 
   const sql = readFileSync(sqlPath, "utf8");
 
@@ -71,6 +103,12 @@ test("ReadOnly Executor — Límites del script SQL (BEGIN READ ONLY, ROLLBACK, 
   assert.match(sql, /information_schema\.columns/, "Debe contener consulta 5 (catálogo de columnas)");
   assert.match(sql, /pg_policies/, "Debe contener consulta 6 (catálogo de políticas)");
   assert.match(sql, /supabase_migrations\.schema_migrations/, "Debe contener consulta 7 (exportación de ledger)");
+
+  // Carga de sentencias canónicas
+  const stmts = loadCanonicalStatements();
+  assert.ok(stmts.beginReadOnly.includes("BEGIN TRANSACTION READ ONLY"));
+  assert.ok(stmts.rollback.includes("ROLLBACK"));
+  assert.ok(stmts.q7_migration_audit_export.includes("migration_audit_export"));
 });
 
 test("ReadOnly Executor — Preservación de línea base 20260912 inmutable", () => {
@@ -109,7 +147,7 @@ test("ReadOnly Executor — Protección fail-closed de PostgreSQL ante intentos 
   assert.equal((rows[0] as any).val, "initial");
 });
 
-test("ReadOnly Executor — Ejecución relacional completa sobre PGlite con mock de esquema", async () => {
+test("ReadOnly Executor — Ejecución relacional completa sobre PGlite con mock realista de ledger (SHOULD-TEST-1)", async () => {
   const db = new PGlite();
 
   // Setup minimal relational schema matching the queries
@@ -149,15 +187,38 @@ test("ReadOnly Executor — Ejecución relacional completa sobre PGlite con mock
     insert into public.customs_events (case_id) values ('10000000-0000-4000-a000-000000000001');
   `);
 
-  // Seed schema_migrations matching active git migrations (using single-statement migration for synthetic test)
-  const f = "20260814_cmr_canonical_model.sql";
   const migrationDir = resolve(import.meta.dirname, "../supabase/migrations");
-  const version = f.split("_")[0];
-  const name = f.replace(/^[0-9]+_/, "").replace(/\.sql$/, "");
-  const sql = readFileSync(resolve(migrationDir, f), "utf8");
+
+  // 1. Migración estándar idéntica: 20260814_cmr_canonical_model
+  const f1 = "20260814_cmr_canonical_model.sql";
+  const sql1 = readFileSync(resolve(migrationDir, f1), "utf8");
   await db.query(
     "insert into supabase_migrations.schema_migrations (version, name, statements) values ($1, $2, $3);",
-    [version, name, [sql]],
+    ["20260814120000", "cmr_canonical_model", [sql1]],
+  );
+
+  // 2. Migración con delta histórico: 20260812_fornexa_operational_core (83 sentencias en ledger)
+  const fCore = "20260812_fornexa_operational_core.sql";
+  const sqlCore = readFileSync(resolve(migrationDir, fCore), "utf8");
+  const coreStmts = splitSqlStatements(sqlCore);
+  await db.query(
+    "insert into supabase_migrations.schema_migrations (version, name, statements) values ($1, $2, $3);",
+    ["20260812120000", "fornexa_operational_core", coreStmts.slice(0, 83)],
+  );
+
+  // 3. Migración insertada como nombre de archivo: 20261017110000_wms_e1_core
+  await db.query(
+    "insert into supabase_migrations.schema_migrations (version, name, statements) values ($1, $2, $3);",
+    ["20261017110000", "wms_e1_core", ["20261017110000_wms_e1_core.sql"]],
+  );
+
+  // 4. Migración insertada sin delimitadores begin/commit: 20261019120000_wms_c3_server_load_controls
+  const fC3 = "20261019120000_wms_c3_server_load_controls.sql";
+  const sqlC3 = readFileSync(resolve(migrationDir, fC3), "utf8");
+  const c3Stripped = sqlC3.replace(/^\s*begin;\s*$/gim, "").replace(/^\s*commit;\s*$/gim, "");
+  await db.query(
+    "insert into supabase_migrations.schema_migrations (version, name, statements) values ($1, $2, $3);",
+    ["20261019120000", "wms_c3_server_load_controls", [c3Stripped]],
   );
 
   const tempOut = resolve(import.meta.dirname, "../docs/verification/test-temp-audit-20261024.json");
@@ -186,7 +247,26 @@ test("ReadOnly Executor — Ejecución relacional completa sobre PGlite con mock
     const outContent = readFileSync(tempOut, "utf8");
     assert.equal(outContent.includes('"payload_base64":'), false, "Cero raw payload_base64 en el archivo final");
 
+    // Verify preflight evidence exists and has 0 cross-tenant mismatches
     assert.ok(existsSync(tempPre), "El archivo preflight debe existir");
+    const preContent = JSON.parse(readFileSync(tempPre, "utf8"));
+    assert.equal(preContent.mismatched_rows.customs_messages, 0);
+    assert.equal(preContent.mismatched_rows.customs_events, 0);
+
+    // Verify audit structure and entries documentation
+    const parsedAudit = JSON.parse(outContent);
+    assert.equal(parsedAudit.schema_version, 1);
+    assert.equal(parsedAudit.captured_at, "2026-10-24T12:00:00Z");
+    assert.ok(parsedAudit.migrations.length >= 4, "Debe registrar al menos las 4 migraciones simuladas");
+
+    // e1_core must record its factual comparison without crashing
+    const e1Entry = parsedAudit.migrations.find((e: any) => e.remote_name === "wms_e1_core");
+    assert.ok(e1Entry, "wms_e1_core debe estar presente en las entradas auditadas");
+    assert.equal(e1Entry.equivalent, false, "wms_e1_core debe registrar equivalent: false conforme a su ledger real");
+
+    // c3_server_load_controls must record its factual comparison without crashing
+    const c3Entry = parsedAudit.migrations.find((e: any) => e.remote_name === "wms_c3_server_load_controls");
+    assert.ok(c3Entry, "wms_c3_server_load_controls debe estar presente en las entradas auditadas");
   } finally {
     if (existsSync(tempOut)) unlinkSync(tempOut);
     if (existsSync(tempPre)) unlinkSync(tempPre);

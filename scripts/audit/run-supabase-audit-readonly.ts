@@ -1,4 +1,4 @@
-// scripts/audit/run-supabase-audit-readonly.mjs
+// scripts/audit/run-supabase-audit-readonly.ts
 // Official and secure READ-ONLY executor for Supabase Database Audit.
 // Enforces fail-closed kernel-level read-only transaction (BEGIN TRANSACTION READ ONLY ... ROLLBACK).
 // Performs in-memory ledger transformation: ZERO raw DDL / payload_base64 written to disk or logs.
@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 // @ts-expect-error pg types not installed separately
 import pg from "pg";
 import { buildMigrationAudit } from "../generate-supabase-migration-audit.ts";
+import { splitSqlStatements } from "../sql-provenance.ts";
 
 const { Client } = pg;
 const __filename = fileURLToPath(import.meta.url);
@@ -22,17 +23,28 @@ const BASELINE_0912_PATH = resolve(ROOT, "docs/verification/supabase-migration-c
 const EXPECTED_0912_SHA256 = "a6ee59dafc1c27f1b484b0a9de1bdca9b8f35ca8d733d93ca637212683ef4feb";
 const EXPECTED_0912_BYTES = 144040;
 
+const CANONICAL_SQL_PATH = resolve(ROOT, "scripts/audit/capture-supabase-migration-audit.sql");
+export const EXPECTED_SQL_SHA256 = "14934a1f9d7af8e4521e79415a29c46810f79ef4a7b0a4965a6d6fdd595bc932";
+export const EXPECTED_SQL_BYTES = 6606;
+
 const EXPECTED_DB_PROJECT_REF = "gqkjqhpmyejmehbuombk";
 const EXPECTED_DB_NAME = "postgres";
 const EXPECTED_HOST_SUFFIX = ".pooler.supabase.com";
 const EXPECTED_DB_PORT = 5432;
+
+const ALLOWED_QUERY = new Set(["sslmode", "connect_timeout", "application_name"]);
+const KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 export function validateConnectionString(connectionString: string | undefined) {
   if (!connectionString || typeof connectionString !== "string") {
     throw new Error("Missing connection string. No credentials printed.");
   }
 
-  let url;
+  if (connectionString.includes("#")) {
+    throw new Error("Connection string must not contain fragment. No credentials printed.");
+  }
+
+  let url: URL;
   try {
     url = new URL(connectionString);
   } catch {
@@ -62,6 +74,26 @@ export function validateConnectionString(connectionString: string | undefined) {
     throw new Error("Target database name must be postgres. No credentials printed.");
   }
 
+  const seen = new Set<string>();
+  const rawQuery = url.search.replace(/^\?/, "");
+  if (rawQuery) {
+    for (const raw of rawQuery.split("&")) {
+      if (!raw) continue;
+      const rawKey = raw.split("=")[0];
+      if (!KEY_RE.test(rawKey)) {
+        throw new Error("Invalid query parameter key in connection string. No credentials printed.");
+      }
+      const key = rawKey.toLowerCase();
+      if (seen.has(key)) {
+        throw new Error(`Duplicate query parameter in connection string: ${key}. No credentials printed.`);
+      }
+      seen.add(key);
+      if (!ALLOWED_QUERY.has(key)) {
+        throw new Error(`Query parameter not permitted in connection string: ${key}. No credentials printed.`);
+      }
+    }
+  }
+
   return { verified: true, projectRef: EXPECTED_DB_PROJECT_REF };
 }
 
@@ -80,6 +112,46 @@ export function verify0912BaselineIntact() {
   return true;
 }
 
+export function verifyCanonicalSqlIntact() {
+  if (!existsSync(CANONICAL_SQL_PATH)) {
+    throw new Error(`Canonical SQL file missing at ${CANONICAL_SQL_PATH}`);
+  }
+  const bytes = readFileSync(CANONICAL_SQL_PATH);
+  if (bytes.length !== EXPECTED_SQL_BYTES) {
+    throw new Error(`Canonical SQL byte size changed: expected ${EXPECTED_SQL_BYTES}, got ${bytes.length}`);
+  }
+  const sha = createHash("sha256").update(bytes).digest("hex");
+  if (sha !== EXPECTED_SQL_SHA256) {
+    throw new Error(`Canonical SQL SHA-256 corrupted: expected ${EXPECTED_SQL_SHA256}, got ${sha}`);
+  }
+  return true;
+}
+
+export function loadCanonicalStatements() {
+  verifyCanonicalSqlIntact();
+  const content = readFileSync(CANONICAL_SQL_PATH, "utf8");
+  const clean = content.replace(/^\\.*$/gm, "");
+  const statements = splitSqlStatements(clean);
+  if (statements.length !== 13) {
+    throw new Error(`Expected 13 statements in ${CANONICAL_SQL_PATH}, got ${statements.length}`);
+  }
+  return {
+    setStatementTimeout: statements[0],
+    setLockTimeout: statements[1],
+    beginReadOnly: statements[2],
+    q1_customs_messages: statements[3],
+    q2_customs_events: statements[4],
+    q3_customs_cases: statements[5],
+    q4a_cross_tenant_messages: statements[6],
+    q4b_cross_tenant_events: statements[7],
+    q5_columns: statements[8],
+    q6a_constraints: statements[9],
+    q6b_policies: statements[10],
+    q7_migration_audit_export: statements[11],
+    rollback: statements[12],
+  };
+}
+
 export async function executeReadOnlyCapture(
   client: { query: (sql: string, params?: any[]) => Promise<any> },
   options: { capturedAt?: string; outputPath?: string; preflightPath?: string } = {},
@@ -88,207 +160,38 @@ export async function executeReadOnlyCapture(
   const outputPath = resolve(ROOT, options.outputPath || "docs/verification/supabase-migration-content-audit-20261024.json");
   const preflightPath = resolve(ROOT, options.preflightPath || "docs/verification/supabase-audit-preflight-evidence-20261024.json");
 
-  // Verify baseline integrity before starting
+  // Verify baseline integrity and canonical SQL before starting
   verify0912BaselineIntact();
+  const sql = loadCanonicalStatements();
 
   // 1. Enter strict READ ONLY transaction
-  await client.query("BEGIN TRANSACTION READ ONLY;");
-  await client.query("SET statement_timeout = '30s';");
-  await client.query("SET lock_timeout = '10s';");
+  await client.query(sql.beginReadOnly);
+  await client.query(sql.setStatementTimeout);
+  await client.query(sql.setLockTimeout);
+
+  let preflightEvidence: any = null;
 
   try {
-    // 2. Query 1: public.customs_messages metrics
-    const q1 = await client.query(`
-      SELECT 
-          to_jsonb(m)->>'tenant_id' AS message_tenant_id,
-          c.tenant_id AS case_tenant_id,
-          count(*)::bigint AS total_rows,
-          min(m.created_at) AS min_created_at,
-          max(m.created_at) AS max_created_at
-      FROM public.customs_messages m
-      LEFT JOIN public.customs_cases c ON c.id = m.case_id
-      GROUP BY to_jsonb(m)->>'tenant_id', c.tenant_id
-      ORDER BY to_jsonb(m)->>'tenant_id', c.tenant_id;
-    `);
+    // 2. Execute inspection queries 1 to 6
+    const q1 = await client.query(sql.q1_customs_messages);
+    const q2 = await client.query(sql.q2_customs_events);
+    const q3 = await client.query(sql.q3_customs_cases);
+    const q4a = await client.query(sql.q4a_cross_tenant_messages);
+    const q4b = await client.query(sql.q4b_cross_tenant_events);
+    const q5 = await client.query(sql.q5_columns);
+    const q6a = await client.query(sql.q6a_constraints);
+    const q6b = await client.query(sql.q6b_policies);
 
-    // 3. Query 2: public.customs_events metrics
-    const q2 = await client.query(`
-      SELECT 
-          to_jsonb(e)->>'tenant_id' AS event_tenant_id,
-          c.tenant_id AS case_tenant_id,
-          count(*)::bigint AS total_rows,
-          min(e.created_at) AS min_created_at,
-          max(e.created_at) AS max_created_at
-      FROM public.customs_events e
-      LEFT JOIN public.customs_cases c ON c.id = e.case_id
-      GROUP BY to_jsonb(e)->>'tenant_id', c.tenant_id
-      ORDER BY to_jsonb(e)->>'tenant_id', c.tenant_id;
-    `);
+    // 3. Execute Query 7: migration ledger export
+    const q7 = await client.query(sql.q7_migration_audit_export);
 
-    // 4. Query 3: public.customs_cases metrics (parent table)
-    const q3 = await client.query(`
-      SELECT 
-          tenant_id,
-          count(*)::bigint AS total_rows,
-          min(created_at) AS min_created_at,
-          max(created_at) AS max_created_at
-      FROM public.customs_cases
-      GROUP BY tenant_id
-      ORDER BY tenant_id;
-    `);
+    // 4. Rollback cleanly immediately after queries
+    await client.query(sql.rollback);
 
-    // 5. Query 4: Cross-tenant referential integrity checks
-    const q4a = await client.query(`
-      SELECT 
-          'customs_messages_cross_tenant_check' AS check_name,
-          count(*)::bigint AS mismatched_rows
-      FROM public.customs_messages m
-      JOIN public.customs_cases c ON c.id = m.case_id
-      WHERE (to_jsonb(m)->>'tenant_id') IS NOT NULL 
-        AND c.tenant_id IS NOT NULL 
-        AND (to_jsonb(m)->>'tenant_id')::uuid <> c.tenant_id;
-    `);
-
-    const q4b = await client.query(`
-      SELECT 
-          'customs_events_cross_tenant_check' AS check_name,
-          count(*)::bigint AS mismatched_rows
-      FROM public.customs_events e
-      JOIN public.customs_cases c ON c.id = e.case_id
-      WHERE (to_jsonb(e)->>'tenant_id') IS NOT NULL 
-        AND c.tenant_id IS NOT NULL 
-        AND (to_jsonb(e)->>'tenant_id')::uuid <> c.tenant_id;
-    `);
-
-    // 6. Query 5: Schema catalog
-    const q5 = await client.query(`
-      SELECT 
-          table_name,
-          column_name,
-          data_type,
-          is_nullable,
-          column_default
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-        AND table_name IN ('customs_messages', 'customs_events', 'customs_cases')
-        AND column_name IN ('tenant_id', 'actor_id', 'case_id')
-      ORDER BY table_name, column_name;
-    `);
-
-    // 7. Query 6: Constraints and RLS policies
-    const q6a = await client.query(`
-      SELECT 
-          conrelid::regclass::text AS table_name,
-          conname AS constraint_name,
-          contype AS constraint_type,
-          pg_get_constraintdef(oid) AS definition
-      FROM pg_constraint
-      WHERE conrelid IN ('public.customs_messages'::regclass, 'public.customs_events'::regclass)
-      ORDER BY table_name, constraint_name;
-    `);
-
-    const q6b = await client.query(`
-      SELECT 
-          tablename,
-          policyname,
-          permissive,
-          roles,
-          cmd,
-          qual,
-          with_check
-      FROM pg_policies
-      WHERE schemaname = 'public'
-        AND tablename IN ('customs_messages', 'customs_events')
-      ORDER BY tablename, policyname;
-    `);
-
-    // 8. Query 7: Migration ledger export (in memory)
-    const q7 = await client.query(`
-      SELECT coalesce(jsonb_agg(row_to_json(q) ORDER BY q.version), '[]'::jsonb)::text AS migration_audit_export
-      FROM (
-        SELECT
-          m.version,
-          m.name,
-          cardinality(m.statements) as remote_array_elements,
-          md5(m.statements::text) as array_text_md5,
-          (
-            select sum(length(e.statement))::integer
-            from unnest(m.statements) as e(statement)
-          ) as payload_chars_total,
-          (
-            select sum(octet_length(e.statement))::integer
-            from unnest(m.statements) as e(statement)
-          ) as payload_utf8_bytes_total,
-          (
-            select sum(length(encode(convert_to(e.statement, 'UTF8'), 'base64')))::integer
-            from unnest(m.statements) as e(statement)
-          ) as base64_wrapped_chars_total,
-          (
-            select sum(
-              length(replace(encode(convert_to(e.statement, 'UTF8'), 'base64'), chr(10), ''))
-            )::integer
-            from unnest(m.statements) as e(statement)
-          ) as base64_unwrapped_chars_total,
-          (
-            select sum(
-              length(encode(convert_to(e.statement, 'UTF8'), 'base64'))
-              - length(replace(encode(convert_to(e.statement, 'UTF8'), 'base64'), chr(10), ''))
-            )::integer
-            from unnest(m.statements) as e(statement)
-          ) as base64_lf_total,
-          (
-            select count(*) filter (
-              where right(encode(convert_to(e.statement, 'UTF8'), 'base64'), 1) = chr(10)
-            )::integer
-            from unnest(m.statements) as e(statement)
-          ) as base64_elements_with_trailing_lf,
-          (
-            select md5(string_agg(md5(e.statement), ',' order by e.ordinality))
-            from unnest(m.statements) with ordinality as e(statement, ordinality)
-          ) as element_md5_sequence_md5,
-          (
-            select md5(
-              string_agg(
-                encode(convert_to(e.statement, 'UTF8'), 'base64'),
-                ',' order by e.ordinality
-              )
-            )
-            from unnest(m.statements) with ordinality as e(statement, ordinality)
-          ) as base64_wrapped_sequence_md5,
-          (
-            select md5(
-              string_agg(
-                replace(encode(convert_to(e.statement, 'UTF8'), 'base64'), chr(10), ''),
-                ',' order by e.ordinality
-              )
-            )
-            from unnest(m.statements) with ordinality as e(statement, ordinality)
-          ) as base64_unwrapped_sequence_md5,
-          coalesce(
-            (
-              select jsonb_agg(
-                jsonb_build_object(
-                  'ordinality', e.ordinality,
-                  'payload_base64', encode(convert_to(e.statement, 'UTF8'), 'base64'),
-                  'payload_md5', md5(e.statement)
-                )
-                order by e.ordinality
-              )
-              from unnest(m.statements) with ordinality as e(statement, ordinality)
-            ),
-            '[]'::jsonb
-          ) as elements
-        FROM supabase_migrations.schema_migrations as m
-      ) q;
-    `);
-
-    // 9. Rollback cleanly
-    await client.query("ROLLBACK;");
-
-    // 10. Process in memory
-    const preflightEvidence = {
+    // 5. Build preflight evidence immediately
+    preflightEvidence = {
       captured_at: capturedAt,
-      executor: "scripts/audit/run-supabase-audit-readonly.mjs",
+      executor: "scripts/audit/run-supabase-audit-readonly.ts",
       transaction_mode: "READ ONLY",
       mismatched_rows: {
         customs_messages: Number(q4a.rows[0]?.mismatched_rows ?? 0),
@@ -306,7 +209,12 @@ export async function executeReadOnlyCapture(
     assert.equal(preflightEvidence.mismatched_rows.customs_messages, 0, "Customs messages must have 0 cross-tenant mismatches");
     assert.equal(preflightEvidence.mismatched_rows.customs_events, 0, "Customs events must have 0 cross-tenant mismatches");
 
-    // Process migration audit artifact
+    // Write preflight evidence to disk PRIOR to processing Query 7 (MUST-EXEC-1)
+    const preflightJson = JSON.stringify(preflightEvidence, null, 2) + "\n";
+    assert.ok(!preflightJson.includes('"payload_base64":'), "Preflight evidence must never contain raw payload_base64");
+    writeFileSync(preflightPath, preflightJson, "utf8");
+
+    // 6. Process migration audit artifact
     const rawExport = q7.rows[0]?.migration_audit_export;
     if (!rawExport) {
       throw new Error("Query 7 returned empty migration audit export");
@@ -325,12 +233,24 @@ export async function executeReadOnlyCapture(
         sql: readFileSync(resolve(gitDir, file), "utf8"),
       }));
 
-    let gitCommit = "unknown";
-    try {
+    // Determine baseline commit SHA (fail-closed, MUST-EXEC-2)
+    let gitCommit = process.env.TARGET_SHA?.trim() || "";
+    if (gitCommit) {
+      if (!/^[0-9a-f]{40}$/i.test(gitCommit)) {
+        throw new Error(`Invalid TARGET_SHA provided: "${gitCommit}". Must be 40 lowercase hex characters.`);
+      }
+      gitCommit = gitCommit.toLowerCase();
+    } else {
       const { execFileSync } = await import("node:child_process");
-      gitCommit = execFileSync("git", ["-C", ROOT, "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-    } catch {
-      // fallback
+      try {
+        gitCommit = execFileSync("git", ["-C", ROOT, "log", "-1", "--format=%H", "--", "supabase/migrations"], { encoding: "utf8" }).trim();
+      } catch (err: unknown) {
+        throw new Error(`Failed to determine git migration baseline commit SHA: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      if (!/^[0-9a-f]{40}$/i.test(gitCommit)) {
+        throw new Error(`Invalid git migration baseline commit SHA: "${gitCommit}". Must be 40 hex characters.`);
+      }
+      gitCommit = gitCommit.toLowerCase();
     }
 
     const auditDocument = buildMigrationAudit({
@@ -343,10 +263,6 @@ export async function executeReadOnlyCapture(
     // Write audit document
     const auditJson = JSON.stringify(auditDocument, null, 2) + "\n";
     writeFileSync(outputPath, auditJson, "utf8");
-
-    // Write preflight evidence
-    const preflightJson = JSON.stringify(preflightEvidence, null, 2) + "\n";
-    writeFileSync(preflightPath, preflightJson, "utf8");
 
     // Post-execution security checks:
     // 1. Output must NOT contain raw payload_base64 values
@@ -385,7 +301,7 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(__filename)) {
   const client = new Client({
     connectionString: pgUrl,
     ssl: { rejectUnauthorized: false },
-    statement_timeout: 30000,
+    options: "-c default_transaction_read_only=on -c statement_timeout=30000 -c lock_timeout=10000",
   });
 
   await client.connect();

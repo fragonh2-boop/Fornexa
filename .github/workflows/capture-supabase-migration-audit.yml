@@ -18,6 +18,11 @@ on:
         description: 'Confirmacion obligatoria (escribe exactamente CAPTURE_READONLY_AUDIT)'
         required: true
         type: string
+      target_sha:
+        description: 'SHA del commit para cotejar supabase/migrations (opcional, 40 hex en minuscula, por defecto HEAD del runner)'
+        required: false
+        default: ''
+        type: string
       captured_at:
         description: 'Timestamp ISO de captura (opcional, defaults a fecha/hora actual UTC)'
         required: false
@@ -34,19 +39,35 @@ jobs:
     timeout-minutes: 10
     env:
       CONFIRM: ${{ inputs.confirm }}
+      TARGET_SHA: ${{ inputs.target_sha }}
       CAPTURED_AT: ${{ inputs.captured_at }}
       EXPECTED_DB_PROJECT_REF: gqkjqhpmyejmehbuombk
       EXPECTED_DB_NAME: postgres
       EXPECTED_HOST_SUFFIX: .pooler.supabase.com
       EXPECTED_DB_PORT: '5432'
       AUDIT_SQL_FILE: scripts/audit/capture-supabase-migration-audit.sql
+      RUNNER_FILE: scripts/audit/run-supabase-audit-readonly.ts
+      EXPECTED_SQL_SHA256: 14934a1f9d7af8e4521e79415a29c46810f79ef4a7b0a4965a6d6fdd595bc932
+      EXPECTED_SQL_BYTES: 6606
+      EXPECTED_RUNNER_SHA256: 11c0a0e6559cec8b8f271a1dda8842fa80f87d689de904556705fc152df0acc5
+      EXPECTED_RUNNER_BYTES: 12550
 
     steps:
-      - name: Comprobar confirmacion literal
+      - name: Comprobar confirmacion literal y formato de parametros
         run: |
           if [ "$CONFIRM" != "CAPTURE_READONLY_AUDIT" ]; then
             echo "::error::Falta la confirmacion obligatoria. Escribe exactamente CAPTURE_READONLY_AUDIT en el campo 'confirm'."
             exit 1
+          fi
+          if [ -n "$TARGET_SHA" ]; then
+            if [ ${#TARGET_SHA} -ne 40 ]; then
+              echo "::error::El TARGET_SHA debe tener exactamente 40 caracteres."
+              exit 1
+            fi
+            case "$TARGET_SHA" in
+              *[!0-9a-f]* | "") echo "::error::El TARGET_SHA debe ser hexadecimal en minuscula."; exit 1 ;;
+            esac
+            echo "TARGET_SHA validado: $TARGET_SHA."
           fi
           echo "Confirmacion aceptada: CAPTURE_READONLY_AUDIT."
 
@@ -54,13 +75,20 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Cotejar supabase/migrations desde TARGET_SHA (opcional)
+        if: env.TARGET_SHA != ''
+        run: |
+          echo "Cotejando supabase/migrations desde TARGET_SHA=$TARGET_SHA..."
+          git fetch origin "$TARGET_SHA" || true
+          git checkout "$TARGET_SHA" -- supabase/migrations
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
 
       - name: Install web dependencies
@@ -73,6 +101,9 @@ jobs:
           python3 -I - << 'PY'
           import os, re
           from urllib.parse import urlsplit
+
+          ALLOWED_QUERY = {"sslmode", "connect_timeout", "application_name"}
+          KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
           def fail(msg):
               print(f"::error::{msg} No se imprime el valor.")
@@ -91,6 +122,21 @@ jobs:
 
           if parts.scheme not in ("postgres", "postgresql"):
               fail("El esquema de conexion no es postgres ni postgresql.")
+
+          if parts.fragment:
+              fail("La cadena de conexion no debe llevar fragmento.")
+
+          seen = set()
+          for raw in filter(None, parts.query.split("&")):
+              raw_key = raw.split("=", 1)[0]
+              if not KEY_RE.match(raw_key):
+                  fail("Clave de query con forma invalida o percent-encoding en la clave.")
+              key = raw_key.lower()
+              if key in seen:
+                  fail(f"Clave de query duplicada: {key}.")
+              seen.add(key)
+              if key not in ALLOWED_QUERY:
+                  fail(f"Parametro de conexion no permitido en la query: {key}.")
 
           try:
               port = parts.port
@@ -111,34 +157,57 @@ jobs:
           print("Destino verificado correctamente: endpoint, puerto, base y usuario conformes. Cero secretos impresos.")
           PY
 
-      - name: Verificar integridad del script SQL READ-ONLY y de la linea base 20260912
+      - name: Verificar integridad del script SQL READ-ONLY, runner y linea base 20260912
         run: |
-          if [ ! -f "$AUDIT_SQL_FILE" ]; then
-            echo "::error::Falta el script $AUDIT_SQL_FILE."
+          for F in "$AUDIT_SQL_FILE" "$RUNNER_FILE"; do
+            if [ ! -f "$F" ]; then
+              echo "::error::Falta el archivo $F."
+              exit 1
+            fi
+          done
+
+          # 1. Pin por contenido de capture-supabase-migration-audit.sql
+          SQL_BYTES=$(wc -c < "$AUDIT_SQL_FILE" | tr -d ' ')
+          SQL_SHA=$(sha256sum "$AUDIT_SQL_FILE" | cut -d' ' -f1)
+          if [ "$SQL_BYTES" != "$EXPECTED_SQL_BYTES" ] || [ "$SQL_SHA" != "$EXPECTED_SQL_SHA256" ]; then
+            echo "::error::El script SQL no coincide con el pin auditado. Leido: $SQL_BYTES bytes / $SQL_SHA. Esperado: $EXPECTED_SQL_BYTES / $EXPECTED_SQL_SHA256."
             exit 1
           fi
 
-          # Verificar delimitadores estrictos de solo lectura
-          if ! grep -q "BEGIN TRANSACTION READ ONLY;" "$AUDIT_SQL_FILE"; then
-            echo "::error::El script SQL debe incluir BEGIN TRANSACTION READ ONLY;."
+          # 2. Pin por contenido de run-supabase-audit-readonly.ts
+          RUNNER_BYTES=$(wc -c < "$RUNNER_FILE" | tr -d ' ')
+          RUNNER_SHA=$(sha256sum "$RUNNER_FILE" | cut -d' ' -f1)
+          if [ "$RUNNER_BYTES" != "$EXPECTED_RUNNER_BYTES" ] || [ "$RUNNER_SHA" != "$EXPECTED_RUNNER_SHA256" ]; then
+            echo "::error::El runner no coincide con el pin auditado. Leido: $RUNNER_BYTES bytes / $RUNNER_SHA. Esperado: $EXPECTED_RUNNER_BYTES / $EXPECTED_RUNNER_SHA256."
             exit 1
           fi
 
-          if ! grep -q "ROLLBACK;" "$AUDIT_SQL_FILE"; then
-            echo "::error::El script SQL debe terminar con ROLLBACK;."
+          # 3. Verificar delimitadores estrictos de solo lectura
+          BEGIN_COUNT=$(grep -c 'BEGIN TRANSACTION READ ONLY;' "$AUDIT_SQL_FILE" || true)
+          ROLLBACK_COUNT=$(grep -c '^ROLLBACK;$' "$AUDIT_SQL_FILE" || true)
+          COMMIT_COUNT=$(grep -i -c '\bcommit\b' "$AUDIT_SQL_FILE" || true)
+
+          if [ "$BEGIN_COUNT" -lt 1 ] || [ "$ROLLBACK_COUNT" -lt 1 ] || [ "$COMMIT_COUNT" -ne 0 ]; then
+            echo "::error::Delimitadores invalidos en $AUDIT_SQL_FILE (begin=$BEGIN_COUNT rollback=$ROLLBACK_COUNT commit=$COMMIT_COUNT)."
             exit 1
           fi
 
-          if grep -iE '\bcommit\b' "$AUDIT_SQL_FILE"; then
-            echo "::error::El script SQL contiene comandos COMMIT. No se permite ninguna confirmacion."
+          # 4. Verificar linea base 20260912
+          BASE="docs/verification/supabase-migration-content-audit-20260912.json"
+          EXPECTED_BASE_SHA="a6ee59dafc1c27f1b484b0a9de1bdca9b8f35ca8d733d93ca637212683ef4feb"
+          ACTUAL_BASE_SHA=$(sha256sum "$BASE" | cut -d' ' -f1)
+          if [ "$ACTUAL_BASE_SHA" != "$EXPECTED_BASE_SHA" ]; then
+            echo "::error::La linea base 20260912.json fue alterada. Obtenido $ACTUAL_BASE_SHA."
             exit 1
           fi
 
-          echo "Script SQL verificado: 100% READ ONLY y ROLLBACK estricto."
+          echo "Pines por contenido y delimitadores verificados: 100% READ ONLY y ROLLBACK estricto."
 
       - name: Ejecutar captura de auditoria en memoria
         env:
           POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+          TARGET_SHA: ${{ inputs.target_sha }}
+          CAPTURED_AT: ${{ inputs.captured_at }}
         run: |
           node --import ./scripts/test-register.mjs --experimental-strip-types scripts/audit/run-supabase-audit-readonly.ts
 
@@ -146,39 +215,37 @@ jobs:
         run: |
           OUT="docs/verification/supabase-migration-content-audit-20261024.json"
           PRE="docs/verification/supabase-audit-preflight-evidence-20261024.json"
-          BASE="docs/verification/supabase-migration-content-audit-20260912.json"
 
           if [ ! -f "$OUT" ] || [ ! -f "$PRE" ]; then
             echo "::error::Los artefactos de auditoria no fueron generados."
             exit 1
           fi
 
-          # Comprobar cero fuga de payload_base64 crudo
+          # Comprobar cero fuga de payload_base64 crudo en ambos artefactos
           if grep -q '"payload_base64":' "$OUT"; then
             echo "::error::El artefacto de auditoria contiene payload_base64 crudo. Violacion de confidencialidad."
             exit 1
           fi
 
-          # Comprobar preservacion de 20260912
-          EXPECTED_SHA="a6ee59dafc1c27f1b484b0a9de1bdca9b8f35ca8d733d93ca637212683ef4feb"
-          ACTUAL_SHA=$(sha256sum "$BASE" | cut -d' ' -f1)
-          if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
-            echo "::error::El archivo 20260912.json fue alterado. Esperado $EXPECTED_SHA, obtenido $ACTUAL_SHA."
+          if grep -q '"payload_base64":' "$PRE"; then
+            echo "::error::La evidencia preflight contiene payload_base64 crudo. Violacion de confidencialidad."
             exit 1
           fi
 
-          echo "Validacion exitosa: 0 fuga de payloads, 20260912 intacto."
+          echo "Validacion exitosa: 0 fuga de payloads en ambos artefactos."
 
-      - name: Subir artefacto de auditoria 20261024
-        uses: actions/upload-artifact@v4
-        with:
-          name: supabase-migration-content-audit-20261024
-          path: docs/verification/supabase-migration-content-audit-20261024.json
-          if-no-files-found: error
-
-      - name: Subir evidencia preflight 20261024
+      - name: Subir evidencia preflight como artefacto
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: supabase-audit-preflight-evidence-20261024
           path: docs/verification/supabase-audit-preflight-evidence-20261024.json
+          if-no-files-found: ignore
+
+      - name: Subir artefacto de auditoria 20261024
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-migration-content-audit-20261024
+          path: docs/verification/supabase-migration-content-audit-20261024.json
           if-no-files-found: error
