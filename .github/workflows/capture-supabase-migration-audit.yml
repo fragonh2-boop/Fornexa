@@ -23,11 +23,6 @@ on:
         required: false
         default: ''
         type: string
-      captured_at:
-        description: 'Timestamp ISO de captura (opcional, defaults a fecha/hora actual UTC)'
-        required: false
-        default: ''
-        type: string
 
 permissions:
   contents: read
@@ -40,7 +35,6 @@ jobs:
     env:
       CONFIRM: ${{ inputs.confirm }}
       TARGET_SHA: ${{ inputs.target_sha }}
-      CAPTURED_AT: ${{ inputs.captured_at }}
       EXPECTED_DB_PROJECT_REF: gqkjqhpmyejmehbuombk
       EXPECTED_DB_NAME: postgres
       EXPECTED_HOST_SUFFIX: .pooler.supabase.com
@@ -50,8 +44,8 @@ jobs:
       GENERATOR_FILE: scripts/generate-supabase-migration-audit.ts
       EXPECTED_SQL_SHA256: 14934a1f9d7af8e4521e79415a29c46810f79ef4a7b0a4965a6d6fdd595bc932
       EXPECTED_SQL_BYTES: 6606
-      EXPECTED_RUNNER_SHA256: 29e0a01c9a848ef51c63929032f75bb152c090d4062a4628dd0c5b044c8d7509
-      EXPECTED_RUNNER_BYTES: 13198
+      EXPECTED_RUNNER_SHA256: 1ac144cb19fa86a85c85fdaab644704269faa29942f1d33a47f937273205f4e3
+      EXPECTED_RUNNER_BYTES: 13026
       EXPECTED_GENERATOR_SHA256: 98ac78ffa90049efeecea4750f9e13f921cc18e7407f978918d1e4e543cb83da
       EXPECTED_GENERATOR_BYTES: 26569
 
@@ -222,7 +216,6 @@ jobs:
         env:
           POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
           TARGET_SHA: ${{ inputs.target_sha }}
-          CAPTURED_AT: ${{ inputs.captured_at }}
         run: |
           node --import ./scripts/test-register.mjs --experimental-strip-types scripts/audit/run-supabase-audit-readonly.ts
 

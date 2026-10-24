@@ -8,6 +8,7 @@
 // 5. Full relational execution on PGlite with realistic ledger scenarios (operational core, e1_core, c3_load_controls).
 
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync, existsSync, unlinkSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
@@ -21,6 +22,8 @@ import {
   EXPECTED_SQL_BYTES,
   EXPECTED_SQL_SHA256,
 } from "../scripts/audit/run-supabase-audit-readonly.ts";
+import { splitSqlStatements } from "../scripts/sql-provenance.ts";
+import { buildMigrationAudit } from "../scripts/generate-supabase-migration-audit.ts";
 
 test("ReadOnly Executor — Validación estricta de Connection String (Allowlist, Query Params y Fragmentos)", () => {
   // Caso válido base
@@ -204,6 +207,15 @@ test("ReadOnly Executor — Ejecución relacional completa sobre PGlite con mock
     ["20260901120000", "platform_telemetry", [sqlSec]],
   );
 
+  // 2b. Migración con ancla multi-elemento: 20260812_fornexa_operational_core (83 sentencias en ledger recortadas)
+  const fCore = "20260812_fornexa_operational_core.sql";
+  const sqlCore = readFileSync(resolve(migrationDir, fCore), "utf8");
+  const coreStmtsTrimmed = splitSqlStatements(sqlCore).slice(0, 83).map((s) => s.trim());
+  await db.query(
+    "insert into supabase_migrations.schema_migrations (version, name, statements) values ($1, $2, $3);",
+    ["20260812120000", "fornexa_operational_core", coreStmtsTrimmed],
+  );
+
   // 3. Migración insertada como nombre de archivo: 20261017110000_wms_e1_core
   await db.query(
     "insert into supabase_migrations.schema_migrations (version, name, statements) values ($1, $2, $3);",
@@ -229,13 +241,14 @@ test("ReadOnly Executor — Ejecución relacional completa sobre PGlite con mock
     },
   };
 
-  // Run execution
+  // Run execution with strict real clock verification
+  const beforeMs = Date.now();
   try {
     const result = await executeReadOnlyCapture(clientAdapter, {
-      capturedAt: "2026-10-24T12:00:00Z",
       outputPath: tempOut,
       preflightPath: tempPre,
     });
+    const afterMs = Date.now();
 
     assert.equal(result.success, true);
     assert.equal(result.baseline0912Intact, true);
@@ -251,11 +264,26 @@ test("ReadOnly Executor — Ejecución relacional completa sobre PGlite con mock
     assert.equal(preContent.mismatched_rows.customs_messages, 0);
     assert.equal(preContent.mismatched_rows.customs_events, 0);
 
+    // Verify real clock timestamp within test execution window
+    const preMs = new Date(preContent.captured_at).getTime();
+    assert.ok(
+      preMs >= beforeMs && preMs <= afterMs,
+      `Preflight captured_at (${preContent.captured_at}) debe originarse en la ventana de reloj real`,
+    );
+
     // Verify audit structure and entries documentation
     const parsedAudit = JSON.parse(outContent);
     assert.equal(parsedAudit.schema_version, 1);
-    assert.equal(parsedAudit.captured_at, "2026-10-24T12:00:00Z");
-    assert.ok(parsedAudit.migrations.length >= 4, "Debe registrar al menos las 4 migraciones simuladas");
+    const parsedMs = new Date(parsedAudit.captured_at).getTime();
+    assert.ok(
+      parsedMs >= beforeMs && parsedMs <= afterMs,
+      `Audit captured_at (${parsedAudit.captured_at}) debe originarse en la ventana de reloj real`,
+    );
+    assert.ok(parsedAudit.migrations.length >= 5, "Debe registrar al menos las 5 migraciones simuladas");
+
+    // fornexa_operational_core must be registered conforming to its multi-element anchors
+    const coreEntry = parsedAudit.migrations.find((e: any) => e.remote_name === "fornexa_operational_core");
+    assert.ok(coreEntry, "fornexa_operational_core debe estar presente en las entradas auditadas");
 
     // e1_core must record its factual comparison without crashing
     const e1Entry = parsedAudit.migrations.find((e: any) => e.remote_name === "wms_e1_core");
@@ -320,7 +348,6 @@ test("ReadOnly Executor — Falla cerrada ante mutaciones arbitrarias incluso en
     await assert.rejects(
       async () => {
         await executeReadOnlyCapture(clientAdapter, {
-          capturedAt: "2026-10-24T12:00:00Z",
           outputPath: tempOut,
           preflightPath: tempPre,
         });
@@ -380,7 +407,6 @@ test("ReadOnly Executor — Conservación de evidencia preflight ante discrepanc
     await assert.rejects(
       async () => {
         await executeReadOnlyCapture(clientAdapter, {
-          capturedAt: "2026-10-24T12:00:00Z",
           preflightPath: tempPre,
         });
       },
@@ -397,17 +423,243 @@ test("ReadOnly Executor — Conservación de evidencia preflight ante discrepanc
   }
 });
 
-test("ReadOnly Executor — Bloqueo de suplantación de timestamp histórico 20260912 en captura en vivo", async () => {
+test("ReadOnly Executor — Prohibición fail-closed de cualquier override de capturedAt (MUST-PROV-1)", async () => {
   const dummyClient = {
     query: async () => ({ rows: [] }),
   };
 
+  // 1. Rechazo de opción capturedAt histórica 20260912
   await assert.rejects(
     async () => {
       await executeReadOnlyCapture(dummyClient, {
         capturedAt: "2026-09-12T17:28:44Z",
+      } as any);
+    },
+    /Custom or spoofed capturedAt is not permitted in live capture/,
+  );
+
+  // 2. Rechazo de opción capturedAt arbitraria viva
+  await assert.rejects(
+    async () => {
+      await executeReadOnlyCapture(dummyClient, {
+        capturedAt: "2026-10-24T12:00:00Z",
+      } as any);
+    },
+    /Custom or spoofed capturedAt is not permitted in live capture/,
+  );
+
+  // 3. Rechazo de variable de entorno CAPTURED_AT
+  process.env.CAPTURED_AT = "2026-10-24T12:00:00Z";
+  try {
+    await assert.rejects(
+      async () => {
+        await executeReadOnlyCapture(dummyClient);
+      },
+      /Custom or spoofed capturedAt is not permitted in live capture/,
+    );
+  } finally {
+    delete process.env.CAPTURED_AT;
+  }
+});
+
+test("ReadOnly Executor — Compatibilidad con Candidate 5 / PR #145 (85 Git vs 83 remoto + rechazo en índice 44) (MUST-TEST-1)", () => {
+  const migrationDir = resolve(import.meta.dirname, "../supabase/migrations");
+
+  // 1. Cargar fornexa_operational_core (83 sentencias de base) y armar el Git autorizado de 85 sentencias
+  const fCore = "20260812_fornexa_operational_core.sql";
+  const sqlCore = readFileSync(resolve(migrationDir, fCore), "utf8");
+  const coreStmts83 = splitSqlStatements(sqlCore).slice(0, 83);
+  assert.equal(coreStmts83.length, 83);
+
+  const alterMessages = "\n\nalter table public.customs_messages\n  add column if not exists tenant_id uuid not null default '00000000-0000-4000-8000-000000000001' references public.tenants(id) on delete restrict";
+  const alterEvents = "\n\nalter table public.customs_events\n  add column if not exists tenant_id uuid not null default '00000000-0000-4000-8000-000000000001' references public.tenants(id) on delete restrict";
+
+  const valid85Statements = [
+    ...coreStmts83.slice(0, 44),
+    alterMessages,
+    alterEvents,
+    ...coreStmts83.slice(44),
+  ];
+  assert.equal(valid85Statements.length, 85);
+  const validGitSql85 = valid85Statements.join(";\n\n");
+
+  // Cargar e1_core y c3_server_load_controls
+  const fE1 = "20261017110000_wms_e1_core.sql";
+  const sqlE1 = readFileSync(resolve(migrationDir, fE1), "utf8");
+
+  const fC3 = "20261019120000_wms_c3_server_load_controls.sql";
+  const sqlC3 = readFileSync(resolve(migrationDir, fC3), "utf8");
+  const c3Stripped = sqlC3.replace(/^\s*begin;\s*$/gim, "").replace(/^\s*commit;\s*$/gim, "");
+
+  // Crear elementos remotos para fornexa_operational_core (83 sentencias recortadas)
+  const remoteStatements = coreStmts83.map((s) => s.trim());
+  function md5(val: Buffer | string): string {
+    return createHash("md5").update(val).digest("hex");
+  }
+  function encodePostgresBase64(buf: Buffer): string {
+    if (buf.length === 0) return "";
+    const chunks: string[] = [];
+    for (let i = 0; i < buf.length; i += 57) {
+      const chunk = buf.subarray(i, i + 57);
+      const b64 = chunk.toString("base64");
+      if (chunk.length === 57) {
+        chunks.push(b64 + "\n");
+      } else {
+        chunks.push(b64);
+      }
+    }
+    return chunks.join("");
+  }
+
+  const elementsCore = remoteStatements.map((stmt, idx) => {
+    const buf = Buffer.from(stmt, "utf8");
+    return {
+      ordinality: idx + 1,
+      payload_base64: encodePostgresBase64(buf),
+      payload_md5: md5(buf),
+    };
+  });
+  const remotePayloadsCore = elementsCore.map((el) => {
+    const buf = Buffer.from(el.payload_base64.split("\n").join(""), "base64");
+    const s = buf.toString("utf8");
+    return {
+      chars: Array.from(s).length,
+      utf8Bytes: buf.length,
+      base64Wrapped: el.payload_base64,
+      base64Unwrapped: el.payload_base64.split("\n").join(""),
+      base64LfCount: el.payload_base64.split("\n").length - 1,
+      base64HasTrailingLf: el.payload_base64.endsWith("\n"),
+      ordinality: el.ordinality,
+    };
+  });
+  const normalizedPayloadsCore = remotePayloadsCore.map((p) => p.base64Unwrapped);
+
+  const syntheticRowCore = {
+    version: "20260812120000",
+    name: "fornexa_operational_core",
+    remote_array_elements: elementsCore.length,
+    array_text_md5: "00000000000000000000000000000000",
+    payload_chars_total: remotePayloadsCore.reduce((sum, p) => sum + p.chars, 0),
+    payload_utf8_bytes_total: remotePayloadsCore.reduce((sum, p) => sum + p.utf8Bytes, 0),
+    base64_wrapped_chars_total: remotePayloadsCore.reduce((sum, p) => sum + p.base64Wrapped.length, 0),
+    base64_unwrapped_chars_total: normalizedPayloadsCore.reduce((sum, p) => sum + p.length, 0),
+    base64_lf_total: remotePayloadsCore.reduce((sum, p) => sum + p.base64LfCount, 0),
+    base64_elements_with_trailing_lf: remotePayloadsCore.filter((p) => p.base64HasTrailingLf).length,
+    element_md5_sequence_md5: md5(elementsCore.map((e) => e.payload_md5).join(",")),
+    base64_wrapped_sequence_md5: md5(remotePayloadsCore.map((p) => p.base64Wrapped).join(",")),
+    base64_unwrapped_sequence_md5: md5(normalizedPayloadsCore.join(",")),
+    elements: elementsCore,
+  };
+
+  // Crear elementos para wms_e1_core (workflow filename)
+  const e1Buf = Buffer.from("20261017110000_wms_e1_core.sql", "utf8");
+  const syntheticRowE1 = {
+    version: "20261017110000",
+    name: "wms_e1_core",
+    remote_array_elements: 1,
+    array_text_md5: "00000000000000000000000000000000",
+    payload_chars_total: "20261017110000_wms_e1_core.sql".length,
+    payload_utf8_bytes_total: e1Buf.length,
+    base64_wrapped_chars_total: e1Buf.toString("base64").length,
+    base64_unwrapped_chars_total: e1Buf.toString("base64").length,
+    base64_lf_total: 0,
+    base64_elements_with_trailing_lf: 0,
+    element_md5_sequence_md5: md5(md5(e1Buf)),
+    base64_wrapped_sequence_md5: md5(e1Buf.toString("base64")),
+    base64_unwrapped_sequence_md5: md5(e1Buf.toString("base64")),
+    elements: [
+      {
+        ordinality: 1,
+        payload_base64: e1Buf.toString("base64"),
+        payload_md5: md5(e1Buf),
+      },
+    ],
+  };
+
+  // Crear elementos para wms_c3_server_load_controls (stripped)
+  const c3Stmts = splitSqlStatements(c3Stripped);
+  const elementsC3 = c3Stmts.map((stmt, idx) => {
+    const buf = Buffer.from(stmt, "utf8");
+    return {
+      ordinality: idx + 1,
+      payload_base64: encodePostgresBase64(buf),
+      payload_md5: md5(buf),
+    };
+  });
+  const remotePayloadsC3 = elementsC3.map((el) => {
+    const buf = Buffer.from(el.payload_base64.split("\n").join(""), "base64");
+    const s = buf.toString("utf8");
+    return {
+      chars: Array.from(s).length,
+      utf8Bytes: buf.length,
+      base64Wrapped: el.payload_base64,
+      base64Unwrapped: el.payload_base64.split("\n").join(""),
+      base64LfCount: el.payload_base64.split("\n").length - 1,
+      base64HasTrailingLf: el.payload_base64.endsWith("\n"),
+      ordinality: el.ordinality,
+    };
+  });
+  const normalizedPayloadsC3 = remotePayloadsC3.map((p) => p.base64Unwrapped);
+  const syntheticRowC3 = {
+    version: "20261019120000",
+    name: "wms_c3_server_load_controls",
+    remote_array_elements: elementsC3.length,
+    array_text_md5: "00000000000000000000000000000000",
+    payload_chars_total: remotePayloadsC3.reduce((sum, p) => sum + p.chars, 0),
+    payload_utf8_bytes_total: remotePayloadsC3.reduce((sum, p) => sum + p.utf8Bytes, 0),
+    base64_wrapped_chars_total: remotePayloadsC3.reduce((sum, p) => sum + p.base64Wrapped.length, 0),
+    base64_unwrapped_chars_total: normalizedPayloadsC3.reduce((sum, p) => sum + p.length, 0),
+    base64_lf_total: remotePayloadsC3.reduce((sum, p) => sum + p.base64LfCount, 0),
+    base64_elements_with_trailing_lf: remotePayloadsC3.filter((p) => p.base64HasTrailingLf).length,
+    element_md5_sequence_md5: md5(elementsC3.map((e) => e.payload_md5).join(",")),
+    base64_wrapped_sequence_md5: md5(remotePayloadsC3.map((p) => p.base64Wrapped).join(",")),
+    base64_unwrapped_sequence_md5: md5(normalizedPayloadsC3.join(",")),
+    elements: elementsC3,
+  };
+
+  // 1. Aserción positiva: buildMigrationAudit acepta simultáneamente Candidate 5 (85 vs 83), e1_core y c3_load_controls
+  const auditPositive = buildMigrationAudit({
+    capturedAt: new Date().toISOString(),
+    gitMigrationBaselineCommit: "d149789c4c73bb68eb259da3230a53c8c6366b27",
+    gitMigrations: [
+      { path: resolve(migrationDir, fCore), sql: validGitSql85 },
+      { path: resolve(migrationDir, fE1), sql: sqlE1 },
+      { path: resolve(migrationDir, fC3), sql: sqlC3 },
+    ],
+    remoteRows: [syntheticRowCore, syntheticRowE1, syntheticRowC3],
+  }) as { summary: { all_pairs_equivalent: boolean }; migrations: Array<{ remote_name: string; equivalent: boolean; matched_statements: number }> };
+
+  assert.equal(auditPositive.summary.all_pairs_equivalent, false, "El resumen general refleja delta");
+  const entryCore = auditPositive.migrations.find((m) => m.remote_name === "fornexa_operational_core");
+  assert.ok(entryCore);
+  assert.equal(entryCore.equivalent, false, "fornexa_operational_core refleja equivalent: false");
+  assert.equal(entryCore.matched_statements, 44, "Prefijo de sentencias coincidentes es 44");
+
+  const entryE1 = auditPositive.migrations.find((m) => m.remote_name === "wms_e1_core");
+  assert.ok(entryE1);
+  assert.equal(entryE1.equivalent, false, "wms_e1_core refleja equivalent: false");
+
+  const entryC3 = auditPositive.migrations.find((m) => m.remote_name === "wms_c3_server_load_controls");
+  assert.ok(entryC3);
+  assert.equal(entryC3.equivalent, false, "wms_c3_server_load_controls refleja equivalent: false");
+
+  // 2. Aserción negativa: adulteración en el índice 44 de fornexa_operational_core lanza literal-safe comparison failed
+  const tamperedStatements = [...valid85Statements];
+  tamperedStatements[44] = "alter table public.customs_messages add column unauthorized_column text";
+  const tamperedGitSql = tamperedStatements.join(";\n\n");
+
+  assert.throws(
+    () => {
+      buildMigrationAudit({
+        capturedAt: new Date().toISOString(),
+        gitMigrationBaselineCommit: "d149789c4c73bb68eb259da3230a53c8c6366b27",
+        gitMigrations: [
+          { path: resolve(migrationDir, fCore), sql: tamperedGitSql },
+        ],
+        remoteRows: [syntheticRowCore],
       });
     },
-    /Cannot spoof historical 2026-09-12 timestamp in live capture/,
+    { message: /literal-safe comparison failed/ },
+    "Adulteración en el índice 44 debe fallar cerrado con literal-safe comparison failed",
   );
 });

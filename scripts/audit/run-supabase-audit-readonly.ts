@@ -154,20 +154,14 @@ export function loadCanonicalStatements() {
 
 export async function executeReadOnlyCapture(
   client: { query: (sql: string, params?: any[]) => Promise<any> },
-  options: { capturedAt?: string; outputPath?: string; preflightPath?: string } = {},
+  options: { outputPath?: string; preflightPath?: string } = {},
 ) {
-  let capturedAt = options.capturedAt || process.env.CAPTURED_AT?.trim() || "";
-  if (!capturedAt) {
-    capturedAt = new Date().toISOString();
-  } else {
-    const d = new Date(capturedAt);
-    if (isNaN(d.getTime())) {
-      throw new Error(`Invalid capturedAt timestamp format: "${capturedAt}". Must be valid ISO-8601.`);
-    }
+  if (process.env.CAPTURED_AT?.trim() || (options as Record<string, unknown>).capturedAt !== undefined) {
+    throw new Error(
+      "Custom or spoofed capturedAt is not permitted in live capture; timestamp is generated strictly from the real execution clock.",
+    );
   }
-  if (capturedAt === "2026-09-12T17:28:44Z") {
-    throw new Error("Cannot spoof historical 2026-09-12 timestamp in live capture");
-  }
+  const capturedAt = new Date().toISOString();
 
   const outputPath = resolve(ROOT, options.outputPath || "docs/verification/supabase-migration-content-audit-20261024.json");
   const preflightPath = resolve(ROOT, options.preflightPath || "docs/verification/supabase-audit-preflight-evidence-20261024.json");
