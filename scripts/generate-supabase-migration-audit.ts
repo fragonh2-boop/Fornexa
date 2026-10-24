@@ -351,30 +351,50 @@ export function buildMigrationAudit(input: {
       gitDigests.statementDigests[45] === EXPECTED_CUSTOMS_EVENTS_TENANT_ID_DIGEST &&
       gitDigests.statementDigests.slice(46).every((d, i) => d === remoteDigests.statementDigests[44 + i]);
 
-    const isBaselineHistoricalMode = input.capturedAt === "2026-09-12T17:28:44Z";
+    // Patrones reales de registro por workflow posteriores al 2026-09-12 (MUST-EXEC-1R):
+    // Patrón A: migración registrada con un único elemento cuyo texto es exactamente el nombre del archivo (caso wms_e1_core en apply-wms-migration.yml)
+    const isWorkflowFilenameRegistration =
+      !STATEMENT_COUNT_ANCHORS.has(remote.name) &&
+      remote.remote_array_elements === 1 &&
+      remotePayloads[0]?.sql.trim() === basename(git.path);
+
+    // Patrón B: migración en Git envuelta en BEGIN; ... COMMIT; cuyo ledger contiene las mismas sentencias suprimiendo BEGIN/COMMIT (caso wms_c3_server_load_controls en apply-wms-c3-migration.yml)
+    const firstCode = (gitStatements[0] ?? "").replace(/--.*$/gm, "").trim();
+    const lastCode = (gitStatements[gitStatements.length - 1] ?? "").replace(/--.*$/gm, "").trim();
+    const isWorkflowEnvelopeStrippedRegistration =
+      !STATEMENT_COUNT_ANCHORS.has(remote.name) &&
+      gitStatements.length === remoteStatements.length + 2 &&
+      /^begin\b/i.test(firstCode) &&
+      /^commit\b/i.test(lastCode) &&
+      gitDigests.statementDigests
+        .slice(1, -1)
+        .every((digest, idx) => digest === remoteDigests.statementDigests[idx]);
+
+    const isAuthorizedWorkflowDelta =
+      isAuthorizedFornexaBaselineDelta ||
+      isWorkflowFilenameRegistration ||
+      isWorkflowEnvelopeStrippedRegistration;
 
     const comparison = compareSqlSources(git.sql, remoteGroups);
-    if (isBaselineHistoricalMode) {
-      if (!comparison.equivalent) {
-        if (!isAuthorizedFornexaBaselineDelta) {
-          throw new Error(`${remote.name}: literal-safe comparison failed: ${JSON.stringify(comparison)}`);
-        }
+    if (!comparison.equivalent) {
+      if (!isAuthorizedWorkflowDelta) {
+        throw new Error(`${remote.name}: literal-safe comparison failed: ${JSON.stringify(comparison)}`);
       }
+    }
 
-      const anchor = STATEMENT_COUNT_ANCHORS.get(remote.name);
-      if (anchor !== undefined) {
-        if (remote.name === "fornexa_operational_core" && isAuthorizedFornexaBaselineDelta) {
-          if (remoteStatements.length !== anchor || gitStatements.length !== 85) {
-            throw new Error(
-              `${remote.name}: expected ${anchor} remote and 85 git statements for baseline repair, got ${remoteStatements.length}/${gitStatements.length}`,
-            );
-          }
-        } else {
-          if (gitStatements.length !== anchor || remoteStatements.length !== anchor) {
-            throw new Error(
-              `${remote.name}: expected ${anchor}/${anchor} statements, got ${gitStatements.length}/${remoteStatements.length}`,
-            );
-          }
+    const anchor = STATEMENT_COUNT_ANCHORS.get(remote.name);
+    if (anchor !== undefined) {
+      if (remote.name === "fornexa_operational_core" && isAuthorizedFornexaBaselineDelta) {
+        if (remoteStatements.length !== anchor || gitStatements.length !== 85) {
+          throw new Error(
+            `${remote.name}: expected ${anchor} remote and 85 git statements for baseline repair, got ${remoteStatements.length}/${gitStatements.length}`,
+          );
+        }
+      } else {
+        if (gitStatements.length !== anchor || remoteStatements.length !== anchor) {
+          throw new Error(
+            `${remote.name}: expected ${anchor}/${anchor} statements, got ${gitStatements.length}/${remoteStatements.length}`,
+          );
         }
       }
     }
@@ -386,16 +406,14 @@ export function buildMigrationAudit(input: {
         remoteGroups.every(
           (group, index) => compareSqlSources(gitStatements[index] ?? "", [group]).equivalent,
         );
-      if (isBaselineHistoricalMode && !remoteArrayElementwiseEquivalent && !isAuthorizedFornexaBaselineDelta) {
+      if (!remoteArrayElementwiseEquivalent && !isAuthorizedWorkflowDelta) {
         throw new Error(`${remote.name}: multi-element array is not elementwise equivalent`);
       }
     }
 
-    if (isBaselineHistoricalMode) {
-      const multiElementAnchor = MULTI_ELEMENT_ANCHORS.get(remote.name);
-      if (multiElementAnchor && JSON.stringify(computed) !== JSON.stringify(multiElementAnchor)) {
-        throw new Error(`${remote.name}: pre-registered multi-element anchors differ`);
-      }
+    const multiElementAnchor = MULTI_ELEMENT_ANCHORS.get(remote.name);
+    if (multiElementAnchor && JSON.stringify(computed) !== JSON.stringify(multiElementAnchor)) {
+      throw new Error(`${remote.name}: pre-registered multi-element anchors differ`);
     }
     pairedGitPaths.add(git.path);
     entries.push({

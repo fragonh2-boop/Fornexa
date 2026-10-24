@@ -47,10 +47,13 @@ jobs:
       EXPECTED_DB_PORT: '5432'
       AUDIT_SQL_FILE: scripts/audit/capture-supabase-migration-audit.sql
       RUNNER_FILE: scripts/audit/run-supabase-audit-readonly.ts
+      GENERATOR_FILE: scripts/generate-supabase-migration-audit.ts
       EXPECTED_SQL_SHA256: 14934a1f9d7af8e4521e79415a29c46810f79ef4a7b0a4965a6d6fdd595bc932
       EXPECTED_SQL_BYTES: 6606
-      EXPECTED_RUNNER_SHA256: 11c0a0e6559cec8b8f271a1dda8842fa80f87d689de904556705fc152df0acc5
-      EXPECTED_RUNNER_BYTES: 12550
+      EXPECTED_RUNNER_SHA256: 29e0a01c9a848ef51c63929032f75bb152c090d4062a4628dd0c5b044c8d7509
+      EXPECTED_RUNNER_BYTES: 13198
+      EXPECTED_GENERATOR_SHA256: 98ac78ffa90049efeecea4750f9e13f921cc18e7407f978918d1e4e543cb83da
+      EXPECTED_GENERATOR_BYTES: 26569
 
     steps:
       - name: Comprobar confirmacion literal y formato de parametros
@@ -80,6 +83,10 @@ jobs:
         run: |
           echo "Cotejando supabase/migrations desde TARGET_SHA=$TARGET_SHA..."
           git fetch origin "$TARGET_SHA" || true
+          if ! git cat-file -e "$TARGET_SHA^{commit}"; then
+            echo "::error::El commit TARGET_SHA=$TARGET_SHA no existe en el repositorio."
+            exit 1
+          fi
           git checkout "$TARGET_SHA" -- supabase/migrations
 
       - name: Setup pnpm
@@ -159,7 +166,7 @@ jobs:
 
       - name: Verificar integridad del script SQL READ-ONLY, runner y linea base 20260912
         run: |
-          for F in "$AUDIT_SQL_FILE" "$RUNNER_FILE"; do
+          for F in "$AUDIT_SQL_FILE" "$RUNNER_FILE" "$GENERATOR_FILE"; do
             if [ ! -f "$F" ]; then
               echo "::error::Falta el archivo $F."
               exit 1
@@ -179,6 +186,14 @@ jobs:
           RUNNER_SHA=$(sha256sum "$RUNNER_FILE" | cut -d' ' -f1)
           if [ "$RUNNER_BYTES" != "$EXPECTED_RUNNER_BYTES" ] || [ "$RUNNER_SHA" != "$EXPECTED_RUNNER_SHA256" ]; then
             echo "::error::El runner no coincide con el pin auditado. Leido: $RUNNER_BYTES bytes / $RUNNER_SHA. Esperado: $EXPECTED_RUNNER_BYTES / $EXPECTED_RUNNER_SHA256."
+            exit 1
+          fi
+
+          # 2b. Pin por contenido de generate-supabase-migration-audit.ts (SHOULD-SEC-1)
+          GEN_BYTES=$(wc -c < "$GENERATOR_FILE" | tr -d ' ')
+          GEN_SHA=$(sha256sum "$GENERATOR_FILE" | cut -d' ' -f1)
+          if [ "$GEN_BYTES" != "$EXPECTED_GENERATOR_BYTES" ] || [ "$GEN_SHA" != "$EXPECTED_GENERATOR_SHA256" ]; then
+            echo "::error::El generador no coincide con el pin auditado. Leido: $GEN_BYTES bytes / $GEN_SHA. Esperado: $EXPECTED_GENERATOR_BYTES / $EXPECTED_GENERATOR_SHA256."
             exit 1
           fi
 

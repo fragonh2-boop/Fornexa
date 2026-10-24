@@ -156,7 +156,19 @@ export async function executeReadOnlyCapture(
   client: { query: (sql: string, params?: any[]) => Promise<any> },
   options: { capturedAt?: string; outputPath?: string; preflightPath?: string } = {},
 ) {
-  const capturedAt = options.capturedAt || new Date().toISOString();
+  let capturedAt = options.capturedAt || process.env.CAPTURED_AT?.trim() || "";
+  if (!capturedAt) {
+    capturedAt = new Date().toISOString();
+  } else {
+    const d = new Date(capturedAt);
+    if (isNaN(d.getTime())) {
+      throw new Error(`Invalid capturedAt timestamp format: "${capturedAt}". Must be valid ISO-8601.`);
+    }
+  }
+  if (capturedAt === "2026-09-12T17:28:44Z") {
+    throw new Error("Cannot spoof historical 2026-09-12 timestamp in live capture");
+  }
+
   const outputPath = resolve(ROOT, options.outputPath || "docs/verification/supabase-migration-content-audit-20261024.json");
   const preflightPath = resolve(ROOT, options.preflightPath || "docs/verification/supabase-audit-preflight-evidence-20261024.json");
 
@@ -205,14 +217,14 @@ export async function executeReadOnlyCapture(
       policies: q6b.rows,
     };
 
-    // Assert 0 cross-tenant mismatched rows
-    assert.equal(preflightEvidence.mismatched_rows.customs_messages, 0, "Customs messages must have 0 cross-tenant mismatches");
-    assert.equal(preflightEvidence.mismatched_rows.customs_events, 0, "Customs events must have 0 cross-tenant mismatches");
-
-    // Write preflight evidence to disk PRIOR to processing Query 7 (MUST-EXEC-1)
+    // Write preflight evidence to disk PRIOR to assert (MUST-EXEC-1R)
     const preflightJson = JSON.stringify(preflightEvidence, null, 2) + "\n";
     assert.ok(!preflightJson.includes('"payload_base64":'), "Preflight evidence must never contain raw payload_base64");
     writeFileSync(preflightPath, preflightJson, "utf8");
+
+    // Assert 0 cross-tenant mismatched rows (aborts if mismatched, but leaves preflight on disk)
+    assert.equal(preflightEvidence.mismatched_rows.customs_messages, 0, "Customs messages must have 0 cross-tenant mismatches");
+    assert.equal(preflightEvidence.mismatched_rows.customs_events, 0, "Customs events must have 0 cross-tenant mismatches");
 
     // 6. Process migration audit artifact
     const rawExport = q7.rows[0]?.migration_audit_export;
@@ -233,24 +245,26 @@ export async function executeReadOnlyCapture(
         sql: readFileSync(resolve(gitDir, file), "utf8"),
       }));
 
-    // Determine baseline commit SHA (fail-closed, MUST-EXEC-2)
-    let gitCommit = process.env.TARGET_SHA?.trim() || "";
-    if (gitCommit) {
-      if (!/^[0-9a-f]{40}$/i.test(gitCommit)) {
-        throw new Error(`Invalid TARGET_SHA provided: "${gitCommit}". Must be 40 lowercase hex characters.`);
+    // Determine baseline commit SHA (fail-closed, MUST-EXEC-2R)
+    const { execFileSync } = await import("node:child_process");
+    const targetSha = process.env.TARGET_SHA?.trim() || "";
+    if (targetSha) {
+      if (!/^[0-9a-f]{40}$/i.test(targetSha)) {
+        throw new Error(`Invalid TARGET_SHA provided: "${targetSha}". Must be 40 lowercase hex characters.`);
       }
-      gitCommit = gitCommit.toLowerCase();
-    } else {
-      const { execFileSync } = await import("node:child_process");
+      // Verificar fail-closed que supabase/migrations en disco coincide exactamente con TARGET_SHA
       try {
-        gitCommit = execFileSync("git", ["-C", ROOT, "log", "-1", "--format=%H", "--", "supabase/migrations"], { encoding: "utf8" }).trim();
-      } catch (err: unknown) {
-        throw new Error(`Failed to determine git migration baseline commit SHA: ${err instanceof Error ? err.message : String(err)}`);
+        execFileSync("git", ["-C", ROOT, "diff", "--quiet", targetSha, "--", "supabase/migrations"]);
+      } catch {
+        throw new Error(`supabase/migrations in working tree does not match TARGET_SHA: ${targetSha}`);
       }
-      if (!/^[0-9a-f]{40}$/i.test(gitCommit)) {
-        throw new Error(`Invalid git migration baseline commit SHA: "${gitCommit}". Must be 40 hex characters.`);
-      }
-      gitCommit = gitCommit.toLowerCase();
+    }
+    const logArgs = targetSha
+      ? ["-C", ROOT, "log", "-1", "--format=%H", targetSha, "--", "supabase/migrations"]
+      : ["-C", ROOT, "log", "-1", "--format=%H", "--", "supabase/migrations"];
+    const gitCommit = execFileSync("git", logArgs, { encoding: "utf8" }).trim().toLowerCase();
+    if (!/^[0-9a-f]{40}$/.test(gitCommit)) {
+      throw new Error(`Invalid git migration baseline commit SHA: "${gitCommit}". Must be 40 hex characters.`);
     }
 
     const auditDocument = buildMigrationAudit({

@@ -21,7 +21,6 @@ import {
   EXPECTED_SQL_BYTES,
   EXPECTED_SQL_SHA256,
 } from "../scripts/audit/run-supabase-audit-readonly.ts";
-import { splitSqlStatements } from "../scripts/sql-provenance.ts";
 
 test("ReadOnly Executor — Validación estricta de Connection String (Allowlist, Query Params y Fragmentos)", () => {
   // Caso válido base
@@ -197,13 +196,12 @@ test("ReadOnly Executor — Ejecución relacional completa sobre PGlite con mock
     ["20260814120000", "cmr_canonical_model", [sql1]],
   );
 
-  // 2. Migración con delta histórico: 20260812_fornexa_operational_core (83 sentencias en ledger)
-  const fCore = "20260812_fornexa_operational_core.sql";
-  const sqlCore = readFileSync(resolve(migrationDir, fCore), "utf8");
-  const coreStmts = splitSqlStatements(sqlCore);
+  // 2. Migración estándar idéntica: 20260901_platform_telemetry
+  const fSec = "20260901_platform_telemetry.sql";
+  const sqlSec = readFileSync(resolve(migrationDir, fSec), "utf8");
   await db.query(
     "insert into supabase_migrations.schema_migrations (version, name, statements) values ($1, $2, $3);",
-    ["20260812120000", "fornexa_operational_core", coreStmts.slice(0, 83)],
+    ["20260901120000", "platform_telemetry", [sqlSec]],
   );
 
   // 3. Migración insertada como nombre de archivo: 20261017110000_wms_e1_core
@@ -271,4 +269,145 @@ test("ReadOnly Executor — Ejecución relacional completa sobre PGlite con mock
     if (existsSync(tempOut)) unlinkSync(tempOut);
     if (existsSync(tempPre)) unlinkSync(tempPre);
   }
+});
+
+test("ReadOnly Executor — Falla cerrada ante mutaciones arbitrarias incluso en fecha actual (SHOULD-SEC-1)", async () => {
+  const db = new PGlite();
+  await db.exec(`
+    create schema if not exists supabase_migrations;
+    create table supabase_migrations.schema_migrations (
+      version text primary key,
+      name text,
+      statements text[]
+    );
+    create table public.customs_cases (
+      id uuid primary key default gen_random_uuid(),
+      tenant_id uuid not null default '00000000-0000-4000-a000-000000000001'::uuid,
+      created_at timestamptz default now()
+    );
+    create table public.customs_messages (
+      id uuid primary key default gen_random_uuid(),
+      case_id uuid references public.customs_cases(id),
+      tenant_id uuid default '00000000-0000-4000-a000-000000000001'::uuid,
+      actor_id uuid,
+      created_at timestamptz default now()
+    );
+    create table public.customs_events (
+      id uuid primary key default gen_random_uuid(),
+      case_id uuid references public.customs_cases(id),
+      tenant_id uuid default '00000000-0000-4000-a000-000000000001'::uuid,
+      actor_id uuid,
+      created_at timestamptz default now()
+    );
+  `);
+
+  // Insertar una mutación arbitraria no autorizada en cmr_canonical_model
+  await db.query(
+    "insert into supabase_migrations.schema_migrations (version, name, statements) values ($1, $2, $3);",
+    ["20260814120000", "cmr_canonical_model", ["create table mutated_unauthorized_table (id int);"]],
+  );
+
+  const clientAdapter = {
+    query: async (sql: string, params?: any[]) => {
+      return await db.query(sql, params);
+    },
+  };
+
+  const tempOut = resolve(import.meta.dirname, "../docs/verification/test-mutated-audit-20261024.json");
+  const tempPre = resolve(import.meta.dirname, "../docs/verification/test-mutated-preflight-20261024.json");
+
+  try {
+    await assert.rejects(
+      async () => {
+        await executeReadOnlyCapture(clientAdapter, {
+          capturedAt: "2026-10-24T12:00:00Z",
+          outputPath: tempOut,
+          preflightPath: tempPre,
+        });
+      },
+      /literal-safe comparison failed/,
+      "Cualquier mutación arbitraria debe fallar cerrado incluso con timestamp de captura vivo",
+    );
+  } finally {
+    if (existsSync(tempOut)) unlinkSync(tempOut);
+    if (existsSync(tempPre)) unlinkSync(tempPre);
+  }
+});
+
+test("ReadOnly Executor — Conservación de evidencia preflight ante discrepancias cruzadas (mismatched_rows > 0)", async () => {
+  const db = new PGlite();
+  await db.exec(`
+    create schema if not exists supabase_migrations;
+    create table supabase_migrations.schema_migrations (
+      version text primary key,
+      name text,
+      statements text[]
+    );
+    create table public.customs_cases (
+      id uuid primary key default gen_random_uuid(),
+      tenant_id uuid not null,
+      created_at timestamptz default now()
+    );
+    create table public.customs_messages (
+      id uuid primary key default gen_random_uuid(),
+      case_id uuid references public.customs_cases(id),
+      tenant_id uuid,
+      actor_id uuid,
+      created_at timestamptz default now()
+    );
+    create table public.customs_events (
+      id uuid primary key default gen_random_uuid(),
+      case_id uuid references public.customs_cases(id),
+      tenant_id uuid,
+      actor_id uuid,
+      created_at timestamptz default now()
+    );
+
+    -- Insertar discrepancia referencial cruzada deliberada:
+    insert into public.customs_cases (id, tenant_id) values ('10000000-0000-4000-a000-000000000001', '00000000-0000-4000-a000-000000000001');
+    insert into public.customs_messages (case_id, tenant_id) values ('10000000-0000-4000-a000-000000000001', '00000000-0000-4000-a000-000000000002');
+  `);
+
+  const tempPre = resolve(import.meta.dirname, "../docs/verification/test-mismatch-preflight-20261024.json");
+
+  const clientAdapter = {
+    query: async (sql: string, params?: any[]) => {
+      return await db.query(sql, params);
+    },
+  };
+
+  try {
+    await assert.rejects(
+      async () => {
+        await executeReadOnlyCapture(clientAdapter, {
+          capturedAt: "2026-10-24T12:00:00Z",
+          preflightPath: tempPre,
+        });
+      },
+      /Customs messages must have 0 cross-tenant mismatches/,
+      "Debe abortar ante discrepancias referenciales",
+    );
+
+    // Sin embargo, el archivo preflight debe haberse escrito a disco con el detalle forense:
+    assert.ok(existsSync(tempPre), "El preflight debe estar escrito en disco para auditoría forense");
+    const preContent = JSON.parse(readFileSync(tempPre, "utf8"));
+    assert.equal(preContent.mismatched_rows.customs_messages, 1);
+  } finally {
+    if (existsSync(tempPre)) unlinkSync(tempPre);
+  }
+});
+
+test("ReadOnly Executor — Bloqueo de suplantación de timestamp histórico 20260912 en captura en vivo", async () => {
+  const dummyClient = {
+    query: async () => ({ rows: [] }),
+  };
+
+  await assert.rejects(
+    async () => {
+      await executeReadOnlyCapture(dummyClient, {
+        capturedAt: "2026-09-12T17:28:44Z",
+      });
+    },
+    /Cannot spoof historical 2026-09-12 timestamp in live capture/,
+  );
 });
