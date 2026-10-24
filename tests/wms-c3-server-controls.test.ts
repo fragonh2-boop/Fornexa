@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import test from "node:test";
+import { memorandumPending, memorandumReleases } from "../lib/memorandum.ts";
 import { WMS_ACTIONS, isHuColumnMissingError, executeWmsActionApi, validateWmsActionPayloadSecurity, type WmsAction } from "../lib/wms.ts";
 // @ts-expect-error - import dynamic harness case registry
 import { getExpectedCases } from "../scripts/wms/verify-c3-postgres.mjs";
@@ -371,16 +372,13 @@ test("M7 C-3 — CONTROL_STATE exige status explícito obligatorio y rechaza omi
   );
 });
 
-test("M7 C-3 — lib/memorandum.ts modera la redacción de C-3 a 'En revisión independiente' (SHOULD-7)", () => {
-  const memoSrc = readFileSync(resolve(import.meta.dirname, "../lib/memorandum.ts"), "utf-8");
-  assert.ok(
-    memoSrc.includes("En revisión independiente de M7 (C-3)"),
-    "El resumen de almacenes en memorandum.ts debe reflejar 'En revisión independiente de M7 (C-3)'",
-  );
-  assert.ok(
-    !memoSrc.includes("Se incorpora en M7 (C-3)"),
-    "No debe afirmar que C-3 ya está incorporado en producción",
-  );
+test("M7 C-3 — el Memorandum distingue aplicación desplegada y verificación funcional pendiente", () => {
+  const release = memorandumReleases.find((item) => item.version === "2026.10.23-1");
+  assert.equal(release?.status, "Producción");
+  assert.match(release?.outcome ?? "", /verificación funcional autenticada sigue pendiente/);
+  const pending = memorandumPending.find((item) => item.title.startsWith("Almacenes"));
+  assert.equal(pending?.state, "En seguimiento");
+  assert.match(pending?.summary ?? "", /verificación funcional autenticada en producción sigue pendiente/);
 });
 
 const EXPECTED_INPUT_FILES = [
