@@ -351,9 +351,33 @@ export function buildMigrationAudit(input: {
       gitDigests.statementDigests[45] === EXPECTED_CUSTOMS_EVENTS_TENANT_ID_DIGEST &&
       gitDigests.statementDigests.slice(46).every((d, i) => d === remoteDigests.statementDigests[44 + i]);
 
+    // Patrones reales de registro por workflow posteriores al 2026-09-12 (MUST-EXEC-1R):
+    // Patrón A: migración registrada con un único elemento cuyo texto es exactamente el nombre del archivo (caso wms_e1_core en apply-wms-migration.yml)
+    const isWorkflowFilenameRegistration =
+      !STATEMENT_COUNT_ANCHORS.has(remote.name) &&
+      remote.remote_array_elements === 1 &&
+      remotePayloads[0]?.sql.trim() === basename(git.path);
+
+    // Patrón B: migración en Git envuelta en BEGIN; ... COMMIT; cuyo ledger contiene las mismas sentencias suprimiendo BEGIN/COMMIT (caso wms_c3_server_load_controls en apply-wms-c3-migration.yml)
+    const firstCode = (gitStatements[0] ?? "").replace(/--.*$/gm, "").trim();
+    const lastCode = (gitStatements[gitStatements.length - 1] ?? "").replace(/--.*$/gm, "").trim();
+    const isWorkflowEnvelopeStrippedRegistration =
+      !STATEMENT_COUNT_ANCHORS.has(remote.name) &&
+      gitStatements.length === remoteStatements.length + 2 &&
+      /^begin\b/i.test(firstCode) &&
+      /^commit\b/i.test(lastCode) &&
+      gitDigests.statementDigests
+        .slice(1, -1)
+        .every((digest, idx) => digest === remoteDigests.statementDigests[idx]);
+
+    const isAuthorizedWorkflowDelta =
+      isAuthorizedFornexaBaselineDelta ||
+      isWorkflowFilenameRegistration ||
+      isWorkflowEnvelopeStrippedRegistration;
+
     const comparison = compareSqlSources(git.sql, remoteGroups);
     if (!comparison.equivalent) {
-      if (!isAuthorizedFornexaBaselineDelta) {
+      if (!isAuthorizedWorkflowDelta) {
         throw new Error(`${remote.name}: literal-safe comparison failed: ${JSON.stringify(comparison)}`);
       }
     }
@@ -382,7 +406,7 @@ export function buildMigrationAudit(input: {
         remoteGroups.every(
           (group, index) => compareSqlSources(gitStatements[index] ?? "", [group]).equivalent,
         );
-      if (!remoteArrayElementwiseEquivalent && !isAuthorizedFornexaBaselineDelta) {
+      if (!remoteArrayElementwiseEquivalent && !isAuthorizedWorkflowDelta) {
         throw new Error(`${remote.name}: multi-element array is not elementwise equivalent`);
       }
     }
