@@ -4,6 +4,13 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-24 — E2 #139: contrato técnico cerrado (S4 y N3 resueltos); pendiente revisión independiente
+
+- **Estado:** PR #139 OPEN/draft, rebasada sobre `main` `d149789c4c73bb68eb259da3230a53c8c6366b27`. Árbol limpio con únicamente los 3 documentos de arquitectura y seguimiento.
+- **Cierre de S4:** Ocupación de palés entrantes especificada por Handling Unit (`count(distinct hu_id)`). HU completa = 1 palé; consolidación en HU destino existente = 0 palés adicionales; nueva HU = 1 palé. Ubicaciones con `max_pallets IS NULL` omiten límite de palés. No duplica plazas entre propuestas que consolidan en la misma HU.
+- **Cierre de N3:** Invariante CHECK `quantity_reserved <= quantity_on_hand` preservado. Principio de neutralidad multi-orden (sin selección automática de qué orden pierde saldo ante merma). Conciliación requerida del planificador (`PLANNER`/`ADMIN`) vía `CANCEL_PROPOSAL` con motivo `SHORTAGE_ADJUSTMENT`. Paso 4 de RPC cancela atómicamente propuesta, tarea y su reserva `HELD` retornando deterministamente `WMS_SOURCE_STOCK_DEPLETED` sin `RAISE`. Escenario E2-146 formalizado como excepción determinista alcanzable.
+- **Gobernanza:** Autorización humana Fran (`FRAN-PRIMARY-CIERRE-TOTAL-20261024.md`). Dato SGA editable y reservas multi-orden 100→60+40 sí / 60+60 no preservados. CERO código runtime de E2 en esta PR. Pendiente nueva CI y revisión independiente del HEAD final antes de asignar implementación.
+
 ### 2026-10-23 — SHOULD-12: retirada temprana y orden de pruebas
 
 - **Estado:** PREPARADO SOLO EN LOCAL, NO INTEGRADO NI DESPLEGADO. Rama `codex/ci-receipt-cleanup-stacked-20261023`, padre #142 exacto `3da0e6db2d730817b64bde83193210686d13e352`. Limpieza inmediatamente después de Checkout; solo `Test web` se mueve detrás de arnés + certificación estricta y antes de Upload. Comandos, pruebas, recibos y controles permanecen intactos.
