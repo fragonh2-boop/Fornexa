@@ -387,3 +387,5 @@ Los checkpoints siguientes son históricos; sus referencias a DB C3 pendiente qu
 ### 2026-09-03 — T1 histórico operativo append-only
 - **Estado:** IMPLEMENTADO, MIGRADO Y DESPLEGADO
 - **Cierre:** eventos solo lectura/inserción para roles de aplicación; correcciones mediante eventos compensatorios.
+
+- **Reconciliación 24-oct:** #142 integrada por squash en main como `4d7b508ff50e5df40756eb6db8c43e6874e734e3` (HEAD PR `3da0e6db`, CI569 SUCCESS, revisión Claude sin MUST). Esta rama se rebasó sin conflictos sobre ese main y conserva solo el delta final (workflow CI + test Point 1.1 negative + notas). Las menciones anteriores a «#142 abierta/padre 3da0e6db» son históricas. Sin cambios runtime/SQL; pendiente revisión independiente del HEAD final y gates antes de merge.
