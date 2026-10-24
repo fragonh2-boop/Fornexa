@@ -1643,6 +1643,8 @@ async function run() {
   const violationsFile = process.env.DATA150_VIOLATIONS_FILE!;
   const myFlag = path.join(activeDir, "active-" + id + ".flag");
 
+  // Ready handshake: signal that this worker finished booting and is polling the barrier.
+  fs.writeFileSync(path.join(activeDir, "ready-" + id + ".ready"), "1\\n", "utf8");
   while (!fs.existsSync(barrier)) {
     await new Promise((r) => setTimeout(r, 5));
   }
@@ -1695,7 +1697,16 @@ run().catch((e) => {
     stdio: ["pipe", "pipe", "pipe"],
   });
 
-  await new Promise((r) => setTimeout(r, 40));
+  // Deterministic start: wait until BOTH workers have booted and are polling the barrier
+  // (a fixed delay raced against node startup time and let one worker finish before the other began).
+  const readyDeadline = Date.now() + 20000;
+  while (
+    !existsSync(path.join(activeDir, "ready-NEG_P1.ready")) ||
+    !existsSync(path.join(activeDir, "ready-NEG_P2.ready"))
+  ) {
+    assert.ok(Date.now() < readyDeadline, "Both unshielded workers must reach the barrier before GO");
+    await new Promise((r) => setTimeout(r, 5));
+  }
   writeFileSync(startBarrier, "GO\n");
 
   await Promise.all([

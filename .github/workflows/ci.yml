@@ -69,6 +69,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Remove inherited WMS C-3 verification receipt
+        run: rm -f docs/verification/receipt-m7-c3-postgres.json
+
       - name: Require memorandum update for functional changes
         env:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
@@ -99,9 +102,6 @@ jobs:
       - name: Lint web
         run: pnpm lint
 
-      - name: Test web
-        run: pnpm test
-
       - name: Verify WMS C-3 Server Controls (PostgreSQL Relational Execution)
         env:
           PGHOST: 127.0.0.1
@@ -119,6 +119,9 @@ jobs:
         env:
           WMS_CURRENT_RUN_RECEIPT: "true"
         run: node --experimental-test-module-mocks --import ./scripts/test-register.mjs --experimental-strip-types --test tests/wms-c3-server-controls.test.ts
+
+      - name: Test web
+        run: pnpm test
 
       - name: Upload WMS C-3 Verification Receipt
         if: always()

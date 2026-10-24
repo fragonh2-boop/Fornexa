@@ -4,6 +4,14 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-23 — SHOULD-12: retirada temprana y orden de pruebas
+
+- **Estado:** PREPARADO SOLO EN LOCAL, NO INTEGRADO NI DESPLEGADO. Rama `codex/ci-receipt-cleanup-stacked-20261023`, padre #142 exacto `3da0e6db2d730817b64bde83193210686d13e352`. Limpieza inmediatamente después de Checkout; solo `Test web` se mueve detrás de arnés + certificación estricta y antes de Upload. Comandos, pruebas, recibos y controles permanecen intactos.
+- **Corrección necesaria:** simple retirada (`27b3bf5`, baseline `47e81a1`) fallaba 36/39 con tres ENOENT antes del arnés; no publicar esos commits. Se conserva el requisito de emitir evidencia nueva antes de sus consumidores, sin saltar pruebas ni fabricar fixtures.
+- **Validación local:** ruta roja real PASS (gate Memo exit1 y ningún recibo publicable); consumidores con recibo auténtico histórico 3/3 PASS; replay estricto histórico 3/3 PASS, ausencia y run ajeno rechazados; Memorandum3/3 y lint PASS. El replay histórico no certifica este run ni PostgreSQL nuevo. Build de producción del delta corregido PASS; no hay PG local disponible, sin instalaciones ni credenciales.
+- **Aceptación pendiente:** CI real del HEAD final debe acreditar emisión PG16/TCP, certificación estricta del run/SHA/ref actual, suite web completa después del arnés y el ensayo PG17 existente. No declarar PASS global, nuevo READY ni cierre WMS por las comprobaciones locales.
+- **Dependencia e integración:** #142 intacta (relevo HEAD `3da0e6db`, CI569 SUCCESS), sin duplicar revisión. Conserva su cierre23-1Producción y test semántico; añade hito distinto Preproducción. Cobertura677 por linaje676+1; integrar solo el delta final tras cerrar142 y recalcular si cambia el linaje. Root integra; sin publicación, merge, deploy, SQL remoto, seed ni smoke productivo.
+
 - **Verificación funcional C3 pendiente:** aplicación #138 ya fusionada y READY en `3572cf420a82f1ddfd43298850a1a725e1e9b30a`; CI main568 SUCCESS, dominio exacto y smoke público correctos. Falta POST 400 con sesión operativa legítima, RLS/aislamiento funcional y recorrido WMS/E2/DATA150. No simular sesión/roles ni declarar WMS cerrado.
 - **SHOULD-12 (siguiente delta separado):** mover retirada del recibo heredado al paso posterior inmediato a Checkout; hoy un fallo previo al arnés puede subir el recibo versionado como artefacto de un run fallido. No modificó ni invalidó el gate ejercitado en verde de #138.
 - **Deudas de revisión:** S3/S11 es deuda de auth previa, no regresión; primero cubrir getAuthenticatedContext real, después diferenciar 401/503. S13 clasificación de esquema y S15 observabilidad se mantienen como SHOULD. PG16 TCP20/20 y ensayo PG17 parcial no certifican todo en PG17 ni la cadena completa de migraciones.
@@ -379,3 +387,5 @@ Los checkpoints siguientes son históricos; sus referencias a DB C3 pendiente qu
 ### 2026-09-03 — T1 histórico operativo append-only
 - **Estado:** IMPLEMENTADO, MIGRADO Y DESPLEGADO
 - **Cierre:** eventos solo lectura/inserción para roles de aplicación; correcciones mediante eventos compensatorios.
+
+- **Reconciliación 24-oct:** #142 integrada por squash en main como `4d7b508ff50e5df40756eb6db8c43e6874e734e3` (HEAD PR `3da0e6db`, CI569 SUCCESS, revisión Claude sin MUST). Esta rama se rebasó sin conflictos sobre ese main y conserva solo el delta final (workflow CI + test Point 1.1 negative + notas). Las menciones anteriores a «#142 abierta/padre 3da0e6db» son históricas. Sin cambios runtime/SQL; pendiente revisión independiente del HEAD final y gates antes de merge.
