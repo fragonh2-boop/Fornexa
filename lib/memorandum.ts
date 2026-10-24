@@ -194,6 +194,15 @@ export const memorandumPending: MemorandumPending[] = [
 
 export const memorandumReleases: MemorandumRelease[] = [
   {
+    version: "2026.10.23-3",
+    date: "23 oct 2026",
+    surface: ["Plataforma"],
+    title: "Saneamiento de baseline Supabase Preview (customs_messages y customs_events tenant_id)",
+    purpose: "Reparar la discrepancia histórica de baseline en Supabase Preview incorporando tenant_id en customs_messages y customs_events con preservación inmutable del ledger y auditoría literal-safe.",
+    outcome: "Resolución de error SQLSTATE 42703 en políticas RLS de customs, validación exhaustiva de 85 sentencias Git vs 83 remotas con disparidad autorizada, y cobertura de pruebas unitarias negativas fail-closed.",
+    status: "Preproducción",
+  },
+  {
     version: "2026.10.23-2",
     date: "23 oct 2026",
     surface: ["Plataforma"],
