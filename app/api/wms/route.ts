@@ -25,7 +25,7 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const warehouseId = url.searchParams.get("warehouse_id") || undefined;
-    const data = await loadWmsData(auth.tenantId, warehouseId);
+    const data = await loadWmsData(auth.tenantId, warehouseId, { includeE2: true });
     return response({
       ...data,
       canEdit: EDIT_ROLES.has(auth.role),
@@ -78,10 +78,14 @@ export async function POST(request: Request) {
       );
     }
     const action = rawAction as WmsAction;
-    if (
-      (action === "UPSERT_POLICY" || action === "UPSERT_RESOURCE") &&
-      !CONFIG_ROLES.has(auth.role)
-    ) {
+    const isConfigOrPlanning =
+      action === "UPSERT_POLICY" ||
+      action === "UPSERT_RESOURCE" ||
+      action === "EVALUATE_REPLENISHMENT" ||
+      action === "APPROVE_PROPOSAL" ||
+      action === "REJECT_PROPOSAL" ||
+      action === "CANCEL_PROPOSAL";
+    if (isConfigOrPlanning && !CONFIG_ROLES.has(auth.role)) {
       return response(
         {
           error: "WMS_FORBIDDEN: Se requiere rol de planificación o administración.",

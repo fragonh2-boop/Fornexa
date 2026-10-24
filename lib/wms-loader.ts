@@ -14,6 +14,7 @@ function missingSchemaIdentifier(error: { code?: string; message?: string }, cod
 export async function loadWmsData(
   tenantId: string,
   warehouseId?: string,
+  options: { includeE2?: boolean } = {},
 ): Promise<WmsOverviewData> {
   const db = createSupabaseAdmin();
 
@@ -136,6 +137,8 @@ export async function loadWmsData(
   let huContents: WmsOverviewData["huContents"] = [];
   let reservations: WmsOverviewData["reservations"] = [];
   let tasks: WmsOverviewData["tasks"] = [];
+  let replenishmentRules: WmsOverviewData["replenishmentRules"] = [];
+  let proposals: WmsOverviewData["proposals"] = [];
 
   if (schemaReady) {
     const e1Results = await Promise.all([
@@ -245,6 +248,41 @@ export async function loadWmsData(
         quantity: t.quantity !== null ? Number(t.quantity) : null,
       }));
     }
+
+    if (options.includeE2) {
+      try {
+        const e2Results = await Promise.all([
+          db
+            .from("replenishment_rules")
+            .select("id,warehouse_id,product_id,destination_bin_id,min_quantity,max_quantity,reorder_quantity,consolidation,is_active,created_at,updated_at")
+            .eq("tenant_id", tenantId)
+            .order("created_at", { ascending: false })
+            .limit(500),
+          db
+            .from("wms_proposals")
+            .select("id,warehouse_id,rule_id,product_id,source_bin_id,source_quant_id,destination_bin_id,suggested_quantity,target_hu_id,status,rejection_reason,task_id,created_by,approved_by,rejected_by,created_at,updated_at")
+            .eq("tenant_id", tenantId)
+            .order("created_at", { ascending: false })
+            .limit(500),
+        ]);
+        if (!e2Results[0].error && e2Results[0].data) {
+          replenishmentRules = e2Results[0].data.map((r: any) => ({
+            ...r,
+            min_quantity: Number(r.min_quantity ?? 0),
+            max_quantity: Number(r.max_quantity ?? 0),
+            reorder_quantity: Number(r.reorder_quantity ?? 0),
+          }));
+        }
+        if (!e2Results[1].error && e2Results[1].data) {
+          proposals = e2Results[1].data.map((p: any) => ({
+            ...p,
+            suggested_quantity: Number(p.suggested_quantity ?? 0),
+          }));
+        }
+      } catch {
+        // E2 tables optional if migration not yet applied
+      }
+    }
   }
 
   const filterWh = <T extends { warehouse_id: string }>(rows: T[]): T[] =>
@@ -288,5 +326,7 @@ export async function loadWmsData(
     huContents,
     reservations,
     tasks: filterWh(tasks),
+    replenishmentRules: filterWh(replenishmentRules),
+    proposals: filterWh(proposals),
   };
 }
