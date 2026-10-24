@@ -1,0 +1,184 @@
+name: Capture Supabase Migration Audit (Read Only)
+
+concurrency:
+  group: supabase-audit-capture
+  cancel-in-progress: false
+
+# Official and secure READ-ONLY audit workflow for Supabase Database.
+# Strictly bounded:
+# 1. Runs inside BEGIN TRANSACTION READ ONLY ... ROLLBACK.
+# 2. Rejects any mutation fail-closed at PostgreSQL kernel level.
+# 3. Transports ledger export strictly in memory (ZERO raw DDL / payload_base64 on disk or logs).
+# 4. Generates docs/verification/supabase-migration-content-audit-20261024.json and preserves 20260912.json intact.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Confirmacion obligatoria (escribe exactamente CAPTURE_READONLY_AUDIT)'
+        required: true
+        type: string
+      captured_at:
+        description: 'Timestamp ISO de captura (opcional, defaults a fecha/hora actual UTC)'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    name: Captura de Auditoria de Migraciones Supabase (Read Only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CONFIRM: ${{ inputs.confirm }}
+      CAPTURED_AT: ${{ inputs.captured_at }}
+      EXPECTED_DB_PROJECT_REF: gqkjqhpmyejmehbuombk
+      EXPECTED_DB_NAME: postgres
+      EXPECTED_HOST_SUFFIX: .pooler.supabase.com
+      EXPECTED_DB_PORT: '5432'
+      AUDIT_SQL_FILE: scripts/audit/capture-supabase-migration-audit.sql
+
+    steps:
+      - name: Comprobar confirmacion literal
+        run: |
+          if [ "$CONFIRM" != "CAPTURE_READONLY_AUDIT" ]; then
+            echo "::error::Falta la confirmacion obligatoria. Escribe exactamente CAPTURE_READONLY_AUDIT en el campo 'confirm'."
+            exit 1
+          fi
+          echo "Confirmacion aceptada: CAPTURE_READONLY_AUDIT."
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install web dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verificar la identidad del destino sin imprimirlo
+        env:
+          PG: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+        run: |
+          python3 -I - << 'PY'
+          import os, re
+          from urllib.parse import urlsplit
+
+          def fail(msg):
+              print(f"::error::{msg} No se imprime el valor.")
+              raise SystemExit(1)
+
+          pg = os.environ.get("PG", "")
+          if not pg.strip():
+              fail("Falta el secreto POSTGRES_URL_NON_POOLING.")
+
+          expected_user = "postgres." + os.environ["EXPECTED_DB_PROJECT_REF"]
+          expected_db = os.environ["EXPECTED_DB_NAME"]
+          expected_suffix = os.environ["EXPECTED_HOST_SUFFIX"]
+          expected_port = int(os.environ["EXPECTED_DB_PORT"])
+
+          parts = urlsplit(pg)
+
+          if parts.scheme not in ("postgres", "postgresql"):
+              fail("El esquema de conexion no es postgres ni postgresql.")
+
+          try:
+              port = parts.port
+          except ValueError:
+              fail("El puerto de la cadena de conexion no es numerico.")
+
+          if parts.username != expected_user:
+              fail("El usuario de conexion no corresponde al proyecto autorizado.")
+          if not parts.hostname or not parts.hostname.endswith(expected_suffix):
+              fail("El endpoint no es el pooler esperado.")
+          if port != expected_port:
+              fail(f"El puerto debe ser {expected_port} (Session pooler mode).")
+
+          path = parts.path.lstrip("/")
+          if path != expected_db:
+              fail("La base de datos de destino no es postgres.")
+
+          print("Destino verificado correctamente: endpoint, puerto, base y usuario conformes. Cero secretos impresos.")
+          PY
+
+      - name: Verificar integridad del script SQL READ-ONLY y de la linea base 20260912
+        run: |
+          if [ ! -f "$AUDIT_SQL_FILE" ]; then
+            echo "::error::Falta el script $AUDIT_SQL_FILE."
+            exit 1
+          fi
+
+          # Verificar delimitadores estrictos de solo lectura
+          if ! grep -q "BEGIN TRANSACTION READ ONLY;" "$AUDIT_SQL_FILE"; then
+            echo "::error::El script SQL debe incluir BEGIN TRANSACTION READ ONLY;."
+            exit 1
+          fi
+
+          if ! grep -q "ROLLBACK;" "$AUDIT_SQL_FILE"; then
+            echo "::error::El script SQL debe terminar con ROLLBACK;."
+            exit 1
+          fi
+
+          if grep -iE '\bcommit\b' "$AUDIT_SQL_FILE"; then
+            echo "::error::El script SQL contiene comandos COMMIT. No se permite ninguna confirmacion."
+            exit 1
+          fi
+
+          echo "Script SQL verificado: 100% READ ONLY y ROLLBACK estricto."
+
+      - name: Ejecutar captura de auditoria en memoria
+        env:
+          POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+        run: |
+          node --import ./scripts/test-register.mjs --experimental-strip-types scripts/audit/run-supabase-audit-readonly.ts
+
+      - name: Validar integridad de artefactos generados y preservacion de 20260912
+        run: |
+          OUT="docs/verification/supabase-migration-content-audit-20261024.json"
+          PRE="docs/verification/supabase-audit-preflight-evidence-20261024.json"
+          BASE="docs/verification/supabase-migration-content-audit-20260912.json"
+
+          if [ ! -f "$OUT" ] || [ ! -f "$PRE" ]; then
+            echo "::error::Los artefactos de auditoria no fueron generados."
+            exit 1
+          fi
+
+          # Comprobar cero fuga de payload_base64 crudo
+          if grep -q '"payload_base64":' "$OUT"; then
+            echo "::error::El artefacto de auditoria contiene payload_base64 crudo. Violacion de confidencialidad."
+            exit 1
+          fi
+
+          # Comprobar preservacion de 20260912
+          EXPECTED_SHA="a6ee59dafc1c27f1b484b0a9de1bdca9b8f35ca8d733d93ca637212683ef4feb"
+          ACTUAL_SHA=$(sha256sum "$BASE" | cut -d' ' -f1)
+          if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
+            echo "::error::El archivo 20260912.json fue alterado. Esperado $EXPECTED_SHA, obtenido $ACTUAL_SHA."
+            exit 1
+          fi
+
+          echo "Validacion exitosa: 0 fuga de payloads, 20260912 intacto."
+
+      - name: Subir artefacto de auditoria 20261024
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-migration-content-audit-20261024
+          path: docs/verification/supabase-migration-content-audit-20261024.json
+          if-no-files-found: error
+
+      - name: Subir evidencia preflight 20261024
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-audit-preflight-evidence-20261024
+          path: docs/verification/supabase-audit-preflight-evidence-20261024.json
+          if-no-files-found: error
