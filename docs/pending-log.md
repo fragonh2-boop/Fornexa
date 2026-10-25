@@ -4,6 +4,16 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-24 — E2 #139: subsanación de revisión Argon (MUST-1..3 y SHOULD-1 cerrados); contrato implementable
+
+- **Estado:** PR #139 OPEN/draft, rebasada sobre `main` `d149789c4c73bb68eb259da3230a53c8c6366b27`. Árbol limpio con únicamente los 3 documentos de arquitectura y seguimiento.
+- **Subsanación de revisión Argon4 (`REVIEW-E2-9fc-ARGON.md`):**
+  - **MUST-1 (Alcanzabilidad de E2-146 bajo CHECK y erradicación de STOCK_DISCREPANCY):** Erradicado estado inexistente `STOCK_DISCREPANCY` (válidos en E1: `'AVAILABLE'`, `'QUARANTINE'`, `'DAMAGED'`, `'INSPECTION'`, `'BLOCKED'`). Demostrada la imposibilidad en PostgreSQL de `quantity_on_hand < suggested_quantity` con reserva `HELD` activa bajo `CHECK (quantity_reserved <= quantity_on_hand)`. Paso 4 de `fornexa_wms_action(REPLENISH)` se alcanza deterministamente cuando el quant pasa a `stock_status IN ('INSPECTION','BLOCKED','DAMAGED','QUARANTINE')` sin violar el `CHECK` o cuando el operario reporta merma física en piso. La RPC cancela atómicamente propuesta, tarea y reserva `HELD`, decrementa `quantity_reserved`, aisla el quant en `'INSPECTION'` para conciliación del planificador y retorna `WMS_SOURCE_STOCK_DEPLETED` sin `RAISE` no controlado.
+  - **MUST-2 (Columna target_hu_id en DDL de wms_proposals):** Incorporada formalmente en `§2.2` la columna `target_hu_id uuid` en `public.wms_proposals` con FK `fk_proposal_target_hu` hacia `handling_units`, sincronizando la fórmula de deduplicación de plazas de palé entrantes de S4 (§3.1) con el esquema.
+  - **MUST-3 (Eliminación de contradicciones internas sobre S4/N3/E2-146):** Eliminadas menciones obsoletas en `§4.4` y `§5` que afirmaban que S4, N3 o E2-146 permanecían abiertos. Todo el contrato sostiene de manera coherente el cierre de los puntos.
+  - **SHOULD-1 (Deslinde de fuentes primarias humanas y diseño técnico):** Deslindadas claramente las decisiones primarias literales de Fran (dato SGA editable sin pesaje forzado y concurrencia multi-orden por capacidad agregada) de las formulaciones algorítmicas de ingeniería de software (deduplicación por `target_hu_id` y Paso 4 de RPC con aislamiento en `INSPECTION`).
+- **Gobernanza y límites:** Amparado en la autorización humana de Fran (`FRAN-PRIMARY-CIERRE-TOTAL-20261024.md` y `FRAN-PRIMARY-WMS-20261021-DECISIONES-SGA-RESERVAS.md`). Contrato 100% completo, coherente e implementable. CERO implementación de código runtime E2 en esta PR, CERO SQL remoto contra producción, CERO F4/seed/COMMITTED/merge/deploy.
+
 ### 2026-10-23 — SHOULD-12: retirada temprana y orden de pruebas
 
 - **Estado:** PREPARADO SOLO EN LOCAL, NO INTEGRADO NI DESPLEGADO. Rama `codex/ci-receipt-cleanup-stacked-20261023`, padre #142 exacto `3da0e6db2d730817b64bde83193210686d13e352`. Limpieza inmediatamente después de Checkout; solo `Test web` se mueve detrás de arnés + certificación estricta y antes de Upload. Comandos, pruebas, recibos y controles permanecen intactos.
