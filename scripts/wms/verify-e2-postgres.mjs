@@ -1050,13 +1050,14 @@ export async function runE2Harness(options = {}) {
   const receiptDir = resolve(ROOT, "docs/verification");
   await mkdir(receiptDir, { recursive: true });
   const receiptPath = resolve(receiptDir, "receipt-m8-e2-postgres17.json");
+  const pgliteReceiptPath = resolve(receiptDir, "receipt-m8-e2-pglite.json");
 
   const receipt = {
     certification_target: "WMS E2 Replenishment Runtime & RPC",
     engine: clientType,
     pg_version: pgVersion,
     executed_at_utc: new Date().toISOString(),
-    git_head_sha: process.env.HEAD_SHA || "cf4dda3",
+    git_head_sha: process.env.HEAD_SHA || process.env.GITHUB_SHA || "f040bcc",
     certification_scope: "Candidate Git migration chain through E2 core & RPC with disposable PostgreSQL 17 relational execution",
     rls_certified: true,
     security_evidence: {
@@ -1077,8 +1078,15 @@ export async function runE2Harness(options = {}) {
     },
   };
 
-  await writeFile(receiptPath, JSON.stringify(receipt, null, 2), "utf8");
-  console.log(`\n[WMS E2 Runtime] Durable certification receipt written to: docs/verification/receipt-m8-e2-postgres17.json`);
+  if (!options.skipReceipt) {
+    if (clientType === "pg-socket") {
+      await writeFile(receiptPath, JSON.stringify(receipt, null, 2), "utf8");
+      console.log(`\n[WMS E2 Runtime] Durable certification receipt written to: docs/verification/receipt-m8-e2-postgres17.json`);
+    } else {
+      await writeFile(pgliteReceiptPath, JSON.stringify(receipt, null, 2), "utf8");
+      console.log(`\n[WMS E2 Runtime] Supplementary sandbox receipt written to: docs/verification/receipt-m8-e2-pglite.json`);
+    }
+  }
 
   if (db && db.end) {
     try {
