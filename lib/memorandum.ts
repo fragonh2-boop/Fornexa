@@ -194,12 +194,21 @@ export const memorandumPending: MemorandumPending[] = [
 
 export const memorandumReleases: MemorandumRelease[] = [
   {
-    version: "2026.10.23-4",
+    version: "2026.10.23-5",
     date: "23 oct 2026",
     surface: ["Web", "Plataforma"],
     title: "Almacenes — implementación runtime de reposición interna preventiva y dinámica (E2)",
     purpose: "Implementar el motor de reposición interna de almacén con cálculo determinista de déficit, propuestas, reservas HELD, rotación y ciclo de vida de tareas.",
     outcome: "Implementadas y subsanadas las migraciones DDL y RPC para reglas de reposición (min/max, reorder, consolidación YES/NO/BY_BATCH), ciclo de vida de propuestas (DRAFT, APPROVED, REJECTED, EXECUTED, CANCELLED), reservas HELD en stock_reservations, tareas READY en warehouse_tasks, deduplicación de plazas por target_hu_id, rotación determinista FIFO/FEFO/LIFO con preservación inmutable de received_at, cancelación atómica en Paso 4 por merma sin unhandled RAISE, control de roles de planificación y ejecución, interfaz de usuario en Almacenes y suite de 20 pruebas acumulativas bajo migraciones reales cubriendo E2-130 a E2-150.",
+    status: "Preproducción",
+  },
+  {
+    version: "2026.10.23-4",
+    date: "23 oct 2026",
+    surface: ["Plataforma"],
+    title: "Saneamiento de baseline Supabase Preview (customs_messages y customs_events tenant_id)",
+    purpose: "Reparar la discrepancia histórica de baseline en Supabase Preview incorporando tenant_id en customs_messages y customs_events con preservación inmutable del ledger y auditoría literal-safe.",
+    outcome: "Resolución de error SQLSTATE 42703 en políticas RLS de customs, validación exhaustiva de 85 sentencias Git vs 83 remotas con disparidad autorizada y cobertura de pruebas unitarias negativas fail-closed. Nota cronológica: la release se formaliza bajo la serie 2026.10.23 por contrato de trazabilidad de la suite, e incorpora como evidencia técnica auditada la captura real ejecutada el 24-oct-2026 (18:46 UTC) sobre main f55f1e9.",
     status: "Preproducción",
   },
   {

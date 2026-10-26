@@ -526,6 +526,12 @@ alter table public.cmr_documents
   add column if not exists recipient_party_id uuid references public.parties(id) on delete set null,
   add column if not exists carrier_party_id uuid references public.parties(id) on delete set null;
 
+alter table public.customs_messages
+  add column if not exists tenant_id uuid not null default '00000000-0000-4000-8000-000000000001' references public.tenants(id) on delete restrict;
+
+alter table public.customs_events
+  add column if not exists tenant_id uuid not null default '00000000-0000-4000-8000-000000000001' references public.tenants(id) on delete restrict;
+
 alter table public.transport_stops
   add column if not exists tenant_id uuid not null default '00000000-0000-4000-8000-000000000001' references public.tenants(id) on delete restrict,
   add column if not exists trip_stop_id uuid references public.trip_stops(id) on delete set null,
