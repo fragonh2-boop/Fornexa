@@ -211,11 +211,17 @@ test("ReadOnly Executor — Ejecución relacional completa sobre PGlite con mock
   const fCore = "20260812_fornexa_operational_core.sql";
   const sqlCore = readFileSync(resolve(migrationDir, fCore), "utf8");
   const allCoreStmts = splitSqlStatements(sqlCore);
-  const coreStmtsTrimmed = (
-    allCoreStmts.length === 85
-      ? [...allCoreStmts.slice(0, 44), ...allCoreStmts.slice(46)]
-      : allCoreStmts.slice(0, 83)
-  ).map((s) => s.trim());
+  assert.strictEqual(
+    allCoreStmts.length,
+    85,
+    "fornexa_operational_core en Git debe contener exactamente 85 sentencias (83 base + 2 ALTER de Candidate 5)",
+  );
+  const coreStmtsTrimmed = [...allCoreStmts.slice(0, 44), ...allCoreStmts.slice(46)].map((s) => s.trim());
+  assert.strictEqual(
+    coreStmtsTrimmed.length,
+    83,
+    "coreStmtsTrimmed debe contener exactamente 83 sentencias remotas",
+  );
   await db.query(
     "insert into supabase_migrations.schema_migrations (version, name, statements) values ($1, $2, $3);",
     ["20260812120000", "fornexa_operational_core", coreStmtsTrimmed],
@@ -474,25 +480,16 @@ test("ReadOnly Executor — Compatibilidad con Candidate 5 / PR #145 (85 Git vs 
   const fCore = "20260812_fornexa_operational_core.sql";
   const sqlCore = readFileSync(resolve(migrationDir, fCore), "utf8");
   const allCoreStmts = splitSqlStatements(sqlCore);
-  const coreStmts83 =
-    allCoreStmts.length === 85
-      ? [...allCoreStmts.slice(0, 44), ...allCoreStmts.slice(46)]
-      : allCoreStmts.slice(0, 83);
-  assert.equal(coreStmts83.length, 83);
+  assert.strictEqual(
+    allCoreStmts.length,
+    85,
+    "fornexa_operational_core en Git debe contener exactamente 85 sentencias (83 base + 2 ALTER de Candidate 5)",
+  );
+  const coreStmts83 = [...allCoreStmts.slice(0, 44), ...allCoreStmts.slice(46)];
+  assert.strictEqual(coreStmts83.length, 83);
 
-  const alterMessages = "\n\nalter table public.customs_messages\n  add column if not exists tenant_id uuid not null default '00000000-0000-4000-8000-000000000001' references public.tenants(id) on delete restrict";
-  const alterEvents = "\n\nalter table public.customs_events\n  add column if not exists tenant_id uuid not null default '00000000-0000-4000-8000-000000000001' references public.tenants(id) on delete restrict";
-
-  const valid85Statements =
-    allCoreStmts.length === 85
-      ? allCoreStmts
-      : [
-          ...coreStmts83.slice(0, 44),
-          alterMessages,
-          alterEvents,
-          ...coreStmts83.slice(44),
-        ];
-  assert.equal(valid85Statements.length, 85);
+  const valid85Statements = allCoreStmts;
+  assert.strictEqual(valid85Statements.length, 85);
   const validGitSql85 = valid85Statements.join(";\n\n");
 
   // Cargar e1_core y c3_server_load_controls
@@ -673,5 +670,22 @@ test("ReadOnly Executor — Compatibilidad con Candidate 5 / PR #145 (85 Git vs 
     },
     { message: /literal-safe comparison failed/ },
     "Adulteración en el índice 44 debe fallar cerrado con literal-safe comparison failed",
+  );
+
+  // 3. Aserción negativa: omisión de sentencias o conteo discordante en Git sin el delta autorizado falla cerrado (SHOULD-1)
+  const invalid84Statements = valid85Statements.slice(0, 84);
+  assert.throws(
+    () => {
+      buildMigrationAudit({
+        capturedAt: new Date().toISOString(),
+        gitMigrationBaselineCommit: "d149789c4c73bb68eb259da3230a53c8c6366b27",
+        gitMigrations: [
+          { path: resolve(migrationDir, fCore), sql: invalid84Statements.join(";\n\n") },
+        ],
+        remoteRows: [syntheticRowCore],
+      });
+    },
+    { message: /literal-safe comparison failed|expected 83 remote and 85 git statements/ },
+    "Conteo discordante u omisión de ALTERs en fornexa_operational_core debe fallar cerrado",
   );
 });
