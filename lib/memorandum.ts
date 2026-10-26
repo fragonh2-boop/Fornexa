@@ -194,12 +194,21 @@ export const memorandumPending: MemorandumPending[] = [
 
 export const memorandumReleases: MemorandumRelease[] = [
   {
-    version: "2026.10.23-3",
+    version: "2026.10.23-4",
     date: "23 oct 2026",
     surface: ["Web", "Plataforma"],
     title: "Almacenes — implementación runtime de reposición interna preventiva y dinámica (E2)",
     purpose: "Implementar el motor de reposición interna de almacén con cálculo determinista de déficit, propuestas, reservas HELD, rotación y ciclo de vida de tareas.",
     outcome: "Implementadas y subsanadas las migraciones DDL y RPC para reglas de reposición (min/max, reorder, consolidación YES/NO/BY_BATCH), ciclo de vida de propuestas (DRAFT, APPROVED, REJECTED, EXECUTED, CANCELLED), reservas HELD en stock_reservations, tareas READY en warehouse_tasks, deduplicación de plazas por target_hu_id, rotación determinista FIFO/FEFO/LIFO con preservación inmutable de received_at, cancelación atómica en Paso 4 por merma sin unhandled RAISE, control de roles de planificación y ejecución, interfaz de usuario en Almacenes y suite de 20 pruebas acumulativas bajo migraciones reales cubriendo E2-130 a E2-150.",
+    status: "Preproducción",
+  },
+  {
+    version: "2026.10.23-3",
+    date: "23 oct 2026",
+    surface: ["Plataforma"],
+    title: "Auditoría de base de datos — ejecutor oficial de captura en modo de solo lectura (READ ONLY)",
+    purpose: "Implementar un ejecutor de captura oficial y seguro en modo de solo lectura con transaccionalidad estricta para la auditoría de migraciones y métricas referenciales de Supabase.",
+    outcome: "Implementado el ejecutor oficial y seguro en scripts/audit/run-supabase-audit-readonly.ts y el script canónico scripts/audit/capture-supabase-migration-audit.sql con transacción BEGIN TRANSACTION READ ONLY ... ROLLBACK, validación estricta de endpoint y credenciales permitidas, transformación de ledger por tubería en memoria (cero payload_base64 en disco o registros), preservación inmutable de la línea base 20260912 y suite de pruebas automatizadas certificando la protección fail-closed a nivel de kernel de PostgreSQL (código 25006).",
     status: "Preproducción",
   },
   {
