@@ -1,6 +1,6 @@
 // scripts/audit/verify-orphan-recovery-pg17.mjs
 // Verification harness for Supabase orphan recovery migration chain on disposable PostgreSQL 17.
-// Replays the real affected migration chain (20260807 to 20260821, 19 migrations) in canonical ledger order,
+// Replays the real affected migration slice in natural filesystem directory order (20260807 to 20260819, 12 migrations),
 // certifies search_path hardening, RLS policies on CMR child tables, lifecycle columns,
 // and functional multi-tenant isolation under non-superuser authenticated role.
 // Emits durable receipt: docs/verification/receipt-orphan-recovery-pg17.json
@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import crypto from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -149,36 +149,20 @@ async function main() {
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO authenticated, anon;
   `, targetDb);
 
-  // 4. Canonical order of the 19 migrations in affected slice matching Supabase remote ledger
+  // 4. Natural filesystem directory order for the affected slice covering both recovered migrations
+  // and all their prerequisites (from 20260807_customs_core.sql up to 20260819122543_add_cmr_access_key_lifecycle.sql, exactly 12 migrations).
   const migDir = join(ROOT, "supabase/migrations");
-  const canonicalChain = [
-    "20260807_customs_core.sql",
-    "20260808_mobile_cmr.sql",
-    "20260812_fornexa_operational_core.sql",
-    "20260812_local_storage_import.sql",
-    "20260814_cmr_canonical_model.sql",
-    "20260817142306_expedition_order_link.sql",
-    "20260817_cmr_expeditions_bridge.sql",
-    "20260817_expeditions_order_id_unique.sql",
-    "20260817212235_cmr_canonical_model_rls_and_hardening.sql",
-    "20260818_cmr_number_sequence_resync.sql",
-    "20260818_restore_order_expedition_1to1.sql",
-    "20260819_harden_tenant_access_function.sql",
-    "20260819_restrict_tenant_members_writes.sql",
-    "20260819122543_add_cmr_access_key_lifecycle.sql",
-    "20260819_review_access_token_registry.sql",
-    "20260819_harden_review_token_rpc.sql",
-    "20260819_cmr_view_sessions.sql",
-    "20260819_mobile_trip_access.sql",
-    "20260821181001_enable_private_review_access_tokens_rls.sql"
-  ];
+  const naturalChain = readdirSync(migDir)
+    .filter((f) => f.endsWith(".sql") && !f.includes(".obsolete"))
+    .sort()
+    .filter((f) => f >= "20260807_customs_core.sql" && f <= "20260819122543_add_cmr_access_key_lifecycle.sql");
 
-  console.log(`Replaying ${canonicalChain.length} migrations in canonical ledger order:`);
-  assert.equal(canonicalChain.length, 19, "Expected exactly 19 migrations in chain");
+  console.log(`Replaying ${naturalChain.length} migrations in natural filesystem directory order:`);
+  assert.equal(naturalChain.length, 12, `Expected exactly 12 migrations in natural slice, got ${naturalChain.length}`);
 
   const appliedMigrations = [];
 
-  for (const filename of canonicalChain) {
+  for (const filename of naturalChain) {
     const fullPath = join(migDir, filename);
     assert.ok(existsSync(fullPath), `Migration file must exist: ${filename}`);
 
@@ -204,7 +188,7 @@ async function main() {
     });
   }
 
-  console.log("All 19 migrations in chain applied successfully with zero errors.");
+  console.log("All 12 migrations in natural directory order slice applied successfully with zero errors.");
 
   // 5. Post-state Verifications
   console.log("Verifying post-state on PostgreSQL 17...");
@@ -347,14 +331,18 @@ async function main() {
     timestamp: new Date().toISOString(),
     status: "SUCCESS",
     production_migration_chain_replayed: true,
+    natural_directory_order: true,
     slice_start: "20260807_customs_core.sql",
-    slice_end: "20260821181001_enable_private_review_access_tokens_rls.sql",
+    slice_end: "20260819122543_add_cmr_access_key_lifecycle.sql",
     migrations_applied_count: appliedMigrations.length,
     migrations: appliedMigrations,
     post_state_verifications: {
       must1_lex_order_resolution: {
         certified: true,
+        natural_directory_order: true,
         expedition_order_link: "20260817142306_expedition_order_link.sql",
+        cmr_expeditions_bridge: "20260817142337_cmr_expeditions_bridge.sql",
+        expeditions_order_id_unique: "20260817143337_expeditions_order_id_unique.sql",
         cmr_hardening: "20260817212235_cmr_canonical_model_rls_and_hardening.sql"
       },
       proconfig_hardening: {

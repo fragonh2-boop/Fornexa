@@ -210,7 +210,8 @@ test("the versioned audit closes exactly 31 name pairs plus one explicit alias",
 
 // SHOULD-1: Puente temporal de resolución de ruta canónica para migraciones históricas
 // cuyos nombres locales fueron alineados con el ledger remoto oficial de Supabase
-// (20260819122543_add_cmr_access_key_lifecycle y 20260817142306_expedition_order_link),
+// (20260819122543_add_cmr_access_key_lifecycle, 20260817142306_expedition_order_link,
+// 20260817142337_cmr_expeditions_bridge y 20260817143337_expeditions_order_id_unique),
 // preservando intacto el baseline inmutable de auditoría 20260912 (144.040 B).
 function resolveCanonicalPath(entry: AuditEntry): string {
   if (existsSync(entry.git_path)) return entry.git_path;
