@@ -18,8 +18,8 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "27 oct 2026";
-export const memorandumCommitCoverage = 678;
+export const memorandumUpdatedAt = "23 oct 2026";
+export const memorandumCommitCoverage = 677;
 
 export const memorandumPending: MemorandumPending[] = [
   {
