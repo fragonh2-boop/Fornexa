@@ -201,7 +201,7 @@ test("the versioned audit closes exactly 31 name pairs plus one explicit alias",
     alias.map(({ git_path, remote_name }) => ({ git_path, remote_name })),
     [
       {
-        git_path: "supabase/migrations/20260819_cmr_access_key_lifecycle.sql",
+        git_path: "supabase/migrations/20260819122543_add_cmr_access_key_lifecycle.sql",
         remote_name: "add_cmr_access_key_lifecycle",
       },
     ],

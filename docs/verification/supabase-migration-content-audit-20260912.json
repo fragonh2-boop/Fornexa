@@ -870,7 +870,7 @@
       "remote_payload_base64_unwrapped_sequence_sha256": "86f3f53b0e22710901326c8b06f70b83592e6df790a373ba2b3afdfcc26ab5fc"
     },
     {
-      "git_path": "supabase/migrations/20260819_cmr_access_key_lifecycle.sql",
+      "git_path": "supabase/migrations/20260819122543_add_cmr_access_key_lifecycle.sql",
       "git_name": "cmr_access_key_lifecycle",
       "remote_version": "20260819122543",
       "remote_name": "add_cmr_access_key_lifecycle",
