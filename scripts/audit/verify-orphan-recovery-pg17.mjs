@@ -188,9 +188,9 @@ async function main() {
     if (filename === "20260812_fornexa_operational_core.sql") {
       runPsql(`
         ALTER TABLE IF EXISTS public.customs_messages
-          ADD COLUMN IF NOT EXISTS tenant_id uuid DEFAULT '00000000-0000-4000-8000-000000000001' REFERENCES public.tenants(id) ON DELETE RESTRICT;
+          ADD COLUMN IF NOT EXISTS tenant_id uuid DEFAULT '00000000-0000-4000-8000-000000000001';
         ALTER TABLE IF EXISTS public.customs_events
-          ADD COLUMN IF NOT EXISTS tenant_id uuid DEFAULT '00000000-0000-4000-8000-000000000001' REFERENCES public.tenants(id) ON DELETE RESTRICT;
+          ADD COLUMN IF NOT EXISTS tenant_id uuid DEFAULT '00000000-0000-4000-8000-000000000001';
       `, targetDb);
     }
 
