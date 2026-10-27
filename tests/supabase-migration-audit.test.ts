@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { digestSqlStatements, splitSqlStatements } from "../scripts/sql-provenance.ts";
 
@@ -201,7 +201,7 @@ test("the versioned audit closes exactly 31 name pairs plus one explicit alias",
     alias.map(({ git_path, remote_name }) => ({ git_path, remote_name })),
     [
       {
-        git_path: "supabase/migrations/20260819122543_add_cmr_access_key_lifecycle.sql",
+        git_path: "supabase/migrations/20260819_cmr_access_key_lifecycle.sql",
         remote_name: "add_cmr_access_key_lifecycle",
       },
     ],
@@ -212,7 +212,13 @@ test("every remote statement digest matches the current Git token stream", () =>
   assert.equal(audit.migrations.length, 32);
 
   for (const entry of audit.migrations) {
-    const gitSql = readFileSync(entry.git_path, "utf8");
+    const resolvedPath = existsSync(entry.git_path)
+      ? entry.git_path
+      : entry.git_path.replace(
+          "20260819_cmr_access_key_lifecycle.sql",
+          "20260819122543_add_cmr_access_key_lifecycle.sql",
+        );
+    const gitSql = readFileSync(resolvedPath, "utf8");
     const digests = digestSqlStatements(splitSqlStatements(gitSql));
 
     assert.equal(entry.equivalent, true, entry.remote_name);
