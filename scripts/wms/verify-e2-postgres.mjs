@@ -558,7 +558,7 @@ export async function runE2Harness(options = {}) {
   `);
 
   // Helper to execute fornexa_wms_action as non-superuser authenticated user
-  async function callWmsAction(tenantId, userId, action, payload = {}, idemKey = null) {
+  async function callWmsAction(tenantId, userId, action, payload = {}, idemKey = null, client = null) {
     const payloadStr = JSON.stringify(payload).replace(/'/g, "''");
     const idemArg = idemKey ? `'${idemKey}'` : "null";
     const sql = `
@@ -568,7 +568,7 @@ export async function runE2Harness(options = {}) {
       select public.fornexa_wms_action('${tenantId}'::uuid, '${userId}'::uuid, '${action}', '${payloadStr}'::jsonb, ${idemArg}) as res;
     `;
     try {
-      const res = await runSql(sql);
+      const res = client ? await client.query(sql) : await runSql(sql);
       const resultRow = Array.isArray(res) ? res.at(-1)?.rows?.[0] : res?.rows?.[0];
       return resultRow?.res;
     } catch (err) {
@@ -942,29 +942,13 @@ export async function runE2Harness(options = {}) {
       await c2.connect();
 
       try {
-        const runApproveOnClient = async (client, propId) => {
-          try {
-            await client.query(`
-              set local role = 'authenticated';
-              set local "request.jwt.claim.sub" = '${userPlanner}';
-              set local "request.jwt.claim.role" = 'authenticated';
-              select public.fornexa_wms_approve_proposal('${tenantA}', '${userPlanner}', '${propId}');
-            `);
-            return { ok: true };
-          } catch (err) {
-            const msg = String(err.message || err);
-            const code = msg.match(/WMS_[A-Z0-9_]+/)?.[0] || "ERROR";
-            return { ok: false, error: code, message: msg };
-          }
-        };
-
         const [r1, r2] = await Promise.all([
-          runApproveOnClient(c1, p1),
-          runApproveOnClient(c2, p2),
+          callWmsAction(tenantA, userPlanner, "APPROVE_PROPOSAL", { proposal_id: p1 }, null, c1),
+          callWmsAction(tenantA, userPlanner, "APPROVE_PROPOSAL", { proposal_id: p2 }, null, c2),
         ]);
 
-        const successes = [r1, r2].filter((r) => r.ok).length;
-        const failures = [r1, r2].filter((r) => !r.ok).length;
+        const successes = [r1, r2].filter((r) => r && r.ok === true).length;
+        const failures = [r1, r2].filter((r) => !r || r.ok === false).length;
         assert.equal(successes, 1, "Exactamente 1 de las 2 solicitudes concurrentes debe ganar el lock FOR UPDATE y aprobar");
         assert.equal(failures, 1, "La otra solicitud concurrente debe fallar cerrado al no haber saldo disponible tras el commit");
 
