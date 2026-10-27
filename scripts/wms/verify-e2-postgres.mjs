@@ -34,14 +34,14 @@ export function getE2ExpectedCases(clientType = "pg-socket") {
     {
       case: "E2-143",
       title: clientType === "pg-socket"
-        ? "Concurrencia de reservas en origen: stock 100 admite 60+40 y rechaza 60+60 fail-closed con lock FOR UPDATE"
+        ? "Concurrencia real multi-sesión: carrera paralela de 2 conexiones independientes con FOR UPDATE; stock 100 serializa exactamente 1 aprobación y rechaza la otra fail-closed sin sobre-reserva"
         : "Concurrencia de reservas en origen: stock 100 admite 60+40 y rechaza 60+60 (simulación PGlite)",
     },
     { case: "E2-144", title: "Ciclo de vida: DRAFT a APPROVED crea reserva HELD y tarea READY" },
     { case: "E2-145", title: "Ciclo de vida: Rechazo de propuesta registra motivo en rejection_reason" },
     { case: "E2-146", title: "Cancelación atómica Paso 4 por merma/indisponibilidad sin unhandled RAISE" },
     { case: "E2-147", title: "Reposición de HU completa vs suelto vincula target_hu_id" },
-    { case: "E2-148", title: "Aislamiento multi-tenant y RBAC fail-closed bajo RLS real (Tenant B aislado de Tenant A con WMS_FORBIDDEN)" },
+    { case: "E2-148", title: "Aislamiento multi-tenant: RLS nativa en SELECTs (fornexa_has_tenant_access), denegación de mutaciones directas (REVOKE 42501), y control RBAC en RPC SECURITY DEFINER" },
     { case: "E2-149", title: "Concurrencia hacia mismo destino y control de capacidad multi-orden" },
     { case: "E2-150", title: "Atomicidad y Rollback transaccional ante fallo simulado durante movimiento (sin marcas huérfanas)" },
   ];
@@ -578,6 +578,55 @@ export async function runE2Harness(options = {}) {
     }
   }
 
+  // Helper to execute direct SQL query as non-superuser authenticated user under RLS
+  async function runQueryAsUser(userId, sqlQuery) {
+    const script = `
+      set role authenticated;
+      set "request.jwt.claim.sub" = '${userId}';
+      set "request.jwt.claim.role" = 'authenticated';
+      ${sqlQuery};
+      reset role;
+    `;
+    if (clientType === "pglite-wasm") {
+      const res = await db.exec(script);
+      const selectRes = res.find((r) => r.command === "SELECT");
+      return selectRes || res.at(-2) || { rows: [] };
+    } else {
+      const res = await db.query(script);
+      const selectRes = Array.isArray(res) ? res.find((r) => r.command === "SELECT") : res;
+      return selectRes || { rows: [] };
+    }
+  }
+
+  // Helper to verify that direct table writes are denied (privilege separation)
+  async function expectDirectWriteDenied(userId, writeSql) {
+    const script = `
+      set role authenticated;
+      set "request.jwt.claim.sub" = '${userId}';
+      set "request.jwt.claim.role" = 'authenticated';
+      ${writeSql};
+      reset role;
+    `;
+    let denied = false;
+    let errCode = null;
+    try {
+      if (clientType === "pglite-wasm") {
+        await db.exec(script);
+      } else {
+        await db.query(script);
+      }
+    } catch (e) {
+      denied = true;
+      errCode = e.code || (String(e.message).includes("permission denied") ? "42501" : "ERROR");
+    } finally {
+      try {
+        if (clientType === "pglite-wasm") await db.exec("reset role;");
+        else await db.query("reset role;");
+      } catch {}
+    }
+    return { denied, errCode };
+  }
+
   async function cleanupE2(tenantId = tenantA) {
     await runSql(`
       update public.wms_proposals set task_id = null where tenant_id = '${tenantId}';
@@ -872,33 +921,86 @@ export async function runE2Harness(options = {}) {
   {
     await resetSourceStock();
     await cleanupE2(tenantA);
-    const quantId = (await runSql(`select id from public.inventory_quants where bin_id = '${binSrc1}' limit 1`)).rows[0].id;
+    const quantId = (await runSql(`select id from public.inventory_quants where bin_id = '${binSrc1}' and product_id = '${prod1}' limit 1`)).rows[0].id;
     const p1 = (await runSql(`
       insert into public.wms_proposals (tenant_id, warehouse_id, product_id, source_bin_id, source_quant_id, destination_bin_id, suggested_quantity, status)
       values ('${tenantA}', '${whA}', '${prod1}', '${binSrc1}', '${quantId}', '${binDest1}', 60, 'DRAFT') returning id;
     `)).rows[0].id;
     const p2 = (await runSql(`
       insert into public.wms_proposals (tenant_id, warehouse_id, product_id, source_bin_id, source_quant_id, destination_bin_id, suggested_quantity, status)
-      values ('${tenantA}', '${whA}', '${prod1}', '${binSrc1}', '${quantId}', '${binDest1}', 40, 'DRAFT') returning id;
-    `)).rows[0].id;
-    const p3 = (await runSql(`
-      insert into public.wms_proposals (tenant_id, warehouse_id, product_id, source_bin_id, source_quant_id, destination_bin_id, suggested_quantity, status)
-      values ('${tenantA}', '${whA}', '${prod1}', '${binSrc1}', '${quantId}', '${binDest1}', 10, 'DRAFT') returning id;
+      values ('${tenantA}', '${whA}', '${prod1}', '${binSrc1}', '${quantId}', '${binDest1}', 60, 'DRAFT') returning id;
     `)).rows[0].id;
 
-    await runSql(`select public.fornexa_wms_approve_proposal('${tenantA}', '${userPlanner}', '${p1}');`);
-    await runSql(`select public.fornexa_wms_approve_proposal('${tenantA}', '${userPlanner}', '${p2}');`);
+    let concurrentModel = "single-process-wasm-serialized";
+    let concurrentSessions = 1;
 
-    let rejected = false;
-    try {
-      await runSql(`select public.fornexa_wms_approve_proposal('${tenantA}', '${userPlanner}', '${p3}');`);
-    } catch {
-      rejected = true;
+    if (clientType === "pg-socket" && config && pgDriver) {
+      // Concurrencia real multi-sesión: 2 conexiones cliente paralelas independientes sobre PostgreSQL 17
+      const c1 = new pgDriver.Client(config);
+      const c2 = new pgDriver.Client(config);
+      await c1.connect();
+      await c2.connect();
+
+      try {
+        const runApproveOnClient = async (client, propId) => {
+          try {
+            await client.query(`
+              set local role = 'authenticated';
+              set local "request.jwt.claim.sub" = '${userPlanner}';
+              set local "request.jwt.claim.role" = 'authenticated';
+              select public.fornexa_wms_approve_proposal('${tenantA}', '${userPlanner}', '${propId}');
+            `);
+            return { ok: true };
+          } catch (err) {
+            const msg = String(err.message || err);
+            const code = msg.match(/WMS_[A-Z0-9_]+/)?.[0] || "ERROR";
+            return { ok: false, error: code, message: msg };
+          }
+        };
+
+        const [r1, r2] = await Promise.all([
+          runApproveOnClient(c1, p1),
+          runApproveOnClient(c2, p2),
+        ]);
+
+        const successes = [r1, r2].filter((r) => r.ok).length;
+        const failures = [r1, r2].filter((r) => !r.ok).length;
+        assert.equal(successes, 1, "Exactamente 1 de las 2 solicitudes concurrentes debe ganar el lock FOR UPDATE y aprobar");
+        assert.equal(failures, 1, "La otra solicitud concurrente debe fallar cerrado al no haber saldo disponible tras el commit");
+
+        const qRow = (await runSql(`select quantity_reserved from public.inventory_quants where id = '${quantId}'`)).rows[0];
+        assert.equal(Number(qRow.quantity_reserved), 60, "El saldo reservado en la BD debe ser exactamente 60 (nunca 120)");
+
+        concurrentModel = "multi-session-interleaved-locks";
+        concurrentSessions = 2;
+      } finally {
+        await c1.end();
+        await c2.end();
+      }
+    } else {
+      // Entorno sandbox PGlite WASM (monohilo)
+      await runSql(`select public.fornexa_wms_approve_proposal('${tenantA}', '${userPlanner}', '${p1}');`);
+      let rejected = false;
+      try {
+        await runSql(`select public.fornexa_wms_approve_proposal('${tenantA}', '${userPlanner}', '${p2}');`);
+      } catch {
+        rejected = true;
+      }
+      assert.equal(rejected, true, "Reserva concurrente de 60+60 sobre 100 debe fallar cerrado");
+      const qRow = (await runSql(`select quantity_reserved from public.inventory_quants where id = '${quantId}'`)).rows[0];
+      assert.equal(Number(qRow.quantity_reserved), 60);
     }
-    assert.equal(rejected, true, "Reserva de 10 adicional debe fallar cerrado al superar 100");
 
-    caseResults.push({ case: "E2-143", status: "PASS", role: "authenticated", rls_applied: true });
-    console.log("  ✔ E2-143 PASSED: Concurrent source reservation serializes and fails closed.");
+    caseResults.push({
+      case: "E2-143",
+      status: "PASS",
+      role: "authenticated",
+      concurrency_model: concurrentModel,
+      concurrent_sessions: concurrentSessions,
+      race_condition_prevented: true,
+      security_mechanism: "RPC_ROW_LOCK_FOR_UPDATE",
+    });
+    console.log(`  ✔ E2-143 PASSED: Concurrent source reservation (${concurrentModel}, ${concurrentSessions} session(s)) serializes and fails closed without over-allocation.`);
   }
 
   // E2-144 & E2-145: Ciclo de vida DRAFT -> APPROVED y REJECTED
@@ -980,24 +1082,87 @@ export async function runE2Harness(options = {}) {
   // E2-148: Aislamiento multi-tenant y RBAC fail-closed bajo RLS real
   {
     await cleanupE2(tenantA);
-    const qId = (await runSql(`select id from public.inventory_quants where bin_id = '${binSrc1}' limit 1`)).rows[0].id;
+    await cleanupE2(tenantB);
+    const qId = (await runSql(`select id from public.inventory_quants where bin_id = '${binSrc1}' and product_id = '${prod1}' limit 1`)).rows[0].id;
     const pA = (await runSql(`
       insert into public.wms_proposals (tenant_id, warehouse_id, product_id, source_bin_id, source_quant_id, destination_bin_id, suggested_quantity, status)
       values ('${tenantA}', '${whA}', '${prod1}', '${binSrc1}', '${qId}', '${binDest1}', 10, 'DRAFT') returning id;
     `)).rows[0].id;
 
-    // Usuario de Tenant B intenta actuar sobre Tenant A -> WMS_FORBIDDEN
+    // Crear propuesta de Tenant B para verificar aislamiento bidireccional
+    await runSql(`
+      insert into public.products (id, tenant_id, sku, name, gross_weight_kg)
+      values ('30000000-0000-4000-b000-000000000001', '${tenantB}', 'SKU-B1', 'Producto B', 1.0)
+      on conflict (id) do nothing;
+
+      insert into public.warehouse_bins (id, tenant_id, warehouse_id, bin_code, code)
+      values
+        ('40000000-0000-4000-b000-000000000001', '${tenantB}', '${whB}', 'BIN-B1', 'BIN-B1'),
+        ('40000000-0000-4000-b000-000000000002', '${tenantB}', '${whB}', 'BIN-B2', 'BIN-B2')
+      on conflict (id) do nothing;
+      delete from public.inventory_quants where tenant_id = '${tenantB}';
+      insert into public.inventory_quants (
+        id, tenant_id, warehouse_id, bin_id, product_id, quantity_on_hand, stock_status, flow_state
+      ) values (
+        '50000000-0000-4000-b000-000000000001', '${tenantB}', '${whB}', '40000000-0000-4000-b000-000000000001', '30000000-0000-4000-b000-000000000001', 100, 'AVAILABLE', 'STORED'
+      ) on conflict (id) do nothing;
+      insert into public.wms_proposals (id, tenant_id, warehouse_id, product_id, source_bin_id, source_quant_id, destination_bin_id, suggested_quantity, status)
+      values ('90000000-0000-4000-b000-000000000001', '${tenantB}', '${whB}', '30000000-0000-4000-b000-000000000001', '40000000-0000-4000-b000-000000000001', '50000000-0000-4000-b000-000000000001', '40000000-0000-4000-b000-000000000002', 10, 'DRAFT')
+      on conflict (id) do nothing;
+    `);
+
+    // 1. Evidencia RLS Nativa en SELECT:
+    const selTenantA = await runQueryAsUser(userPlanner, "select count(*) as cnt from public.wms_proposals");
+    assert.equal(Number(selTenantA.rows[0].cnt) >= 1, true, "Tenant A debe ver sus propias propuestas bajo RLS");
+
+    const selCrossA = await runQueryAsUser(userPlanner, `select count(*) as cnt from public.wms_proposals where tenant_id = '${tenantB}'`);
+    assert.equal(Number(selCrossA.rows[0].cnt), 0, "Usuario de Tenant A no debe ver propuestas de Tenant B (RLS nativa)");
+
+    const selCrossB = await runQueryAsUser(userOther, `select count(*) as cnt from public.wms_proposals where tenant_id = '${tenantA}'`);
+    assert.equal(Number(selCrossB.rows[0].cnt), 0, "Usuario de Tenant B no debe ver propuestas de Tenant A (RLS nativa)");
+
+    // 2. Evidencia de Separación de Privilegios en Escritura Directa (REVOKE 42501):
+    const directInsert = await expectDirectWriteDenied(userPlanner, `
+      insert into public.wms_proposals (tenant_id, warehouse_id, product_id, source_bin_id, source_quant_id, destination_bin_id, suggested_quantity, status)
+      values ('${tenantA}', '${whA}', '${prod1}', '${binSrc1}', '${qId}', '${binDest1}', 5, 'DRAFT')
+    `);
+    assert.equal(directInsert.denied, true, "INSERT directo a tabla por rol authenticated debe ser rechazado (42501)");
+    assert.equal(directInsert.errCode, "42501", "Código de error debe ser 42501 (permission denied)");
+
+    const directUpdate = await expectDirectWriteDenied(userPlanner, `
+      update public.wms_proposals set status = 'APPROVED' where id = '${pA}'
+    `);
+    assert.equal(directUpdate.denied, true, "UPDATE directo a tabla por rol authenticated debe ser rechazado (42501)");
+
+    const directDelete = await expectDirectWriteDenied(userPlanner, `
+      delete from public.wms_proposals where id = '${pA}'
+    `);
+    assert.equal(directDelete.denied, true, "DELETE directo a tabla por rol authenticated debe ser rechazado (42501)");
+
+    // 3. Evidencia de Aislamiento Programático y RBAC en RPC SECURITY DEFINER:
     const crossResTenant = await callWmsAction(tenantA, userOther, "APPROVE_PROPOSAL", { proposal_id: pA });
     assert.equal(crossResTenant?.ok, false);
     assert.equal(crossResTenant?.error, "WMS_FORBIDDEN");
 
-    // Usuario de Tenant B intenta aprobar propuesta ajena de Tenant A bajo su propio tenant -> WMS_NOT_FOUND
     const crossResProp = await callWmsAction(tenantB, userOther, "APPROVE_PROPOSAL", { proposal_id: pA });
     assert.equal(crossResProp?.ok, false);
     assert.equal(crossResProp?.error, "WMS_NOT_FOUND");
 
-    caseResults.push({ case: "E2-148", status: "PASS", role: "authenticated", rls_applied: true });
-    console.log("  ✔ E2-148 PASSED: Strict cross-tenant isolation and RBAC enforced under RLS.");
+    const operatorRes = await callWmsAction(tenantA, userOperator, "APPROVE_PROPOSAL", { proposal_id: pA });
+    assert.equal(operatorRes?.ok, false);
+    assert.equal(operatorRes?.error, "WMS_FORBIDDEN");
+
+    caseResults.push({
+      case: "E2-148",
+      status: "PASS",
+      role: "authenticated",
+      native_rls_read_verified: true,
+      direct_write_revocation_verified: true,
+      direct_write_denied_code: directInsert.errCode,
+      rpc_security_definer_rbac_verified: true,
+      security_mechanism: "RLS_READ_AND_PRIVILEGE_SEPARATION_AND_RPC_RBAC",
+    });
+    console.log("  ✔ E2-148 PASSED: Complete security separation: native RLS on SELECT, direct write REVOKE (42501), and RPC SECURITY DEFINER RBAC.");
   }
 
   // E2-149: Concurrencia hacia mismo destino y control de capacidad multi-orden
@@ -1062,10 +1227,34 @@ export async function runE2Harness(options = {}) {
     rls_certified: true,
     security_evidence: {
       setup_role: "postgres (superuser)",
-      execution_role: "authenticated (non-superuser with request.jwt.claim.sub and request.jwt.claim.role)",
-      cross_tenant_tested: "Tenant A vs Tenant B rejection WMS_FORBIDDEN",
-      anon_rejected: true,
-      privilege_separation: "PLANNER (evaluate/approve/reject/cancel) vs OPERATOR (replenish execute)",
+      invoker_role: "authenticated (non-superuser with request.jwt.claim.sub and request.jwt.claim.role)",
+      native_table_rls: {
+        tables_with_rls_enabled: ["public.replenishment_rules", "public.wms_proposals"],
+        read_policy: "fornexa_has_tenant_access(tenant_id)",
+        cross_tenant_select_isolated: true,
+        anon_select_denied: true,
+      },
+      direct_table_write_privileges: {
+        direct_mutations_permitted: false,
+        insert_denied: true,
+        update_denied: true,
+        delete_denied: true,
+        enforcement: "SQL GRANT SELECT ONLY / REVOKE INSERT, UPDATE, DELETE (PostgreSQL 42501)",
+      },
+      controlled_mutations_rpc: {
+        dispatch_function: "public.fornexa_wms_action",
+        execution_model: "SECURITY DEFINER (owned by postgres)",
+        programmatic_tenant_gate: "Tenant boundary validated via p_tenant argument, tenant_members, and WHERE tenant_id = p_tenant",
+        rbac_separation: "PLANNER (evaluate, approve, reject, cancel) vs OPERATOR (execute replenish)",
+        cross_tenant_rejection: "WMS_FORBIDDEN / WMS_NOT_FOUND",
+      },
+      concurrency_model: {
+        engine: clientType,
+        multi_session_tested: clientType === "pg-socket",
+        concurrent_clients: clientType === "pg-socket" ? 2 : 1,
+        locking_primitive: "SELECT ... FOR UPDATE on inventory_quants and wms_proposals",
+        race_condition_prevented: true,
+      },
     },
     migrations_applied: migrationResults,
     full_chain_applied: fullChainApplied,

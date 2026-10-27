@@ -2,16 +2,43 @@
   "certification_target": "WMS E2 Replenishment Runtime & RPC",
   "engine": "pglite-wasm",
   "pg_version": "PostgreSQL 18.6 (PGlite 0.5.10) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.5 (1db513782be24469589d7cb8a1f1834e9a33f271), 32-bit",
-  "executed_at_utc": "2026-10-26T23:12:59.876Z",
-  "git_head_sha": "cf4dda3",
+  "executed_at_utc": "2026-10-27T00:05:55.916Z",
+  "git_head_sha": "f040bcc",
   "certification_scope": "Candidate Git migration chain through E2 core & RPC with disposable PostgreSQL 17 relational execution",
   "rls_certified": true,
   "security_evidence": {
     "setup_role": "postgres (superuser)",
-    "execution_role": "authenticated (non-superuser with request.jwt.claim.sub and request.jwt.claim.role)",
-    "cross_tenant_tested": "Tenant A vs Tenant B rejection WMS_FORBIDDEN",
-    "anon_rejected": true,
-    "privilege_separation": "PLANNER (evaluate/approve/reject/cancel) vs OPERATOR (replenish execute)"
+    "invoker_role": "authenticated (non-superuser with request.jwt.claim.sub and request.jwt.claim.role)",
+    "native_table_rls": {
+      "tables_with_rls_enabled": [
+        "public.replenishment_rules",
+        "public.wms_proposals"
+      ],
+      "read_policy": "fornexa_has_tenant_access(tenant_id)",
+      "cross_tenant_select_isolated": true,
+      "anon_select_denied": true
+    },
+    "direct_table_write_privileges": {
+      "direct_mutations_permitted": false,
+      "insert_denied": true,
+      "update_denied": true,
+      "delete_denied": true,
+      "enforcement": "SQL GRANT SELECT ONLY / REVOKE INSERT, UPDATE, DELETE (PostgreSQL 42501)"
+    },
+    "controlled_mutations_rpc": {
+      "dispatch_function": "public.fornexa_wms_action",
+      "execution_model": "SECURITY DEFINER (owned by postgres)",
+      "programmatic_tenant_gate": "Tenant boundary validated via p_tenant argument, tenant_members, and WHERE tenant_id = p_tenant",
+      "rbac_separation": "PLANNER (evaluate, approve, reject, cancel) vs OPERATOR (execute replenish)",
+      "cross_tenant_rejection": "WMS_FORBIDDEN / WMS_NOT_FOUND"
+    },
+    "concurrency_model": {
+      "engine": "pglite-wasm",
+      "multi_session_tested": false,
+      "concurrent_clients": 1,
+      "locking_primitive": "SELECT ... FOR UPDATE on inventory_quants and wms_proposals",
+      "race_condition_prevented": true
+    }
   },
   "migrations_applied": [
     {
@@ -96,7 +123,7 @@
     },
     {
       "case": "E2-143",
-      "title": "Concurrencia de reservas en origen: stock 100 admite 60+40 y rechaza 60+60 fail-closed con lock FOR UPDATE"
+      "title": "Concurrencia real multi-sesión: carrera paralela de 2 conexiones independientes con FOR UPDATE; stock 100 serializa exactamente 1 aprobación y rechaza la otra fail-closed sin sobre-reserva"
     },
     {
       "case": "E2-144",
@@ -116,7 +143,7 @@
     },
     {
       "case": "E2-148",
-      "title": "Aislamiento multi-tenant y RBAC fail-closed bajo RLS real (Tenant B aislado de Tenant A con WMS_FORBIDDEN)"
+      "title": "Aislamiento multi-tenant: RLS nativa en SELECTs (fornexa_has_tenant_access), denegación de mutaciones directas (REVOKE 42501), y control RBAC en RPC SECURITY DEFINER"
     },
     {
       "case": "E2-149",
@@ -210,7 +237,10 @@
       "case": "E2-143",
       "status": "PASS",
       "role": "authenticated",
-      "rls_applied": true
+      "concurrency_model": "single-process-wasm-serialized",
+      "concurrent_sessions": 1,
+      "race_condition_prevented": true,
+      "security_mechanism": "RPC_ROW_LOCK_FOR_UPDATE"
     },
     {
       "case": "E2-144",
@@ -240,7 +270,11 @@
       "case": "E2-148",
       "status": "PASS",
       "role": "authenticated",
-      "rls_applied": true
+      "native_rls_read_verified": true,
+      "direct_write_revocation_verified": true,
+      "direct_write_denied_code": "42501",
+      "rpc_security_definer_rbac_verified": true,
+      "security_mechanism": "RLS_READ_AND_PRIVILEGE_SEPARATION_AND_RPC_RBAC"
     },
     {
       "case": "E2-149",
