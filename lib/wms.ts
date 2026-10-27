@@ -40,6 +40,10 @@ export const WMS_ACTIONS = [
   "UPSERT_POLICY",
   "UPSERT_RESOURCE",
   "CONTROL_STATE",
+  "EVALUATE_REPLENISHMENT",
+  "APPROVE_PROPOSAL",
+  "REJECT_PROPOSAL",
+  "CANCEL_PROPOSAL",
 ] as const;
 
 export type WmsAction = (typeof WMS_ACTIONS)[number];
@@ -327,6 +331,7 @@ export interface WmsQuant {
   stock_status: string;
   flow_state: WmsFlowState | null;
   hu_id: string | null;
+  received_at?: string | null;
   updated_at: string;
 }
 
@@ -342,6 +347,8 @@ export interface WmsReservation {
   quantity: number;
   uom: string;
   status: "HELD" | "ALLOCATED" | "PICKED" | "RELEASED" | "CANCELLED";
+  reference_type?: "ORDER" | "REPLENISHMENT_PROPOSAL" | "MANUAL";
+  reference_id?: string | null;
   created_at: string;
 }
 
@@ -355,6 +362,8 @@ export interface WmsTask {
   source_bin_id: string | null;
   destination_bin_id: string | null;
   hu_id: string | null;
+  target_hu_id?: string | null;
+  proposal_id?: string | null;
   product_id: string | null;
   quantity: number | null;
   uom: string | null;
@@ -363,6 +372,51 @@ export interface WmsTask {
   reject_detail: string | null;
   created_at: string;
   completed_at: string | null;
+}
+
+export interface WmsReplenishmentRule {
+  id: string;
+  tenant_id: string;
+  warehouse_id: string;
+  product_id: string;
+  destination_bin_id: string;
+  min_quantity: number;
+  max_quantity: number;
+  reorder_quantity: number;
+  consolidation: "NO" | "YES" | "BY_BATCH";
+  active: boolean;
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface WmsProposal {
+  id: string;
+  tenant_id: string;
+  warehouse_id: string;
+  rule_id?: string | null;
+  order_id?: string | null;
+  proposal_type: "REPLENISHMENT" | "RELOCATION" | "CONSOLIDATION";
+  product_id: string;
+  batch_number?: string | null;
+  source_bin_id: string;
+  source_hu_id?: string | null;
+  source_quant_id: string;
+  destination_bin_id: string;
+  target_hu_id?: string | null;
+  suggested_quantity: number;
+  uom: string;
+  status: "DRAFT" | "APPROVED" | "REJECTED" | "EXECUTED" | "CANCELLED";
+  task_id?: string | null;
+  idempotency_key?: string | null;
+  idempotency_fingerprint?: string | null;
+  execution_result?: any;
+  created_by?: string | null;
+  approved_by?: string | null;
+  executed_by?: string | null;
+  rejection_reason?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface WmsMovement {
@@ -441,6 +495,8 @@ export interface WmsOverviewData {
   reservations: WmsReservation[];
   tasks: WmsTask[];
   movements: WmsMovement[];
+  replenishmentRules: WmsReplenishmentRule[];
+  proposals: WmsProposal[];
 }
 
 export const EMPTY_WMS_DATA: WmsOverviewData = {
@@ -461,6 +517,8 @@ export const EMPTY_WMS_DATA: WmsOverviewData = {
   reservations: [],
   tasks: [],
   movements: [],
+  replenishmentRules: [],
+  proposals: [],
 };
 
 const SCOPE_ORDER: Record<WmsPolicyRecord["scope"], number> = {
@@ -736,6 +794,28 @@ export function wmsRpcFailure(error: { code?: string; message?: string } | null 
       };
     }
   }
+
+  const E2_ERROR_MESSAGES: Record<string, { status: number; message: string }> = {
+    WMS_SOURCE_STOCK_DEPLETED: { status: 409, message: "El stock de origen no está disponible o se ha agotado." },
+    WMS_DUPLICATE_KEY_PAYLOAD_MISMATCH: { status: 409, message: "Clave de idempotencia duplicada con payload divergente." },
+    WMS_ALREADY_EXECUTED: { status: 409, message: "La propuesta de reposición ya ha sido ejecutada." },
+    WMS_INVALID_STATE: { status: 422, message: "Estado de la propuesta no válido para la transición solicitada." },
+    WMS_IMMUTABLE_RECEIVED_AT: { status: 422, message: "No se puede alterar la fecha de recepción histórica de un quant." },
+    WMS_SAME_BIN_INVALID: { status: 422, message: "La ubicación origen y destino no pueden ser la misma." },
+    WMS_NOT_FOUND: { status: 404, message: "Registro no encontrado." },
+    WMS_RESERVATION_MISSING: { status: 409, message: "Falta la reserva de stock asociada a la propuesta." },
+  };
+
+  for (const [code, entry] of Object.entries(E2_ERROR_MESSAGES)) {
+    if (rawMessage.includes(code)) {
+      return {
+        status: entry.status,
+        code,
+        error: `${code}: ${entry.message}`,
+      };
+    }
+  }
+
   return {
     status: 503,
     code: error?.code ?? "WMS_UNEXPECTED_ERROR",
@@ -837,10 +917,29 @@ export async function executeWmsActionApi(
   }
 
   const action = rawAction as WmsAction;
-  if ((action === "UPSERT_POLICY" || action === "UPSERT_RESOURCE") && !CONFIG_ROLES.has(authContext.role)) {
+  const isPlanningAction =
+    action === "UPSERT_POLICY" ||
+    action === "UPSERT_RESOURCE" ||
+    action === "EVALUATE_REPLENISHMENT" ||
+    action === "APPROVE_PROPOSAL" ||
+    action === "REJECT_PROPOSAL" ||
+    action === "CANCEL_PROPOSAL";
+
+  if (isPlanningAction && !CONFIG_ROLES.has(authContext.role)) {
     return Response.json(
       {
         error: "WMS_FORBIDDEN: Se requiere rol de planificación o administración.",
+        code: "WMS_FORBIDDEN",
+      },
+      { status: 403 },
+    );
+  }
+
+  const EXEC_ROLES = new Set(["OWNER", "ADMIN", "OPERATOR"]);
+  if (action === "REPLENISH" && !EXEC_ROLES.has(authContext.role)) {
+    return Response.json(
+      {
+        error: "WMS_FORBIDDEN: Se requiere rol de operario o administración.",
         code: "WMS_FORBIDDEN",
       },
       { status: 403 },
@@ -855,5 +954,58 @@ export async function executeWmsActionApi(
   }
 
   return Response.json({ ok: true, action }, { status: 200 });
+}
+
+/**
+ * Computes deterministic replenishment deficit and suggested quantity.
+ */
+export function computeReplenishmentDeficit(
+  stockDestino: number,
+  minQty: number,
+  maxQty: number,
+  reorderQty: number,
+): number {
+  if (stockDestino > minQty) return 0;
+  const deficit = maxQty - stockDestino;
+  if (deficit <= 0) return 0;
+  const multiple = Math.floor(deficit / reorderQty) * reorderQty;
+  if (multiple > 0) return multiple;
+  return Math.min(reorderQty, deficit);
+}
+
+/**
+ * Sorts inventory quants deterministically based on rotation policy.
+ */
+export function selectQuantByRotation(
+  quants: WmsQuant[],
+  rotation: "FEFO" | "FIFO" | "LIFO" = "FEFO",
+): WmsQuant[] {
+  const sorted = [...quants];
+  if (rotation === "FIFO") {
+    return sorted.sort((a, b) => {
+      const aRec = a.received_at ? new Date(a.received_at).getTime() : -Infinity;
+      const bRec = b.received_at ? new Date(b.received_at).getTime() : -Infinity;
+      if (aRec !== bRec) return aRec - bRec;
+      return a.id.localeCompare(b.id);
+    });
+  } else if (rotation === "LIFO") {
+    return sorted.sort((a, b) => {
+      const aRec = a.received_at ? new Date(a.received_at).getTime() : -Infinity;
+      const bRec = b.received_at ? new Date(b.received_at).getTime() : -Infinity;
+      if (aRec !== bRec) return bRec - aRec;
+      return b.id.localeCompare(a.id);
+    });
+  } else {
+    // FEFO
+    return sorted.sort((a, b) => {
+      const aExp = a.expiry_date ? new Date(a.expiry_date).getTime() : Infinity;
+      const bExp = b.expiry_date ? new Date(b.expiry_date).getTime() : Infinity;
+      if (aExp !== bExp) return aExp - bExp;
+      const aRec = a.received_at ? new Date(a.received_at).getTime() : -Infinity;
+      const bRec = b.received_at ? new Date(b.received_at).getTime() : -Infinity;
+      if (aRec !== bRec) return aRec - bRec;
+      return a.id.localeCompare(b.id);
+    });
+  }
 }
 
