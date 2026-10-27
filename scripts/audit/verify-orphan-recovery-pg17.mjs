@@ -144,11 +144,9 @@ async function main() {
       path_tokens text[]
     );
 
-    CREATE TABLE IF NOT EXISTS public.fornexa_synthetic_test_marker (
-      created_at timestamptz DEFAULT now(),
-      harness text DEFAULT 'verify-orphan-recovery-pg17.mjs',
-      test_suite text DEFAULT 'orphan_recovery_pg17_chain_replay'
-    );
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO authenticated, anon;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO authenticated, anon;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO authenticated, anon;
   `, targetDb);
 
   // 4. Canonical order of the 19 migrations in affected slice matching Supabase remote ledger
@@ -318,6 +316,11 @@ async function main() {
 
     INSERT INTO public.cmr_goods_lines (id, cmr_id, sequence, goods_description, gross_weight) VALUES
       ('20000000-0000-4000-8000-000000000002', 'c0000000-0000-4000-8000-000000000002', 1, 'Goods for Tenant B', 200);
+
+    -- Grant schema table permissions matching Supabase PostgREST default role capabilities
+    GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated, anon;
+    GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated, anon;
+    GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO authenticated, anon;
 
     -- Switch to authenticated role impersonating user A
     SET LOCAL ROLE authenticated;
