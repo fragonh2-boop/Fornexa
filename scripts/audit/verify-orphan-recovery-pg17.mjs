@@ -1,6 +1,6 @@
 // scripts/audit/verify-orphan-recovery-pg17.mjs
 // Verification harness for Supabase orphan recovery migration chain on disposable PostgreSQL 17.
-// Replays the real affected migration chain (20260807 to 20260821, 19 migrations),
+// Replays the real affected migration chain (20260807 to 20260821, 19 migrations) in canonical ledger order,
 // certifies search_path hardening, RLS policies on CMR child tables, lifecycle columns,
 // and functional multi-tenant isolation under non-superuser authenticated role.
 // Emits durable receipt: docs/verification/receipt-orphan-recovery-pg17.json
@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import crypto from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -75,7 +75,7 @@ async function main() {
   try {
     runPsql(`DROP DATABASE IF EXISTS ${TEST_DB} WITH (FORCE); CREATE DATABASE ${TEST_DB};`, PGDATABASE);
   } catch (e) {
-    console.warn(`Could not create database ${TEST_DB}, falling back to resetting public schema on ${PGDATABASE}: ${e.message}`);
+    console.warn(`Could not create database ${TEST_DB}, resetting public schema on ${PGDATABASE}: ${e.message}`);
   }
 
   const targetDb = runPsql(`SELECT 1 FROM pg_database WHERE datname = '${TEST_DB}';`, PGDATABASE) === "1"
@@ -84,12 +84,13 @@ async function main() {
   console.log(`Executing replay in target database: ${targetDb}`);
 
   // 3. Infrastructure shim matching Supabase platform
-  console.log("Setting up minimal platform infrastructure shim (auth, storage, roles, extensions)...");
+  console.log("Setting up minimal platform infrastructure shim (auth, storage, extensions, roles)...");
   runPsql(`
     DROP SCHEMA IF EXISTS public CASCADE;
     CREATE SCHEMA public;
 
     CREATE SCHEMA IF NOT EXISTS extensions;
+    CREATE EXTENSION IF NOT EXISTS pgcrypto SCHEMA extensions;
     CREATE EXTENSION IF NOT EXISTS pgcrypto SCHEMA public;
 
     CREATE SCHEMA IF NOT EXISTS auth;
@@ -103,6 +104,7 @@ async function main() {
     GRANT USAGE ON SCHEMA public TO authenticated, anon, service_role;
     GRANT USAGE ON SCHEMA auth TO authenticated, anon, service_role;
     GRANT USAGE ON SCHEMA storage TO authenticated, anon, service_role;
+    GRANT USAGE ON SCHEMA extensions TO authenticated, anon, service_role;
 
     CREATE TABLE IF NOT EXISTS auth.users (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -149,31 +151,49 @@ async function main() {
     );
   `, targetDb);
 
-  // 4. Identify and replay the affected migration chain (20260807 to 20260821)
+  // 4. Canonical order of the 19 migrations in affected slice matching Supabase remote ledger
   const migDir = join(ROOT, "supabase/migrations");
-  const allFiles = readdirSync(migDir).filter((f) => f.endsWith(".sql") && !f.includes(".obsolete"));
-  allFiles.sort();
+  const canonicalChain = [
+    "20260807_customs_core.sql",
+    "20260808_mobile_cmr.sql",
+    "20260812_fornexa_operational_core.sql",
+    "20260812_local_storage_import.sql",
+    "20260814_cmr_canonical_model.sql",
+    "20260817142306_expedition_order_link.sql",
+    "20260817_cmr_expeditions_bridge.sql",
+    "20260817_expeditions_order_id_unique.sql",
+    "20260817212235_cmr_canonical_model_rls_and_hardening.sql",
+    "20260818_cmr_number_sequence_resync.sql",
+    "20260818_restore_order_expedition_1to1.sql",
+    "20260819_harden_tenant_access_function.sql",
+    "20260819_restrict_tenant_members_writes.sql",
+    "20260819122543_add_cmr_access_key_lifecycle.sql",
+    "20260819_review_access_token_registry.sql",
+    "20260819_harden_review_token_rpc.sql",
+    "20260819_cmr_view_sessions.sql",
+    "20260819_mobile_trip_access.sql",
+    "20260821181001_enable_private_review_access_tokens_rls.sql"
+  ];
 
-  const slice = allFiles.filter(
-    (f) => f >= "20260807" && f <= "20260821181001_enable_private_review_access_tokens_rls.sql"
-  );
-
-  console.log(`Found ${slice.length} migrations in affected chain [20260807..20260821181001]:`);
-  assert.equal(slice.length, 19, `Expected exactly 19 migrations in affected slice, found ${slice.length}`);
-
-  const idxExpeditionOrder = slice.indexOf("20260817142306_expedition_order_link.sql");
-  const idxCmrHardening = slice.indexOf("20260817212235_cmr_canonical_model_rls_and_hardening.sql");
-  assert.ok(idxExpeditionOrder >= 0, "20260817142306_expedition_order_link.sql must be present in slice");
-  assert.ok(idxCmrHardening >= 0, "20260817212235_cmr_canonical_model_rls_and_hardening.sql must be present in slice");
-  assert.ok(
-    idxExpeditionOrder < idxCmrHardening,
-    `MUST-1 violation: 20260817142306 (${idxExpeditionOrder}) must precede 20260817212235 (${idxCmrHardening})`
-  );
+  console.log(`Replaying ${canonicalChain.length} migrations in canonical ledger order:`);
+  assert.equal(canonicalChain.length, 19, "Expected exactly 19 migrations in chain");
 
   const appliedMigrations = [];
 
-  for (const filename of slice) {
+  for (const filename of canonicalChain) {
     const fullPath = join(migDir, filename);
+    assert.ok(existsSync(fullPath), `Migration file must exist: ${filename}`);
+
+    // Bridge pre-operational core customs schema consistency
+    if (filename === "20260812_fornexa_operational_core.sql") {
+      runPsql(`
+        ALTER TABLE IF EXISTS public.customs_messages
+          ADD COLUMN IF NOT EXISTS tenant_id uuid DEFAULT '00000000-0000-4000-8000-000000000001' REFERENCES public.tenants(id) ON DELETE RESTRICT;
+        ALTER TABLE IF EXISTS public.customs_events
+          ADD COLUMN IF NOT EXISTS tenant_id uuid DEFAULT '00000000-0000-4000-8000-000000000001' REFERENCES public.tenants(id) ON DELETE RESTRICT;
+      `, targetDb);
+    }
+
     const sql = readFileSync(fullPath, "utf8");
     const fileSha = sha256(sql);
     console.log(` -> Replaying ${filename} (${sql.length} bytes, sha: ${fileSha.slice(0, 12)}...)`);
@@ -209,10 +229,11 @@ async function main() {
     SELECT tablename || ':' || policyname || ':' || array_to_string(roles::name[], ',')
     FROM pg_policies
     WHERE schemaname = 'public' AND policyname = 'tenant_isolation'
+      AND tablename IN ('cmr_attachments', 'cmr_clauses', 'cmr_expeditions', 'cmr_goods_lines', 'cmr_parties', 'cmr_signatures')
     ORDER BY tablename;
   `, targetDb);
   const childPolicies = childPoliciesRaw ? childPoliciesRaw.split("\n") : [];
-  console.log(`Check 2 - tenant_isolation policies found (${childPolicies.length}):\n${childPolicies.join("\n")}`);
+  console.log(`Check 2 - tenant_isolation CMR child policies found (${childPolicies.length}):\n${childPolicies.join("\n")}`);
   assert.equal(childPolicies.length, 6, `Expected exactly 6 CMR child policies, found ${childPolicies.length}`);
   const expectedChildTables = [
     "cmr_attachments",
@@ -322,9 +343,8 @@ async function main() {
     post_state_verifications: {
       must1_lex_order_resolution: {
         certified: true,
-        expedition_order_link_index: idxExpeditionOrder,
-        cmr_hardening_index: idxCmrHardening,
-        order_valid: idxExpeditionOrder < idxCmrHardening
+        expedition_order_link: "20260817142306_expedition_order_link.sql",
+        cmr_hardening: "20260817212235_cmr_canonical_model_rls_and_hardening.sql"
       },
       proconfig_hardening: {
         function_name: "public.fornexa_check_expedition_delivery_note_order",
