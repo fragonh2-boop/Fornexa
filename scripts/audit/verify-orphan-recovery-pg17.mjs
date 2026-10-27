@@ -298,18 +298,26 @@ async function main() {
       ('11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'OPERATOR', 'ACTIVE');
 
     -- Seed CMR document for Tenant A
-    INSERT INTO public.cmr_documents (id, tenant_id, cmr_number, issue_date, status) VALUES
-      ('c0000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', 'CMR-A-001', '2026-08-17', 'DRAFT');
+    INSERT INTO public.cmr_documents (
+      id, tenant_id, cmr_number, access_key, sender, recipient, pickup_location, delivery_location, carrier, goods_description
+    ) VALUES (
+      'c0000000-0000-4000-8000-000000000001', '11111111-1111-4111-8111-111111111111', 'CMR-A-001', 'KEY-A-001',
+      'Sender A', 'Recipient A', 'Origin A', 'Dest A', 'Carrier A', 'Goods A'
+    );
 
-    INSERT INTO public.cmr_goods_lines (id, cmr_id, line_number, description_of_goods, gross_weight_kg) VALUES
-      ('g0000000-0000-4000-8000-000000000001', 'c0000000-0000-4000-8000-000000000001', 1, 'Goods for Tenant A', 100);
+    INSERT INTO public.cmr_goods_lines (id, cmr_id, sequence, goods_description, gross_weight) VALUES
+      ('10000000-0000-4000-8000-000000000001', 'c0000000-0000-4000-8000-000000000001', 1, 'Goods for Tenant A', 100);
 
     -- Seed CMR document for Tenant B
-    INSERT INTO public.cmr_documents (id, tenant_id, cmr_number, issue_date, status) VALUES
-      ('c0000000-0000-4000-8000-000000000002', '22222222-2222-4222-8222-222222222222', 'CMR-B-002', '2026-08-17', 'DRAFT');
+    INSERT INTO public.cmr_documents (
+      id, tenant_id, cmr_number, access_key, sender, recipient, pickup_location, delivery_location, carrier, goods_description
+    ) VALUES (
+      'c0000000-0000-4000-8000-000000000002', '22222222-2222-4222-8222-222222222222', 'CMR-B-002', 'KEY-B-002',
+      'Sender B', 'Recipient B', 'Origin B', 'Dest B', 'Carrier B', 'Goods B'
+    );
 
-    INSERT INTO public.cmr_goods_lines (id, cmr_id, line_number, description_of_goods, gross_weight_kg) VALUES
-      ('g0000000-0000-4000-8000-000000000002', 'c0000000-0000-4000-8000-000000000002', 1, 'Goods for Tenant B', 200);
+    INSERT INTO public.cmr_goods_lines (id, cmr_id, sequence, goods_description, gross_weight) VALUES
+      ('20000000-0000-4000-8000-000000000002', 'c0000000-0000-4000-8000-000000000002', 1, 'Goods for Tenant B', 200);
 
     -- Switch to authenticated role impersonating user A
     SET LOCAL ROLE authenticated;
