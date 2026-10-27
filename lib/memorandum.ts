@@ -60,7 +60,7 @@ export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
     title: "A2 — reproducibilidad de migraciones",
-    summary: "La fuente versionada ya recuperó el requisito de unicidad que existe en producción. Un contraste que preserva literales y cuerpos de funciones clasificó los 32 pares compartidos en la captura registrada. Los tests reproducen el lado Git, pero no verifican de nuevo el SQL remoto ni el estado vivo de producción. A2 sigue abierto: faltan preparar la reconciliación no productiva y ejecutar un replay controlado antes de plantear cualquier alineación del historial.",
+    summary: "La fuente versionada incorporó la migración 20260817212235_cmr_canonical_model_rls_and_hardening y alineó 20260819122543_add_cmr_access_key_lifecycle según el visor primario de Supabase. Los tests reproducen el lado Git, manteniendo pendientes las divergencias de timestamp de las 32 migraciones históricas. A2 sigue abierto: faltan preparar la reconciliación no productiva y ejecutar un replay controlado antes de plantear cualquier alineación del historial.",
     priority: "Ahora",
     state: "En seguimiento",
   },

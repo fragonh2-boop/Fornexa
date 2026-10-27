@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { digestSqlStatements, splitSqlStatements } from "../scripts/sql-provenance.ts";
 
@@ -208,11 +208,24 @@ test("the versioned audit closes exactly 31 name pairs plus one explicit alias",
   );
 });
 
+// SHOULD-1: Puente temporal de resolución de ruta canónica para migraciones históricas
+// cuyos nombres locales fueron alineados con el ledger remoto oficial de Supabase
+// (20260819122543_add_cmr_access_key_lifecycle, 20260817142306_expedition_order_link,
+// 20260817142337_cmr_expeditions_bridge y 20260817143337_expeditions_order_id_unique),
+// preservando intacto el baseline inmutable de auditoría 20260912 (144.040 B).
+function resolveCanonicalPath(entry: AuditEntry): string {
+  if (existsSync(entry.git_path)) return entry.git_path;
+  const canonical = `supabase/migrations/${entry.remote_version}_${entry.remote_name}.sql`;
+  if (existsSync(canonical)) return canonical;
+  return entry.git_path;
+}
+
 test("every remote statement digest matches the current Git token stream", () => {
   assert.equal(audit.migrations.length, 32);
 
   for (const entry of audit.migrations) {
-    const gitSql = readFileSync(entry.git_path, "utf8");
+    const resolvedPath = resolveCanonicalPath(entry);
+    const gitSql = readFileSync(resolvedPath, "utf8");
     const digests = digestSqlStatements(splitSqlStatements(gitSql));
 
     assert.equal(entry.equivalent, true, entry.remote_name);
