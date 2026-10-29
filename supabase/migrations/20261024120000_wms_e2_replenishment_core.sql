@@ -8,6 +8,19 @@
 
 begin;
 
+-- A quant is physical stock belonging to one HU (NULL means loose stock).
+-- The former key collapsed different pallets of the same lot in one bin.
+-- Existing rows satisfy the stronger old key, so widening it loses no rows.
+alter table public.inventory_quants
+  drop constraint if exists inventory_quants_bin_id_product_id_owner_party_id_batch_num_key;
+do $$ begin
+  if not exists (select 1 from pg_constraint
+    where conrelid = 'public.inventory_quants'::regclass and conname = 'uq_inventory_quant_hu') then
+    alter table public.inventory_quants add constraint uq_inventory_quant_hu
+      unique nulls not distinct (tenant_id, bin_id, product_id, owner_party_id, batch_number, serial_number, stock_status, hu_id);
+  end if;
+end $$;
+
 -- ── 1. Replenishment Rules Table ─────────────────────────────────────────────
 create table if not exists public.replenishment_rules (
   id uuid primary key default gen_random_uuid(),

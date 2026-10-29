@@ -2,6 +2,17 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-29 — E2: subsanación de Claude preparada en rama aislada
+
+- Rama `codex/e2-claude-remediation-20261029`, base exacta de #145 `2f890c7fd8e6b80ff0fef003e4d3e2452df471b7`; conserva la corrección M3 del token pair. `origin/main` contrastado en `f55f1e9`. Relevo comunicado por Slack; Claude conserva revisión independiente.
+- Candidata: capacidad de palés `> 0` (0 ilimitado), clave de quant incluye HU con NULLS NOT DISTINCT y conserva material suelto agregado, cancelación de la orden afectada con retención por `flow_state=QUARANTINE` sin fusionar quants/stock ni liberar reservas ajenas. `RESERVED` con reserva propia es ejecutable; indisponibilidad se distingue de merma declarada. El destino se bloquea antes de buscar/crear quant.
+- Regresiones compartidas entre suplemento PGlite y CI PG17: ilimitado/límite positivo, colisión con INSPECTION, dos HUs del mismo lote en destino, replay idempotente, RESERVED y ejecución 60+40 al mismo destino. Se añade carrera real de dos conexiones sobre un destino aún inexistente (INSERT retrasado para forzar solapamiento). Esta última solo se acredita cuando pase CI PG17.
+- Recibos PG17 eliminados en cada job inmediatamente tras Checkout; pruebas negativas ejecutan ese paso y un fallo posterior. Se comprueba RLS en las seis hijas CMR; el SQL recuperado se preserva fiel a la fuente. El tramo de 14 migraciones/46 en E2 utiliza ahora el orden natural de ficheros corregido por 2f890c7, no una curación oculta del ledger.
+- Evidencia primaria fresca: consulta de solo lectura del ledger a las 14:50 UTC del 29-oct, 42 migraciones; SHA256 de arrays base64 y MD5 de arrays originales coinciden en las 41 entradas emparejadas del JSON 24-oct. No se exportó DDL ni filas operativas. Se conserva el JSON histórico byte a byte: origen/fecha/ejecución original NO certificados. Nuevo manifiesto y tests verifican su árbol Git histórico y el contraste de huellas, no fingen un run de Actions ni certifican el preflight histórico.
+- Validación local: 39 pruebas focales PASS, tipos PASS, lint focal sin errores, build de producción PASS. La suite general inicial dio 420/422: timeout preexistente DATA150 de lock vacío y fecha fija del Memorandum; la fecha se actualizó y su suite focal pasó. No se alteró DATA150. CI del nuevo SHA debe certificar suite completa, PG16 y PG17 antes de integrar.
+- Sin merge a main, despliegue, escritura de base remota ni seed productivo. Ejecutar revisión independiente sobre la nueva PR apilada, luego integrar el delta en #145 y revalidar el conjunto. La corrección del ejecutor de auditoría de #146 va separada; el gate de producción continúa pendiente.
+
+
 ## 2026-10-24 — E2 #139: subsanación de revisión Argon (MUST-1..3 y SHOULD-1 cerrados); contrato implementable
 
 - **Estado:** PR #139 DRAFT, rama `docs/wms-e2-replenishment-contract`, rebasada limpiamente sobre `main` `d149789c4c73bb68eb259da3230a53c8c6366b27`. Conserva exactamente los 3 documentos de arquitectura y seguimiento (`docs/architecture/wms-e2-replenishment-technical-contract.md`, `docs/ai/HANDOFF.md`, `docs/pending-log.md`); todas las demás entradas del repositorio son idénticas a `main`.

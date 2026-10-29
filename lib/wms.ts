@@ -796,6 +796,7 @@ export function wmsRpcFailure(error: { code?: string; message?: string } | null 
   }
 
   const E2_ERROR_MESSAGES: Record<string, { status: number; message: string }> = {
+    WMS_SOURCE_STOCK_UNAVAILABLE: { status: 409, message: "El stock de origen está bloqueado; requiere conciliación del planificador." },
     WMS_SOURCE_STOCK_DEPLETED: { status: 409, message: "El stock de origen no está disponible o se ha agotado." },
     WMS_DUPLICATE_KEY_PAYLOAD_MISMATCH: { status: 409, message: "Clave de idempotencia duplicada con payload divergente." },
     WMS_ALREADY_EXECUTED: { status: 409, message: "La propuesta de reposición ya ha sido ejecutada." },

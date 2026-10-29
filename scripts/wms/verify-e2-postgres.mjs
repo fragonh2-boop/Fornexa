@@ -1,12 +1,13 @@
 // scripts/wms/verify-e2-postgres.mjs
 // Real PostgreSQL 17 relational certification harness for WMS E2 Replenishment Runtime (PR #144)
-// Executes candidate Git migrations in exact ledger order, certifies Row Level Security (RLS)
+// Executes candidate Git migrations in natural filesystem order, certifies Row Level Security (RLS)
 // and non-superuser privilege separation (PLANNER/OPERATOR roles vs superuser setup),
 // executes the complete 20-scenario E2 behavioral matrix (nominal, rejections, concurrency,
 // capacity, batch consolidation, immutable received_at, multi-tenant isolation, atomic rollback)
 // and emits durable reproducible receipt: docs/verification/receipt-m8-e2-postgres17.json.
 
 import assert from "node:assert/strict";
+import { runE2RegressionCases } from "./e2-regression-cases.mjs";
 import crypto from "node:crypto";
 import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
@@ -216,7 +217,7 @@ export async function runE2Harness(options = {}) {
     `);
   }
 
-  // ── 2. Apply Real Candidate Git Migrations in Exact Ledger Order ──
+  // ── 2. Apply Real Candidate Git Migrations in Natural Filesystem Order ──
   console.log("[WMS E2 Runtime] Applying candidate Git migrations in natural filesystem directory order...");
   const migrationsDir = resolve(ROOT, "supabase/migrations");
   const allSqlFiles = (await readdir(migrationsDir))
@@ -227,7 +228,7 @@ export async function runE2Harness(options = {}) {
   const orderedMigrationFiles = allSqlFiles;
 
   const migrationResults = [];
-  let fullChainApplied = true;
+  let fullChainApplied = clientType === "pg-socket";
 
   if (clientType === "pg-socket") {
     for (const f of orderedMigrationFiles) {
@@ -389,7 +390,9 @@ export async function runE2Harness(options = {}) {
         stock_status text default 'AVAILABLE' check (stock_status in ('AVAILABLE','RESERVED','INSPECTION','QUARANTINE','DAMAGED','BLOCKED')),
         created_at timestamptz default now(),
         updated_at timestamptz default now(),
-        unique(tenant_id, id)
+        unique(tenant_id, id),
+        constraint inventory_quants_bin_id_product_id_owner_party_id_batch_num_key
+          unique nulls not distinct (bin_id,product_id,owner_party_id,batch_number,serial_number,stock_status)
       );
 
       create table if not exists public.inventory_movements (
@@ -1176,6 +1179,64 @@ export async function runE2Harness(options = {}) {
     console.log("  ✔ E2-150 PASSED: Transactional atomicity and clean rollback without orphaned state.");
   }
 
+  const regressionResults = await runE2RegressionCases({
+    sql: runSql,
+    action: async (actor, action, payload, key) => {
+      const result = await callWmsAction(tenantA, actor, action, payload, key);
+      // Regression cases use an explicit transaction; SET LOCAL ROLE must not
+      // leak into their setup/assertion SQL on the same administrative client.
+      try { await runSql("reset role"); } catch { /* case rollback handles aborted tx */ }
+      return result;
+    },
+    tenant: tenantA, warehouse: whA, product: prod1, sourceBin: binSrc1,
+    destinationBin: binDest1, planner: userPlanner, operator: userOperator,
+  });
+
+  if (clientType === "pg-socket" && pgDriver && config) {
+    // Force two independent sources to race for the same previously absent
+    // loose destination identity. The delayed INSERT exposes SELECT/INSERT
+    // races unless the destination bin is locked before looking up the quant.
+    await resetSourceStock();
+    await runSql(`
+      update public.warehouse_bins set max_pallets=0,max_weight_kg=null,max_volume_m3=null where id='${binDest1}';
+      update public.inventory_quants set batch_number='REG-RACE' where product_id='${prod1}';
+      create or replace function public.e2_reg_delay_insert() returns trigger language plpgsql as $$
+      begin if new.bin_id='${binDest1}'::uuid then perform pg_sleep(0.2); end if; return new; end $$;
+      create trigger e2_reg_delay_insert before insert on public.inventory_quants for each row execute function public.e2_reg_delay_insert();
+    `);
+    const sources = (await runSql(`select id,bin_id from public.inventory_quants where product_id='${prod1}' order by bin_id`)).rows;
+    const proposals = [];
+    for (const source of sources) {
+      const id = (await runSql(`insert into public.wms_proposals
+        (tenant_id,warehouse_id,product_id,source_bin_id,source_quant_id,destination_bin_id,batch_number,suggested_quantity,status)
+        values ('${tenantA}','${whA}','${prod1}','${source.bin_id}','${source.id}','${binDest1}','REG-RACE',60,'DRAFT') returning id`)).rows[0].id;
+      assert.equal((await callWmsAction(tenantA,userPlanner,"APPROVE_PROPOSAL",{proposal_id:id}))?.ok,true);
+      proposals.push(id);
+    }
+    const clients = proposals.map(() => new pgDriver.Client(config));
+    try {
+      await Promise.all(clients.map(client => client.connect()));
+      await Promise.all(clients.map(async (client,index) => {
+        await client.query("begin");
+        try {
+          const result = await callWmsAction(tenantA,userOperator,"REPLENISH",{proposal_id:proposals[index]},`REG-DEST-${index}`,client);
+          assert.equal(result?.ok,true,JSON.stringify(result));
+          await client.query("commit");
+        } catch (error) {
+          await client.query("rollback"); throw error;
+        }
+      }));
+      const dest = (await runSql(`select quantity_on_hand from public.inventory_quants where bin_id='${binDest1}' and product_id='${prod1}'`)).rows;
+      assert.equal(dest.length,1);
+      assert.equal(Number(dest[0].quantity_on_hand),120);
+      assert.equal(Number((await runSql(`select sum(quantity_on_hand) n from public.inventory_quants where product_id='${prod1}'`)).rows[0].n),200);
+      regressionResults.push({case:"E2-REG-DESTINATION-RACE",status:"PASS",concurrent_sessions:2,forced_insert_overlap:true});
+    } finally {
+      await Promise.all(clients.map(client => client.end()));
+      await runSql("drop trigger e2_reg_delay_insert on public.inventory_quants; drop function public.e2_reg_delay_insert()");
+    }
+  }
+
   // ── 5. Generate Durable Reproducible Receipt ──
   const receiptDir = resolve(ROOT, "docs/verification");
   await mkdir(receiptDir, { recursive: true });
@@ -1187,7 +1248,9 @@ export async function runE2Harness(options = {}) {
     engine: clientType,
     pg_version: pgVersion,
     executed_at_utc: new Date().toISOString(),
-    git_head_sha: process.env.HEAD_SHA || process.env.GITHUB_SHA || "f040bcc",
+    git_head_sha: process.env.HEAD_SHA || process.env.GITHUB_SHA || null,
+    github_run_id: process.env.GITHUB_RUN_ID || null,
+    github_ref: process.env.GITHUB_REF || null,
     certification_scope: "Candidate Git migration chain through E2 core & RPC with disposable PostgreSQL 17 relational execution",
     rls_certified: true,
     security_evidence: {
@@ -1223,9 +1286,13 @@ export async function runE2Harness(options = {}) {
     },
     migrations_applied: migrationResults,
     full_chain_applied: fullChainApplied,
-    natural_directory_order: true,
+    natural_directory_order: clientType === "pg-socket",
     case_registry: E2_HARNESS_EXPECTED_CASES,
     case_results: caseResults,
+    regression_results: regressionResults,
+    verification_inputs: await Promise.all(["scripts/wms/verify-e2-postgres.mjs", "scripts/wms/e2-regression-cases.mjs"].map(async (file) => ({
+      file, sha256: crypto.createHash("sha256").update(await readFile(resolve(ROOT, file))).digest("hex"),
+    }))),
     summary: {
       total: caseResults.length,
       passed: caseResults.filter((c) => c.status === "PASS").length,

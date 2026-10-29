@@ -1,6 +1,6 @@
 // scripts/audit/verify-orphan-recovery-pg17.mjs
 // Verification harness for Supabase orphan recovery migration chain on disposable PostgreSQL 17.
-// Replays the real affected migration slice in natural filesystem directory order (20260807 to 20260819, 12 migrations),
+// Replays the real affected migration slice in natural filesystem directory order (20260807 to 20260819, 14 migrations),
 // certifies search_path hardening, RLS policies on CMR child tables, lifecycle columns,
 // and functional multi-tenant isolation under non-superuser authenticated role.
 // Emits durable receipt: docs/verification/receipt-orphan-recovery-pg17.json
@@ -188,7 +188,7 @@ async function main() {
     });
   }
 
-  console.log("All 12 migrations in natural directory order slice applied successfully with zero errors.");
+  console.log("All 14 migrations in natural directory order slice applied successfully with zero errors.");
 
   // 5. Post-state Verifications
   console.log("Verifying post-state on PostgreSQL 17...");
@@ -230,6 +230,11 @@ async function main() {
       childPolicies.some((p) => p.startsWith(`${table}:tenant_isolation:authenticated`)),
       `Missing tenant_isolation policy on ${table}`
     );
+  }
+
+  // Policies alone do not enforce row isolation: verify RLS on every child.
+  for (const table of expectedChildTables) {
+    assert.equal(runPsql(`SELECT relrowsecurity FROM pg_class WHERE oid='public.${table}'::regclass`, targetDb), "t", `${table} must enable RLS`);
   }
 
   // Check 3: fornexa_schema_migrations RLS enabled and locked
