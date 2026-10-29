@@ -217,33 +217,14 @@ export async function runE2Harness(options = {}) {
   }
 
   // ── 2. Apply Real Candidate Git Migrations in Exact Ledger Order ──
-  console.log("[WMS E2 Runtime] Applying candidate Git migrations in ledger order...");
+  console.log("[WMS E2 Runtime] Applying candidate Git migrations in natural filesystem directory order...");
   const migrationsDir = resolve(ROOT, "supabase/migrations");
-  const allSqlFiles = (await readdir(migrationsDir)).filter((f) => f.endsWith(".sql"));
+  const allSqlFiles = (await readdir(migrationsDir))
+    .filter((f) => f.endsWith(".sql") && !f.includes(".obsolete"))
+    .sort();
 
-  let auditEvidence = null;
-  try {
-    const auditPath = resolve(ROOT, "docs/verification/supabase-migration-content-audit-20261024.json");
-    auditEvidence = JSON.parse(await readFile(auditPath, "utf8"));
-  } catch {}
-
-  const orderedMigrationFiles = [];
-  if (auditEvidence && Array.isArray(auditEvidence.migrations)) {
-    const sortedAudit = [...auditEvidence.migrations].sort((a, b) =>
-      a.remote_version.localeCompare(b.remote_version),
-    );
-    for (const m of sortedAudit) {
-      const match = allSqlFiles.find((f) => f.includes(m.git_name));
-      if (match && !orderedMigrationFiles.includes(match)) {
-        orderedMigrationFiles.push(match);
-      }
-    }
-  }
-  for (const f of allSqlFiles.sort()) {
-    if (!orderedMigrationFiles.includes(f)) {
-      orderedMigrationFiles.push(f);
-    }
-  }
+  // Natural directory order (readdir().sort()) without artificial ledger curation
+  const orderedMigrationFiles = allSqlFiles;
 
   const migrationResults = [];
   let fullChainApplied = true;
@@ -1242,6 +1223,7 @@ export async function runE2Harness(options = {}) {
     },
     migrations_applied: migrationResults,
     full_chain_applied: fullChainApplied,
+    natural_directory_order: true,
     case_registry: E2_HARNESS_EXPECTED_CASES,
     case_results: caseResults,
     summary: {

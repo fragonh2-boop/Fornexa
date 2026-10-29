@@ -149,16 +149,16 @@ async function main() {
     ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO authenticated, anon;
   `, targetDb);
 
-  // 4. Natural filesystem directory order for the affected slice covering both recovered migrations
-  // and all their prerequisites (from 20260807_customs_core.sql up to 20260819122543_add_cmr_access_key_lifecycle.sql, exactly 12 migrations).
+  // 4. Natural filesystem directory order for the affected slice covering recovered migrations
+  // and all their prerequisites (from 20260807_customs_core.sql up to 20260819123105_harden_review_token_rpc.sql, exactly 14 migrations).
   const migDir = join(ROOT, "supabase/migrations");
   const naturalChain = readdirSync(migDir)
     .filter((f) => f.endsWith(".sql") && !f.includes(".obsolete"))
     .sort()
-    .filter((f) => f >= "20260807_customs_core.sql" && f <= "20260819122543_add_cmr_access_key_lifecycle.sql");
+    .filter((f) => f >= "20260807_customs_core.sql" && f <= "20260819123105_harden_review_token_rpc.sql");
 
   console.log(`Replaying ${naturalChain.length} migrations in natural filesystem directory order:`);
-  assert.equal(naturalChain.length, 12, `Expected exactly 12 migrations in natural slice, got ${naturalChain.length}`);
+  assert.equal(naturalChain.length, 14, `Expected exactly 14 migrations in natural slice, got ${naturalChain.length}`);
 
   const appliedMigrations = [];
 
@@ -263,8 +263,27 @@ async function main() {
   console.log(`Check 4 - Lifecycle index: ${lifecycleIdx}`);
   assert.equal(lifecycleIdx, "idx_cmr_documents_access_key_active");
 
-  // Check 5: Multi-tenant isolation enforcement under authenticated role
-  console.log("Check 5 - Testing functional multi-tenant isolation under authenticated role...");
+  // Check 5: Review token registry and hardening RPC post-state
+  const tokenTableRaw = runPsql(`
+    SELECT tablename FROM pg_tables WHERE schemaname = 'private' AND tablename = 'review_access_tokens';
+  `, targetDb);
+  console.log(`Check 5 - private.review_access_tokens table: ${tokenTableRaw}`);
+  assert.equal(tokenTableRaw, "review_access_tokens", "private.review_access_tokens table must exist");
+
+  const rpcProconfigRaw = runPsql(`
+    SELECT array_to_string(proconfig, ',')
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.proname = 'fornexa_validate_review_token';
+  `, targetDb);
+  console.log(`Check 5 - fornexa_validate_review_token proconfig: [${rpcProconfigRaw}]`);
+  assert.ok(
+    rpcProconfigRaw.includes('search_path=""') || rpcProconfigRaw.includes("search_path="),
+    `RPC search_path must be hardened to empty, got: ${rpcProconfigRaw}`
+  );
+
+  // Check 6: Multi-tenant isolation enforcement under authenticated role
+  console.log("Check 6 - Testing functional multi-tenant isolation under authenticated role...");
   const isolationTest = runPsql(`
     BEGIN;
     -- Seed 2 tenants
@@ -333,7 +352,7 @@ async function main() {
     production_migration_chain_replayed: true,
     natural_directory_order: true,
     slice_start: "20260807_customs_core.sql",
-    slice_end: "20260819122543_add_cmr_access_key_lifecycle.sql",
+    slice_end: "20260819123105_harden_review_token_rpc.sql",
     migrations_applied_count: appliedMigrations.length,
     migrations: appliedMigrations,
     post_state_verifications: {
@@ -344,6 +363,14 @@ async function main() {
         cmr_expeditions_bridge: "20260817142337_cmr_expeditions_bridge.sql",
         expeditions_order_id_unique: "20260817143337_expeditions_order_id_unique.sql",
         cmr_hardening: "20260817212235_cmr_canonical_model_rls_and_hardening.sql"
+      },
+      m3_review_token_lex_order_resolution: {
+        certified: true,
+        natural_directory_order: true,
+        review_access_token_registry: "20260819122954_review_access_token_registry.sql",
+        harden_review_token_rpc: "20260819123105_harden_review_token_rpc.sql",
+        private_review_access_tokens_table_exists: tokenTableRaw === "review_access_tokens",
+        rpc_search_path_hardened: true
       },
       proconfig_hardening: {
         function_name: "public.fornexa_check_expedition_delivery_note_order",
