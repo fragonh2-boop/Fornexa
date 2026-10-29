@@ -18,10 +18,17 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "23 oct 2026";
+export const memorandumUpdatedAt = "29 oct 2026";
 export const memorandumCommitCoverage = 677;
 
 export const memorandumPending: MemorandumPending[] = [
+  {
+    area: "Técnico",
+    title: "Verificación y publicación de evidencias de auditoría",
+    summary: "Se prepara una mejora para verificar las herramientas de auditoría y validar las evidencias antes de guardarlas o publicarlas. La candidata está pendiente de revisión independiente; su preparación no acredita una nueva auditoría de producción.",
+    priority: "Ahora",
+    state: "En seguimiento",
+  },
   {
     area: "Funcional",
     title: "Almacenes — reglas de reposición, propuestas y lote sintético (E2 / F4 / F5)",

@@ -2,6 +2,15 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+
+## 2026-10-29 — Auditoría: corrección separada del ejecutor READ ONLY
+
+- Rama `codex/audit-loader-hardening-20261029`, base main `f55f1e9`. No incluye runtime E2 ni altera migraciones; E2 sigue en #149 (CI612 SUCCESS, 422/422 web y PG17 real), pendiente de revisión independiente de Claude.
+- MUST-146-1: el workflow verifica bytes/SHA256 de ambos loaders y de `sql-provenance.ts`, además de SQL, runner y generador. La verificación termina antes del bootstrap Node del paso que recibe la conexión. Pruebas ejecutan el shell real del workflow y rechazan mutaciones de cada módulo antes de iniciar Node.
+- Las dos salidas se validan con esquemas cerrados ANTES de writeFileSync. El esquema audit se deriva del fixture 0912 inmutable/pinado y de los tipos de sus campos; las métricas/catálogo tienen esquema explícito. Se rechazan campos extra aunque cambie su nombre y SQL en identificadores. Los errores no incorporan los valores rechazados. El preflight solo se sube cuando todos los pasos previos han tenido éxito; las salidas heredadas se retiran tras Checkout.
+- Local: 15 pruebas de ejecutor/publicación PASS, incluidas ejecución PGlite, kernel READ ONLY 25006, discrepancias referenciales y pruebas negativas de módulos/payload. No confundir el suplemento con un dispatch real. 33 pruebas focales totales (ejecutor/publicación, Memorandum y fecha), tipos, lint focal y build de producción PASS; pendiente CI del SHA publicado.
+- Pendiente: revisión independiente del delta y CI; no se ejecutó el workflow manual ni se abrió conexión nueva a producción con este ejecutor. No merge/deploy ni SQL de escritura remoto.
+
 ## 2026-10-23 — SHOULD-12 local: retirada temprana y orden corregido (10:08 UTC)
 
 - Rama `codex/ci-receipt-cleanup-stacked-20261023`, padre exacto de #142 `3da0e6db2d730817b64bde83193210686d13e352`. Retira el recibo heredado inmediatamente después de Checkout; mueve únicamente `Test web` detrás del arnés y su certificación estricta, antes de Upload. Conserva comandos, entornos, run/SHA/ref, retirada previa al arnés, `if: always()` y error si falta fichero. No cambia tests, recibos, SQL, RPC, runner ni arnés.
