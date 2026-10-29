@@ -852,7 +852,10 @@ begin
       p_tenant, 'WMS_PROPOSAL', v_proposal.id, 'REPLENISH_DEPLETED', p_actor, 'FORNEXA_WMS',
       to_jsonb(v_proposal),
       jsonb_build_object('status', 'CANCELLED', 'error', v_failure_code,
-        'source_quant_id', v_quant.id, 'reconciliation_required', true)
+        'source_quant_id', v_quant.id, 'reconciliation_required', true,
+        'source_quant_previous_flow_state', v_quant.flow_state,
+        'source_quant_previous_stock_status', v_quant.stock_status,
+        'reconciliation_scope', 'SOURCE_QUANT_ALL_RESERVATIONS')
     );
 
     return jsonb_build_object(

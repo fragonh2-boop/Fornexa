@@ -69,6 +69,7 @@ export async function runE2RegressionCases({ sql, action, tenant, warehouse, pro
   await run('E2-REG-MERMA-COLLISION', async () => {
     const first = await proposal(60), second = await proposal(40);
     await approve(first); await approve(second);
+    const previous = (await sql(`select flow_state,stock_status from public.inventory_quants where bin_id='${sourceBin}' and stock_status='AVAILABLE'`)).rows[0];
     await sql(`insert into public.inventory_quants (tenant_id,warehouse_id,bin_id,product_id,quantity_on_hand,stock_status,flow_state,received_at)
       values ('${tenant}','${warehouse}','${sourceBin}','${product}',5,'INSPECTION','QUARANTINE','2026-09-01Z')`);
     const r = await action(operator, 'REPLENISH', { proposal_id: first, merma: true });
@@ -80,7 +81,11 @@ export async function runE2RegressionCases({ sql, action, tenant, warehouse, pro
     assert.equal(Number(other.quantity_reserved), 40, 'never release another order reservation');
     assert.equal(Number(other.quantity_on_hand), 100, 'planner reconciles physical stock');
     assert.equal(other.flow_state, 'QUARANTINE');
-    assert.equal(Number((await sql(`select count(*) n from public.audit_events where entity_id='${first}' and action='REPLENISH_DEPLETED'`)).rows[0].n), 1);
+    const audit = (await sql(`select after_data from public.audit_events where entity_id='${first}' and action='REPLENISH_DEPLETED'`)).rows;
+    assert.equal(audit.length, 1);
+    assert.equal(audit[0].after_data.source_quant_previous_flow_state, previous.flow_state);
+    assert.equal(audit[0].after_data.source_quant_previous_stock_status, previous.stock_status);
+    assert.equal(audit[0].after_data.reconciliation_scope, 'SOURCE_QUANT_ALL_RESERVATIONS');
     const blocked = await action(operator, 'REPLENISH', { proposal_id: second });
     assert.equal(blocked?.error, 'WMS_SOURCE_STOCK_UNAVAILABLE', 'quarantined source cannot execute another reservation');
   });

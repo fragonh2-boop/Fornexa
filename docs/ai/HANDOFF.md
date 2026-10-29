@@ -2,6 +2,13 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-29 — PR #149: subsanación MUST-H-1 tras revisión independiente
+
+- Claude revisó HEAD `62b3ef1` (comentario 6501121250), cerró nueve hallazgos y mantuvo MERGE NO por el shim de tenant_id en el arnés. CI #612/run 40897585435 SUCCESS: 422/422 web, 39/39 C3, PG16 y PG17 (46 migraciones E2 y siete regresiones); ese resultado no certifica este nuevo delta.
+- Se retira la creación anticipada de columnas customs del arnés: la migración original debe crear UUID NOT NULL/default/FK RESTRICT. Comprobaciones de catálogo posteriores y pruebas de mutación rechazan columnas debilitadas. Search_path exige exactamente vacío en las dos funciones verificadas.
+- Auditoría de merma conserva estado de flujo/stock previo y alcance de retención del quant completo; se documenta el efecto sobre otras órdenes, sin liberar sus reservas al retener. Se amplía la regresión 60+40. La evidencia de dos HUs sigue siendo sintética, sin acreditación funcional productiva.
+- Validación local del delta: 37/37 focales (incluye ocho mutaciones de catálogo), tipos y lint focal PASS; build de producción PASS. Suite completa 431/432: persiste el timeout DATA150 del lock vacío ya observado antes del delta, sin cambios en ese código. Pendientes publicación, nueva CI PG17 y revisión Claude. #150 (`5f283f5`) conserva CI #613 verde y revisión independiente pendiente. Sin merge, despliegue ni escrituras remotas.
+
 ## 2026-10-29 — E2: subsanación de Claude preparada en rama aislada
 
 - Rama `codex/e2-claude-remediation-20261029`, base exacta de #145 `2f890c7fd8e6b80ff0fef003e4d3e2452df471b7`; conserva la corrección M3 del token pair. `origin/main` contrastado en `f55f1e9`. Relevo comunicado por Slack; Claude conserva revisión independiente.

@@ -4,6 +4,12 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-29 — PR #149: último MUST del arnés tras revisión Claude
+
+- Dictamen 6501121250 sobre `62b3ef1`: nueve hallazgos cerrados; MUST-H-1 mantiene CODE_READY/MERGE/DB_READY NO. CI #612 verde corresponde al SHA anterior al delta.
+- Candidata: retirar shim de tenant_id customs, comprobar UUID/NOT NULL/default/FK RESTRICT después del replay y exigir search_path vacío exacto. Pruebas negativas verifican rechazo de definiciones debilitadas. Auditoría de merma incorpora estado previo y alcance del quant completo; documentación declara impacto multiorden y límite de evidencia HU sintética.
+- Local: 37/37 focales, tipos/lint focal y build PASS; suite completa 431/432 por el timeout DATA150 preexistente del lock vacío. Pendientes publicación, CI del nuevo SHA, nueva revisión y posterior integración/revalidación #145. #150 tiene CI #613 verde y revisión pendiente. No desplegar ni modificar base remota antes del cierre independiente.
+
 ### 2026-10-29 — E2 #145: candidata correctiva tras dictamen Claude
 
 - Estado: PREPARADA, sin merge/deploy. Rama `codex/e2-claude-remediation-20261029` sobre `2f890c7`; el nuevo dictamen independiente y CI PG17 son obligatorios antes de integrar.
