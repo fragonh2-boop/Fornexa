@@ -4,6 +4,12 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-30 — CI propia y dictamen final tras retirar caché agotada
+
+- Main618 SUCCESS (408/408) y #150/c948368 en producción canónica READY. La API secundaria fornexa-app403 no permite certificar ese proyecto; API móvil configurada sobre el dominio canónico comprobado. Captura oficial no ejecutada.
+- CI619 de2ce05e2 se retrasó en Setup Node por cuota de transferencia de la caché; log main618 acredita el mismo fallo. Nuevo delta retira solo opciones de caché en CI/captura, preservando validaciones y frozen-lockfile. YAML comparado estructuralmente; nueva CI y dictamen requeridos. No ampliar cuotas ni repetir capturas.
+- Preflight READ ONLY: ledger42, E2 no aplicado; customs tenant_id cumple UUID/NOT NULL/FK RESTRICT;150 quants/0HUs y clave aún sin HU. DB-first pendiente del dictamen del conjunto y de su procedimiento explícito. Sin cambios cloud ni despliegue E2.
+
 ### 2026-10-30 — #145 alineada con #150 ya fusionada
 
 - #150 aprobada en `1bfb534` por Claude (6522812458), fusionada a main `c948368`, árbol idéntico al revisado. Producción canónica READY, alias fornexasc.com comprobado y /memorandum200. CI main618 pendiente al preparar esta nota; captura oficial no ejecutada.

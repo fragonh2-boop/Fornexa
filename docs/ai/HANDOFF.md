@@ -2,6 +2,14 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-30 — CI: caché pnpm bloqueada por cuota de transferencia
+
+- CI main618/run41056988612 finalmente SUCCESS: 408/408 web, 39/39 C3, tipos/lint/build/Mobile y ensayo PG17. Main `c948368` y producción canónica READY/dominio/smoke200 comprobados; consulta runtime15min sin errores. La API del proyecto secundario fornexa-app dio403 y no hay CLI; no se certifica ese proyecto. La app móvil configurada usa fornexasc.com como API, dominio canónico sí comprobado.
+- Causa medida de los diez minutos en Setup Node: log main618 `2026-10-30T12:40:39.424Z`, «Failed to restore: Egress is over the account limit». Caché de234MB dejó de progresar y Setup Node solo terminó a12:50. No era fallo de código; instalar después desde lockfile tardó segundos.
+- Se retira únicamente cache/cache-dependency-path de setup-node en los dos jobs CI y en captura manual, cuyo timeout10min podía consumirse antes de capturar. Node22, pnpm, frozen-lockfile, comandos de validación, pines, secretos, aislamiento y artefactos se conservan. Comparación estructural YAML antes/después confirma ese delta exacto. No se dispara captura ni se cambian cuotas/costes.
+- El nuevo HEAD sustituye a `2ce05e2`/CI619, que estaba aún descargando esa caché. Requiere anuncio, CI propia y dictamen de integración; no se reutilizan CI617/619 ni aprobación de otro SHA. Cobertura Memo713. Checkpoints inferiores conservan el estado anterior a esta corrección.
+- Preflight primario READ ONLY/ROLLBACK de30-oct: ledger42, última20261019120000, E2 ausente (reglas/propuestas no existen y versiones E2 no registradas). Customs tenant_id UUID NOT NULL con FK RESTRICT en ambas tablas; quant unique sigue sin HU,150 quants y0HUs. Sin mutación cloud. Preparar DB-first tras dictamen, sin reejecutar indiscriminadamente el historial.
+
 ## 2026-10-30 — #150 en main y despliegue READY; candidata #145 alineada
 
 - Claude aprobó #150 `1bfb534` en 6522812458: cero MUST, MERGE SÍ; retiró reserva técnica al dispatch sin autorizarlo. PR fusionada con expected HEAD por squash en main `c94836839993a74f1873644ea0eccdbc7fc29624`, árbol `8869ea8057279f5a4307a7b3f07f3a03bf11c890` idéntico al revisado. CI615 acreditó 408/408 web y todos los checks; CI main618/run41056988612 pendiente al preparar esta nota. Captura manual NO ejecutada.

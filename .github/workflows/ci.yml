@@ -94,10 +94,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
-          cache-dependency-path: |
-            pnpm-lock.yaml
-            mobile-driver/pnpm-lock.yaml
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Verify WMS E2 Replenishment Runtime on disposable PostgreSQL 17
@@ -162,10 +158,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
-          cache-dependency-path: |
-            pnpm-lock.yaml
-            mobile-driver/pnpm-lock.yaml
 
       - name: Install web dependencies
         run: pnpm install --frozen-lockfile
