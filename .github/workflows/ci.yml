@@ -28,6 +28,8 @@ jobs:
           --health-retries 10
     steps:
       - uses: actions/checkout@v4
+      - name: Remove inherited PG17 verification receipts
+        run: rm -f docs/verification/receipt-c3-workflow-pg17.json docs/verification/receipt-orphan-recovery-pg17.json
       - name: Verify workflow on disposable PostgreSQL 17
         env:
           PGHOST: 127.0.0.1
@@ -45,6 +47,74 @@ jobs:
         with:
           name: receipt-c3-workflow-pg17
           path: docs/verification/receipt-c3-workflow-pg17.json
+          if-no-files-found: error
+      - name: Verify orphan recovery migration chain on PostgreSQL 17
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGDATABASE: fornexa_apply_test
+          PGUSER: postgres
+          PGPASSWORD: synthetic-ci-password
+        run: |
+          node scripts/audit/verify-orphan-recovery-pg17.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: receipt-orphan-recovery-pg17
+          path: docs/verification/receipt-orphan-recovery-pg17.json
+          if-no-files-found: error
+
+  verify-e2-pg17:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: fornexa_e2_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: synthetic-ci-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove inherited E2 verification receipt
+        run: rm -f docs/verification/receipt-m8-e2-postgres17.json
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Verify WMS E2 Replenishment Runtime on disposable PostgreSQL 17
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGDATABASE: fornexa_e2_test
+          PGUSER: postgres
+          PGPASSWORD: synthetic-ci-password
+          USE_REAL_POSTGRES: "true"
+          REQUIRE_PG17: "true"
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          rm -f docs/verification/receipt-m8-e2-postgres17.json
+          node scripts/wms/verify-e2-postgres.mjs
+      - name: Upload WMS E2 Verification Receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: receipt-m8-e2-postgres17
+          path: docs/verification/receipt-m8-e2-postgres17.json
           if-no-files-found: error
 
   validate:
@@ -69,8 +139,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Remove inherited WMS C-3 verification receipt
-        run: rm -f docs/verification/receipt-m7-c3-postgres.json
+      - name: Remove inherited verification receipts
+        run: rm -f docs/verification/receipt-m7-c3-postgres.json docs/verification/receipt-m8-e2-postgres17.json
 
       - name: Require memorandum update for functional changes
         env:
@@ -88,10 +158,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
-          cache-dependency-path: |
-            pnpm-lock.yaml
-            mobile-driver/pnpm-lock.yaml
 
       - name: Install web dependencies
         run: pnpm install --frozen-lockfile

@@ -19,20 +19,20 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "30 oct 2026";
-export const memorandumCommitCoverage = 681;
+export const memorandumCommitCoverage = 714;
 
 export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
     title: "Verificación y publicación de evidencias de auditoría",
-    summary: "La candidata amplía las comprobaciones de conexión y de publicación de evidencias, con pruebas de aceptación y rechazo. Sigue pendiente de revisión independiente; su preparación no acredita una nueva auditoría de producción.",
+    summary: "El ejecutor de auditoría revisado está integrado en la rama principal, con comprobaciones de conexión y publicación de evidencias. La captura oficial todavía no se ha ejecutado; la integración del conjunto de Almacenes sigue su validación independiente.",
     priority: "Ahora",
     state: "En seguimiento",
   },
   {
     area: "Funcional",
     title: "Almacenes — reglas de reposición, propuestas y lote sintético (E2 / F4 / F5)",
-    summary: "El núcleo operativo de Almacenes (recepción con chequeo en playa, ubicación dirigida, reservas por línea, picking con rotación FIFO/LIFO/FEFO, recursos, políticas jerárquicas y control de etiqueta, estado, peso y volumen antes de la carga) ya está implementado y su migración E1 aplicada y verificada en producción, con los 30 códigos de rechazo acreditados mediante ensayo transaccional y sonda con pre/postestado medido y diagnóstico explícito de fixtures ausentes (SHOULD-1 y robustez M5 verificados en producción). La migración C-3 está aplicada y el código de aplicación está desplegado en producción tras revisión independiente. Admite el peso y volumen vigentes y editables de SGA y las reposiciones de distintas órdenes hacia una misma ubicación, respetando el saldo reservado compartido. La verificación funcional autenticada en producción sigue pendiente; el despliegue no acredita por sí solo el recorrido completo de controles de estado y carga. Quedan pendientes la entrega E2 (reglas de reposición min/max y consolidación en cola), la carga del lote sintético de escenarios de almacén y la verificación funcional punto a punto en producción.",
+    summary: "El núcleo operativo de Almacenes (recepción con chequeo en playa, ubicación dirigida, reservas por línea, picking con rotación FIFO/LIFO/FEFO, recursos, políticas jerárquicas y control de etiqueta, estado, peso y volumen antes de la carga) ya está implementado y su migración E1 aplicada y verificada en producción, con los 30 códigos de rechazo acreditados mediante ensayo transaccional y sonda con pre/postestado medido y diagnóstico explícito de fixtures ausentes (SHOULD-1 y robustez M5 verificados en producción). La migración C-3 está aplicada y el código de aplicación está desplegado en producción tras revisión independiente. Admite el peso y volumen vigentes y editables de SGA y las reposiciones de distintas órdenes hacia una misma ubicación, respetando el saldo reservado compartido. La verificación funcional autenticada en producción sigue pendiente; el despliegue no acredita por sí solo el recorrido completo de controles de estado y carga. La corrección E2 de capacidad, preservación de palés y cancelación por merma con reservas compartidas ha superado la revisión independiente y está incorporada a la candidata de integración. El conjunto final sigue pendiente de validación y revisión antes de su entrega. La implementación funcional runtime E2 (reglas de reposición min/max, propuestas deterministas, reservas HELD, rotación FIFO/FEFO/LIFO, consolidación YES/NO/BY_BATCH, deduplicación target_hu_id, RPC atómica de reposición con manejo de merma Paso 4 y cancelación sin unhandled RAISE, API REST, UI y suite completa E2-130..150 de 21 escenarios) está entregada en una candidata de integración, pendiente de validación conjunta y comprobación funcional productiva. Quedan pendientes la carga del lote sintético de escenarios de almacén y la verificación funcional punto a punto en producción.",
     priority: "Ahora",
     state: "En seguimiento",
   },
@@ -67,7 +67,7 @@ export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
     title: "A2 — reproducibilidad de migraciones",
-    summary: "La fuente versionada ya recuperó el requisito de unicidad que existe en producción. Un contraste que preserva literales y cuerpos de funciones clasificó los 32 pares compartidos en la captura registrada. Los tests reproducen el lado Git, pero no verifican de nuevo el SQL remoto ni el estado vivo de producción. A2 sigue abierto: faltan preparar la reconciliación no productiva y ejecutar un replay controlado antes de plantear cualquier alineación del historial.",
+    summary: "La fuente versionada incorporó la migración 20260817212235_cmr_canonical_model_rls_and_hardening y alineó 20260819122543_add_cmr_access_key_lifecycle según el visor primario de Supabase. Los tests reproducen el lado Git, manteniendo pendientes las divergencias de timestamp de las 32 migraciones históricas. A2 sigue abierto: faltan preparar la reconciliación no productiva y ejecutar un replay controlado antes de plantear cualquier alineación del historial.",
     priority: "Ahora",
     state: "En seguimiento",
   },
@@ -200,6 +200,24 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.10.23-5",
+    date: "23 oct 2026",
+    surface: ["Web", "Plataforma"],
+    title: "Almacenes — implementación runtime de reposición interna preventiva y dinámica (E2)",
+    purpose: "Implementar el motor de reposición interna de almacén con cálculo determinista de déficit, propuestas, reservas HELD, rotación y ciclo de vida de tareas.",
+    outcome: "Implementadas y subsanadas las migraciones DDL y RPC para reglas de reposición (min/max, reorder, consolidación YES/NO/BY_BATCH), ciclo de vida de propuestas (DRAFT, APPROVED, REJECTED, EXECUTED, CANCELLED), reservas HELD en stock_reservations, tareas READY en warehouse_tasks, deduplicación de plazas por target_hu_id, rotación determinista FIFO/FEFO/LIFO con preservación inmutable de received_at, cancelación atómica en Paso 4 por merma sin unhandled RAISE, control de roles de planificación y ejecución, interfaz de usuario en Almacenes y suite de 21 pruebas acumulativas bajo migraciones reales cubriendo E2-130 a E2-150.",
+    status: "Preproducción",
+  },
+  {
+    version: "2026.10.23-4",
+    date: "23 oct 2026",
+    surface: ["Plataforma"],
+    title: "Saneamiento de baseline Supabase Preview (customs_messages y customs_events tenant_id)",
+    purpose: "Reparar la discrepancia histórica de baseline en Supabase Preview incorporando tenant_id en customs_messages y customs_events con preservación inmutable del ledger y auditoría literal-safe.",
+    outcome: "Resolución de error SQLSTATE 42703 en políticas RLS de customs, validación exhaustiva de 85 sentencias Git vs 83 remotas con disparidad autorizada y cobertura de pruebas unitarias negativas fail-closed. Nota cronológica: la release se formaliza bajo la serie 2026.10.23 por contrato de trazabilidad de la suite, e incorpora el snapshot histórico importado del 24-oct-2026, sin run identificado y con procedencia de captura sin certificar.",
+    status: "Preproducción",
+  },
   {
     version: "2026.10.23-3",
     date: "23 oct 2026",

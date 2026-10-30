@@ -25,7 +25,7 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const warehouseId = url.searchParams.get("warehouse_id") || undefined;
-    const data = await loadWmsData(auth.tenantId, warehouseId);
+    const data = await loadWmsData(auth.tenantId, warehouseId, { includeE2: true });
     return response({
       ...data,
       canEdit: EDIT_ROLES.has(auth.role),
@@ -78,13 +78,28 @@ export async function POST(request: Request) {
       );
     }
     const action = rawAction as WmsAction;
-    if (
-      (action === "UPSERT_POLICY" || action === "UPSERT_RESOURCE") &&
-      !CONFIG_ROLES.has(auth.role)
-    ) {
+    const isConfigOrPlanning =
+      action === "UPSERT_POLICY" ||
+      action === "UPSERT_RESOURCE" ||
+      action === "EVALUATE_REPLENISHMENT" ||
+      action === "APPROVE_PROPOSAL" ||
+      action === "REJECT_PROPOSAL" ||
+      action === "CANCEL_PROPOSAL";
+    if (isConfigOrPlanning && !CONFIG_ROLES.has(auth.role)) {
       return response(
         {
           error: "WMS_FORBIDDEN: Se requiere rol de planificación o administración.",
+          code: "WMS_FORBIDDEN",
+        },
+        403,
+      );
+    }
+
+    const EXEC_ROLES = new Set(["OWNER", "ADMIN", "OPERATOR"]);
+    if (action === "REPLENISH" && !EXEC_ROLES.has(auth.role)) {
+      return response(
+        {
+          error: "WMS_FORBIDDEN: Se requiere rol de operario o administración.",
           code: "WMS_FORBIDDEN",
         },
         403,
@@ -113,6 +128,15 @@ export async function POST(request: Request) {
       return response(
         { error: failure.error, code: failure.code },
         failure.status,
+      );
+    }
+
+    if (result.data && typeof result.data === "object" && (result.data as any).ok === false) {
+      const errCode = (result.data as any).error ?? "WMS_REPLENISHMENT_FAILED";
+      const failure = wmsRpcFailure({ message: errCode, code: errCode });
+      return response(
+        { error: failure.error, code: failure.code, details: result.data },
+        failure.status >= 400 ? failure.status : 409,
       );
     }
 

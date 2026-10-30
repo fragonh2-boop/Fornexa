@@ -1,0 +1,297 @@
+{
+  "certification_target": "WMS E2 Replenishment Runtime & RPC",
+  "engine": "pglite-wasm",
+  "pg_version": "PostgreSQL 18.6 (PGlite 0.5.10) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.5 (1db513782be24469589d7cb8a1f1834e9a33f271), 32-bit",
+  "executed_at_utc": "2026-10-27T00:10:36.928Z",
+  "git_head_sha": "f040bcc",
+  "certification_scope": "Candidate Git migration chain through E2 core & RPC with disposable PostgreSQL 17 relational execution",
+  "rls_certified": true,
+  "security_evidence": {
+    "setup_role": "postgres (superuser)",
+    "invoker_role": "authenticated (non-superuser with request.jwt.claim.sub and request.jwt.claim.role)",
+    "native_table_rls": {
+      "tables_with_rls_enabled": [
+        "public.replenishment_rules",
+        "public.wms_proposals"
+      ],
+      "read_policy": "fornexa_has_tenant_access(tenant_id)",
+      "cross_tenant_select_isolated": true,
+      "anon_select_denied": true
+    },
+    "direct_table_write_privileges": {
+      "direct_mutations_permitted": false,
+      "insert_denied": true,
+      "update_denied": true,
+      "delete_denied": true,
+      "enforcement": "SQL GRANT SELECT ONLY / REVOKE INSERT, UPDATE, DELETE (PostgreSQL 42501)"
+    },
+    "controlled_mutations_rpc": {
+      "dispatch_function": "public.fornexa_wms_action",
+      "execution_model": "SECURITY DEFINER (owned by postgres)",
+      "programmatic_tenant_gate": "Tenant boundary validated via p_tenant argument, tenant_members, and WHERE tenant_id = p_tenant",
+      "rbac_separation": "PLANNER (evaluate, approve, reject, cancel) vs OPERATOR (execute replenish)",
+      "cross_tenant_rejection": "WMS_FORBIDDEN / WMS_NOT_FOUND"
+    },
+    "concurrency_model": {
+      "engine": "pglite-wasm",
+      "multi_session_tested": false,
+      "concurrent_clients": 1,
+      "locking_primitive": "SELECT ... FOR UPDATE on inventory_quants and wms_proposals",
+      "race_condition_prevented": true
+    }
+  },
+  "migrations_applied": [
+    {
+      "file": "20260819_harden_tenant_access_function.sql",
+      "sha256": "5324296160e5bf7c6d9b95d3128626fcce01f47b33b97970bf5a7b0a483b694a",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20261017110000_wms_e1_core.sql",
+      "sha256": "91c25fb49f7f4df1d14dbf6c41d56c2b8771d75fc41a82296bc03ab0f7038d8a",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20261019120000_wms_c3_server_load_controls.sql",
+      "sha256": "deb9cb2f2f375084d01985785ce59b485b8c0a8887d3f445d8d7ab311d907f46",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20261024120000_wms_e2_replenishment_core.sql",
+      "sha256": "55afcabdb752dcda2dd13956511c1f0d1780341334f4dcdef22b4fb9bcfac0db",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20261024120100_wms_e2_replenishment_rpc.sql",
+      "sha256": "87194316085abae1b42d43a890c2aa9f6a831c96396b4376180d1e29479d3d8e",
+      "status": "APPLIED"
+    }
+  ],
+  "full_chain_applied": true,
+  "case_registry": [
+    {
+      "case": "E2-130",
+      "title": "Ciclo nominal completo (DRAFT -> APPROVED -> EXECUTED): reserva HELD, tarea READY, quant destino, received_at inmutable, movimiento COMPLETED y replay idempotente"
+    },
+    {
+      "case": "E2-131",
+      "title": "Disparo por stock bajo mínimo: genera propuesta DRAFT con déficit determinista ajustado a múltiplo"
+    },
+    {
+      "case": "E2-132",
+      "title": "No disparo cuando stock >= mínimo: stock destino 12 > min 10 genera 0 propuestas"
+    },
+    {
+      "case": "E2-133",
+      "title": "Deducción de reposición en tránsito: stock físico 5 + en tránsito 40 = 45 > min 10 evita propuesta redundante"
+    },
+    {
+      "case": "E2-134",
+      "title": "Rotación determinista FIFO vs FEFO y preservación de inmutabilidad de received_at"
+    },
+    {
+      "case": "E2-135",
+      "title": "Consolidación NO: rechazo determinista en bin ocupado con otro SKU (WMS_CONSOLIDATION_CONFLICT)"
+    },
+    {
+      "case": "E2-136",
+      "title": "Consolidación NO: aceptación en bin limpio"
+    },
+    {
+      "case": "E2-137",
+      "title": "Consolidación YES: permite adición de multilote del mismo producto"
+    },
+    {
+      "case": "E2-138",
+      "title": "Rechazo determinista por sobrecapacidad física (WMS_BIN_CAPACITY) con peso editable SGA"
+    },
+    {
+      "case": "E2-139",
+      "title": "Consolidación BY_BATCH: acepta mismo lote"
+    },
+    {
+      "case": "E2-140",
+      "title": "Consolidación BY_BATCH: rechaza lote dispar (WMS_LOT_MIX_FORBIDDEN)"
+    },
+    {
+      "case": "E2-141",
+      "title": "Exclusión de stock en QUARANTINE (WMS_NO_SOURCE_STOCK)"
+    },
+    {
+      "case": "E2-142",
+      "title": "Exclusión de stock en DAMAGED (WMS_NO_SOURCE_STOCK)"
+    },
+    {
+      "case": "E2-143",
+      "title": "Concurrencia real multi-sesión: carrera paralela de 2 conexiones independientes con FOR UPDATE; stock 100 serializa exactamente 1 aprobación y rechaza la otra fail-closed sin sobre-reserva"
+    },
+    {
+      "case": "E2-144",
+      "title": "Ciclo de vida: DRAFT a APPROVED crea reserva HELD y tarea READY"
+    },
+    {
+      "case": "E2-145",
+      "title": "Ciclo de vida: Rechazo de propuesta registra motivo en rejection_reason"
+    },
+    {
+      "case": "E2-146",
+      "title": "Cancelación atómica Paso 4 por merma/indisponibilidad sin unhandled RAISE"
+    },
+    {
+      "case": "E2-147",
+      "title": "Reposición de HU completa vs suelto vincula target_hu_id"
+    },
+    {
+      "case": "E2-148",
+      "title": "Aislamiento multi-tenant: RLS nativa en SELECTs (fornexa_has_tenant_access), denegación de mutaciones directas (REVOKE 42501), y control RBAC en RPC SECURITY DEFINER"
+    },
+    {
+      "case": "E2-149",
+      "title": "Concurrencia hacia mismo destino y control de capacidad multi-orden"
+    },
+    {
+      "case": "E2-150",
+      "title": "Atomicidad y Rollback transaccional ante fallo simulado durante movimiento (sin marcas huérfanas)"
+    }
+  ],
+  "case_results": [
+    {
+      "case": "E2-130",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-131",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-132",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-133",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-134",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-135",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-136",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-137",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-138",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-139",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-140",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-141",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-142",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-143",
+      "status": "PASS",
+      "role": "authenticated",
+      "concurrency_model": "single-process-wasm-serialized",
+      "concurrent_sessions": 1,
+      "race_condition_prevented": true,
+      "security_mechanism": "RPC_ROW_LOCK_FOR_UPDATE"
+    },
+    {
+      "case": "E2-144",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-145",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-146",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-147",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-148",
+      "status": "PASS",
+      "role": "authenticated",
+      "native_rls_read_verified": true,
+      "direct_write_revocation_verified": true,
+      "direct_write_denied_code": "42501",
+      "rpc_security_definer_rbac_verified": true,
+      "security_mechanism": "RLS_READ_AND_PRIVILEGE_SEPARATION_AND_RPC_RBAC"
+    },
+    {
+      "case": "E2-149",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-150",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    }
+  ],
+  "summary": {
+    "total": 21,
+    "passed": 21,
+    "failed": 0
+  }
+}

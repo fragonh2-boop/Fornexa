@@ -98,6 +98,9 @@ export function validateConnectionString(connectionString: string | undefined) {
 }
 
 export function createAuditClient(connectionString: string | undefined) {
+  if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === "0") {
+    throw new Error("Audit capture refuses a global TLS verification bypass.");
+  }
   validateConnectionString(connectionString);
   const url = new URL(connectionString!);
   // pg parses connectionString after its config object: sslmode would replace
