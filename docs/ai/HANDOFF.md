@@ -2,6 +2,22 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-30 — #150: candidata de subsanación tras nuevo dictamen Claude
+
+- Main contrastado `f55f1e9`; rama publicada #150 en `5f283f5` y CI #613 SUCCESS (402/402 web, 39/39 C3, tipos/lint/build/Mobile, PG16/17). Claude cerró MUST-146-1 y publicación en comentario 6520568428, pero mantiene MERGE/DISPATCH NO por MUST-150-1. Este delta requiere nuevo dictamen.
+- El ejecutor valida TLS y nombre con pg; evita que sslmode de la URL sustituya su configuración. Pruebas con peer local real rechazan certificados inválidos antes de autenticación y tienen control positivo. Se añade positivo de publicación generado de 42 migraciones y cobertura del grafo local de imports, incluido generador. Se aclara preflight y se retira fallback PG. Pin del runner actualizado. Detalles en `docs/verification/supabase-audit-remediation-20261030.md`.
+- E2 #149 sigue en `ab7e044`, CI #614 SUCCESS: 432/432 web, 39/39 C3, tipos/lint/build/Mobile, PG16/17, 46 migraciones y siete regresiones. La publicación y CI que figuran pendientes en notas históricas ya ocurrieron. No se ha localizado dictamen nuevo sobre ese HEAD; se ha solicitado aclaración de MUST-H-1 en el hilo canónico, sin equiparar CI con aprobación.
+- Validación local: 39/39 focales, tipos, lint global (0 errores/10 avisos) y build PASS. Suite general 407/408: timeout DATA150 del lock vacío ya observado en la base, sin cambios en ese código ni sus pruebas. Pendientes publicación del delta #150, CI nueva y revisión independiente de ambos HEAD. Sin merge, dispatch, captura productiva ni despliegue. Las ramas no están congeladas: cualquier nueva edición se anunciará con su nuevo SHA antes de revisión.
+
+
+## 2026-10-29 — Auditoría: corrección separada del ejecutor READ ONLY
+
+- Rama `codex/audit-loader-hardening-20261029`, base main `f55f1e9`. No incluye runtime E2 ni altera migraciones; E2 sigue en #149 (CI612 SUCCESS, 422/422 web y PG17 real), pendiente de revisión independiente de Claude.
+- MUST-146-1: el workflow verifica bytes/SHA256 de ambos loaders y de `sql-provenance.ts`, además de SQL, runner y generador. La verificación termina antes del bootstrap Node del paso que recibe la conexión. Pruebas ejecutan el shell real del workflow y rechazan mutaciones de cada módulo antes de iniciar Node.
+- Las dos salidas se validan con esquemas cerrados ANTES de writeFileSync. El esquema audit se deriva del fixture 0912 inmutable/pinado y de los tipos de sus campos; las métricas/catálogo tienen esquema explícito. Se rechazan campos extra aunque cambie su nombre y SQL en identificadores. Los errores no incorporan los valores rechazados. El preflight solo se sube cuando todos los pasos previos han tenido éxito; las salidas heredadas se retiran tras Checkout.
+- Local: 15 pruebas de ejecutor/publicación PASS, incluidas ejecución PGlite, kernel READ ONLY 25006, discrepancias referenciales y pruebas negativas de módulos/payload. No confundir el suplemento con un dispatch real. 33 pruebas focales totales (ejecutor/publicación, Memorandum y fecha), tipos, lint focal y build de producción PASS; pendiente CI del SHA publicado.
+- Pendiente: revisión independiente del delta y CI; no se ejecutó el workflow manual ni se abrió conexión nueva a producción con este ejecutor. No merge/deploy ni SQL de escritura remoto.
+
 ## 2026-10-23 — SHOULD-12 local: retirada temprana y orden corregido (10:08 UTC)
 
 - Rama `codex/ci-receipt-cleanup-stacked-20261023`, padre exacto de #142 `3da0e6db2d730817b64bde83193210686d13e352`. Retira el recibo heredado inmediatamente después de Checkout; mueve únicamente `Test web` detrás del arnés y su certificación estricta, antes de Upload. Conserva comandos, entornos, run/SHA/ref, retirada previa al arnés, `if: always()` y error si falta fichero. No cambia tests, recibos, SQL, RPC, runner ni arnés.

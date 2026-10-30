@@ -97,6 +97,26 @@ export function validateConnectionString(connectionString: string | undefined) {
   return { verified: true, projectRef: EXPECTED_DB_PROJECT_REF };
 }
 
+export function createAuditClient(connectionString: string | undefined) {
+  validateConnectionString(connectionString);
+  const url = new URL(connectionString!);
+  // pg parses connectionString after its config object: sslmode would replace
+  // the explicit TLS policy. Accept only secure intent, then remove that key.
+  for (const [key, value] of url.searchParams) {
+    if (key.toLowerCase() === "sslmode") {
+      if (!["require", "verify-ca", "verify-full"].includes(value)) {
+        throw new Error("Connection sslmode must require verified TLS. No credentials printed.");
+      }
+      url.searchParams.delete(key);
+    }
+  }
+  return new Client({
+    connectionString: url.toString(),
+    ssl: { rejectUnauthorized: true },
+    options: "-c default_transaction_read_only=on -c statement_timeout=30000 -c lock_timeout=10000",
+  });
+}
+
 export function verify0912BaselineIntact() {
   if (!existsSync(BASELINE_0912_PATH)) {
     throw new Error(`Baseline audit 20260912 missing at ${BASELINE_0912_PATH}`);
@@ -150,6 +170,87 @@ export function loadCanonicalStatements() {
     q7_migration_audit_export: statements[11],
     rollback: statements[12],
   };
+}
+
+// Closed output schemas: renaming a payload field must not evade a literal grep.
+// The pinned 0912 artifact supplies the audit schema and immutable method text;
+// its data values are not used as the result of a new capture.
+function checkShape(value: unknown, shape: unknown, path: string): void {
+  const field = path.replace(/\[\d+\]/g, "").split(".").at(-1)!;
+  if (field === "roles") {
+    const roles = Array.isArray(value) ? value : typeof value === "string" ? value.replace(/^\{|\}$/g, "").split(",") : [];
+    assert.ok(roles.length > 0 && roles.every(role => typeof role === "string" && /^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(role)), `Invalid roles at ${path}`);
+    return;
+  }
+  if (field === "total_rows" && typeof value === "number") {
+    assert.ok(Number.isSafeInteger(value) && value >= 0); return;
+  }
+  if (value === null && (shape === null || field === "remote_array_elementwise_equivalent")) return;
+  if (Array.isArray(shape)) {
+    assert.ok(Array.isArray(value), `Invalid array at ${path}`);
+    for (let i = 0; i < value.length; i++) checkShape(value[i], shape[0] ?? 0, `${path}[${i}]`);
+  } else if (shape !== null && typeof shape === "object") {
+    assert.ok(value !== null && typeof value === "object" && !Array.isArray(value), `Invalid object at ${path}`);
+    const expected = shape as Record<string, unknown>, actual = value as Record<string, unknown>;
+    assert.ok(Object.keys(actual).length === Object.keys(expected).length && Object.keys(expected).every(key => Object.hasOwn(actual, key)), `Unexpected fields at ${path}`);
+    for (const key of Object.keys(expected)) checkShape(actual[key], expected[key], `${path}.${key}`);
+  } else if (typeof shape === "number") {
+    assert.ok(typeof value === "number" && Number.isSafeInteger(value) && value >= 0, `Invalid counter at ${path}`);
+  } else if (typeof shape === "boolean") {
+    assert.equal(typeof value, "boolean", `Invalid flag at ${path}`);
+  } else {
+    assert.equal(typeof value, "string", `Invalid string at ${path}`);
+    const text = value as string;
+    if (path.startsWith("audit.method.")) assert.ok(text === shape, `Changed method at ${path}`);
+    else if (field.includes("sha256") || field === "git_migration_baseline_commit") assert.ok((field === "git_migration_baseline_commit" ? /^[0-9a-f]{40}$/ : /^[0-9a-f]{64}$/).test(text), `Invalid field at ${path}`);
+    else if (field.includes("md5")) assert.ok((/^[0-9a-f]{32}$/).test(text), `Invalid field at ${path}`);
+    else if (field === "captured_at" || field.endsWith("created_at")) assert.ok(/^\d{4}-\d\d-\d\d[T ][\d:.+Z-]+$/.test(text) && Number.isFinite(Date.parse(text)), `Invalid timestamp at ${path}`);
+    else if (field.endsWith("tenant_id")) assert.ok((/^[0-9a-f-]{36}$/i).test(text), `Invalid field at ${path}`);
+    else if (field === "total_rows") assert.ok((/^\d+$/).test(text), `Invalid field at ${path}`);
+    else if (field === "git_path" || field === "git_only") assert.ok((/^supabase\/migrations\/[a-zA-Z0-9_]+\.sql$/).test(text), `Invalid field at ${path}`);
+    else if (field === "remote_version" || field === "version") assert.ok((/^\d{8,14}$/).test(text), `Invalid field at ${path}`);
+    else if (field === "table_name") assert.ok((/^(?:public\.)?[a-zA-Z0-9_]{1,128}$/).test(text), `Invalid field at ${path}`);
+    else if (["remote_name", "git_name", "name", "column_name", "tablename", "constraint_name", "policyname"].includes(field)) assert.ok((/^[a-zA-Z0-9_]{1,128}$/).test(text), `Invalid field at ${path}`);
+    else if (field === "match_resolution") assert.ok(["exact_name", "manual_alias"].includes(text));
+    else if (field === "remote_source") assert.ok(text === "supabase_migrations.schema_migrations", `Invalid fixed field at ${path}`);
+    else if (field === "executor") assert.ok(text === "scripts/audit/run-supabase-audit-readonly.ts", `Invalid fixed field at ${path}`);
+    else if (field === "transaction_mode") assert.ok(text === "READ ONLY", `Invalid fixed field at ${path}`);
+    else if (field === "column_default") assert.ok(/^'[0-9a-f-]{36}'::uuid$/i.test(text), `Invalid default at ${path}`);
+    else if (field === "is_nullable") assert.ok(["YES", "NO"].includes(text));
+    else if (field === "constraint_type") assert.ok(/^[cfpunx]$/.test(text));
+    else if (field === "cmd") assert.ok(["ALL", "SELECT", "INSERT", "UPDATE", "DELETE"].includes(text));
+    else if (field === "permissive") assert.ok(["PERMISSIVE", "RESTRICTIVE"].includes(text));
+    else {
+      // Catalog expressions are intentional metadata, never arbitrary SQL bodies.
+      assert.ok(text.length <= 2048 && !/[;\r\n]/.test(text), `Invalid catalog metadata at ${path}`);
+      if (["qual", "with_check", "data_type"].includes(field)) assert.ok(!/\b(CREATE|ALTER|DROP|INSERT|UPDATE|DELETE|COPY|TRUNCATE|GRANT|REVOKE)\b/i.test(text), `Invalid expression at ${path}`);
+      if (field === "definition") assert.ok((/^(FOREIGN KEY|PRIMARY KEY|UNIQUE|CHECK|NOT NULL)\b/).test(text), `Invalid field at ${path}`);
+    }
+  }
+}
+
+export function persistSanitizedArtifact(path: string, json: string, kind: "audit" | "preflight") {
+  const document = JSON.parse(json);
+  verify0912BaselineIntact();
+  if (kind === "audit") {
+    const shape = JSON.parse(readFileSync(BASELINE_0912_PATH, "utf8"));
+    checkShape(document, shape, "audit");
+    assert.equal(document.schema_version, 1);
+    assert.ok(JSON.stringify(document.method) === JSON.stringify(shape.method), "Audit method must remain the documented fixed schema");
+  } else {
+    checkShape(document, {
+      captured_at: "", executor: "", transaction_mode: "",
+      mismatched_rows: { customs_messages: 0, customs_events: 0 },
+      customs_messages_metrics: [{ message_tenant_id: null, case_tenant_id: null, total_rows: "", min_created_at: null, max_created_at: null }],
+      customs_events_metrics: [{ event_tenant_id: null, case_tenant_id: null, total_rows: "", min_created_at: null, max_created_at: null }],
+      customs_cases_metrics: [{ tenant_id: null, total_rows: "", min_created_at: null, max_created_at: null }],
+      columns: [{ table_name: "", column_name: "", data_type: "", is_nullable: "", column_default: null }],
+      constraints: [{ table_name: "", constraint_name: "", constraint_type: "", definition: "" }],
+      policies: [{ tablename: "", policyname: "", permissive: "", roles: "", cmd: "", qual: null, with_check: null }],
+    }, "preflight");
+  }
+  // This is deliberately AFTER every check, for both output kinds.
+  writeFileSync(path, json, "utf8");
 }
 
 export async function executeReadOnlyCapture(
@@ -211,10 +312,10 @@ export async function executeReadOnlyCapture(
       policies: q6b.rows,
     };
 
-    // Write preflight evidence to disk PRIOR to assert (MUST-EXEC-1R)
+    // Validate the closed publication schema before writing; retain sanitized
+    // diagnostics if the cross-tenant business assertions below then fail.
     const preflightJson = JSON.stringify(preflightEvidence, null, 2) + "\n";
-    assert.ok(!preflightJson.includes('"payload_base64":'), "Preflight evidence must never contain raw payload_base64");
-    writeFileSync(preflightPath, preflightJson, "utf8");
+    persistSanitizedArtifact(preflightPath, preflightJson, "preflight");
 
     // Assert 0 cross-tenant mismatched rows (aborts if mismatched, but leaves preflight on disk)
     assert.equal(preflightEvidence.mismatched_rows.customs_messages, 0, "Customs messages must have 0 cross-tenant mismatches");
@@ -270,7 +371,7 @@ export async function executeReadOnlyCapture(
 
     // Write audit document
     const auditJson = JSON.stringify(auditDocument, null, 2) + "\n";
-    writeFileSync(outputPath, auditJson, "utf8");
+    persistSanitizedArtifact(outputPath, auditJson, "audit");
 
     // Post-execution security checks:
     // 1. Output must NOT contain raw payload_base64 values
@@ -303,14 +404,7 @@ export async function executeReadOnlyCapture(
 
 // CLI Execution entrypoint
 if (process.argv[1] && resolve(process.argv[1]) === resolve(__filename)) {
-  const pgUrl = process.env.POSTGRES_URL_NON_POOLING || process.env.PG;
-  validateConnectionString(pgUrl);
-
-  const client = new Client({
-    connectionString: pgUrl,
-    ssl: { rejectUnauthorized: false },
-    options: "-c default_transaction_read_only=on -c statement_timeout=30000 -c lock_timeout=10000",
-  });
+  const client = createAuditClient(process.env.POSTGRES_URL_NON_POOLING);
 
   await client.connect();
   try {

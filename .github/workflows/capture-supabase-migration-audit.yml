@@ -42,10 +42,19 @@ jobs:
       AUDIT_SQL_FILE: scripts/audit/capture-supabase-migration-audit.sql
       RUNNER_FILE: scripts/audit/run-supabase-audit-readonly.ts
       GENERATOR_FILE: scripts/generate-supabase-migration-audit.ts
+      REGISTER_FILE: scripts/test-register.mjs
+      RESOLVER_FILE: scripts/test-resolver.mjs
+      PROVENANCE_FILE: scripts/sql-provenance.ts
+      EXPECTED_PROVENANCE_BYTES: 11118
+      EXPECTED_PROVENANCE_SHA256: 5875c0cd7bc9ea519cb2ff552f3353044edb1b09a4e946fa204238c14a134383
+      EXPECTED_RESOLVER_BYTES: 1438
+      EXPECTED_RESOLVER_SHA256: fea63b39b23ee39a655f8a98f959945b5ea2e73c7be990661a8451195504891a
+      EXPECTED_REGISTER_BYTES: 145
+      EXPECTED_REGISTER_SHA256: 706a611ec2cb44dc9af1364104aa40f1e6c4284580332c0de83f6e966f571253
       EXPECTED_SQL_SHA256: 14934a1f9d7af8e4521e79415a29c46810f79ef4a7b0a4965a6d6fdd595bc932
       EXPECTED_SQL_BYTES: 6606
-      EXPECTED_RUNNER_SHA256: 1ac144cb19fa86a85c85fdaab644704269faa29942f1d33a47f937273205f4e3
-      EXPECTED_RUNNER_BYTES: 13026
+      EXPECTED_RUNNER_SHA256: 151b7708cef39ff426f256c73e9fba66e9a172198c941968d3eb418fc11ab7dd
+      EXPECTED_RUNNER_BYTES: 20133
       EXPECTED_GENERATOR_SHA256: 98ac78ffa90049efeecea4750f9e13f921cc18e7407f978918d1e4e543cb83da
       EXPECTED_GENERATOR_BYTES: 26569
 
@@ -71,6 +80,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Retirar salidas heredadas antes de cualquier ejecucion
+        run: rm -f docs/verification/supabase-migration-content-audit-20261024.json docs/verification/supabase-audit-preflight-evidence-20261024.json
 
       - name: Cotejar supabase/migrations desde TARGET_SHA (opcional)
         if: env.TARGET_SHA != ''
@@ -100,7 +112,7 @@ jobs:
 
       - name: Verificar la identidad del destino sin imprimirlo
         env:
-          PG: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+          POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
         run: |
           python3 -I - << 'PY'
           import os, re
@@ -113,7 +125,7 @@ jobs:
               print(f"::error::{msg} No se imprime el valor.")
               raise SystemExit(1)
 
-          pg = os.environ.get("PG", "")
+          pg = os.environ.get("POSTGRES_URL_NON_POOLING", "")
           if not pg.strip():
               fail("Falta el secreto POSTGRES_URL_NON_POOLING.")
 
@@ -163,7 +175,7 @@ jobs:
 
       - name: Verificar integridad del script SQL READ-ONLY, runner y linea base 20260912
         run: |
-          for F in "$AUDIT_SQL_FILE" "$RUNNER_FILE" "$GENERATOR_FILE"; do
+          for F in "$AUDIT_SQL_FILE" "$RUNNER_FILE" "$GENERATOR_FILE" "$REGISTER_FILE" "$RESOLVER_FILE" "$PROVENANCE_FILE"; do
             if [ ! -f "$F" ]; then
               echo "::error::Falta el archivo $F."
               exit 1
@@ -193,6 +205,19 @@ jobs:
             echo "::error::El generador no coincide con el pin auditado. Leido: $GEN_BYTES bytes / $GEN_SHA. Esperado: $EXPECTED_GENERATOR_BYTES / $EXPECTED_GENERATOR_SHA256."
             exit 1
           fi
+
+          # Bootstrap loaders and every local transitive module run only after
+          # their disk bytes have been checked, before the capture has secrets.
+          for KEY in REGISTER RESOLVER PROVENANCE; do
+            FILE_VAR="${KEY}_FILE"
+            SHA_VAR="EXPECTED_${KEY}_SHA256"
+            BYTES_VAR="EXPECTED_${KEY}_BYTES"
+            FILE="${!FILE_VAR}"
+            if [ "$(wc -c < "$FILE" | tr -d ' ')" != "${!BYTES_VAR}" ] || [ "$(sha256sum "$FILE" | cut -d' ' -f1)" != "${!SHA_VAR}" ]; then
+              echo "::error::Modulo local $KEY no coincide con el pin auditado."
+              exit 1
+            fi
+          done
 
           # 3. Verificar delimitadores estrictos de solo lectura
           BEGIN_COUNT=$(grep -c 'BEGIN TRANSACTION READ ONLY;' "$AUDIT_SQL_FILE" || true)
@@ -246,12 +271,12 @@ jobs:
           echo "Validacion exitosa: 0 fuga de payloads en ambos artefactos."
 
       - name: Subir evidencia preflight como artefacto
-        if: always()
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: supabase-audit-preflight-evidence-20261024
           path: docs/verification/supabase-audit-preflight-evidence-20261024.json
-          if-no-files-found: ignore
+          if-no-files-found: error
 
       - name: Subir artefacto de auditoria 20261024
         if: success()
