@@ -4,6 +4,12 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-30 — #145: validación del conjunto tras integrar #149
+
+- #149 aprobada a `ab7e044` por Claude (6521556938): cero MUST, autorización para integrar el delta en #145. Fusionada en `6524a5b`, árbol idéntico al revisado y ensayado por CI #614 (432/432 web, PG16/17). #145 permanece draft; no hay aprobación de merge a main ni GO productivo.
+- Checkpoint añade alcance explícito HISTORICAL_BASELINE_ONLY al resumen/arrays históricos 0912, comparación Git actual recalculada y manifiesto con hash/tamaño/baseline; bytes históricos intactos. Candidata de cierre de SHOULD-2c, pendiente de dictamen sobre el conjunto. Memorandum fecha/cobertura actualizadas.
+- Checkpoint local: 25/25 focales, tipos/lint focal y build PASS. #150 en `1bfb534`, CI #615 SUCCESS (408/408 web), revisión TLS pendiente. Pendientes publicación/CI del checkpoint, revisión #145, revisión #150 y alineación con main antes de DB-first/deploy. Sin escritura remota, captura manual ni despliegue.
+
 ### 2026-10-29 — PR #149: último MUST del arnés tras revisión Claude
 
 - Dictamen 6501121250 sobre `62b3ef1`: nueve hallazgos cerrados; MUST-H-1 mantiene CODE_READY/MERGE/DB_READY NO. CI #612 verde corresponde al SHA anterior al delta.

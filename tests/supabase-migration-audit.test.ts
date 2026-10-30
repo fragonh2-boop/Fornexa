@@ -80,6 +80,7 @@ type Audit = {
 const auditPath = "docs/verification/supabase-migration-content-audit-20260912.json";
 const auditText = readFileSync(auditPath, "utf8");
 const audit = JSON.parse(auditText) as Audit;
+const auditScope = JSON.parse(readFileSync("docs/verification/audit-20260912-scope.json", "utf8"));
 const sha256Pattern = /^[0-9a-f]{64}$/;
 const md5Pattern = /^[0-9a-f]{32}$/;
 
@@ -159,7 +160,29 @@ const multiElementAnchors = new Map([
   ],
 ]);
 
-test("the versioned audit closes exactly 31 name pairs plus one explicit alias", () => {
+function currentPairEquivalent(entry: AuditEntry) {
+  const current = digestSqlStatements(splitSqlStatements(readFileSync(resolveCanonicalPath(entry), "utf8")));
+  return JSON.stringify(current.statementDigests) === JSON.stringify(entry.remote_statement_token_sha256);
+}
+
+test("historical baseline summary records 31 name pairs and one alias, with explicit staleness scope", () => {
+  assert.equal(auditScope.artifact, auditPath);
+  assert.equal(Buffer.byteLength(auditText), auditScope.artifact_bytes);
+  assert.equal(sha256(auditText), auditScope.artifact_sha256);
+  assert.equal(auditScope.git_comparison_baseline, audit.git_migration_baseline_commit);
+  assert.deepEqual({
+    comparison_scope: auditScope.comparison_scope,
+    historical_all_pairs_equivalent: audit.summary.all_pairs_equivalent,
+    certifies_current_git_equivalence: auditScope.certifies_current_git_equivalence,
+    certifies_live_database: auditScope.certifies_live_database,
+    current_git_all_pairs_equivalent: audit.migrations.every(currentPairEquivalent),
+  }, {
+    comparison_scope: "HISTORICAL_BASELINE_ONLY",
+    historical_all_pairs_equivalent: true,
+    certifies_current_git_equivalence: false,
+    certifies_live_database: false,
+    current_git_all_pairs_equivalent: false,
+  });
   // Last migration-changing commit at capture, not current application HEAD.
   // Migration changes require reviewing/regenerating this historical artifact;
   // a fixture failure alone is not evidence of live production drift.
@@ -408,7 +431,7 @@ test("every remote statement digest matches the current Git token stream", () =>
   }
 });
 
-test("the three historical arrays are independently elementwise equivalent", () => {
+test("historical array equivalence is scope-tagged alongside recomputed current Git equivalence", () => {
   const multiElement = audit.migrations
     .filter((entry) => entry.remote_array_elements > 1)
     .map((entry) => {
@@ -442,6 +465,8 @@ test("the three historical arrays are independently elementwise equivalent", () 
         remote_name: entry.remote_name,
         remote_array_elements: entry.remote_array_elements,
         remote_array_elementwise_equivalent: entry.remote_array_elementwise_equivalent,
+        comparison_scope: auditScope.comparison_scope,
+        current_git_elementwise_equivalent: currentPairEquivalent(entry),
       };
     });
 
@@ -450,16 +475,22 @@ test("the three historical arrays are independently elementwise equivalent", () 
       remote_name: "customs_core",
       remote_array_elements: 8,
       remote_array_elementwise_equivalent: true,
+      comparison_scope: "HISTORICAL_BASELINE_ONLY",
+      current_git_elementwise_equivalent: true,
     },
     {
       remote_name: "mobile_cmr",
       remote_array_elements: 20,
       remote_array_elementwise_equivalent: true,
+      comparison_scope: "HISTORICAL_BASELINE_ONLY",
+      current_git_elementwise_equivalent: true,
     },
     {
       remote_name: "fornexa_operational_core",
       remote_array_elements: 83,
       remote_array_elementwise_equivalent: true,
+      comparison_scope: "HISTORICAL_BASELINE_ONLY",
+      current_git_elementwise_equivalent: false,
     },
   ]);
 });

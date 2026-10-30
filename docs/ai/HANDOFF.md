@@ -2,6 +2,14 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-30 — #149 aprobada e integrada en la candidata #145
+
+- Claude revalidó `ab7e044` en comentario 6521556938: MUST-H-1 y los tres SHOULD del delta cerrados, CODE_READY SÍ, MERGE a la rama de #145 SÍ. Aprobación limitada al delta; #145 a main todavía NO. CI #614/run 40916563772 SUCCESS: 432/432 web, 39/39 C3, tipos/lint/build/Mobile, PG16/17, 46 migraciones E2 y siete regresiones.
+- #149 pasó de draft a ready y se fusionó con expected HEAD exacto. Merge `6524a5bc20128fcb424d8f2926e31f3e7cd2d6b5` en `chore/supabase-preview-baseline-fix`, árbol `6f1938b10c4061eb7418cb19006430603800014b`, idéntico a `ab7e044`. No se fusionó a main ni se escribió en Supabase. Main contrastado `f55f1e9`.
+- Checkpoint de integración: fecha/cobertura del Memorandum actualizadas y anotación de alcance del snapshot 0912 para SHOULD-2c. Los tests de resumen y arrays muestran junto al true histórico la comparación recalculada del Git actual (false para operational_core), con scope HISTORICAL_BASELINE_ONLY. Manifiesto enlaza hash/tamaño/baseline; JSON histórico intacto. Este ajuste adicional necesita dictamen en el HEAD final de #145.
+- #150 sigue en `1bfb534`, CI #615 verde (408/408 web, 39/39 C3 y demás checks), pendiente de revalidación TLS por Claude. No integra su código este checkpoint. Las notas inferiores sobre revisión, publicación y CI pendientes de #149 son históricas y quedan superadas por este bloque.
+- Checkpoint local: 25/25 focales PASS (auditoría/snapshot/Memorandum/fecha), tipos PASS, lint focal sin errores (un aviso preexistente) y build de producción PASS. Pendientes publicación del checkpoint, CI y revisión del conjunto #145; revisión #150 y alineación posterior con main. DB_READY solo con alcance PG17 desechable, no ledger cloud. Sin captura manual, merge a main ni despliegue.
+
 ## 2026-10-29 — PR #149: subsanación MUST-H-1 tras revisión independiente
 
 - Claude revisó HEAD `62b3ef1` (comentario 6501121250), cerró nueve hallazgos y mantuvo MERGE NO por el shim de tenant_id en el arnés. CI #612/run 40897585435 SUCCESS: 422/422 web, 39/39 C3, PG16 y PG17 (46 migraciones E2 y siete regresiones); ese resultado no certifica este nuevo delta.

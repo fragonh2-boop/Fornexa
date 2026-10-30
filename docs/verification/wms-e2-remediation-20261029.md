@@ -1,5 +1,7 @@
 # Candidata correctiva E2 — 29 de octubre de 2026
 
+Actualización 30-oct: Claude aprobó el delta `ab7e044` en 6521556938, cero MUST, e integración del delta en #145 autorizada. #149 fusionada en `6524a5b`, árbol idéntico al revisado. CI #614 pasó 432/432 web y todos los checks, incluido PG17. La aprobación no se extiende a #145/main: el conjunto final requiere CI y dictamen propios. El checkpoint de #145 añade alcance explícito del snapshot 0912 al resumen/arrays y manifiesto `audit-20260912-scope.json` para SHOULD-2c, sin cambiar bytes del snapshot. La validez actual se recalcula, no se hereda de flags históricos. Sin despliegue ni captura productiva.
+
 Base: PR #145, `2f890c7` (incluye el arreglo independiente del orden M3).
 Hallazgos de Claude: comentarios `6473429180` y `6475362493`.
 
