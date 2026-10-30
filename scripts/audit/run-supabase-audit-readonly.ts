@@ -97,6 +97,26 @@ export function validateConnectionString(connectionString: string | undefined) {
   return { verified: true, projectRef: EXPECTED_DB_PROJECT_REF };
 }
 
+export function createAuditClient(connectionString: string | undefined) {
+  validateConnectionString(connectionString);
+  const url = new URL(connectionString!);
+  // pg parses connectionString after its config object: sslmode would replace
+  // the explicit TLS policy. Accept only secure intent, then remove that key.
+  for (const [key, value] of url.searchParams) {
+    if (key.toLowerCase() === "sslmode") {
+      if (!["require", "verify-ca", "verify-full"].includes(value)) {
+        throw new Error("Connection sslmode must require verified TLS. No credentials printed.");
+      }
+      url.searchParams.delete(key);
+    }
+  }
+  return new Client({
+    connectionString: url.toString(),
+    ssl: { rejectUnauthorized: true },
+    options: "-c default_transaction_read_only=on -c statement_timeout=30000 -c lock_timeout=10000",
+  });
+}
+
 export function verify0912BaselineIntact() {
   if (!existsSync(BASELINE_0912_PATH)) {
     throw new Error(`Baseline audit 20260912 missing at ${BASELINE_0912_PATH}`);
@@ -292,7 +312,8 @@ export async function executeReadOnlyCapture(
       policies: q6b.rows,
     };
 
-    // Write preflight evidence to disk PRIOR to assert (MUST-EXEC-1R)
+    // Validate the closed publication schema before writing; retain sanitized
+    // diagnostics if the cross-tenant business assertions below then fail.
     const preflightJson = JSON.stringify(preflightEvidence, null, 2) + "\n";
     persistSanitizedArtifact(preflightPath, preflightJson, "preflight");
 
@@ -383,14 +404,7 @@ export async function executeReadOnlyCapture(
 
 // CLI Execution entrypoint
 if (process.argv[1] && resolve(process.argv[1]) === resolve(__filename)) {
-  const pgUrl = process.env.POSTGRES_URL_NON_POOLING || process.env.PG;
-  validateConnectionString(pgUrl);
-
-  const client = new Client({
-    connectionString: pgUrl,
-    ssl: { rejectUnauthorized: false },
-    options: "-c default_transaction_read_only=on -c statement_timeout=30000 -c lock_timeout=10000",
-  });
+  const client = createAuditClient(process.env.POSTGRES_URL_NON_POOLING);
 
   await client.connect();
   try {

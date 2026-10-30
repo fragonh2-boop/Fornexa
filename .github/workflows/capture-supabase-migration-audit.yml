@@ -53,8 +53,8 @@ jobs:
       EXPECTED_REGISTER_SHA256: 706a611ec2cb44dc9af1364104aa40f1e6c4284580332c0de83f6e966f571253
       EXPECTED_SQL_SHA256: 14934a1f9d7af8e4521e79415a29c46810f79ef4a7b0a4965a6d6fdd595bc932
       EXPECTED_SQL_BYTES: 6606
-      EXPECTED_RUNNER_SHA256: aa898129b4142c59ddc76e2e8617aa0e6d8d75dd86c4ecbb778c8bc84a47cb0d
-      EXPECTED_RUNNER_BYTES: 19446
+      EXPECTED_RUNNER_SHA256: 151b7708cef39ff426f256c73e9fba66e9a172198c941968d3eb418fc11ab7dd
+      EXPECTED_RUNNER_BYTES: 20133
       EXPECTED_GENERATOR_SHA256: 98ac78ffa90049efeecea4750f9e13f921cc18e7407f978918d1e4e543cb83da
       EXPECTED_GENERATOR_BYTES: 26569
 
@@ -112,7 +112,7 @@ jobs:
 
       - name: Verificar la identidad del destino sin imprimirlo
         env:
-          PG: ${{ secrets.POSTGRES_URL_NON_POOLING }}
+          POSTGRES_URL_NON_POOLING: ${{ secrets.POSTGRES_URL_NON_POOLING }}
         run: |
           python3 -I - << 'PY'
           import os, re
@@ -125,7 +125,7 @@ jobs:
               print(f"::error::{msg} No se imprime el valor.")
               raise SystemExit(1)
 
-          pg = os.environ.get("PG", "")
+          pg = os.environ.get("POSTGRES_URL_NON_POOLING", "")
           if not pg.strip():
               fail("Falta el secreto POSTGRES_URL_NON_POOLING.")
 

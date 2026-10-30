@@ -4,6 +4,12 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-30 — #150: cierre independiente de conexión y publicación
+
+- Claude (6520568428) cierra MUST-146-1 y los tres puntos de publicación en `5f283f5`; mantiene MERGE/DISPATCH NO por MUST-150-1. Candidata: conexión verificada con pg sin override por sslmode, negativos TLS y positivo real local, positivo de publicación generado, grafo local de imports, comentario preflight y retirada fallback PG. No cambia SQL ni runtime WMS.
+- Local: 39/39 focales, tipos/lint/build PASS; suite general 407/408 por timeout DATA150 del lock vacío preexistente. Pendientes publicación del delta, CI y dictamen sobre el nuevo SHA. No disparar captura hasta cierre independiente. Ver nota de verificación de 30-oct.
+- #149 mantiene `ab7e044`, CI #614 SUCCESS (432/432 web y PG16/17); pendiente dictamen sobre ese SHA y posterior integración/revalidación #145. Las notas inferiores de CI/publicación pendiente son históricas.
+
 ### 2026-10-29 — Ejecutador de auditoría: candidata correctiva de MUST-146-1
 
 - Rama aislada `codex/audit-loader-hardening-20261029` sobre main `f55f1e9`; pendientes CI y revisión independiente antes de integrar.

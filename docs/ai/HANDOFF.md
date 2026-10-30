@@ -2,6 +2,13 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-30 — #150: candidata de subsanación tras nuevo dictamen Claude
+
+- Main contrastado `f55f1e9`; rama publicada #150 en `5f283f5` y CI #613 SUCCESS (402/402 web, 39/39 C3, tipos/lint/build/Mobile, PG16/17). Claude cerró MUST-146-1 y publicación en comentario 6520568428, pero mantiene MERGE/DISPATCH NO por MUST-150-1. Este delta requiere nuevo dictamen.
+- El ejecutor valida TLS y nombre con pg; evita que sslmode de la URL sustituya su configuración. Pruebas con peer local real rechazan certificados inválidos antes de autenticación y tienen control positivo. Se añade positivo de publicación generado de 42 migraciones y cobertura del grafo local de imports, incluido generador. Se aclara preflight y se retira fallback PG. Pin del runner actualizado. Detalles en `docs/verification/supabase-audit-remediation-20261030.md`.
+- E2 #149 sigue en `ab7e044`, CI #614 SUCCESS: 432/432 web, 39/39 C3, tipos/lint/build/Mobile, PG16/17, 46 migraciones y siete regresiones. La publicación y CI que figuran pendientes en notas históricas ya ocurrieron. No se ha localizado dictamen nuevo sobre ese HEAD; se ha solicitado aclaración de MUST-H-1 en el hilo canónico, sin equiparar CI con aprobación.
+- Validación local: 39/39 focales, tipos, lint global (0 errores/10 avisos) y build PASS. Suite general 407/408: timeout DATA150 del lock vacío ya observado en la base, sin cambios en ese código ni sus pruebas. Pendientes publicación del delta #150, CI nueva y revisión independiente de ambos HEAD. Sin merge, dispatch, captura productiva ni despliegue. Las ramas no están congeladas: cualquier nueva edición se anunciará con su nuevo SHA antes de revisión.
+
 
 ## 2026-10-29 — Auditoría: corrección separada del ejecutor READ ONLY
 
