@@ -19,9 +19,16 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "30 oct 2026";
-export const memorandumCommitCoverage = 710;
+export const memorandumCommitCoverage = 712;
 
 export const memorandumPending: MemorandumPending[] = [
+  {
+    area: "Técnico",
+    title: "Verificación y publicación de evidencias de auditoría",
+    summary: "El ejecutor de auditoría revisado está integrado en la rama principal, con comprobaciones de conexión y publicación de evidencias. La captura oficial todavía no se ha ejecutado; la integración del conjunto de Almacenes sigue su validación independiente.",
+    priority: "Ahora",
+    state: "En seguimiento",
+  },
   {
     area: "Funcional",
     title: "Almacenes — reglas de reposición, propuestas y lote sintético (E2 / F4 / F5)",

@@ -4,6 +4,12 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-30 — #145 alineada con #150 ya fusionada
+
+- #150 aprobada en `1bfb534` por Claude (6522812458), fusionada a main `c948368`, árbol idéntico al revisado. Producción canónica READY, alias fornexasc.com comprobado y /memorandum200. CI main618 pendiente al preparar esta nota; captura oficial no ejecutada.
+- #145 combina padre `eb8d27c` con main nuevo, resuelve los tres conflictos documentales, conserva historial/alcance0912 y alinea Memorandum/test con fecha30-oct/cobertura712. Añade guarda negativa de NODE_TLS_REJECT_UNAUTHORIZED=0, test y repin del runner, candidata de cierre del SHOULD menor de Claude.
+- Local77/77 focales, tipos/lint global y build PASS; pendientes publicación, CI propia y dictamen del nuevo HEAD. No reutilizar aprobaciones de padres para el conjunto. Sin merge #145 a main ni cambios de base productiva.
+
 ### 2026-10-30 — #145: validación del conjunto tras integrar #149
 
 - #149 aprobada a `ab7e044` por Claude (6521556938): cero MUST, autorización para integrar el delta en #145. Fusionada en `6524a5b`, árbol idéntico al revisado y ensayado por CI #614 (432/432 web, PG16/17). #145 permanece draft; no hay aprobación de merge a main ni GO productivo.
@@ -34,6 +40,21 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
   - **MUST-3 (Eliminación de contradicciones internas sobre S4/N3/E2-146):** Eliminadas menciones obsoletas en `§4.4` y `§5` que afirmaban que S4, N3 o E2-146 permanecían abiertos. Todo el contrato sostiene de manera coherente el cierre de los puntos.
   - **SHOULD-1 (Deslinde de fuentes primarias humanas y diseño técnico):** Deslindadas claramente las decisiones primarias literales de Fran (dato SGA editable sin pesaje forzado y concurrencia multi-orden por capacidad agregada) de las formulaciones algorítmicas de ingeniería de software (deduplicación por `target_hu_id` y Paso 4 de RPC con aislamiento en `INSPECTION`).
 - **Gobernanza y límites:** Amparado en la autorización humana de Fran (`FRAN-PRIMARY-CIERRE-TOTAL-20261024.md` y `FRAN-PRIMARY-WMS-20261021-DECISIONES-SGA-RESERVAS.md`). Contrato 100% completo, coherente e implementable. CERO implementación de código runtime E2 en esta PR, CERO SQL remoto contra producción, CERO F4/seed/COMMITTED/merge/deploy.
+
+
+### 2026-10-30 — #150: cierre independiente de conexión y publicación
+
+- Claude (6520568428) cierra MUST-146-1 y los tres puntos de publicación en `5f283f5`; mantiene MERGE/DISPATCH NO por MUST-150-1. Candidata: conexión verificada con pg sin override por sslmode, negativos TLS y positivo real local, positivo de publicación generado, grafo local de imports, comentario preflight y retirada fallback PG. No cambia SQL ni runtime WMS.
+- Local: 39/39 focales, tipos/lint/build PASS; suite general 407/408 por timeout DATA150 del lock vacío preexistente. Pendientes publicación del delta, CI y dictamen sobre el nuevo SHA. No disparar captura hasta cierre independiente. Ver nota de verificación de 30-oct.
+- #149 mantiene `ab7e044`, CI #614 SUCCESS (432/432 web y PG16/17); pendiente dictamen sobre ese SHA y posterior integración/revalidación #145. Las notas inferiores de CI/publicación pendiente son históricas.
+
+### 2026-10-29 — Ejecutador de auditoría: candidata correctiva de MUST-146-1
+
+- Rama aislada `codex/audit-loader-hardening-20261029` sobre main `f55f1e9`; pendientes CI y revisión independiente antes de integrar.
+- Verificación de contenido de los dos loaders y del módulo local de procedencia antes de Node con conexión; esquema cerrado antes de persistir ambos JSON; retirada de salidas heredadas; publicación preflight condicionada a éxito.
+- 15 pruebas focales PASS. Sin dispatch manual ni captura productiva por esta candidata. El contraste primario de huellas del ledger del 29-oct pertenece a #149 y no se hace pasar por una ejecución del workflow corregido.
+- E2: #149/62b3ef1, CI612 SUCCESS (422/422 web, 21/21 E2 + 7 regresiones en PG17, 46 migraciones); revisión de Claude pendiente. SHOULD-12 C3 ya está integrado; las notas inferiores que lo describen solo local son históricas.
+
 
 ### 2026-10-23 — SHOULD-12: retirada temprana y orden de pruebas
 
