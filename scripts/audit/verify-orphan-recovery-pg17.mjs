@@ -1,6 +1,6 @@
 // scripts/audit/verify-orphan-recovery-pg17.mjs
 // Verification harness for Supabase orphan recovery migration chain on disposable PostgreSQL 17.
-// Replays the real affected migration slice in natural filesystem directory order (20260807 to 20260819, 12 migrations),
+// Replays the real affected migration slice in natural filesystem directory order (20260807 to 20260819, 14 migrations),
 // certifies search_path hardening, RLS policies on CMR child tables, lifecycle columns,
 // and functional multi-tenant isolation under non-superuser authenticated role.
 // Emits durable receipt: docs/verification/receipt-orphan-recovery-pg17.json
@@ -11,6 +11,7 @@ import crypto from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { assertEmptySearchPath, verifyCustomsTenantColumns } from "./orphan-post-state.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -166,16 +167,6 @@ async function main() {
     const fullPath = join(migDir, filename);
     assert.ok(existsSync(fullPath), `Migration file must exist: ${filename}`);
 
-    // Bridge pre-operational core customs schema consistency
-    if (filename === "20260812_fornexa_operational_core.sql") {
-      runPsql(`
-        ALTER TABLE IF EXISTS public.customs_messages
-          ADD COLUMN IF NOT EXISTS tenant_id uuid DEFAULT '00000000-0000-4000-8000-000000000001';
-        ALTER TABLE IF EXISTS public.customs_events
-          ADD COLUMN IF NOT EXISTS tenant_id uuid DEFAULT '00000000-0000-4000-8000-000000000001';
-      `, targetDb);
-    }
-
     const sql = readFileSync(fullPath, "utf8");
     const fileSha = sha256(sql);
     console.log(` -> Replaying ${filename} (${sql.length} bytes, sha: ${fileSha.slice(0, 12)}...)`);
@@ -188,23 +179,22 @@ async function main() {
     });
   }
 
-  console.log("All 12 migrations in natural directory order slice applied successfully with zero errors.");
+  console.log("All 14 migrations in natural directory order slice applied successfully with zero errors.");
 
   // 5. Post-state Verifications
   console.log("Verifying post-state on PostgreSQL 17...");
+  const customsTenantColumns = await verifyCustomsTenantColumns((sql) => runPsql(sql, targetDb));
 
   // Check 1: proconfig on fornexa_check_expedition_delivery_note_order
   const proconfigRaw = runPsql(`
-    SELECT array_to_string(proconfig, ',')
-    FROM pg_proc p
+    SELECT setting FROM pg_proc p
+    CROSS JOIN LATERAL unnest(p.proconfig) AS setting
     JOIN pg_namespace n ON n.oid = p.pronamespace
-    WHERE n.nspname = 'public' AND p.proname = 'fornexa_check_expedition_delivery_note_order';
+    WHERE n.nspname = 'public' AND p.proname = 'fornexa_check_expedition_delivery_note_order'
+      AND setting LIKE 'search_path=%';
   `, targetDb);
   console.log(`Check 1 - proconfig for fornexa_check_expedition_delivery_note_order: [${proconfigRaw}]`);
-  assert.ok(
-    proconfigRaw.includes('search_path=""') || proconfigRaw.includes("search_path="),
-    `Function search_path must be hardened to empty, got: ${proconfigRaw}`
-  );
+  assertEmptySearchPath(proconfigRaw, 'fornexa_check_expedition_delivery_note_order');
 
   // Check 2: 6 RLS policies on CMR child tables
   const childPoliciesRaw = runPsql(`
@@ -230,6 +220,11 @@ async function main() {
       childPolicies.some((p) => p.startsWith(`${table}:tenant_isolation:authenticated`)),
       `Missing tenant_isolation policy on ${table}`
     );
+  }
+
+  // Policies alone do not enforce row isolation: verify RLS on every child.
+  for (const table of expectedChildTables) {
+    assert.equal(runPsql(`SELECT relrowsecurity FROM pg_class WHERE oid='public.${table}'::regclass`, targetDb), "t", `${table} must enable RLS`);
   }
 
   // Check 3: fornexa_schema_migrations RLS enabled and locked
@@ -271,16 +266,14 @@ async function main() {
   assert.equal(tokenTableRaw, "review_access_tokens", "private.review_access_tokens table must exist");
 
   const rpcProconfigRaw = runPsql(`
-    SELECT array_to_string(proconfig, ',')
-    FROM pg_proc p
+    SELECT setting FROM pg_proc p
+    CROSS JOIN LATERAL unnest(p.proconfig) AS setting
     JOIN pg_namespace n ON n.oid = p.pronamespace
-    WHERE n.nspname = 'public' AND p.proname = 'fornexa_validate_review_token';
+    WHERE n.nspname = 'public' AND p.proname = 'fornexa_validate_review_token'
+      AND setting LIKE 'search_path=%';
   `, targetDb);
   console.log(`Check 5 - fornexa_validate_review_token proconfig: [${rpcProconfigRaw}]`);
-  assert.ok(
-    rpcProconfigRaw.includes('search_path=""') || rpcProconfigRaw.includes("search_path="),
-    `RPC search_path must be hardened to empty, got: ${rpcProconfigRaw}`
-  );
+  assertEmptySearchPath(rpcProconfigRaw, 'fornexa_validate_review_token');
 
   // Check 6: Multi-tenant isolation enforcement under authenticated role
   console.log("Check 6 - Testing functional multi-tenant isolation under authenticated role...");
@@ -356,6 +349,7 @@ async function main() {
     migrations_applied_count: appliedMigrations.length,
     migrations: appliedMigrations,
     post_state_verifications: {
+      customs_tenant_columns: { columns: customsTenantColumns, certified: true },
       must1_lex_order_resolution: {
         certified: true,
         natural_directory_order: true,

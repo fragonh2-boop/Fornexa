@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import test, { before } from "node:test";
+import test, { before, after } from "node:test";
+import { runE2RegressionCases } from "../scripts/wms/e2-regression-cases.mjs";
 import { PGlite } from "@electric-sql/pglite";
 import {
   WMS_ACTIONS,
@@ -260,6 +261,9 @@ before(async () => {
     "utf-8",
   );
   await db.exec(c3Sql);
+
+  await db.exec(`alter table public.inventory_quants add constraint inventory_quants_bin_id_product_id_owner_party_id_batch_num_key
+    unique nulls not distinct (bin_id,product_id,owner_party_id,batch_number,serial_number,stock_status)`);
 
   const e2CoreSql = readFileSync(
     resolve(import.meta.dirname, "../supabase/migrations/20261024120000_wms_e2_replenishment_core.sql"),
@@ -810,12 +814,12 @@ test("E2-146 — Cancelación atómica Paso 4 por merma/indisponibilidad sin unh
   const repData = (repRes.rows[0].res as any);
 
   assert.equal(repData.ok, false);
-  assert.equal(repData.error, "WMS_SOURCE_STOCK_DEPLETED");
+  assert.equal(repData.error, "WMS_SOURCE_STOCK_UNAVAILABLE");
   assert.equal(repData.proposal_status, "CANCELLED");
 
   const propRow = (await db.query(`select status, rejection_reason from public.wms_proposals where id = '${pId}'`)).rows[0];
   assert.equal(propRow.status, "CANCELLED");
-  assert.equal(propRow.rejection_reason, "WMS_SOURCE_STOCK_DEPLETED");
+  assert.equal(propRow.rejection_reason, "WMS_SOURCE_STOCK_UNAVAILABLE");
 
   const resRow = (await db.query(`select status from public.stock_reservations where reference_id = '${pId}'`)).rows[0];
   assert.equal(resRow.status, "CANCELLED");
@@ -1041,3 +1045,18 @@ test("lib/wms — WMS_ACTIONS contiene las 5 acciones E2 de reposición", () => 
     assert.ok(WMS_ACTIONS.includes(act), `WMS_ACTIONS debe incluir ${act}`);
   }
 });
+
+
+test("Claude E2 regressions — capacity, cancellation, HU identity and reserved stock", async () => {
+  await runE2RegressionCases({
+    sql: async (text: string) => (await db.exec(text)).at(-1) ?? { rows: [] },
+    action: async (actor: string, action: string, payload: unknown, key: string | null = null) => {
+      const result = await db.query(`select public.fornexa_wms_action($1,$2,$3,$4::jsonb,$5) as res`, [tenantA,actor,action,JSON.stringify(payload),key]);
+      return result.rows[0].res;
+    },
+    tenant: tenantA, warehouse: whA, product: prod1, sourceBin: binSrc1,
+    destinationBin: binDest1, planner: userPlanner, operator: userOperator,
+  });
+});
+
+after(async () => { await db?.close(); });

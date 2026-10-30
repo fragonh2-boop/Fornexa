@@ -190,6 +190,7 @@ test("the versioned audit closes exactly 31 name pairs plus one explicit alias",
         name: "cmr_canonical_model_rls_and_hardening",
       },
     ],
+    // Historical 0912 summary only; it is not equivalence of current Git.
     all_pairs_equivalent: true,
   });
   assert.equal(audit.method.base64_variant, "unwrapped_lf_0x0a_removed_client_side");
@@ -461,6 +462,19 @@ test("the three historical arrays are independently elementwise equivalent", () 
       remote_array_elementwise_equivalent: true,
     },
   ]);
+});
+
+test("historical summary does not certify current Git equivalence", () => {
+  const currentEquivalent = audit.migrations.every((entry) => {
+    const current = digestSqlStatements(splitSqlStatements(readFileSync(resolveCanonicalPath(entry), "utf8")));
+    return JSON.stringify(current.statementDigests) === JSON.stringify(entry.remote_statement_token_sha256);
+  });
+  assert.equal(audit.summary.all_pairs_equivalent, true, "immutable historical 0912 assertion");
+  assert.equal(currentEquivalent, false, "authorized current Git delta makes aggregate equivalence false");
+  const entry = audit.migrations.find(e => e.remote_name === "fornexa_operational_core")!;
+  assert.equal(entry.remote_array_elementwise_equivalent, true, "historical 0912 statement-array relation only");
+  assert.notDeepEqual(digestSqlStatements(splitSqlStatements(readFileSync(resolveCanonicalPath(entry), "utf8"))).statementDigests,
+    entry.remote_statement_token_sha256, "current Git must not inherit historical array equivalence");
 });
 
 test("the permanent artifact contains integrity evidence but no remote SQL payload", () => {

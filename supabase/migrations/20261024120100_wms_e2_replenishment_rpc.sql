@@ -110,7 +110,8 @@ begin
      where iq.tenant_id = p_tenant
        and iq.bin_id = v_r.destination_bin_id
        and iq.product_id = v_r.product_id
-       and iq.stock_status = 'AVAILABLE';
+       and iq.stock_status in ('AVAILABLE','RESERVED')
+       and (iq.flow_state is null or iq.flow_state in ('STORED','RESERVED'));
 
     -- Calculate destination in-transit stock
     select coalesce(sum(wp.suggested_quantity), 0)
@@ -348,7 +349,7 @@ begin
     end if;
 
     -- 3. Pallet check
-    if v_dest_bin.max_pallets is not null then
+    if v_dest_bin.max_pallets > 0 then
       select count(distinct hu_id)
         into v_cur_pallets
         from public.inventory_quants
@@ -464,7 +465,8 @@ begin
      and id = v_proposal.source_quant_id
      for update;
 
-  if not found or v_quant.stock_status <> 'AVAILABLE' then
+  if not found or v_quant.stock_status not in ('AVAILABLE', 'RESERVED')
+     or (v_quant.flow_state is not null and v_quant.flow_state not in ('STORED', 'RESERVED')) then
     raise exception 'WMS_NO_SOURCE_STOCK';
   end if;
 
@@ -720,6 +722,7 @@ declare
   v_quant public.inventory_quants;
   v_dest_quant public.inventory_quants;
   v_res public.stock_reservations;
+  v_failure_code text;
   v_result jsonb;
 begin
   if p_payload is null then
@@ -807,13 +810,19 @@ begin
   end if;
 
   -- 4. Merma / Unavailability check in origin (Scenario E2-146 / MUST-1)
-  if v_quant.stock_status <> 'AVAILABLE'
+  if v_quant.stock_status not in ('AVAILABLE', 'RESERVED')
+     or (v_quant.flow_state is not null and v_quant.flow_state not in ('STORED', 'RESERVED'))
      or coalesce((p_payload->>'report_depleted')::boolean, false) = true
      or coalesce((p_payload->>'merma')::boolean, false) = true then
 
+    v_failure_code := case
+      when coalesce((p_payload->>'report_depleted')::boolean, false)
+        or coalesce((p_payload->>'merma')::boolean, false) then 'WMS_SOURCE_STOCK_DEPLETED'
+      else 'WMS_SOURCE_STOCK_UNAVAILABLE' end;
+
     update public.wms_proposals
        set status = 'CANCELLED',
-           rejection_reason = 'WMS_SOURCE_STOCK_DEPLETED',
+           rejection_reason = v_failure_code,
            updated_at = now()
      where id = v_proposal.id;
 
@@ -831,8 +840,9 @@ begin
 
     update public.inventory_quants
        set quantity_reserved = greatest(0, quantity_reserved - v_res.quantity),
-           flow_state = case when greatest(0, quantity_reserved - v_res.quantity) = 0 and flow_state = 'RESERVED' then 'STORED' else flow_state end,
-           stock_status = case when stock_status = 'AVAILABLE' then 'INSPECTION' else stock_status end,
+           -- Quarantine is a workflow hold, not a merge into another quant's
+           -- INSPECTION key. Preserve quant ID, HU, stock_status and other orders.
+           flow_state = 'QUARANTINE',
            updated_at = now()
      where id = v_quant.id;
 
@@ -841,15 +851,24 @@ begin
     ) values (
       p_tenant, 'WMS_PROPOSAL', v_proposal.id, 'REPLENISH_DEPLETED', p_actor, 'FORNEXA_WMS',
       to_jsonb(v_proposal),
-      jsonb_build_object('status', 'CANCELLED', 'error', 'WMS_SOURCE_STOCK_DEPLETED')
+      jsonb_build_object('status', 'CANCELLED', 'error', v_failure_code,
+        'source_quant_id', v_quant.id, 'reconciliation_required', true,
+        'source_quant_previous_flow_state', v_quant.flow_state,
+        'source_quant_previous_stock_status', v_quant.stock_status,
+        'reconciliation_scope', 'SOURCE_QUANT_ALL_RESERVATIONS')
     );
 
     return jsonb_build_object(
       'ok', false,
-      'error', 'WMS_SOURCE_STOCK_DEPLETED',
+      'error', v_failure_code,
       'proposal_status', 'CANCELLED'
     );
   end if;
+
+  -- Match evaluator lock order: destination before any destination quant.
+  -- Same-bin executions cannot race SELECT-not-found / INSERT.
+  perform 1 from public.warehouse_bins
+    where tenant_id = p_tenant and id = v_proposal.destination_bin_id for update;
 
   -- 5. Physical Movement in inventory_movements (MUST-SQL-1: real columns)
   insert into public.inventory_movements (
