@@ -4,6 +4,11 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-10-30 — #145: corregir-y-mergear autorizado con MUST documental
+
+- Dictamen Claude6526750979 sobre09086aaa: integración conforme; acepta corregir-y-mergear una vez eliminada la certificación pública indebida del snapshot24-oct. MUST-145F-1 corregido en candidata: snapshot histórico importado, sin run y sin procedencia certificada; regresión pública contra manifiesto no certificado. Cobertura vigente714; referencias712 históricas aclaradas.
+- Pendientes validación/publicación del delta, DB-first E2 controlado y verificación de ledger/post-estado antes de merge/appdeploy. Producción sigue en c948368, sin aplicación E2 ni captura manual. Mantener pendiente la verificación funcional con operador real; no fabricar sesión.
+
 ### 2026-10-30 — CI propia y dictamen final tras retirar caché agotada
 
 - Main618 SUCCESS (408/408) y #150/c948368 en producción canónica READY. La API secundaria fornexa-app403 no permite certificar ese proyecto; API móvil configurada sobre el dominio canónico comprobado. Captura oficial no ejecutada.
@@ -13,7 +18,7 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 ### 2026-10-30 — #145 alineada con #150 ya fusionada
 
 - #150 aprobada en `1bfb534` por Claude (6522812458), fusionada a main `c948368`, árbol idéntico al revisado. Producción canónica READY, alias fornexasc.com comprobado y /memorandum200. CI main618 pendiente al preparar esta nota; captura oficial no ejecutada.
-- #145 combina padre `eb8d27c` con main nuevo, resuelve los tres conflictos documentales, conserva historial/alcance0912 y alinea Memorandum/test con fecha30-oct/cobertura712. Añade guarda negativa de NODE_TLS_REJECT_UNAUTHORIZED=0, test y repin del runner, candidata de cierre del SHOULD menor de Claude.
+- #145 combina padre `eb8d27c` con main nuevo, resuelve los tres conflictos documentales, conserva historial/alcance0912 y alinea Memorandum/test con fecha30-oct/cobertura712 en el checkpoint 2ce05e2 (histórica; cobertura vigente714). Añade guarda negativa de NODE_TLS_REJECT_UNAUTHORIZED=0, test y repin del runner, candidata de cierre del SHOULD menor de Claude.
 - Local77/77 focales, tipos/lint global y build PASS; pendientes publicación, CI propia y dictamen del nuevo HEAD. No reutilizar aprobaciones de padres para el conjunto. Sin merge #145 a main ni cambios de base productiva.
 
 ### 2026-10-30 — #145: validación del conjunto tras integrar #149

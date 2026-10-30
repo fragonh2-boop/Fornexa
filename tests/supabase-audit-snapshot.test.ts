@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { digestSqlStatements, sha256, splitSqlStatements } from "../scripts/sql-provenance.ts";
+import { memorandumReleases } from "../lib/memorandum.ts";
 
 test("24-Oct imported snapshot is pinned and checked against its historical Git tree, not certified as live capture", () => {
   const manifest = JSON.parse(readFileSync("docs/verification/audit-20261024-provenance.json", "utf8"));
@@ -10,6 +11,11 @@ test("24-Oct imported snapshot is pinned and checked against its historical Git 
   assert.equal(manifest.certifies_live_database, false);
   assert.equal(manifest.capture_workflow_run_id, null);
   assert.equal(manifest.capture_artifact_id, null);
+  const publicRelease = memorandumReleases.find(release => release.version === "2026.10.23-4");
+  assert.ok(publicRelease);
+  assert.match(publicRelease.outcome, /snapshot histórico importado/);
+  assert.match(publicRelease.outcome, /sin run identificado.*sin certificar/);
+  assert.doesNotMatch(publicRelease.outcome, /evidencia técnica auditada|captura real ejecutada|18:46 UTC/);
   for (const file of manifest.files) {
     const bytes = readFileSync(file.path);
     assert.equal(bytes.length, file.bytes);

@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "30 oct 2026";
-export const memorandumCommitCoverage = 713;
+export const memorandumCommitCoverage = 714;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -215,7 +215,7 @@ export const memorandumReleases: MemorandumRelease[] = [
     surface: ["Plataforma"],
     title: "Saneamiento de baseline Supabase Preview (customs_messages y customs_events tenant_id)",
     purpose: "Reparar la discrepancia histórica de baseline en Supabase Preview incorporando tenant_id en customs_messages y customs_events con preservación inmutable del ledger y auditoría literal-safe.",
-    outcome: "Resolución de error SQLSTATE 42703 en políticas RLS de customs, validación exhaustiva de 85 sentencias Git vs 83 remotas con disparidad autorizada y cobertura de pruebas unitarias negativas fail-closed. Nota cronológica: la release se formaliza bajo la serie 2026.10.23 por contrato de trazabilidad de la suite, e incorpora como evidencia técnica auditada la captura real ejecutada el 24-oct-2026 (18:46 UTC) sobre main f55f1e9.",
+    outcome: "Resolución de error SQLSTATE 42703 en políticas RLS de customs, validación exhaustiva de 85 sentencias Git vs 83 remotas con disparidad autorizada y cobertura de pruebas unitarias negativas fail-closed. Nota cronológica: la release se formaliza bajo la serie 2026.10.23 por contrato de trazabilidad de la suite, e incorpora el snapshot histórico importado del 24-oct-2026, sin run identificado y con procedencia de captura sin certificar.",
     status: "Preproducción",
   },
   {

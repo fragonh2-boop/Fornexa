@@ -2,6 +2,13 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-10-30 — Dictamen final #145 y corrección MUST-145F-1
+
+- Claude revisó 09086aaa en 6526750979: composición, conflictos, SHOULD-2c, guarda TLS/repin y retirada de caché conformes. Acepta corregir-y-mergear, condicionado a retirar del Memorandum la afirmación de captura real auditada del import histórico. No exige otra auditoría global del mismo conjunto. DEPLOY_READY no firmado por su403.
+- Se corrige esa cadena pública: snapshot histórico importado del24-oct, sin run identificado y procedencia de captura sin certificar. Se elimina la hora sin cualificar y el SHA del relato público. El test de snapshot exige coherencia de esa release pública con el manifiesto no certificado; bytes históricos intactos. Cobertura vigente714; referencias712 calificadas como checkpoints históricos.
+- CI620 del padre:444/444 web,39/39 C3 y todos los checks, fuente revisada09086aaa. Delta documental validado localmente:25/25 focales, tipos, lint focal y build PASS; pendientes publicación y CI propia antes de DB-first. Producción actual sigue en c948368 (#150), sin cambios de esquema productivo ni captura manual.
+- DB-first: pendientes comprobaciones frescas, aplicación controlada únicamente de core/RPC E2 y lectura del ledger/post-estado antes de merge de app. Confirmar el mecanismo de versión del aplicador para no introducir divergencia Git/ledger ni dobles dueños de transacción. No reejecutar el historial ni fabricar sesión de operador para cerrar E2E.
+
 ## 2026-10-30 — CI: caché pnpm bloqueada por cuota de transferencia
 
 - CI main618/run41056988612 finalmente SUCCESS: 408/408 web, 39/39 C3, tipos/lint/build/Mobile y ensayo PG17. Main `c948368` y producción canónica READY/dominio/smoke200 comprobados; consulta runtime15min sin errores. La API del proyecto secundario fornexa-app dio403 y no hay CLI; no se certifica ese proyecto. La app móvil configurada usa fornexasc.com como API, dominio canónico sí comprobado.
@@ -14,7 +21,7 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 
 - Claude aprobó #150 `1bfb534` en 6522812458: cero MUST, MERGE SÍ; retiró reserva técnica al dispatch sin autorizarlo. PR fusionada con expected HEAD por squash en main `c94836839993a74f1873644ea0eccdbc7fc29624`, árbol `8869ea8057279f5a4307a7b3f07f3a03bf11c890` idéntico al revisado. CI615 acreditó 408/408 web y todos los checks; CI main618/run41056988612 pendiente al preparar esta nota. Captura manual NO ejecutada.
 - Vercel accesible desde Work: proyecto canónico fornexa, producción `dpl_BYmRRuUFvvs1AUtKZGh94T8tFyuL` READY en `c948368`; API de alias confirma fornexasc.com apuntando a ese despliegue. GET /memorandum HTTP200 y título correcto. El 403 de Claude es una limitación de su sesión. Esto entrega la corrección de auditoría, no WMS E2 productivo ni una captura oficial.
-- Merge de main `c948368` hacia la candidata #145 (padre `eb8d27c`), conservando seguimientos de ambas ramas. Conflictos limitados a HANDOFF/pending/Memorandum, resueltos con fecha30-oct y cobertura712 (unión de padres más merge); el test de fecha coincide. Se preserva la anotación SHOULD-2c y el snapshot0912 intacto.
+- Merge de main `c948368` hacia la candidata #145 (padre `eb8d27c`), conservando seguimientos de ambas ramas. Conflictos limitados a HANDOFF/pending/Memorandum, resueltos con fecha30-oct y cobertura712 en el checkpoint 2ce05e2 (histórica; cobertura vigente714); el test de fecha coincide. Se preserva la anotación SHOULD-2c y el snapshot0912 intacto.
 - Delta adicional de defensa en profundidad solicitado por Claude: createAuditClient aborta si NODE_TLS_REJECT_UNAUTHORIZED=0, con prueba negativa y runner repinado. No modifica SQL, migraciones ni comportamiento WMS. La aprobación de #150 no se traslada automáticamente a este ajuste ni al conjunto #145.
 - Combinación local: 77/77 focales, tipos, lint global (0 errores/11 avisos) y build PASS. Publicación/CI del nuevo SHA pendientes. #145 permanece draft, sin merge a main, escritura cloud ni despliegue E2. Anunciar el HEAD exacto y pedir dictamen de integración sobre ese SHA; CI617 del padre eb8d27c no certifica el nuevo conjunto. Los bloques inferiores son checkpoints históricos.
 
