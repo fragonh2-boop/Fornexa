@@ -200,8 +200,11 @@ export async function runContingencyHarness(options = {}) {
       end loop;
     end $$;
 
-    create schema public;
+    create schema if not exists public;
     create schema if not exists extensions;
+    create schema if not exists auth;
+    create schema if not exists storage;
+    create schema if not exists private;
 
     do $$ begin create role anon nologin; exception when duplicate_object then null; end $$;
     do $$ begin create role authenticated nologin; exception when duplicate_object then null; end $$;
