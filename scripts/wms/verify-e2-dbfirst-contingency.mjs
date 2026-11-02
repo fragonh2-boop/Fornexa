@@ -189,11 +189,14 @@ export async function runContingencyHarness(options = {}) {
   await runSql(`
     drop schema if exists public cascade;
     create schema public;
+    drop schema if exists private cascade;
+    create schema private;
+    drop schema if exists storage cascade;
+    create schema storage;
+    drop schema if exists auth cascade;
+    create schema auth;
 
     create schema if not exists extensions;
-    create schema if not exists auth;
-    create schema if not exists storage;
-    create schema if not exists private;
 
     do $$ begin create role anon nologin; exception when duplicate_object then null; end $$;
     do $$ begin create role authenticated nologin; exception when duplicate_object then null; end $$;
