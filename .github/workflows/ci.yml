@@ -84,7 +84,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Remove inherited E2 verification receipt
-        run: rm -f docs/verification/receipt-m8-e2-postgres17.json
+        run: rm -f docs/verification/receipt-m8-e2-postgres17.json docs/verification/receipt-e2-dbfirst-contingency-pg17.json
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -115,6 +115,26 @@ jobs:
         with:
           name: receipt-m8-e2-postgres17
           path: docs/verification/receipt-m8-e2-postgres17.json
+          if-no-files-found: error
+      - name: Verify WMS E2 DB-First Contingency on PostgreSQL 17
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGDATABASE: fornexa_e2_test
+          PGUSER: postgres
+          PGPASSWORD: synthetic-ci-password
+          USE_REAL_POSTGRES: "true"
+          REQUIRE_PG17: "true"
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          rm -f docs/verification/receipt-e2-dbfirst-contingency-pg17.json
+          node scripts/wms/verify-e2-dbfirst-contingency.mjs
+      - name: Upload WMS E2 DB-First Contingency Receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: receipt-e2-dbfirst-contingency-pg17
+          path: docs/verification/receipt-e2-dbfirst-contingency-pg17.json
           if-no-files-found: error
 
   validate:

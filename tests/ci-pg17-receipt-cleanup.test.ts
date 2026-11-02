@@ -7,7 +7,7 @@ import test from "node:test";
 
 const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
 for (const [job, receipts] of [
-  ["verify-e2-pg17", ["receipt-m8-e2-postgres17.json"]],
+  ["verify-e2-pg17", ["receipt-m8-e2-postgres17.json", "receipt-e2-dbfirst-contingency-pg17.json"]],
   ["rehearse-c3-apply-pg17", ["receipt-c3-workflow-pg17.json", "receipt-orphan-recovery-pg17.json"]],
 ] as const) {
   test(`${job}: failure after checkout cannot publish an inherited receipt`, () => {
