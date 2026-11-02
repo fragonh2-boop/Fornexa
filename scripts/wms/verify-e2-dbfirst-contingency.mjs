@@ -187,15 +187,20 @@ export async function runContingencyHarness(options = {}) {
 
   console.log("[E2 Contingency] 1. Initializing platform schemas and roles...");
   await runSql(`
-    drop schema if exists public cascade;
-    create schema public;
-    drop schema if exists private cascade;
-    create schema private;
-    drop schema if exists storage cascade;
-    create schema storage;
-    drop schema if exists auth cascade;
-    create schema auth;
+    do $$
+    declare s text;
+    begin
+      for s in (
+        select schema_name
+        from information_schema.schemata
+        where schema_name not in ('pg_catalog', 'information_schema', 'pg_toast')
+          and schema_name not like 'pg_%'
+      ) loop
+        execute format('drop schema if exists %I cascade;', s);
+      end loop;
+    end $$;
 
+    create schema public;
     create schema if not exists extensions;
 
     do $$ begin create role anon nologin; exception when duplicate_object then null; end $$;
