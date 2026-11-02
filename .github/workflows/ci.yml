@@ -46,6 +46,21 @@ jobs:
           name: receipt-c3-workflow-pg17
           path: docs/verification/receipt-c3-workflow-pg17.json
           if-no-files-found: error
+      - name: Verify orphan recovery migration chain on PostgreSQL 17
+        env:
+          PGHOST: 127.0.0.1
+          PGPORT: 5432
+          PGDATABASE: fornexa_apply_test
+          PGUSER: postgres
+          PGPASSWORD: synthetic-ci-password
+        run: |
+          node scripts/audit/verify-orphan-recovery-pg17.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: receipt-orphan-recovery-pg17
+          path: docs/verification/receipt-orphan-recovery-pg17.json
+          if-no-files-found: error
 
   validate:
     runs-on: ubuntu-latest
