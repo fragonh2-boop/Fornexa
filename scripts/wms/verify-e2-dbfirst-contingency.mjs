@@ -294,6 +294,9 @@ export async function runContingencyHarness(options = {}) {
   const operatorUserId = "66666666-0000-4000-8000-000000000001";
 
   await runSql(`
+    insert into auth.users (id, email) values ('${operatorUserId}', 'operator@fornexa.test')
+      on conflict (id) do nothing;
+
     insert into public.tenants (id, code, name) values ('${tenantId}', 'FORNEXA-TEST', 'Fornexa Test Tenant')
       on conflict (id) do nothing;
 
