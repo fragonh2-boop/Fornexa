@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "artifact": "docs/verification/supabase-migration-content-audit-20260912.json",
+  "artifact_bytes": 144040,
+  "artifact_sha256": "a6ee59dafc1c27f1b484b0a9de1bdca9b8f35ca8d733d93ca637212683ef4feb",
+  "comparison_scope": "HISTORICAL_BASELINE_ONLY",
+  "git_comparison_baseline": "2dbe44facc303cfe4703d72a0cf665c36c98d552",
+  "certifies_current_git_equivalence": false,
+  "certifies_live_database": false,
+  "limitations": [
+    "all_pairs_equivalent and remote_array_elementwise_equivalent describe the recorded historical baseline only.",
+    "Current Git equivalence must be recomputed from current migration files; it cannot inherit historical true flags.",
+    "The immutable snapshot is retained byte for byte. This scope annotation is not a new database capture."
+  ]
+}

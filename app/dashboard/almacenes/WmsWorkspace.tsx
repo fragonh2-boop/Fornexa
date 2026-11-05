@@ -23,6 +23,7 @@ const TABS = [
   "Picking y Tareas",
   "Carga y Expedición",
   "Recursos y Políticas",
+  "Reposición Interna",
 ] as const;
 
 type TabKey = (typeof TABS)[number];
@@ -47,9 +48,11 @@ function flowBadgeClass(state: WmsFlowState | WmsHuState | null): string {
   return `${styles.badge} ${styles.badgeDanger}`;
 }
 
-export default function WmsWorkspace() {
+export default function WmsWorkspace({
+  defaultTab = "Mapa y Ubicaciones",
+}: { defaultTab?: TabKey } = {}) {
   const { data, loading, error, setError, load } = useWmsData();
-  const [tab, setTab] = useState<TabKey>("Mapa y Ubicaciones");
+  const [tab, setTab] = useState<TabKey>(defaultTab);
   const [warehouseId, setWarehouseId] = useState<string>("");
   const [zoneFilter, setZoneFilter] = useState<string>("");
   const [tempFilter, setTempFilter] = useState<string>("");
@@ -106,6 +109,16 @@ export default function WmsWorkspace() {
   const tasks = useMemo(
     () => data.tasks.filter((t) => t.warehouse_id === activeWarehouseId),
     [data.tasks, activeWarehouseId],
+  );
+
+  const replenishmentRules = useMemo(
+    () => (data.replenishmentRules || []).filter((r) => r.warehouse_id === activeWarehouseId),
+    [data.replenishmentRules, activeWarehouseId],
+  );
+
+  const proposals = useMemo(
+    () => (data.proposals || []).filter((p) => p.warehouse_id === activeWarehouseId),
+    [data.proposals, activeWarehouseId],
   );
 
   const resources = useMemo(
@@ -1148,6 +1161,241 @@ export default function WmsWorkspace() {
                       <td>{r.certifications.join(", ") || "—"}</td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 7: REPOSICIÓN INTERNA (E2) */}
+        {tab === "Reposición Interna" && (
+          <div className={styles.panel}>
+            <div className={styles.panelHead}>
+              <div>
+                <p className={styles.eyebrow}>REPOSICIÓN INTERNA PREVENTIVA Y DINÁMICA (E2)</p>
+                <h2>Reglas de reposición, propuestas y ejecución de traslados a picking</h2>
+              </div>
+              <div className={styles.toolbar}>
+                <button
+                  type="button"
+                  className={screenButton.primary}
+                  disabled={busy || !data.canConfigure}
+                  onClick={() =>
+                    void runAction("EVALUATE_REPLENISHMENT", { warehouse_id: activeWarehouseId })
+                  }
+                >
+                  Evaluar reposición automática
+                </button>
+              </div>
+            </div>
+
+            <h3>Reglas de reposición por ubicación de picking</h3>
+            <div className={styles.scroll}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Hueco destino</th>
+                    <th>Producto (SKU)</th>
+                    <th>Stock Mín.</th>
+                    <th>Stock Máx.</th>
+                    <th>Múltiplo Reorder</th>
+                    <th>Consolidación</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {replenishmentRules.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} style={{ textAlign: "center", color: "var(--ui-muted)" }}>
+                        No hay reglas de reposición configuradas para este almacén.
+                      </td>
+                    </tr>
+                  ) : (
+                    replenishmentRules.map((rule) => {
+                      const bin = binById.get(rule.destination_bin_id);
+                      const prod = productById.get(rule.product_id);
+                      return (
+                        <tr key={rule.id}>
+                          <td>
+                            <strong>{bin?.bin_code ?? rule.destination_bin_id}</strong>
+                          </td>
+                          <td>
+                            {prod?.sku ?? rule.product_id} · {prod?.name ?? ""}
+                          </td>
+                          <td>{rule.min_quantity}</td>
+                          <td>{rule.max_quantity}</td>
+                          <td>{rule.reorder_quantity}</td>
+                          <td>
+                            <span className={styles.badge}>{rule.consolidation}</span>
+                          </td>
+                          <td>
+                            <span
+                              className={
+                                (rule.is_active ?? rule.active)
+                                  ? `${styles.badge} ${styles.badgeOk}`
+                                  : `${styles.badge} ${styles.badgeWarn}`
+                              }
+                            >
+                              {(rule.is_active ?? rule.active) ? "ACTIVA" : "INACTIVA"}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <h3>Propuestas de reposición y tareas de traslado</h3>
+            <div className={styles.scroll}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>ID Propuesta</th>
+                    <th>Producto</th>
+                    <th>Origen (Pulmón)</th>
+                    <th>Destino (Picking)</th>
+                    <th>Cantidad</th>
+                    <th>HU Destino</th>
+                    <th>Estado</th>
+                    <th>Motivo / Tarea</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {proposals.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} style={{ textAlign: "center", color: "var(--ui-muted)" }}>
+                        No hay propuestas de reposición registradas en este almacén.
+                      </td>
+                    </tr>
+                  ) : (
+                    proposals.map((prop) => {
+                      const prod = productById.get(prop.product_id);
+                      const srcBin = binById.get(prop.source_bin_id);
+                      const destBin = binById.get(prop.destination_bin_id);
+                      return (
+                        <tr key={prop.id}>
+                          <td>
+                            <code style={{ fontSize: 11 }}>{prop.id.slice(0, 8)}...</code>
+                          </td>
+                          <td>
+                            {prod?.sku ?? prop.product_id} · {prod?.name ?? ""}
+                          </td>
+                          <td>{srcBin?.bin_code ?? prop.source_bin_id}</td>
+                          <td>{destBin?.bin_code ?? prop.destination_bin_id}</td>
+                          <td>
+                            <strong>{prop.suggested_quantity}</strong>
+                          </td>
+                          <td>{prop.target_hu_id ? <code>{prop.target_hu_id.slice(0, 8)}</code> : "—"}</td>
+                          <td>
+                            <span
+                              className={
+                                prop.status === "APPROVED" || prop.status === "EXECUTED"
+                                  ? `${styles.badge} ${styles.badgeOk}`
+                                  : prop.status === "DRAFT"
+                                  ? `${styles.badge} ${styles.badgeInfo}`
+                                  : prop.status === "CANCELLED"
+                                  ? `${styles.badge} ${styles.badgeWarn}`
+                                  : `${styles.badge} ${styles.badgeDanger}`
+                              }
+                            >
+                              {prop.status}
+                            </span>
+                          </td>
+                          <td>
+                            {prop.rejection_reason ? (
+                              <span style={{ fontSize: 11, color: "var(--ui-danger, #8a1f1f)" }}>
+                                {prop.rejection_reason}
+                              </span>
+                            ) : prop.task_id ? (
+                              <span style={{ fontSize: 11 }}>
+                                Tarea: <code>{prop.task_id.slice(0, 8)}</code>
+                              </span>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                          <td>
+                            <div className={styles.toolbar}>
+                              {prop.status === "DRAFT" && (
+                                <>
+                                  <button
+                                    type="button"
+                                    className={screenButton.primary}
+                                    disabled={busy || !data.canConfigure}
+                                    onClick={() =>
+                                      void runAction("APPROVE_PROPOSAL", { proposal_id: prop.id })
+                                    }
+                                  >
+                                    Aprobar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={screenButton.secondary}
+                                    disabled={busy || !data.canConfigure}
+                                    onClick={() => {
+                                      const reason = window.prompt(
+                                        "Motivo del rechazo de la propuesta:",
+                                        "RECHAZADA_POR_OPERADOR",
+                                      );
+                                      if (reason) {
+                                        void runAction("REJECT_PROPOSAL", {
+                                          proposal_id: prop.id,
+                                          reason,
+                                        });
+                                      }
+                                    }}
+                                  >
+                                    Rechazar
+                                  </button>
+                                </>
+                              )}
+                              {prop.status === "APPROVED" && (
+                                <>
+                                  <button
+                                    type="button"
+                                    className={screenButton.primary}
+                                    disabled={busy || !data.canEdit}
+                                    onClick={() =>
+                                      void runAction("REPLENISH", { proposal_id: prop.id })
+                                    }
+                                  >
+                                    Ejecutar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={screenButton.secondary}
+                                    disabled={busy || !data.canConfigure}
+                                    onClick={() => {
+                                      const reason = window.prompt(
+                                        "Motivo de cancelación de la propuesta:",
+                                        "CANCELADA_POR_PLANIFICADOR",
+                                      );
+                                      if (reason) {
+                                        void runAction("CANCEL_PROPOSAL", {
+                                          proposal_id: prop.id,
+                                          reason,
+                                        });
+                                      }
+                                    }}
+                                  >
+                                    Cancelar
+                                  </button>
+                                </>
+                              )}
+                              {prop.status !== "DRAFT" && prop.status !== "APPROVED" && (
+                                <span style={{ fontSize: 12, color: "var(--ui-muted)" }}>
+                                  —
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
