@@ -141,6 +141,36 @@ export function stripExteriorTx(sql) {
   };
 }
 
+export const ALLOWED_DISPOSABLE_HOSTS = ["127.0.0.1", "localhost", "::1"];
+export const ALLOWED_DISPOSABLE_DATABASES = ["fornexa_e2_test", "fornexa_apply_test"];
+export const REQUIRED_CONFIRM_TOKEN = "DISPOSABLE_PG17_CI_RUN";
+
+export function validateIsolation({ host, database, confirmToken } = {}) {
+  const normHost = (host || "").trim().toLowerCase();
+  if (!normHost || !ALLOWED_DISPOSABLE_HOSTS.includes(normHost)) {
+    throw new Error(
+      `[SECURITY_FATAL MUST-G5] Host '${host}' is NOT an authorized loopback test address (${ALLOWED_DISPOSABLE_HOSTS.join(
+        ", ",
+      )}). Aborting execution to prevent DDL on non-isolated hosts.`,
+    );
+  }
+
+  const normDb = (database || "").trim().toLowerCase();
+  if (!normDb || !ALLOWED_DISPOSABLE_DATABASES.includes(normDb)) {
+    throw new Error(
+      `[SECURITY_FATAL MUST-G5] Database '${database}' is NOT in the authorized disposable test allowlist (${ALLOWED_DISPOSABLE_DATABASES.join(
+        ", ",
+      )}). Refusing execution on non-disposable target.`,
+    );
+  }
+
+  if (confirmToken !== REQUIRED_CONFIRM_TOKEN) {
+    throw new Error(
+      `[SECURITY_FATAL MUST-G5] Missing or invalid confirmation token '${confirmToken}'. Required: '${REQUIRED_CONFIRM_TOKEN}'. Aborting execution.`,
+    );
+  }
+}
+
 export async function runContingencyHarness(options = {}) {
   const receiptPath = resolve(ROOT, "docs/verification/receipt-e2-dbfirst-contingency-pg17.json");
   const pgliteReceiptPath = resolve(ROOT, "docs/verification/receipt-e2-dbfirst-contingency-pglite.json");
@@ -152,20 +182,33 @@ export async function runContingencyHarness(options = {}) {
   const useRealPostgres = options.useRealPostgres || process.env.USE_REAL_POSTGRES === "true";
 
   if (useRealPostgres) {
-    const pgDriver = options.pgDriver || (await import("pg")).default;
     const config = {
-      host: process.env.PGHOST || "127.0.0.1",
-      port: Number(process.env.PGPORT) || 5432,
-      user: process.env.PGUSER || "postgres",
-      password: process.env.PGPASSWORD || "synthetic-ci-password",
-      database: process.env.PGDATABASE || "fornexa_apply_test",
+      host: options.host || process.env.PGHOST || "127.0.0.1",
+      port: Number(options.port || process.env.PGPORT) || 5432,
+      user: options.user || process.env.PGUSER || "postgres",
+      password: options.password || process.env.PGPASSWORD || "synthetic-ci-password",
+      database: options.database || process.env.PGDATABASE || "fornexa_e2_test",
     };
+    const confirmToken = options.confirmToken || process.env.CONFIRM_DISPOSABLE_RUN;
+
+    validateIsolation({ host: config.host, database: config.database, confirmToken });
+    console.log(`[MUST-G5] Isolation validated: host=${config.host}, database=${config.database}`);
+
+    const pgDriver = options.pgDriver || (await import("pg")).default;
     db = new pgDriver.Client(config);
     await db.connect();
     clientType = "pg-socket";
+
+    // Re-verify runtime database from server catalog
+    const curDbRes = await db.query("select current_database() as cur_db;");
+    const activeDb = curDbRes.rows[0].cur_db;
+    if (!ALLOWED_DISPOSABLE_DATABASES.includes(activeDb)) {
+      throw new Error(`[SECURITY_FATAL MUST-G5] Server active database '${activeDb}' is not in disposable allowlist!`);
+    }
+
     const vRes = await db.query("select version();");
     pgVersion = vRes.rows[0].version;
-    console.log(`[E2 Contingency] Connected to real PostgreSQL: ${pgVersion}`);
+    console.log(`[E2 Contingency] Connected to real PostgreSQL (${activeDb}): ${pgVersion}`);
   } else {
     const { PGlite } = await import("@electric-sql/pglite");
     const { pgcrypto } = await import("@electric-sql/pglite/contrib/pgcrypto");
@@ -188,8 +231,15 @@ export async function runContingencyHarness(options = {}) {
   console.log("[E2 Contingency] 1. Initializing platform schemas and roles...");
   await runSql(`
     do $$
-    declare s text;
+    declare
+      cur text := current_database();
+      s text;
     begin
+      -- Server-side runtime guard: fail-closed if not on disposable test database
+      if cur not in ('fornexa_e2_test', 'fornexa_apply_test') and cur not like '%pglite%' then
+        raise exception '[SECURITY_FATAL MUST-G5] Refusing schema reset on non-disposable database %', cur;
+      end if;
+
       for s in (
         select schema_name
         from information_schema.schemata
@@ -308,8 +358,8 @@ export async function runContingencyHarness(options = {}) {
     values ('${partyId}', '${tenantId}', 'Fornexa Supplier', 'B12345678', 'ES')
       on conflict (id) do nothing;
 
-    insert into public.products (id, tenant_id, sku, name, uom)
-    values ('${productId}', '${tenantId}', 'SKU-CONT-01', 'Contingency Test Product', 'UN')
+    insert into public.products (id, tenant_id, sku, name)
+    values ('${productId}', '${tenantId}', 'SKU-CONT-01', 'Contingency Test Product')
       on conflict (id) do nothing;
 
     insert into public.warehouses (id, tenant_id, code, name)
@@ -617,6 +667,34 @@ export async function runContingencyHarness(options = {}) {
       and conname = 'inventory_quants_bin_id_product_id_owner_party_id_batch_num_key';
   `);
   assert.equal(postRollbackKeyRes.rows[0]?.conname, "inventory_quants_bin_id_product_id_owner_party_id_batch_num_key", "Canonical pre-E2 unique key must be restored");
+
+  // Verify pre-E2 columns on warehouse_tasks remain intact (MUST-G1)
+  const wtColsRes = await runSql(`
+    select column_name from information_schema.columns
+    where table_schema = 'public' and table_name = 'warehouse_tasks'
+      and column_name in ('source_bin_id', 'destination_bin_id', 'proposal_id')
+    order by column_name;
+  `);
+  const wtCols = wtColsRes.rows.map(r => r.column_name);
+  assert.deepEqual(wtCols, ['destination_bin_id', 'source_bin_id'], "warehouse_tasks must retain source_bin_id and destination_bin_id, proposal_id must be removed");
+
+  // Verify stock_reservations columns reverted (MUST-G2)
+  const srColsRes = await runSql(`
+    select column_name from information_schema.columns
+    where table_schema = 'public' and table_name = 'stock_reservations'
+      and column_name in ('reference_type', 'reference_id')
+  `);
+  assert.equal(srColsRes.rows.length, 0, "stock_reservations reference_type/reference_id must be dropped");
+
+  // Verify inventory_quants flow_state preserved and received_at dropped (MUST-G1)
+  const iqColsRes = await runSql(`
+    select column_name from information_schema.columns
+    where table_schema = 'public' and table_name = 'inventory_quants'
+      and column_name in ('flow_state', 'received_at')
+  `);
+  const iqCols = iqColsRes.rows.map(r => r.column_name);
+  assert.deepEqual(iqCols, ['flow_state'], "inventory_quants must retain flow_state and drop received_at");
+
   console.log(" -> Contingency Path B (Safe Non-Destructive Rollback) CERTIFIED.");
 
   // ── 10. Emit Durable Receipt ──

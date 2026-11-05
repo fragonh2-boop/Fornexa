@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
 // @ts-expect-error - import from local .mjs harness script
-import { sha256, stripExteriorTx } from "../scripts/wms/verify-e2-dbfirst-contingency.mjs";
+import { sha256, stripExteriorTx, validateIsolation, REQUIRED_CONFIRM_TOKEN } from "../scripts/wms/verify-e2-dbfirst-contingency.mjs";
 
 const ROOT = resolve(import.meta.dirname, "..");
 
@@ -36,7 +36,7 @@ test("E2 DB-First Source Hashes and Statement Decomposition", () => {
   assert.equal(rpcStripped.innerStatementCount, 18, "RPC interior statements count must be 18");
 });
 
-test("E2 Rollback Script Safety and Non-Destructive Guardrails", () => {
+test("E2 Rollback Script Safety and Non-Destructive Guardrails (MUST-G1..G4)", () => {
   const rollbackSql = readFileSync(resolve(ROOT, "scripts/wms/rollback-wms-e2-core.sql"), "utf8");
 
   assert.ok(rollbackSql.length > 0, "Rollback script must exist and not be empty");
@@ -47,15 +47,92 @@ test("E2 Rollback Script Safety and Non-Destructive Guardrails", () => {
     "Must restore canonical pre-E2 unique key"
   );
 
-  // Critical non-destructive guard: must NOT drop flow_state which was introduced in E1
+  // MUST-G1: Pre-E2 columns must NOT be dropped
+  assert.ok(
+    !rollbackSql.includes("drop column if exists source_bin_id"),
+    "MUST-G1: Must NOT drop warehouse_tasks.source_bin_id (pre-existing E1/C3 column)"
+  );
+  assert.ok(
+    !rollbackSql.includes("drop column if exists destination_bin_id"),
+    "MUST-G1: Must NOT drop warehouse_tasks.destination_bin_id (pre-existing E1/C3 column)"
+  );
   assert.ok(
     !rollbackSql.includes("drop column if exists flow_state"),
-    "Must NOT drop flow_state (belongs to E1 core domain)"
+    "MUST-G1: Must NOT drop inventory_quants.flow_state (pre-existing E1 core column)"
   );
-  // Must NOT touch quants data
+
+  // MUST-G2: Invert all E2 stock_reservations additions
+  assert.ok(
+    rollbackSql.includes("drop column if exists reference_type"),
+    "MUST-G2: Must drop stock_reservations.reference_type"
+  );
+  assert.ok(
+    rollbackSql.includes("drop column if exists reference_id"),
+    "MUST-G2: Must drop stock_reservations.reference_id"
+  );
+  assert.ok(
+    rollbackSql.includes("drop constraint if exists chk_stock_reservations_reference_type"),
+    "MUST-G2: Must drop chk_stock_reservations_reference_type constraint"
+  );
+  assert.ok(
+    rollbackSql.includes("drop index if exists public.stock_reservations_ref_idx"),
+    "MUST-G2: Must drop stock_reservations_ref_idx"
+  );
+
+  // MUST-G3: Multi-HU lot collision pre-flight before constraint restoration
+  assert.ok(
+    rollbackSql.includes("WMS_ROLLBACK_BLOCKED_COLLISION"),
+    "MUST-G3: Must implement pre-flight collision check to fail-closed on split pallets"
+  );
+
+  // MUST-G4: Traceability protection on executed proposals
+  assert.ok(
+    rollbackSql.includes("WMS_ROLLBACK_BLOCKED"),
+    "MUST-G4: Must abort fail-closed if executed proposals exist"
+  );
+  assert.ok(
+    rollbackSql.includes("wms_proposals_archive"),
+    "MUST-G4: Must archive executed proposals when explicitly overridden"
+  );
+
+  // Non-destructive data integrity
   assert.ok(!rollbackSql.toLowerCase().includes("delete from public.inventory_quants"), "Must NOT delete inventory quants");
   assert.ok(!rollbackSql.toLowerCase().includes("truncate public.inventory_quants"), "Must NOT truncate inventory quants");
   assert.ok(!rollbackSql.toLowerCase().includes("delete from public.inventory_movements"), "Must NOT delete inventory movements");
+});
+
+test("Harness Destructive Guardrails and Isolation (MUST-G5)", () => {
+  // 1. Rejects unauthorized hosts
+  assert.throws(
+    () => validateIsolation({ host: "db.fornexa.internal", database: "fornexa_e2_test", confirmToken: REQUIRED_CONFIRM_TOKEN }),
+    /\[SECURITY_FATAL MUST-G5\] Host 'db\.fornexa\.internal' is NOT an authorized loopback/,
+    "Must throw on remote host"
+  );
+
+  // 2. Rejects unauthorized / production databases
+  for (const forbiddenDb of ["postgres", "fornexa", "production", "defaultdb", "fornexa_prod"]) {
+    assert.throws(
+      () => validateIsolation({ host: "127.0.0.1", database: forbiddenDb, confirmToken: REQUIRED_CONFIRM_TOKEN }),
+      /\[SECURITY_FATAL MUST-G5\] Database '.*' is NOT in the authorized disposable test allowlist/,
+      `Must throw on forbidden database: ${forbiddenDb}`
+    );
+  }
+
+  // 3. Rejects missing or wrong confirmation token
+  assert.throws(
+    () => validateIsolation({ host: "127.0.0.1", database: "fornexa_e2_test", confirmToken: "WRONG" }),
+    /\[SECURITY_FATAL MUST-G5\] Missing or invalid confirmation token/,
+    "Must throw on missing or invalid confirmation token"
+  );
+
+  // 4. Accepts valid loopback + disposable database + confirmation token
+  assert.doesNotThrow(() => {
+    validateIsolation({
+      host: "127.0.0.1",
+      database: "fornexa_e2_test",
+      confirmToken: REQUIRED_CONFIRM_TOKEN,
+    });
+  }, "Must accept authorized disposable CI configuration");
 });
 
 test("CI Workflow Wiring for WMS E2 DB-First Contingency", () => {
@@ -66,6 +143,10 @@ test("CI Workflow Wiring for WMS E2 DB-First Contingency", () => {
   assert.ok(
     e2Job.includes("node scripts/wms/verify-e2-dbfirst-contingency.mjs"),
     "verify-e2-pg17 must run verify-e2-dbfirst-contingency.mjs"
+  );
+  assert.ok(
+    e2Job.includes("CONFIRM_DISPOSABLE_RUN: \"DISPOSABLE_PG17_CI_RUN\""),
+    "verify-e2-pg17 must pass confirmation token for disposable test run"
   );
   assert.ok(
     e2Job.includes("receipt-e2-dbfirst-contingency-pg17"),
