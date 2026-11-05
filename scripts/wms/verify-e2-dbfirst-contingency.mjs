@@ -611,9 +611,11 @@ export async function runContingencyHarness(options = {}) {
       '${tenantId}',
       '${operatorUserId}',
       '${warehouseId}'
-    ) as proposals;
+    ) as res;
   `);
-  assert.ok(Array.isArray(e2EvalRes.rows[0].proposals), "fornexa_wms_evaluate_replenishment must return array of proposals");
+  const evalResult = e2EvalRes.rows[0].res;
+  assert.equal(evalResult.ok, true, "fornexa_wms_evaluate_replenishment must return ok = true");
+  assert.ok(Array.isArray(evalResult.proposals), "fornexa_wms_evaluate_replenishment must return array of proposals");
 
   // C3 actions still work under upgraded fornexa_wms_action
   const c3PostRollforwardRes = await runSql(`
