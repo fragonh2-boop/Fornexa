@@ -366,7 +366,7 @@ export async function runContingencyHarness(options = {}) {
     values ('${warehouseId}', '${tenantId}', 'WH-01', 'Warehouse 1')
       on conflict (id) do nothing;
 
-    insert into public.warehouse_zones (id, tenant_id, warehouse_id, code, name)
+    insert into public.warehouse_zones (id, tenant_id, warehouse_id, zone_code, zone_name)
     values ('${zoneId}', '${tenantId}', '${warehouseId}', 'ZONE-01', 'Main Storage Zone')
       on conflict (id) do nothing;
 
