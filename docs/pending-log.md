@@ -4,6 +4,12 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-11-05 — Contingencia E2: G1..G5 cerrados en PR contra #145; nueva estrategia de entrada
+
+- PR desde `fix/e2-harness-guard-g5` hacia `chore/supabase-preview-baseline-fix`: guarda MUST-G5, rollback G1..G4, correcciones del seed y del arnés que causaban el rojo de `verify-e2-pg17`. Pendiente: CI propia en PG17 y revisión independiente antes de integrarla en #145.
+- Pendiente de decisión: restaurar el cuerpo C3 de `fornexa_wms_action` en el rollback cuando la RPC E2 ya se aplicó (hoy queda la versión E2; acciones pre-E2 operativas, E2 con error).
+- Siguientes pasos de la estrategia acordada con Fran: partir #145; runtime E2 detrás de interruptor apagado; ensayo en Supabase de pruebas (plan gratuito); apply productivo con copia previa y solo aditivo; activación final. Restablecer acceso de Claude a Vercel (403 desde 26-oct) para verificar y revertir despliegues.
+
 ### 2026-10-30 — #145: corregir-y-mergear autorizado con MUST documental
 
 - Dictamen Claude6526750979 sobre09086aaa: integración conforme; acepta corregir-y-mergear una vez eliminada la certificación pública indebida del snapshot24-oct. MUST-145F-1 corregido en candidata: snapshot histórico importado, sin run y sin procedencia certificada; regresión pública contra manifiesto no certificado. Cobertura vigente714; referencias712 históricas aclaradas.

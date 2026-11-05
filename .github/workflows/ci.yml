@@ -125,6 +125,7 @@ jobs:
           PGPASSWORD: synthetic-ci-password
           USE_REAL_POSTGRES: "true"
           REQUIRE_PG17: "true"
+          FORNEXA_DISPOSABLE_DB_CONFIRM: DROP_ALL_SCHEMAS_ON_DISPOSABLE_DB
           HEAD_SHA: ${{ github.sha }}
         run: |
           rm -f docs/verification/receipt-e2-dbfirst-contingency-pg17.json
