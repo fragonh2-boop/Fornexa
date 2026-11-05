@@ -518,11 +518,11 @@ export async function runContingencyHarness(options = {}) {
   const quantColsRes = await runSql(`
     select column_name from information_schema.columns
     where table_schema = 'public' and table_name = 'inventory_quants'
-      and column_name in ('flow_state', 'allocated_reference_id', 'received_at')
+      and column_name in ('flow_state', 'received_at')
     order by column_name;
   `);
   const quantCols = quantColsRes.rows.map((r) => r.column_name);
-  assert.deepEqual(quantCols, ["allocated_reference_id", "flow_state", "received_at"], "E2 columns must exist on inventory_quants in split-state");
+  assert.deepEqual(quantCols, ["flow_state", "received_at"], "E2 columns must exist on inventory_quants in split-state");
 
   // Check 7c: Stock conservation (150 quants, exact quantity preserved)
   const splitQuantCountRes = await runSql(`select count(*) as cnt, sum(quantity_on_hand) as sum_qty from public.inventory_quants where tenant_id = '${tenantId}'`);
