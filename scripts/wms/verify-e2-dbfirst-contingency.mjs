@@ -351,7 +351,7 @@ export async function runContingencyHarness(options = {}) {
       on conflict (id) do nothing;
 
     insert into public.tenant_members (tenant_id, user_id, role, status)
-    values ('${tenantId}', '${operatorUserId}', 'OPERATOR', 'ACTIVE')
+    values ('${tenantId}', '${operatorUserId}', 'ADMIN', 'ACTIVE')
       on conflict do nothing;
 
     insert into public.parties (id, tenant_id, legal_name, tax_id, country_code)
@@ -433,6 +433,7 @@ export async function runContingencyHarness(options = {}) {
       '${operatorUserId}',
       'UPSERT_RESOURCE',
       jsonb_build_object(
+        'warehouse_id', '${warehouseId}',
         'code', 'FORKLIFT-01',
         'name', 'Main Electric Forklift',
         'resource_type', 'FORKLIFT',
@@ -554,6 +555,7 @@ export async function runContingencyHarness(options = {}) {
       '${operatorUserId}',
       'UPSERT_RESOURCE',
       jsonb_build_object(
+        'warehouse_id', '${warehouseId}',
         'code', 'FORKLIFT-02',
         'name', 'Secondary Electric Forklift',
         'resource_type', 'FORKLIFT',
@@ -620,6 +622,7 @@ export async function runContingencyHarness(options = {}) {
       '${operatorUserId}',
       'UPSERT_RESOURCE',
       jsonb_build_object(
+        'warehouse_id', '${warehouseId}',
         'code', 'FORKLIFT-03',
         'name', 'Tertiary Electric Forklift',
         'resource_type', 'FORKLIFT',
