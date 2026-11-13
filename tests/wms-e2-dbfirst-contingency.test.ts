@@ -5,8 +5,15 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
-// @ts-expect-error - import from local .mjs harness script
-import { sha256, stripExteriorTx, validateIsolation, REQUIRED_CONFIRM_TOKEN } from "../scripts/wms/verify-e2-dbfirst-contingency.mjs";
+import {
+  sha256,
+  stripExteriorTx,
+  assertDisposableTarget,
+  runContingencyHarness,
+  DESTRUCTIVE_CONFIRM_ENV,
+  DESTRUCTIVE_CONFIRM_TOKEN,
+  // @ts-expect-error - import from local .mjs harness script
+} from "../scripts/wms/verify-e2-dbfirst-contingency.mjs";
 
 const ROOT = resolve(import.meta.dirname, "..");
 
@@ -36,7 +43,7 @@ test("E2 DB-First Source Hashes and Statement Decomposition", () => {
   assert.equal(rpcStripped.innerStatementCount, 18, "RPC interior statements count must be 18");
 });
 
-test("E2 Rollback Script Safety and Non-Destructive Guardrails (MUST-G1..G4)", () => {
+test("E2 Rollback Script Safety and Non-Destructive Guardrails", () => {
   const rollbackSql = readFileSync(resolve(ROOT, "scripts/wms/rollback-wms-e2-core.sql"), "utf8");
 
   assert.ok(rollbackSql.length > 0, "Rollback script must exist and not be empty");
@@ -47,92 +54,15 @@ test("E2 Rollback Script Safety and Non-Destructive Guardrails (MUST-G1..G4)", (
     "Must restore canonical pre-E2 unique key"
   );
 
-  // MUST-G1: Pre-E2 columns must NOT be dropped
-  assert.ok(
-    !rollbackSql.includes("drop column if exists source_bin_id"),
-    "MUST-G1: Must NOT drop warehouse_tasks.source_bin_id (pre-existing E1/C3 column)"
-  );
-  assert.ok(
-    !rollbackSql.includes("drop column if exists destination_bin_id"),
-    "MUST-G1: Must NOT drop warehouse_tasks.destination_bin_id (pre-existing E1/C3 column)"
-  );
+  // Critical non-destructive guard: must NOT drop flow_state which was introduced in E1
   assert.ok(
     !rollbackSql.includes("drop column if exists flow_state"),
-    "MUST-G1: Must NOT drop inventory_quants.flow_state (pre-existing E1 core column)"
+    "Must NOT drop flow_state (belongs to E1 core domain)"
   );
-
-  // MUST-G2: Invert all E2 stock_reservations additions
-  assert.ok(
-    rollbackSql.includes("drop column if exists reference_type"),
-    "MUST-G2: Must drop stock_reservations.reference_type"
-  );
-  assert.ok(
-    rollbackSql.includes("drop column if exists reference_id"),
-    "MUST-G2: Must drop stock_reservations.reference_id"
-  );
-  assert.ok(
-    rollbackSql.includes("drop constraint if exists chk_stock_reservations_reference_type"),
-    "MUST-G2: Must drop chk_stock_reservations_reference_type constraint"
-  );
-  assert.ok(
-    rollbackSql.includes("drop index if exists public.stock_reservations_ref_idx"),
-    "MUST-G2: Must drop stock_reservations_ref_idx"
-  );
-
-  // MUST-G3: Multi-HU lot collision pre-flight before constraint restoration
-  assert.ok(
-    rollbackSql.includes("WMS_ROLLBACK_BLOCKED_COLLISION"),
-    "MUST-G3: Must implement pre-flight collision check to fail-closed on split pallets"
-  );
-
-  // MUST-G4: Traceability protection on executed proposals
-  assert.ok(
-    rollbackSql.includes("WMS_ROLLBACK_BLOCKED"),
-    "MUST-G4: Must abort fail-closed if executed proposals exist"
-  );
-  assert.ok(
-    rollbackSql.includes("wms_proposals_archive"),
-    "MUST-G4: Must archive executed proposals when explicitly overridden"
-  );
-
-  // Non-destructive data integrity
+  // Must NOT touch quants data
   assert.ok(!rollbackSql.toLowerCase().includes("delete from public.inventory_quants"), "Must NOT delete inventory quants");
   assert.ok(!rollbackSql.toLowerCase().includes("truncate public.inventory_quants"), "Must NOT truncate inventory quants");
   assert.ok(!rollbackSql.toLowerCase().includes("delete from public.inventory_movements"), "Must NOT delete inventory movements");
-});
-
-test("Harness Destructive Guardrails and Isolation (MUST-G5)", () => {
-  // 1. Rejects unauthorized hosts
-  assert.throws(
-    () => validateIsolation({ host: "db.fornexa.internal", database: "fornexa_e2_test", confirmToken: REQUIRED_CONFIRM_TOKEN }),
-    /\[SECURITY_FATAL MUST-G5\] Host 'db\.fornexa\.internal' is NOT an authorized loopback/,
-    "Must throw on remote host"
-  );
-
-  // 2. Rejects unauthorized / production databases
-  for (const forbiddenDb of ["postgres", "fornexa", "production", "defaultdb", "fornexa_prod"]) {
-    assert.throws(
-      () => validateIsolation({ host: "127.0.0.1", database: forbiddenDb, confirmToken: REQUIRED_CONFIRM_TOKEN }),
-      /\[SECURITY_FATAL MUST-G5\] Database '.*' is NOT in the authorized disposable test allowlist/,
-      `Must throw on forbidden database: ${forbiddenDb}`
-    );
-  }
-
-  // 3. Rejects missing or wrong confirmation token
-  assert.throws(
-    () => validateIsolation({ host: "127.0.0.1", database: "fornexa_e2_test", confirmToken: "WRONG" }),
-    /\[SECURITY_FATAL MUST-G5\] Missing or invalid confirmation token/,
-    "Must throw on missing or invalid confirmation token"
-  );
-
-  // 4. Accepts valid loopback + disposable database + confirmation token
-  assert.doesNotThrow(() => {
-    validateIsolation({
-      host: "127.0.0.1",
-      database: "fornexa_e2_test",
-      confirmToken: REQUIRED_CONFIRM_TOKEN,
-    });
-  }, "Must accept authorized disposable CI configuration");
 });
 
 test("CI Workflow Wiring for WMS E2 DB-First Contingency", () => {
@@ -145,11 +75,131 @@ test("CI Workflow Wiring for WMS E2 DB-First Contingency", () => {
     "verify-e2-pg17 must run verify-e2-dbfirst-contingency.mjs"
   );
   assert.ok(
-    e2Job.includes("CONFIRM_DISPOSABLE_RUN: \"DISPOSABLE_PG17_CI_RUN\""),
-    "verify-e2-pg17 must pass confirmation token for disposable test run"
-  );
-  assert.ok(
     e2Job.includes("receipt-e2-dbfirst-contingency-pg17"),
     "verify-e2-pg17 must upload receipt-e2-dbfirst-contingency-pg17 artifact"
   );
+});
+
+// SHOULD (02-nov): derive from the migration which columns E2 core adds, and require the rollback
+// to drop exactly those — in both directions — instead of matching substrings by name.
+test("E2 rollback drops exactly the columns E2 core adds (no pre-E2 loss, no residue)", () => {
+  const coreSql = readFileSync(resolve(ROOT, "supabase/migrations/20261024120000_wms_e2_replenishment_core.sql"), "utf8");
+  const rollbackSql = readFileSync(resolve(ROOT, "scripts/wms/rollback-wms-e2-core.sql"), "utf8");
+
+  const columnsBy = (sql: string, verb: "add" | "drop") => {
+    const out = new Set<string>();
+    const blocks = sql.matchAll(/alter table (?:if exists )?public\.(\w+)([\s\S]*?);/gi);
+    for (const [, table, body] of blocks) {
+      const re = new RegExp(`${verb} column if (?:not )?exists (\\w+)`, "gi");
+      for (const [, column] of body.matchAll(re)) out.add(`${table}.${column}`);
+    }
+    return [...out].sort();
+  };
+
+  const added = columnsBy(coreSql, "add");
+  const dropped = columnsBy(rollbackSql, "drop");
+  assert.deepEqual(dropped, added, "rollback column drops must equal E2 core column additions");
+  for (const preE2 of ["warehouse_tasks.source_bin_id", "warehouse_tasks.destination_bin_id", "warehouse_tasks.target_hu_id", "inventory_quants.flow_state", "inventory_quants.hu_id"]) {
+    assert.ok(!dropped.includes(preE2), `rollback must not drop pre-E2 column ${preE2}`);
+  }
+});
+
+test("E2 rollback aborts (raise exception) on executed proposals and key collisions, and archives first", () => {
+  const rollbackSql = readFileSync(resolve(ROOT, "scripts/wms/rollback-wms-e2-core.sql"), "utf8");
+  assert.match(rollbackSql, /raise exception 'E2_ROLLBACK_BLOCKED_EXECUTED_PROPOSALS/);
+  assert.match(rollbackSql, /raise exception 'E2_ROLLBACK_BLOCKED_KEY_COLLISION/);
+  assert.ok(!/raise notice/i.test(rollbackSql), "a safety guard must never be a notice");
+  const archiveAt = rollbackSql.indexOf("insert into private.wms_e2_rollback_archive");
+  const dropAt = rollbackSql.indexOf("drop table if exists public.wms_proposals");
+  assert.ok(archiveAt > 0 && archiveAt < dropAt, "proposals must be archived before wms_proposals is dropped");
+});
+
+// MUST-G5: the harness drops every non-system schema. It must refuse any target that is not a
+// disposable loopback database confirmed by an explicit token, before the first query.
+const CONFIRMED = { [DESTRUCTIVE_CONFIRM_ENV]: DESTRUCTIVE_CONFIRM_TOKEN };
+
+test("MUST-G5: assertDisposableTarget accepts only loopback + disposable database + explicit token", () => {
+  assert.doesNotThrow(() => assertDisposableTarget({ host: "127.0.0.1", database: "fornexa_e2_test" }, CONFIRMED));
+  assert.throws(() => assertDisposableTarget({ host: "db.example.supabase.co", database: "fornexa_e2_test" }, CONFIRMED), /not loopback/);
+  assert.throws(() => assertDisposableTarget({ host: "127.0.0.1", database: "postgres" }, CONFIRMED), /disposable allowlist/);
+  assert.throws(() => assertDisposableTarget({ host: "127.0.0.1", database: "fornexa_e2_test" }, {}), /must equal/);
+  assert.throws(() => assertDisposableTarget({ host: "127.0.0.1", database: "fornexa_e2_test" }, { [DESTRUCTIVE_CONFIRM_ENV]: "yes" }), /must equal/);
+});
+
+function fakeDriver(serverDatabase: string) {
+  const calls: string[] = [];
+  class Client {
+    async connect() { calls.push("connect"); }
+    async end() { calls.push("end"); }
+    async query(sql: string) {
+      calls.push(sql);
+      if (/current_database\(\)/.test(sql)) return { rows: [{ db: serverDatabase }] };
+      return { rows: [{ version: "PostgreSQL 17 (fake)" }] };
+    }
+  }
+  return { driver: { Client }, calls };
+}
+
+test("MUST-G5: harness refuses a non-disposable target before connecting", async () => {
+  const saved = { ...process.env };
+  try {
+    process.env.PGHOST = "127.0.0.1";
+    process.env.PGDATABASE = "postgres";
+    const { driver, calls } = fakeDriver("postgres");
+    await assert.rejects(
+      runContingencyHarness({ useRealPostgres: true, pgDriver: driver, env: CONFIRMED }),
+      /SECURITY_FATAL MUST-G5/,
+    );
+    assert.deepEqual(calls, [], "no connection and no query may happen");
+  } finally {
+    process.env = saved;
+  }
+});
+
+test("MUST-G5: harness refuses when the server is not a disposable database, before any drop", async () => {
+  const saved = { ...process.env };
+  try {
+    process.env.PGHOST = "127.0.0.1";
+    process.env.PGDATABASE = "fornexa_e2_test";
+    const { driver, calls } = fakeDriver("postgres");
+    await assert.rejects(
+      runContingencyHarness({ useRealPostgres: true, pgDriver: driver, env: CONFIRMED }),
+      /current_database\(\)='postgres'/,
+    );
+    assert.ok(!calls.some((q) => /drop schema/i.test(q)), "no schema may be dropped");
+  } finally {
+    process.env = saved;
+  }
+});
+
+test("MUST-G5: the statement that drops schemas carries its own server-side guard", async () => {
+  const saved = { ...process.env };
+  try {
+    process.env.PGHOST = "127.0.0.1";
+    process.env.PGDATABASE = "fornexa_e2_test";
+    delete process.env.REQUIRE_PG17;
+    let dropSql = "";
+    class Client {
+      async connect() {}
+      async end() {}
+      async query(sql: string) {
+        if (/drop schema/i.test(sql)) {
+          dropSql = sql;
+          throw new Error("STOP_AT_DROP");
+        }
+        if (/current_database\(\)/.test(sql)) return { rows: [{ db: "fornexa_e2_test" }] };
+        return { rows: [{ version: "PostgreSQL 17.0 (fake)" }] };
+      }
+    }
+    await assert.rejects(
+      runContingencyHarness({ useRealPostgres: true, pgDriver: { Client }, env: CONFIRMED }),
+      /STOP_AT_DROP/,
+    );
+    const guardAt = dropSql.search(/if current_database\(\) not in \('fornexa_e2_test', 'fornexa_apply_test', 'fornexa_test'\) then\s+raise exception/);
+    const loopAt = dropSql.search(/execute format\('drop schema/);
+    assert.ok(guardAt >= 0, "the drop block must re-check current_database() and raise");
+    assert.ok(guardAt < loopAt, "the guard must run before the drop loop, inside the same statement");
+  } finally {
+    process.env = saved;
+  }
 });

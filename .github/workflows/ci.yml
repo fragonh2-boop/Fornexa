@@ -105,7 +105,6 @@ jobs:
           PGPASSWORD: synthetic-ci-password
           USE_REAL_POSTGRES: "true"
           REQUIRE_PG17: "true"
-          CONFIRM_DISPOSABLE_RUN: "DISPOSABLE_PG17_CI_RUN"
           HEAD_SHA: ${{ github.sha }}
         run: |
           rm -f docs/verification/receipt-m8-e2-postgres17.json
@@ -126,7 +125,7 @@ jobs:
           PGPASSWORD: synthetic-ci-password
           USE_REAL_POSTGRES: "true"
           REQUIRE_PG17: "true"
-          CONFIRM_DISPOSABLE_RUN: "DISPOSABLE_PG17_CI_RUN"
+          FORNEXA_DISPOSABLE_DB_CONFIRM: DROP_ALL_SCHEMAS_ON_DISPOSABLE_DB
           HEAD_SHA: ${{ github.sha }}
         run: |
           rm -f docs/verification/receipt-e2-dbfirst-contingency-pg17.json
