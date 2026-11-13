@@ -1,0 +1,304 @@
+{
+  "schema_version": 1,
+  "source": "Supabase execute_sql; read-only server-computed ledger fingerprints",
+  "query_semantics": "SHA256 of the JSON array of unwrapped base64 UTF8 statement elements, in original array order; plus MD5(statements::text) and element counts. No SQL payload exported.",
+  "observed_at": "2026-10-29 14:50:28.016118+00",
+  "transaction_read_only": "on",
+  "migration_count": 42,
+  "migrations": [
+    {
+      "name": "customs_core",
+      "version": "20260807",
+      "elements": 8,
+      "array_text_md5": "019352cc1b312f421216e47a750d2053",
+      "payload_sha256": "aea2b67b85f71e2892575d1fe7ef6817565cd78c3dc971d086dbebd56008054f"
+    },
+    {
+      "name": "mobile_cmr",
+      "version": "20260808",
+      "elements": 20,
+      "array_text_md5": "204c76f46fb57fe7838257b1b3c85f6a",
+      "payload_sha256": "f1533bb553734ec3a2edd1f680247d63878c6801e318f8e3e79d09fe52ede97c"
+    },
+    {
+      "name": "fornexa_operational_core",
+      "version": "20260812",
+      "elements": 83,
+      "array_text_md5": "c9abca6d513fdf3dc587cbfc6f187fc8",
+      "payload_sha256": "51d69abf24f7b3539dc2d626678f0a426314815869ae44fa5d2012afd288ed65"
+    },
+    {
+      "name": "expedition_order_link",
+      "version": "20260817142306",
+      "elements": 1,
+      "array_text_md5": "4730a8c4b29977b4a0f7e330d0bc0908",
+      "payload_sha256": "53b0c5d566138e100abe74b45d6b22cbadc7cc7fdaa219adcee1190dbfb02e04"
+    },
+    {
+      "name": "cmr_canonical_model",
+      "version": "20260817142325",
+      "elements": 1,
+      "array_text_md5": "7d4ceb6697e5853e9c3a8ad3fa884314",
+      "payload_sha256": "187e0b61b88e0e01c001c27cad5dab6dc21469212572b67d58886275b88df80e"
+    },
+    {
+      "name": "cmr_expeditions_bridge",
+      "version": "20260817142337",
+      "elements": 1,
+      "array_text_md5": "2d5bee8d01d8b79c77e94c459daa48c9",
+      "payload_sha256": "0ec67d648b0bb072e2d947e33b332776f350a04f3b5a74171992aca61994079d"
+    },
+    {
+      "name": "expeditions_order_id_unique",
+      "version": "20260817143337",
+      "elements": 1,
+      "array_text_md5": "53a9aaa90b5be9af808b510661246934",
+      "payload_sha256": "fff26a86c45898c3690ead64b72dae431827aac08cf23298e2ca17782e9c99bd"
+    },
+    {
+      "name": "cmr_canonical_model_rls_and_hardening",
+      "version": "20260817212235",
+      "elements": 1,
+      "array_text_md5": "401f270aa69468601af2e40626a9f963",
+      "payload_sha256": "e5f3c9b914ed09c1ec015445e7ff0681ae0f42425df68abbd181d1cd0cba595d"
+    },
+    {
+      "name": "restore_order_expedition_1to1",
+      "version": "20260818145812",
+      "elements": 1,
+      "array_text_md5": "bfe324456dad0a43cc159dca2f63f208",
+      "payload_sha256": "86f3f53b0e22710901326c8b06f70b83592e6df790a373ba2b3afdfcc26ab5fc"
+    },
+    {
+      "name": "harden_tenant_access_function",
+      "version": "20260819092059",
+      "elements": 1,
+      "array_text_md5": "3aef9dd12a9964ac8c969ff6be447c73",
+      "payload_sha256": "f1b725181592ccb8fd9e53dd382d0a83867b925969e0f71701dfe2bd02bd8815"
+    },
+    {
+      "name": "restrict_tenant_members_writes",
+      "version": "20260819092309",
+      "elements": 1,
+      "array_text_md5": "76dea91e7baa8d2c5be0b0e44018cbc9",
+      "payload_sha256": "9386726294cef13e70b0757a0e02c4615fe94c526fe5535d860c191d26e21441"
+    },
+    {
+      "name": "add_cmr_access_key_lifecycle",
+      "version": "20260819122543",
+      "elements": 1,
+      "array_text_md5": "574c15e55802edeb4ad44014c1d97023",
+      "payload_sha256": "528cd8d623dcbd42ee4a213e572be764a901a10cc17bad776ddde8d2902b6c10"
+    },
+    {
+      "name": "review_access_token_registry",
+      "version": "20260819122954",
+      "elements": 1,
+      "array_text_md5": "d0e5da1fc772385b38393b9e4adce57b",
+      "payload_sha256": "edde985ddb830d0e2b3bae7f7518c0de61beba858c4ec1d36ed350002fa0b64f"
+    },
+    {
+      "name": "harden_review_token_rpc",
+      "version": "20260819123105",
+      "elements": 1,
+      "array_text_md5": "f331362b0cec41a06d80d35d0678512b",
+      "payload_sha256": "d937a4d4c8ebb1cd42a47aa0bf8482cbb01276ec6955dde8cc6655e0f947c552"
+    },
+    {
+      "name": "cmr_view_sessions",
+      "version": "20260819125158",
+      "elements": 1,
+      "array_text_md5": "cf84c3f9dc82c00d0828c469c8d76f5b",
+      "payload_sha256": "69746118d6e081d4c8c8725b2c4e962cd601a9c9e507c349ad22b384b02e4bdc"
+    },
+    {
+      "name": "mobile_trip_access",
+      "version": "20260819160358",
+      "elements": 1,
+      "array_text_md5": "c5ee294a24a052e5354fb03afdf6a959",
+      "payload_sha256": "26cbf1fdef63e38131420e5253bbbe4ec8cc8d6038e262ab7e2ce661b397fcc1"
+    },
+    {
+      "name": "enable_private_review_access_tokens_rls",
+      "version": "20260821181033",
+      "elements": 1,
+      "array_text_md5": "2aec1c34b5a79a3ed6ebe895007b26d7",
+      "payload_sha256": "6508f8861208128c40fcfab53922686ef7b33cfb825dede2ff437f5f2e77c785"
+    },
+    {
+      "name": "adr_classification_foundation",
+      "version": "20260822231141",
+      "elements": 1,
+      "array_text_md5": "9579cf8845674a9eb607712fbfde43d9",
+      "payload_sha256": "b74d144d5b75d72a034ebca9dd3ccbc4fb4a5fc1d1b8ab387405712d0c8a249b"
+    },
+    {
+      "name": "adr_foundation_indexes",
+      "version": "20260822231258",
+      "elements": 1,
+      "array_text_md5": "3c2fe4a83a96e87bd4cea3e78f4990fb",
+      "payload_sha256": "487e657a8d22cd7511f48bb84a010d5d56483c1dab6641fee40cbb1bc413102a"
+    },
+    {
+      "name": "shared_party_addresses",
+      "version": "20260823140914",
+      "elements": 1,
+      "array_text_md5": "ff65be60321ab41479a12a5db5aa5a5c",
+      "payload_sha256": "2627cde0edc5b1eb5966c14d6885a9e5c0ecee4de65235ec9449d8bd52ef10b3"
+    },
+    {
+      "name": "shared_party_address_indexes",
+      "version": "20260823140952",
+      "elements": 1,
+      "array_text_md5": "1ac8a2d6802eca3c3fe4df2afd5fc3dc",
+      "payload_sha256": "45a803bbcdb0408339906e09303bb55d777c05a168e81a78ad5c9a93bfdd1162"
+    },
+    {
+      "name": "remove_legacy_route_service",
+      "version": "20260824223616",
+      "elements": 1,
+      "array_text_md5": "ac53aa36df9a12b63b152587357e37d2",
+      "payload_sha256": "fc4f85c71344f405c2d590b0e62fddc1999f085f531c96c9d8289d2d09716e2e"
+    },
+    {
+      "name": "address_subdivision_key",
+      "version": "20260825125419",
+      "elements": 1,
+      "array_text_md5": "ab2911f8c82e7800889fdcbe55134621",
+      "payload_sha256": "57825d2e154d650a13d4b6bdf50e501c3c6427851dc16e6100ac1e5fc0fac69a"
+    },
+    {
+      "name": "allow_party_review_status",
+      "version": "20260825142459",
+      "elements": 1,
+      "array_text_md5": "2e3cd64fafb2f5cd3ec62508b96d7e58",
+      "payload_sha256": "814791ad40dbc0bb278d203ae8a45315170187b4624578ee0c568b58054c2980"
+    },
+    {
+      "name": "customer_master_foundation",
+      "version": "20260825184549",
+      "elements": 1,
+      "array_text_md5": "f1639892b44fc6bbdd6445e730babf84",
+      "payload_sha256": "7330515f1a97374359690f03d2460e3388b6076ab54a7d253adef92ec2b1c5e2"
+    },
+    {
+      "name": "tariff_engine_foundation",
+      "version": "20260827144018",
+      "elements": 1,
+      "array_text_md5": "1d7541fcdc32d8c8e79793e2ca02005f",
+      "payload_sha256": "48ca3b11625d2685fb22fd950a8bf8367d510535e7f93092dbbe07ee75998617"
+    },
+    {
+      "name": "platform_telemetry",
+      "version": "20260901173359",
+      "elements": 1,
+      "array_text_md5": "7b0771d2197783abb4f0a2f0ebd53ae8",
+      "payload_sha256": "d3daff3c01ea742d633c73bd9ea90e6934d757e644151a5a89c20f8275a0632f"
+    },
+    {
+      "name": "t1_append_only_events",
+      "version": "20260903002354",
+      "elements": 1,
+      "array_text_md5": "227c861be04d15e682cfd7039fea1d2d",
+      "payload_sha256": "651cd54f62935527517336d1411a95ae00a515cd0a8457aa2cb124187cfebf90"
+    },
+    {
+      "name": "deca_regulatory_document_foundation",
+      "version": "20260903051911",
+      "elements": 1,
+      "array_text_md5": "758c388c75cbae02f9b1eafcdd79939e",
+      "payload_sha256": "18eabc68f37dea27782c2a14b4798178e03c84a44b22d80fd7433ad5e178d8ea"
+    },
+    {
+      "name": "deca_regulatory_storage",
+      "version": "20260905051522",
+      "elements": 1,
+      "array_text_md5": "a64b9bace6e8ac48b6e80e690ddc392a",
+      "payload_sha256": "d1b82c30511780a497868b376bdfbdd12be2be222b3bf8e2efdde4bf7d665ff7"
+    },
+    {
+      "name": "deca_public_url_lifecycle",
+      "version": "20260907153004",
+      "elements": 1,
+      "array_text_md5": "6cac151eadb6bf6a0bf88f35d30d754a",
+      "payload_sha256": "df7563dd0f36b27874308480853911f77cd5894a99dfcba06acfcba924df4be6"
+    },
+    {
+      "name": "deca_native_atomic_issuance",
+      "version": "20260907182639",
+      "elements": 1,
+      "array_text_md5": "211ddf67bb564a871d23e0f7bcdc3293",
+      "payload_sha256": "84c8d442c00288401857e75904ed0f0174f714c7ecf1a6eaceb0b6c6be946219"
+    },
+    {
+      "name": "canonical_fiscal_address",
+      "version": "20260910094055",
+      "elements": 1,
+      "array_text_md5": "9d5f411475a39f68d466aa45f81c3572",
+      "payload_sha256": "1c818d3e63388a15a45e6c12f485dff1b928bbc4dee2ea9030dede2506aed6ad"
+    },
+    {
+      "name": "master_data_foundation",
+      "version": "20261002224934",
+      "elements": 1,
+      "array_text_md5": "5394afa8545e4ead464b7e58f772e8df",
+      "payload_sha256": "eabdf953074cd8012665721ed790dc722958ce86b574fb3c7198c3879d3310e6"
+    },
+    {
+      "name": "harden_movement_duration_execute",
+      "version": "20261002225056",
+      "elements": 1,
+      "array_text_md5": "927c81d40726ed5231b4a04e322e19d0",
+      "payload_sha256": "2ca4bc638544145a98febd2eacf6c053542f12484a9b1fb3978f1caf86701f8e"
+    },
+    {
+      "name": "products_tenant_scoped_references",
+      "version": "20261007170430",
+      "elements": 1,
+      "array_text_md5": "a51d6ae01d31c891900cbf8111e3cda7",
+      "payload_sha256": "8a43ff423911493e0dae01a73ee1871562d503e3a011f086bb22acab61578a6e"
+    },
+    {
+      "name": "traceability_lookup_indexes",
+      "version": "20261009061517",
+      "elements": 1,
+      "array_text_md5": "c6d106529a2b2612dd0574c0a1b1969a",
+      "payload_sha256": "6c4e8684abf4f255effac48b641f794405b630b030cfd12f143abde1e826a80a"
+    },
+    {
+      "name": "muelles_v1_core",
+      "version": "20261014090324",
+      "elements": 1,
+      "array_text_md5": "8d79db3ec79ca736166c25ff5de8dba0",
+      "payload_sha256": "c137c91f963c37af619a11574bb2ecc51c8b0fe52dfcdf6040ea71b1df7179f7"
+    },
+    {
+      "name": "muelles_v1_portal",
+      "version": "20261014094551",
+      "elements": 1,
+      "array_text_md5": "19fbc5f86c3724ad3e7a04d19561a6d3",
+      "payload_sha256": "5fc3898e7a70a63ee2cd6b86e0c8c07cb513956a58d2068d57176f02d0f20da4"
+    },
+    {
+      "name": "muelles_calendar_normalization",
+      "version": "20261014103035",
+      "elements": 1,
+      "array_text_md5": "838d0f2a4f03048f48e8ba972332d809",
+      "payload_sha256": "7cad914b5a5848257fbbe2824c5b1d953b8fb469a9290fb3a538a9ec705fce97"
+    },
+    {
+      "name": "wms_e1_core",
+      "version": "20261017110000",
+      "elements": 1,
+      "array_text_md5": "f640e2197b2ff225a4c7491a8cc7924f",
+      "payload_sha256": "0c5c3b84de3367771707ce747b88000bf22d172b4235a874752afcde9f741269"
+    },
+    {
+      "name": "wms_c3_server_load_controls",
+      "version": "20261019120000",
+      "elements": 1,
+      "array_text_md5": "6123a3758f0e5717b4ccaf92309346fb",
+      "payload_sha256": "e0c40eed4f88cbc5756e0d9b70c5523748c0e9270059ac54ebe5800c5b21bdda"
+    }
+  ]
+}

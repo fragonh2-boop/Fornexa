@@ -12,6 +12,14 @@ const host = 'aws-0-eu-central-1.pooler.supabase.com';
 const url = `postgresql://postgres.gqkjqhpmyejmehbuombk:synthetic-test-password@${host}:5432/postgres`;
 
 test('Audit pg client retains verified TLS after URL parsing and rejects downgrade modes', () => {
+  const previous = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+  try {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+    assert.throws(() => createAuditClient(url), /refuses a global TLS verification bypass/);
+  } finally {
+    if (previous === undefined) delete process.env.NODE_TLS_REJECT_UNAUTHORIZED;
+    else process.env.NODE_TLS_REJECT_UNAUTHORIZED = previous;
+  }
   for (const suffix of ['', '?sslmode=require', '?sslmode=verify-ca', '?sslmode=verify-full', '?SSLMODE=require']) {
     const client = createAuditClient(url + suffix);
     assert.equal(client.connectionParameters.ssl.rejectUnauthorized, true);

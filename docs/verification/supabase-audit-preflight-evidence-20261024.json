@@ -1,0 +1,149 @@
+{
+  "captured_at": "2026-10-24T18:46:52.847Z",
+  "executor": "scripts/audit/run-supabase-audit-readonly.ts",
+  "transaction_mode": "READ ONLY",
+  "mismatched_rows": {
+    "customs_messages": 0,
+    "customs_events": 0
+  },
+  "customs_messages_metrics": [
+    {
+      "message_tenant_id": "00000000-0000-4000-8000-000000000001",
+      "case_tenant_id": "00000000-0000-4000-8000-000000000001",
+      "total_rows": "150",
+      "min_created_at": "2026-09-17T18:04:12.000Z",
+      "max_created_at": "2026-10-13T22:21:41.000Z"
+    }
+  ],
+  "customs_events_metrics": [
+    {
+      "event_tenant_id": "00000000-0000-4000-8000-000000000001",
+      "case_tenant_id": "00000000-0000-4000-8000-000000000001",
+      "total_rows": "150",
+      "min_created_at": "2026-09-17T18:04:12.000Z",
+      "max_created_at": "2026-10-13T22:21:41.000Z"
+    }
+  ],
+  "customs_cases_metrics": [
+    {
+      "tenant_id": "00000000-0000-4000-8000-000000000001",
+      "total_rows": "150",
+      "min_created_at": "2026-09-17T18:04:12.000Z",
+      "max_created_at": "2026-10-13T22:21:41.000Z"
+    }
+  ],
+  "columns": [
+    {
+      "table_name": "customs_cases",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": "'00000000-0000-4000-8000-000000000001'::uuid"
+    },
+    {
+      "table_name": "customs_events",
+      "column_name": "actor_id",
+      "data_type": "uuid",
+      "is_nullable": "YES",
+      "column_default": null
+    },
+    {
+      "table_name": "customs_events",
+      "column_name": "case_id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "customs_events",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": "'00000000-0000-4000-8000-000000000001'::uuid"
+    },
+    {
+      "table_name": "customs_messages",
+      "column_name": "case_id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": null
+    },
+    {
+      "table_name": "customs_messages",
+      "column_name": "tenant_id",
+      "data_type": "uuid",
+      "is_nullable": "NO",
+      "column_default": "'00000000-0000-4000-8000-000000000001'::uuid"
+    }
+  ],
+  "constraints": [
+    {
+      "table_name": "customs_events",
+      "constraint_name": "customs_events_actor_id_fkey",
+      "constraint_type": "f",
+      "definition": "FOREIGN KEY (actor_id) REFERENCES auth.users(id) ON DELETE SET NULL"
+    },
+    {
+      "table_name": "customs_events",
+      "constraint_name": "customs_events_case_id_fkey",
+      "constraint_type": "f",
+      "definition": "FOREIGN KEY (case_id) REFERENCES customs_cases(id) ON DELETE CASCADE"
+    },
+    {
+      "table_name": "customs_events",
+      "constraint_name": "customs_events_pkey",
+      "constraint_type": "p",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "customs_events",
+      "constraint_name": "customs_events_tenant_id_fkey",
+      "constraint_type": "f",
+      "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE RESTRICT"
+    },
+    {
+      "table_name": "customs_messages",
+      "constraint_name": "customs_messages_case_id_fkey",
+      "constraint_type": "f",
+      "definition": "FOREIGN KEY (case_id) REFERENCES customs_cases(id) ON DELETE CASCADE"
+    },
+    {
+      "table_name": "customs_messages",
+      "constraint_name": "customs_messages_direction_check",
+      "constraint_type": "c",
+      "definition": "CHECK ((direction = ANY (ARRAY['outbound'::text, 'inbound'::text])))"
+    },
+    {
+      "table_name": "customs_messages",
+      "constraint_name": "customs_messages_pkey",
+      "constraint_type": "p",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "customs_messages",
+      "constraint_name": "customs_messages_tenant_id_fkey",
+      "constraint_type": "f",
+      "definition": "FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE RESTRICT"
+    }
+  ],
+  "policies": [
+    {
+      "tablename": "customs_events",
+      "policyname": "tenant_isolation",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "fornexa_has_tenant_access(tenant_id)",
+      "with_check": "fornexa_has_tenant_access(tenant_id)"
+    },
+    {
+      "tablename": "customs_messages",
+      "policyname": "tenant_isolation",
+      "permissive": "PERMISSIVE",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "fornexa_has_tenant_access(tenant_id)",
+      "with_check": "fornexa_has_tenant_access(tenant_id)"
+    }
+  ]
+}
