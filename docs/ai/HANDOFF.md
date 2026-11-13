@@ -2,6 +2,14 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-11-12 — Contingencia E2: reconciliados los dos paquetes G; base PR #151
+
+- La rama de #145 recibió el 05-nov cinco commits directos (hasta `2e0249e3`) con una segunda reescritura, incompatible, de los mismos ficheros que PR #151 (rollback, arnés, tests, `ci.yml`). Decisión de Fran (12-nov, en sesión): prevalece el paquete de PR #151.
+- Motivo, verificado por Claude: la variante de la rama archivaba en `public` mediante `create table as` (sin RLS y con los privilegios por defecto de `public` para `anon`/`authenticated`), solo archivaba propuestas EXECUTED y solo bajo override, no archivaba el vínculo tarea→propuesta, dejaba las cinco RPC solo-E2 sin retirar, y su arnés solo recorría el camino limpio (el verde no probaba las guardas G3/G4).
+- Reconciliación: merge de `chore/supabase-preview-baseline-fix` en `fix/e2-harness-guard-g5` conservando rollback, arnés y tests de #151 y un único token (`FORNEXA_DISPOSABLE_DB_CONFIRM`). De la variante de la rama se porta su tercera capa G5: el bloque que elimina los esquemas vuelve a comprobar `current_database()` en el servidor (solo en socket real; sin excepción por nombre «pglite»). Se retira de `ci.yml` la variable `CONFIRM_DISPOSABLE_RUN`, que ya no lee ningún script.
+- Verificación local: tests de contingencia 9/9; guarda SQL ejecutada en PostgreSQL 16 desechable (rechaza en `postgres`, pasa en `fornexa_e2_test`). Tipos, lint, build y PG17 NO ejecutados localmente (registro npm inalcanzable): los certifica la CI de la PR.
+- Sin escritura cloud, merge a `main`, despliegue ni migración. Producción sigue en `c948368`.
+
 ## 2026-11-05 — Paquete de contingencia E2: MUST-G1..G5 cerrados y causa del rojo de verify-e2-pg17
 
 - Decisión de Fran (05-nov): no fusionar #145 tal como está; nueva estrategia sin riesgo para producción (anunciada en #fornexa): 1) cerrar G1–G5 y dejar CI verde; 2) partir #145 y llevar el runtime E2 detrás de un interruptor apagado; 3) ensayar E2 en un Supabase de pruebas; 4) apply productivo solo con copia previa y migraciones aditivas; 5) encender al final.

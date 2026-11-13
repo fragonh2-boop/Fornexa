@@ -4,6 +4,11 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-11-12 — Contingencia E2: paquetes G reconciliados sobre PR #151
+
+- PR #151 incorpora ya la rama de #145 (`2e0249e3`) con los conflictos resueltos a favor de su rollback, arnés y tests, más la tercera capa G5 en servidor. Pendiente: CI propia en PG17 sobre el HEAD nuevo y fusión en la rama de #145 (decisión de Fran).
+- Sigue abierto en ambos paquetes: con palés del mismo lote partidos por HU el rollback se niega (correcto) pero no ofrece vía de vuelta; y el cuerpo C3 de `fornexa_wms_action` no se restaura si la RPC E2 llegó a aplicarse.
+
 ### 2026-11-05 — Contingencia E2: G1..G5 cerrados en PR contra #145; nueva estrategia de entrada
 
 - PR desde `fix/e2-harness-guard-g5` hacia `chore/supabase-preview-baseline-fix`: guarda MUST-G5, rollback G1..G4, correcciones del seed y del arnés que causaban el rojo de `verify-e2-pg17`. Pendiente: CI propia en PG17 y revisión independiente antes de integrarla en #145.

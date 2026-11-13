@@ -171,3 +171,35 @@ test("MUST-G5: harness refuses when the server is not a disposable database, bef
     process.env = saved;
   }
 });
+
+test("MUST-G5: the statement that drops schemas carries its own server-side guard", async () => {
+  const saved = { ...process.env };
+  try {
+    process.env.PGHOST = "127.0.0.1";
+    process.env.PGDATABASE = "fornexa_e2_test";
+    delete process.env.REQUIRE_PG17;
+    let dropSql = "";
+    class Client {
+      async connect() {}
+      async end() {}
+      async query(sql: string) {
+        if (/drop schema/i.test(sql)) {
+          dropSql = sql;
+          throw new Error("STOP_AT_DROP");
+        }
+        if (/current_database\(\)/.test(sql)) return { rows: [{ db: "fornexa_e2_test" }] };
+        return { rows: [{ version: "PostgreSQL 17.0 (fake)" }] };
+      }
+    }
+    await assert.rejects(
+      runContingencyHarness({ useRealPostgres: true, pgDriver: { Client }, env: CONFIRMED }),
+      /STOP_AT_DROP/,
+    );
+    const guardAt = dropSql.search(/if current_database\(\) not in \('fornexa_e2_test', 'fornexa_apply_test', 'fornexa_test'\) then\s+raise exception/);
+    const loopAt = dropSql.search(/execute format\('drop schema/);
+    assert.ok(guardAt >= 0, "the drop block must re-check current_database() and raise");
+    assert.ok(guardAt < loopAt, "the guard must run before the drop loop, inside the same statement");
+  } finally {
+    process.env = saved;
+  }
+});

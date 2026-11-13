@@ -217,10 +217,19 @@ export async function runContingencyHarness(options = {}) {
   }
 
   console.log("[E2 Contingency] 1. Initializing platform schemas and roles...");
+  // Third layer (MUST-G5): on a real server, the very block that drops the schemas re-checks
+  // current_database() itself, so the destructive statement can never run detached from its guard.
+  // PGlite is an in-process sandbox with nothing to protect, so the check applies to sockets only.
+  const serverSideDropGuard = clientType === "pg-socket"
+    ? `if current_database() not in (${DISPOSABLE_DATABASES.map((d) => `'${d}'`).join(", ")}) then
+        raise exception '[SECURITY_FATAL MUST-G5] Refusing schema reset on non-disposable database %', current_database();
+      end if;`
+    : "";
   await runSql(`
     do $$
     declare s text;
     begin
+      ${serverSideDropGuard}
       for s in (
         select schema_name
         from information_schema.schemata
