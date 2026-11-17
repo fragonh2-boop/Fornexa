@@ -12,6 +12,13 @@ mock.module(new URL("../lib/auth-context.ts", import.meta.url).href, {
 mock.module(new URL("../lib/supabase-admin.ts", import.meta.url).href, {
   namedExports: { createSupabaseAdmin: () => currentRpc },
 });
+let loadedE2: boolean | undefined;
+mock.module(new URL("../lib/wms-loader.ts", import.meta.url).href, {
+  namedExports: { loadWmsData: async (_tenant: string, _warehouse: string | undefined, options: { includeE2: boolean }) => {
+    loadedE2 = options.includeE2;
+    return { warehouses: [], proposals: [], replenishmentRules: [] };
+  } },
+});
 const { POST, GET } = await import("../app/api/wms/route.ts");
 beforeEach(() => {
   currentAuth = null;
@@ -416,4 +423,51 @@ test("M7 C-3 route ignores caller-supplied identity and RPC context", async () =
   assert.equal(post.status, 401);
   assert.equal(get.status, 401);
   assert.equal(forgedRpcCalled, false);
+});
+
+test("E2 rollout defaults off, blocks direct proposal mutations before RPC and preserves C3", async () => {
+  const previous = process.env.FORNEXA_WMS_E2_ENABLED;
+  try {
+    delete process.env.FORNEXA_WMS_E2_ENABLED;
+    let calls = 0;
+    const rpcClient = { rpc: async () => { calls++; return { data: { ok: true }, error: null }; } };
+    for (const action of ["EVALUATE_REPLENISHMENT", "APPROVE_PROPOSAL", "REJECT_PROPOSAL", "CANCEL_PROPOSAL", "REPLENISH"]) {
+      const res = await postAs(createPostRequest({ action, payload: { proposal_id: "proposal" } }), {
+        auth: { ...OPERATOR_AUTH, role: "OWNER" }, rpcClient,
+      });
+      assert.equal(res.status, 409, action);
+      assert.equal((await res.json()).code, "WMS_E2_DISABLED");
+    }
+    assert.equal(calls, 0);
+    const c3 = await postAs(createPostRequest({ action: "REPLENISH", payload: { task_id: "task" } }), { auth: OPERATOR_AUTH, rpcClient });
+    assert.equal(c3.status, 200);
+    assert.equal(calls, 1);
+    const plannedC3 = await postAs(createPostRequest({ action: "REPLENISH", payload: { task_id: "task" } }), { auth: PLANNER_AUTH, rpcClient });
+    assert.equal(plannedC3.status, 200);
+    assert.equal(calls, 2);
+    process.env.FORNEXA_WMS_E2_ENABLED = "true";
+    const e2 = await postAs(createPostRequest({ action: "REPLENISH", payload: { proposal_id: "proposal" } }), { auth: OPERATOR_AUTH, rpcClient });
+    assert.equal(e2.status, 200);
+    assert.equal(calls, 3);
+  } finally {
+    if (previous === undefined) delete process.env.FORNEXA_WMS_E2_ENABLED;
+    else process.env.FORNEXA_WMS_E2_ENABLED = previous;
+  }
+});
+
+test("GET derives E2 capability from the server switch and passes it to the loader", async () => {
+  const previous = process.env.FORNEXA_WMS_E2_ENABLED;
+  try {
+    currentAuth = OPERATOR_AUTH;
+    for (const enabled of [false, true]) {
+      process.env.FORNEXA_WMS_E2_ENABLED = String(enabled);
+      const res = await GET(new Request("https://localhost/api/wms?e2Enabled=true"));
+      assert.equal(res.status, 200);
+      assert.equal((await res.json()).e2Enabled, enabled);
+      assert.equal(loadedE2, enabled);
+    }
+  } finally {
+    if (previous === undefined) delete process.env.FORNEXA_WMS_E2_ENABLED;
+    else process.env.FORNEXA_WMS_E2_ENABLED = previous;
+  }
 });

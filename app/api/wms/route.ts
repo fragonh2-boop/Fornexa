@@ -1,3 +1,4 @@
+import { isWmsE2Enabled, isWmsE2Action } from "../../../lib/wms-e2-rollout.ts";
 import { NextResponse } from "next/server.js";
 import { getAuthenticatedContext } from "../../../lib/auth-context.ts";
 import { createSupabaseAdmin } from "../../../lib/supabase-admin.ts";
@@ -25,9 +26,10 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const warehouseId = url.searchParams.get("warehouse_id") || undefined;
-    const data = await loadWmsData(auth.tenantId, warehouseId);
+    const data = await loadWmsData(auth.tenantId, warehouseId, { includeE2: isWmsE2Enabled() });
     return response({
       ...data,
+      e2Enabled: isWmsE2Enabled(),
       canEdit: EDIT_ROLES.has(auth.role),
       canConfigure: CONFIG_ROLES.has(auth.role),
     });
@@ -78,10 +80,14 @@ export async function POST(request: Request) {
       );
     }
     const action = rawAction as WmsAction;
-    if (
-      (action === "UPSERT_POLICY" || action === "UPSERT_RESOURCE") &&
-      !CONFIG_ROLES.has(auth.role)
-    ) {
+    const isConfigOrPlanning =
+      action === "UPSERT_POLICY" ||
+      action === "UPSERT_RESOURCE" ||
+      action === "EVALUATE_REPLENISHMENT" ||
+      action === "APPROVE_PROPOSAL" ||
+      action === "REJECT_PROPOSAL" ||
+      action === "CANCEL_PROPOSAL";
+    if (isConfigOrPlanning && !CONFIG_ROLES.has(auth.role)) {
       return response(
         {
           error: "WMS_FORBIDDEN: Se requiere rol de planificación o administración.",
@@ -91,8 +97,23 @@ export async function POST(request: Request) {
       );
     }
 
+    const EXEC_ROLES = new Set(["OWNER", "ADMIN", "OPERATOR"]);
+    if (action === "REPLENISH" && "proposal_id" in (body.payload as Record<string, unknown>) && !EXEC_ROLES.has(auth.role)) {
+      return response(
+        {
+          error: "WMS_FORBIDDEN: Se requiere rol de operario o administración.",
+          code: "WMS_FORBIDDEN",
+        },
+        403,
+      );
+    }
+
     // Shape and authority fields have already passed the shared validator.
     const payload = body.payload as Record<string, unknown>;
+
+    if (!isWmsE2Enabled() && isWmsE2Action(action, payload)) {
+      return response({ error: "La reposición automática todavía no está disponible.", code: "WMS_E2_DISABLED" }, 409);
+    }
 
     const idempotencyKey =
       typeof body.idempotency_key === "string" && body.idempotency_key.trim().length > 0
@@ -113,6 +134,15 @@ export async function POST(request: Request) {
       return response(
         { error: failure.error, code: failure.code },
         failure.status,
+      );
+    }
+
+    if (result.data && typeof result.data === "object" && (result.data as any).ok === false) {
+      const errCode = (result.data as any).error ?? "WMS_REPLENISHMENT_FAILED";
+      const failure = wmsRpcFailure({ message: errCode, code: errCode });
+      return response(
+        { error: failure.error, code: failure.code, details: result.data },
+        failure.status >= 400 ? failure.status : 409,
       );
     }
 
