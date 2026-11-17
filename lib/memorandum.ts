@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "18 nov 2026";
-export const memorandumCommitCoverage = 736;
+export const memorandumCommitCoverage = 737;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -32,7 +32,7 @@ export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
     title: "Verificación y publicación de evidencias de auditoría",
-    summary: "El ejecutor de auditoría revisado está integrado en la rama principal, con comprobaciones de conexión y publicación de evidencias. El refuerzo del aislamiento de los ensayos de recuperación sigue su validación para integrarse. La captura oficial todavía no se ha ejecutado; la integración del conjunto de Almacenes sigue su validación independiente.",
+    summary: "El ejecutor de auditoría revisado está integrado en la rama principal, con comprobaciones de conexión y publicación de evidencias. El refuerzo del aislamiento de los ensayos de recuperación ha superado la revisión local y dos ejecuciones en PostgreSQL desechable; sigue pendiente de integración. Su publicación de pruebas se prepara con los despliegues automáticos de esa rama desactivados. La captura oficial todavía no se ha ejecutado; la integración del conjunto de Almacenes sigue su validación independiente.",
     priority: "Ahora",
     state: "En seguimiento",
   },

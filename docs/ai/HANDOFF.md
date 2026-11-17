@@ -2,6 +2,12 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-11-18 — PG17 local y preparación de CI sin preview
+
+- La revisión independiente de `314532d835cd2e1124d6d701b7ec05e9534c7a37` cerró el MUST y SHOULD anteriores: cero hallazgos abiertos en ese delta. El arnés real pasó dos veces en PostgreSQL17.12 temporal del Mac, con14 migraciones y recibos equivalentes salvo timestamp. Ajustes heredados de redirección y un archivo de inicio de psql adversos quedaron sin efecto. Clúster limitado a loopback, detenido y eliminado. Esto no acredita rollback E2, captura cloud ni CI.
+- Codex añade únicamente la exclusión Git de Vercel para `fix/wms-orphan-guard-local-20261117` en la raíz del repositorio. Los otros refs conservan su comportamiento. Las raíces de ambos proyectos Vercel son `./`, verificadas en los paneles por Fran; Supabase tiene directorio `.`, producción solo desde `main` y branching automático no disponible en la organización Free según la lectura autenticada del17-nov. No se cambian ajustes de los servicios.
+- Destino previsto de la PR: `chore/supabase-preview-baseline-fix` (#145), HEAD comprobado `cc3dfec37e164612238bd395616d061f341cefcf`, base/main `2941a800735adc78af45340cd1931847ee91e829`. El workflow existente se activa por PR y conserva todos sus jobs y recibos. Pendiente revisión independiente del nuevo commit antes del primer push y CI del SHA publicado. #145 continúa borrador y no se fusiona a main ni se aplica E2.
+
 
 
 ## 2026-11-18 — Destino efectivo del arnés de recuperación

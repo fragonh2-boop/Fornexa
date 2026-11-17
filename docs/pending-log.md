@@ -2,6 +2,12 @@
 
 Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Supabase, Vercel y Slack antes de actuar. El historial detallado anterior permanece en Git; este archivo prioriza el estado operativo vigente.
 
+## 2026-11-18 — Guardas: ensayo PG17 cerrado, publicación de CI pendiente
+
+- La corrección local `314532d` tiene revisión independiente favorable, cero MUST/SHOULD, web460/460 y ensayo real PG17.12 repetido:14 migraciones por ejecución con aislamiento de tenant y mismo postestado. Clúster temporal detenido y eliminado; producción no intervenida.
+- Se prepara la exclusión Vercel de `fix/wms-orphan-guard-local-20261117` para publicar una PR de CI hacia #145 conservando workflows y recibos. Pendientes dictamen del commit completo, publicación y CI exacta; no se considera DONE ni desplegado. No fusionar #145 ni ejecutar migraciones cloud por este resultado.
+- Recuperación/rollback E2, restauración C3, captura certificada, rol/atomicidad, DATA150-WMS y E2E autenticado conservan sus propios gates.
+
 
 
 
