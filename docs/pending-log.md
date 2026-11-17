@@ -4,6 +4,15 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 
 
+
+## 2026-11-17 — Cierre de separación y despliegue apagado
+
+- #152 fusionada en main `2941a800735adc78af45340cd1931847ee91e829`. CI PR44078515402 y main44079078596 SUCCESS:412/412 web,39/39 C3, tipos/lint/build/Mobile y ensayo PG17.
+- Producción canónica READY en ese SHA y alias fornexasc.com comprobado. Smoke: Memorandum200 con nota de entrada por fases; API WMS401 sin sesión; ruta de reposiciones exige login. Logs del despliegue15min: ningún error/fatal encontrado. Esto no certifica el recorrido autenticado de operador.
+- Lectura Supabase posterior: ledger42, última20261019120000, tablas E2 ausentes. Sin SQL remoto de escritura ni activación E2. El interruptor de servidor no está configurado en Vercel y queda apagado por defecto.
+- #153 fusionada exclusivamente en esta candidata como `a203bb0`; árbol9754c4f idéntico al fuente `eeed595` probado por CI44079421038 SUCCESS:457/457 web,39/39 C3, verify-e2-pg17/rehearse-c3-apply-pg17, tipos/lint/build/Mobile. Preview canónica del fuente READY. Conflictos resueltos preservando runtime idéntico a main.
+- Bloqueos para continuar la fase de datos: elección de organización para el Supabase de pruebas (pregunta obligatoria del conector enviada a Fran); acceso interactivo al Mac para renovar el token del revisor (no hay herramienta de control Mac en esta sesión). Recuperación de HUs incompatibles y restauración C3 exacta siguen pendientes antes de activar; el rollback actual aborta antes de alterar stock ante colisiones. #145 permanece DRAFT; no aplicar E2 ni fabricar sesión operativa.
+
 ## 2026-11-17 — Reconciliación de candidata tras separar runtime
 
 - #152 fusionada en main2941a80 tras CI44078515402 SUCCESS y Preview exacta READY. E2 continúa apagado; no SQL remoto.
