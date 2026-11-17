@@ -18,10 +18,17 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "30 oct 2026";
-export const memorandumCommitCoverage = 681;
+export const memorandumUpdatedAt = "17 nov 2026";
+export const memorandumCommitCoverage = 682;
 
 export const memorandumPending: MemorandumPending[] = [
+  {
+    area: "Funcional",
+    title: "Reposición automática — entrada por fases",
+    summary: "La interfaz y las operaciones de reposición automática se preparan apagadas por defecto. Su activación queda pendiente del ensayo aislado, la verificación de base de datos y la comprobación funcional. Las operaciones actuales de almacén conservan su disponibilidad.",
+    priority: "Ahora",
+    state: "En seguimiento",
+  },
   {
     area: "Técnico",
     title: "Verificación y publicación de evidencias de auditoría",

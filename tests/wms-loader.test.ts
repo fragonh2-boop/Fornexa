@@ -86,3 +86,11 @@ test("WMS loader keeps tenant filters and loaded stock across all queries", asyn
   assert.equal(queries.length, 16);
   for (const query of queries) assert.ok(query.filters.some(([key, value]) => key === "tenant_id" && value === tenant), query.table);
 });
+
+test("disabled E2 does not query tables absent from the production schema", async () => {
+  const data = await loadWmsData(tenant, undefined, { includeE2: false });
+  assert.equal(data.schemaReady, true);
+  assert.deepEqual(data.proposals, []);
+  assert.deepEqual(data.replenishmentRules, []);
+  assert.ok(!queries.some(({ table }) => ["replenishment_rules", "wms_proposals"].includes(table)));
+});
