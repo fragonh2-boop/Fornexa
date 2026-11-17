@@ -8,9 +8,10 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 - Evidencia fresca: #151 fusionada en #145 el 13-nov (`e0ae443`); CI635 SUCCESS. #145 sigue draft. Main `c948368`.
 - Lectura Supabase: ledger42, última versión20261019120000; `wms_proposals` y `replenishment_rules` ausentes. Sin escritura remota.
 - Rama `codex/wms-e2-runtime-gated`, basada en main: extrae exclusivamente runtime web de #145 con interruptor de servidor apagado por defecto. API omite consultas E2 y rechaza acciones de propuestas antes de RPC; C3 REPLENISH por tarea se conserva. UI oculta la pestaña y la ruta directa devuelve404 mientras está apagado.
+- Se porta de la candidata la retirada ya revisada de caché pnpm en setup-node: el primer run volvió a quedarse en restauración de caché; comandos, frozen-lockfile y verificaciones se conservan.
 - No incluye migraciones, cambios de ledger, carga ni activación E2. La candidata #145 conserva SQL/ensayos y debe reconciliarse después de esta separación.
 - Pendiente: ensayo en Supabase de pruebas, copia previa y verificación DB antes de activar; recuperación con HUs incompatibles y restauración C3 exacta aún abiertas. Creación del proyecto de pruebas pendiente de organización elegida por Fran (requisito del conector).
-- Validación local: suite web412/412; focales API/loader/interruptor23/23; tipos PASS y lint sin errores (10 avisos). Build y CI/Preview del HEAD final pendientes; no declarar entrega productiva hasta verificarlos.
+- Validación local: suite web412/412; focales API/loader/interruptor23/23; tipos PASS y lint sin errores (10 avisos). Build PASS. CI/Preview del HEAD final pendientes; no declarar entrega productiva hasta verificarlos.
 
 ## 2026-10-30 — #150: candidata de subsanación tras nuevo dictamen Claude
 
