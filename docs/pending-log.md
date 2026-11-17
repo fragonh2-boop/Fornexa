@@ -2,6 +2,24 @@
 
 Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Supabase, Vercel y Slack antes de actuar. El historial detallado anterior permanece en Git; este archivo prioriza el estado operativo vigente.
 
+
+
+## 2026-11-17 — Reconciliación de candidata tras separar runtime
+
+- #152 fusionada en main2941a80 tras CI44078515402 SUCCESS y Preview exacta READY. E2 continúa apagado; no SQL remoto.
+- Se incorpora ese main en la candidata conservando sus migraciones, pruebas y defensas de auditoría. API, UI y dominio WMS son idénticos a main, incluido el interruptor y la compatibilidad C3. No se extienden aprobaciones históricas al merge nuevo.
+- Pendiente CI propia y publicación de esta reconciliación antes de integrar en #145. No fusionar #145 a main ni activar/aplicar E2 sin ensayo aislado y recuperación.
+
+## 2026-11-17 — Runtime E2 separado, apagado por defecto
+
+- Evidencia fresca: #151 fusionada en #145 el 13-nov (`e0ae443`); CI635 SUCCESS. #145 sigue draft. Main `c948368`.
+- Lectura Supabase: ledger42, última versión20261019120000; `wms_proposals` y `replenishment_rules` ausentes. Sin escritura remota.
+- Rama `codex/wms-e2-runtime-gated`, basada en main: extrae exclusivamente runtime web de #145 con interruptor de servidor apagado por defecto. API omite consultas E2 y rechaza acciones de propuestas antes de RPC; C3 REPLENISH por tarea se conserva. UI oculta la pestaña y la ruta directa devuelve404 mientras está apagado.
+- Se porta de la candidata la retirada ya revisada de caché pnpm en setup-node: el primer run volvió a quedarse en restauración de caché; comandos, frozen-lockfile y verificaciones se conservan.
+- No incluye migraciones, cambios de ledger, carga ni activación E2. La candidata #145 conserva SQL/ensayos y debe reconciliarse después de esta separación.
+- Pendiente: ensayo en Supabase de pruebas, copia previa y verificación DB antes de activar; recuperación con HUs incompatibles y restauración C3 exacta aún abiertas. Creación del proyecto de pruebas pendiente de organización elegida por Fran (requisito del conector).
+- Validación local: suite web412/412; focales API/loader/interruptor23/23; tipos PASS y lint sin errores (10 avisos). Build PASS. CI/Preview del HEAD final pendientes; no declarar entrega productiva hasta verificarlos.
+
 ## OPEN
 
 ### 2026-11-12 — Contingencia E2: paquetes G reconciliados sobre PR #151
