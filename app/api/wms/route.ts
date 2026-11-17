@@ -1,3 +1,4 @@
+import { isWmsE2Enabled, isWmsE2Action } from "../../../lib/wms-e2-rollout.ts";
 import { NextResponse } from "next/server.js";
 import { getAuthenticatedContext } from "../../../lib/auth-context.ts";
 import { createSupabaseAdmin } from "../../../lib/supabase-admin.ts";
@@ -25,9 +26,10 @@ export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const warehouseId = url.searchParams.get("warehouse_id") || undefined;
-    const data = await loadWmsData(auth.tenantId, warehouseId, { includeE2: true });
+    const data = await loadWmsData(auth.tenantId, warehouseId, { includeE2: isWmsE2Enabled() });
     return response({
       ...data,
+      e2Enabled: isWmsE2Enabled(),
       canEdit: EDIT_ROLES.has(auth.role),
       canConfigure: CONFIG_ROLES.has(auth.role),
     });
@@ -96,7 +98,7 @@ export async function POST(request: Request) {
     }
 
     const EXEC_ROLES = new Set(["OWNER", "ADMIN", "OPERATOR"]);
-    if (action === "REPLENISH" && !EXEC_ROLES.has(auth.role)) {
+    if (action === "REPLENISH" && "proposal_id" in (body.payload as Record<string, unknown>) && !EXEC_ROLES.has(auth.role)) {
       return response(
         {
           error: "WMS_FORBIDDEN: Se requiere rol de operario o administración.",
@@ -108,6 +110,10 @@ export async function POST(request: Request) {
 
     // Shape and authority fields have already passed the shared validator.
     const payload = body.payload as Record<string, unknown>;
+
+    if (!isWmsE2Enabled() && isWmsE2Action(action, payload)) {
+      return response({ error: "La reposición automática todavía no está disponible.", code: "WMS_E2_DISABLED" }, 409);
+    }
 
     const idempotencyKey =
       typeof body.idempotency_key === "string" && body.idempotency_key.trim().length > 0

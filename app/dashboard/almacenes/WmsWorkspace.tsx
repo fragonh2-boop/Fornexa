@@ -282,7 +282,7 @@ export default function WmsWorkspace({
       <section className={`${screenPanelClass} ${styles.panel}`}>
         <div className={styles.panelHead}>
           <div className={styles.toolbar} role="tablist" aria-label="Vistas de almacén">
-            {TABS.map((t) => (
+            {TABS.filter((t) => t !== "Reposición Interna" || data.e2Enabled === true).map((t) => (
               <button
                 key={t}
                 type="button"
@@ -1168,7 +1168,7 @@ export default function WmsWorkspace({
         )}
 
         {/* TAB 7: REPOSICIÓN INTERNA (E2) */}
-        {tab === "Reposición Interna" && (
+        {data.e2Enabled === true && tab === "Reposición Interna" && (
           <div className={styles.panel}>
             <div className={styles.panelHead}>
               <div>

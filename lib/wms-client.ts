@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { EMPTY_WMS_DATA, type WmsAction, type WmsOverviewData } from "./wms";
 
 export interface WmsClientData extends WmsOverviewData {
+  e2Enabled?: boolean;
   canEdit: boolean;
   canConfigure: boolean;
 }

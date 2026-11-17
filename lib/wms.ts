@@ -937,7 +937,7 @@ export async function executeWmsActionApi(
   }
 
   const EXEC_ROLES = new Set(["OWNER", "ADMIN", "OPERATOR"]);
-  if (action === "REPLENISH" && !EXEC_ROLES.has(authContext.role)) {
+  if (action === "REPLENISH" && "proposal_id" in (body.payload as Record<string, unknown>) && !EXEC_ROLES.has(authContext.role)) {
     return Response.json(
       {
         error: "WMS_FORBIDDEN: Se requiere rol de operario o administración.",
