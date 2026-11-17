@@ -30,11 +30,16 @@ function sha256(content) {
 function runPsql(sql, dbName = PGDATABASE) {
   assertLoopbackAndDisposable(PGHOST, dbName);
   const env = { ...process.env, PGPASSWORD };
+  // libpq hostaddr and service settings can override the checked host.
+  delete env.PGHOSTADDR;
+  delete env.PGSERVICE;
+  delete env.PGSERVICEFILE;
   const res = spawnSync("psql", [
     "-h", PGHOST,
     "-p", PGPORT,
     "-U", PGUSER,
     "-d", dbName,
+    "-X",
     "-v", "ON_ERROR_STOP=1",
     "-qAt"
   ], {

@@ -4,6 +4,12 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 
 
 
+## 2026-11-18 — Destino efectivo del arnés de recuperación
+
+- La inspección independiente de `20fe22a` detectó un MUST de destino efectivo y un SHOULD de cobertura. Codex corrigió ambos dentro del alcance local autorizado: el entorno del subproceso excluye ajustes heredados que puedan redirigir la conexión y psql omite los archivos de inicio. La guarda sigue siendo anterior al primer SQL.
+- La regresión por la entrada normal reprodujo el fallo en la versión anterior y pasa tras la corrección, con psql interceptado en memoria. Comprueba los seis pares admitidos, argumentos, entorno hijo y conservación del entorno padre. Suite web460/460, focales33/33, tipos/build PASS y lint0 errores/11 avisos ajenos al delta.
+- Rama local `fix/wms-orphan-guard-local-20261117`, sobre `20fe22a`. Pendiente de reinspección independiente del nuevo commit. PG17 real, CI propia y publicación siguen pendientes. El rollout mantiene sus demás bloqueos y los workflows y controles de recibos se conservan.
+
 ## 2026-11-17 — Guardas del arnés de recuperación, validación local
 
 - Por autorización directa de Fran, Codex recupera las guardas de aislamiento preparadas por Claude sobre `cc3dfec37e164612238bd395616d061f341cefcf`. Rama local `fix/wms-orphan-guard-local-20261117`. Cada llamada SQL del arnés exige host loopback y una base desechable de la allowlist antes de lanzar psql.
