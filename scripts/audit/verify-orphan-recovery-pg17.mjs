@@ -11,7 +11,7 @@ import crypto from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { assertEmptySearchPath, verifyCustomsTenantColumns } from "./orphan-post-state.mjs";
+import { assertEmptySearchPath, assertLoopbackAndDisposable, verifyCustomsTenantColumns } from "./orphan-post-state.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -28,6 +28,7 @@ function sha256(content) {
 }
 
 function runPsql(sql, dbName = PGDATABASE) {
+  assertLoopbackAndDisposable(PGHOST, dbName);
   const env = { ...process.env, PGPASSWORD };
   const res = spawnSync("psql", [
     "-h", PGHOST,

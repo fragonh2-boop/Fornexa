@@ -4,6 +4,12 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 
 
 
+## 2026-11-17 — Guardas del arnés de recuperación, validación local
+
+- Por autorización directa de Fran, Codex recupera las guardas de aislamiento preparadas por Claude sobre `cc3dfec37e164612238bd395616d061f341cefcf`. Rama local `fix/wms-orphan-guard-local-20261117`. Cada llamada SQL del arnés exige host loopback y una base desechable de la allowlist antes de lanzar psql.
+- Verificación local en el Mac: suite web459/459, focales32/32, cuatro rechazos por la entrada normal antes de ejecutar SQL, tipos y build PASS. Lint sin errores y11 avisos en archivos ajenos al delta. La primera suite quedó en456/459 por sockets loopback denegados por el sandbox; con sockets locales habilitados pasó459/459. Los cambios conservan la comprobación de recibos de ambos jobs PG17.
+- Preparación local pendiente de revisión independiente del commit resultante y de CI propia antes de publicar. El ensayo real del arnés en PG17 sigue pendiente. El siguiente responsable debe revisar los destinos permitidos, el rechazo anterior al primer SQL y la compatibilidad de CI. Runtime E2 continúa apagado en producción y siguen abiertos recuperación de HUs, restauración C3, captura certificada, rol/atomicidad y fase de datos.
+
 ## 2026-11-17 — Cierre de separación y despliegue apagado
 
 - #152 fusionada en main `2941a800735adc78af45340cd1931847ee91e829`. CI PR44078515402 y main44079078596 SUCCESS:412/412 web,39/39 C3, tipos/lint/build/Mobile y ensayo PG17.

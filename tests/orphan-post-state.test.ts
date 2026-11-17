@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { PGlite } from '@electric-sql/pglite';
-import { assertEmptySearchPath, verifyCustomsTenantColumns } from '../scripts/audit/orphan-post-state.mjs';
+import { assertEmptySearchPath, assertLoopbackAndDisposable, verifyCustomsTenantColumns } from '../scripts/audit/orphan-post-state.mjs';
 
 test('Recovered customs migration creates the full tenant column contract; catalog checks reject weakened definitions', async (t) => {
   const db = new PGlite();
@@ -49,4 +49,23 @@ test('Search path hardening requires an explicitly empty value', () => {
   for (const setting of ['', 'search_path=', 'search_path=public', 'search_path=pg_catalog,public']) {
     assert.throws(() => assertEmptySearchPath(setting, 'test_rpc'));
   }
+});
+
+test('Destructive orphan harness only accepts a loopback host and a disposable database', () => {
+  assert.doesNotThrow(() => assertLoopbackAndDisposable('127.0.0.1', 'fornexa_apply_test'));
+  assert.doesNotThrow(() => assertLoopbackAndDisposable('localhost', 'fornexa_orphan_pg17_test'));
+  for (const host of ['db.example.supabase.co', '10.0.0.5', '', undefined]) {
+    assert.throws(() => assertLoopbackAndDisposable(host, 'fornexa_apply_test'), /not loopback/);
+  }
+  for (const database of ['postgres', 'fornexa', 'FORNEXA_APPLY_TEST', '', undefined]) {
+    assert.throws(() => assertLoopbackAndDisposable('127.0.0.1', database), /disposable allowlist/);
+  }
+});
+
+test('Orphan harness checks its target before spawning psql', () => {
+  const source = readFileSync('scripts/audit/verify-orphan-recovery-pg17.mjs', 'utf8');
+  const body = source.split('function runPsql(sql, dbName = PGDATABASE) {')[1];
+  assert.ok(body, 'runPsql must exist');
+  assert.match(body, /^\s*assertLoopbackAndDisposable\(PGHOST, dbName\);/, 'the guard must be the first statement of runPsql');
+  assert.equal(source.match(/spawnSync\("psql", \[\s*"-h"/g)?.length, 1, 'psql with a host may only be spawned from runPsql');
 });

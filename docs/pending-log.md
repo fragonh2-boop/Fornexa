@@ -31,6 +31,12 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-11-17 — Guardas del arnés de recuperación preparadas localmente
+
+- Codex aplicó la corrección recuperada de Claude en `fix/wms-orphan-guard-local-20261117`, sobre `cc3dfec37e164612238bd395616d061f341cefcf`, con autorización directa de Fran. Se exige host loopback y base desechable antes de cada llamada SQL del arnés.
+- Suite web459/459, focales32/32, cuatro rechazos de la entrada normal antes de SQL, tipos y build PASS. Lint0 errores/11 avisos fuera del delta. La repetición completa resolvió los tres fallos de infraestructura del sandbox al habilitar sockets locales.
+- Pendiente de revisión independiente sobre el commit exacto y CI propia antes de publicar. El ensayo de integración PG17 queda pendiente. Conservar el control de recibos de ambos jobs y los demás bloqueos del rollout.
+
 ### 2026-11-12 — Contingencia E2: paquetes G reconciliados sobre PR #151
 
 - PR #151 incorpora ya la rama de #145 (`2e0249e3`) con los conflictos resueltos a favor de su rollback, arnés y tests, más la tercera capa G5 en servidor. Pendiente: CI propia en PG17 sobre el HEAD nuevo y fusión en la rama de #145 (decisión de Fran).

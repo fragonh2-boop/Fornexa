@@ -19,7 +19,7 @@ export type MemorandumPending = {
 };
 
 export const memorandumUpdatedAt = "17 nov 2026";
-export const memorandumCommitCoverage = 732;
+export const memorandumCommitCoverage = 735;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -32,7 +32,7 @@ export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
     title: "Verificación y publicación de evidencias de auditoría",
-    summary: "El ejecutor de auditoría revisado está integrado en la rama principal, con comprobaciones de conexión y publicación de evidencias. La captura oficial todavía no se ha ejecutado; la integración del conjunto de Almacenes sigue su validación independiente.",
+    summary: "El ejecutor de auditoría revisado está integrado en la rama principal, con comprobaciones de conexión y publicación de evidencias. Se prepara un refuerzo del aislamiento de los ensayos de recuperación, pendiente de revisión independiente. La captura oficial todavía no se ha ejecutado; la integración del conjunto de Almacenes sigue su validación independiente.",
     priority: "Ahora",
     state: "En seguimiento",
   },
