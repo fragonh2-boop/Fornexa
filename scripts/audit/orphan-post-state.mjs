@@ -1,5 +1,20 @@
 import assert from 'node:assert/strict';
 
+// This harness runs DROP DATABASE and DROP SCHEMA public CASCADE. It may only ever target a
+// disposable database on a loopback host, so every psql call is checked before it is spawned.
+export const LOOPBACK_HOSTS = Object.freeze(['127.0.0.1', 'localhost', '::1']);
+export const DISPOSABLE_DATABASES = Object.freeze(['fornexa_apply_test', 'fornexa_orphan_pg17_test']);
+
+export function assertLoopbackAndDisposable(host, dbName) {
+  const h = typeof host === 'string' ? host.trim().toLowerCase() : '';
+  if (!LOOPBACK_HOSTS.includes(h)) {
+    throw new Error(`[SECURITY_FATAL] Host '${host}' is not loopback (${LOOPBACK_HOSTS.join(', ')}). Refusing destructive harness.`);
+  }
+  if (typeof dbName !== 'string' || !DISPOSABLE_DATABASES.includes(dbName)) {
+    throw new Error(`[SECURITY_FATAL] Database '${dbName}' is not in the disposable allowlist (${DISPOSABLE_DATABASES.join(', ')}). Refusing destructive harness.`);
+  }
+}
+
 export function assertEmptySearchPath(setting, functionName) {
   assert.equal(setting, 'search_path=""', `${functionName} must have an explicitly empty search_path`);
 }

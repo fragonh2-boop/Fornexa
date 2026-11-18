@@ -2,6 +2,17 @@
 
 Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Supabase, Vercel y Slack antes de actuar. El historial detallado anterior permanece en Git; este archivo prioriza el estado operativo vigente.
 
+## 2026-11-18 — Incorporación de las guardas en la candidata
+
+- PR #154 en `3a568e1` tiene CI642 y revisión independiente cerradas. La exclusión del origen evitó un despliegue Vercel al publicar. Se prepara la misma protección literal para el ref destino de #145 antes de incorporar la corrección; main conserva su configuración.
+- Pendientes revisión y CI del nuevo SHA, decisión de incorporación con HEAD/base vigentes y verificación posterior de #145. Este trabajo no fusiona la candidata a main ni ejecuta migraciones cloud. Los otros gates WMS siguen abiertos.
+
+## 2026-11-18 — Guardas: ensayo PG17 cerrado, publicación de CI pendiente
+
+- La corrección local `314532d` tiene revisión independiente favorable, cero MUST/SHOULD, web460/460 y ensayo real PG17.12 repetido:14 migraciones por ejecución con aislamiento de tenant y mismo postestado. Clúster temporal detenido y eliminado; producción no intervenida.
+- Se prepara la exclusión Vercel de `fix/wms-orphan-guard-local-20261117` para publicar una PR de CI hacia #145 conservando workflows y recibos. Pendientes dictamen del commit completo, publicación y CI exacta; no se considera DONE ni desplegado. No fusionar #145 ni ejecutar migraciones cloud por este resultado.
+- Recuperación/rollback E2, restauración C3, captura certificada, rol/atomicidad, DATA150-WMS y E2E autenticado conservan sus propios gates.
+
 
 
 
@@ -30,6 +41,13 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 - Validación local: suite web412/412; focales API/loader/interruptor23/23; tipos PASS y lint sin errores (10 avisos). Build PASS. CI/Preview del HEAD final pendientes; no declarar entrega productiva hasta verificarlos.
 
 ## OPEN
+
+### 2026-11-18 — Guardas del arnés de recuperación preparadas localmente
+
+- Codex aplicó la corrección recuperada de Claude en `fix/wms-orphan-guard-local-20261117`, sobre `cc3dfec37e164612238bd395616d061f341cefcf`, con autorización directa de Fran. Se exige host loopback y base desechable antes de cada llamada SQL del arnés.
+- La inspección de `20fe22a` detectó un MUST de destino efectivo y un SHOULD de cobertura. Se corrigió el entorno heredado del subproceso y se desactivaron sus archivos de inicio. La nueva regresión por la entrada normal falla antes de la corrección y pasa después; comprueba los seis pares admitidos mediante mocks, sin conexión SQL.
+- Suite web460/460, focales33/33, tipos y build PASS. Lint0 errores/11 avisos fuera del delta. Los cuatro rechazos anteriores a SQL y los controles de recibos se conservan.
+- Pendiente de revisión independiente sobre el commit exacto y CI propia antes de publicar. El ensayo de integración PG17 queda pendiente. Conservar el control de recibos de ambos jobs y los demás bloqueos del rollout.
 
 ### 2026-11-12 — Contingencia E2: paquetes G reconciliados sobre PR #151
 

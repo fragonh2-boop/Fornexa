@@ -11,7 +11,7 @@ import crypto from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { assertEmptySearchPath, verifyCustomsTenantColumns } from "./orphan-post-state.mjs";
+import { assertEmptySearchPath, assertLoopbackAndDisposable, verifyCustomsTenantColumns } from "./orphan-post-state.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -28,12 +28,18 @@ function sha256(content) {
 }
 
 function runPsql(sql, dbName = PGDATABASE) {
+  assertLoopbackAndDisposable(PGHOST, dbName);
   const env = { ...process.env, PGPASSWORD };
+  // libpq hostaddr and service settings can override the checked host.
+  delete env.PGHOSTADDR;
+  delete env.PGSERVICE;
+  delete env.PGSERVICEFILE;
   const res = spawnSync("psql", [
     "-h", PGHOST,
     "-p", PGPORT,
     "-U", PGUSER,
     "-d", dbName,
+    "-X",
     "-v", "ON_ERROR_STOP=1",
     "-qAt"
   ], {

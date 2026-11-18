@@ -2,7 +2,30 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-11-18 — Protección del destino de integración
 
+- PR #154 publicada como borrador hacia #145 con HEAD `3a568e1`, base `cc3dfec` y CI642/run44203202876 SUCCESS en los tres jobs. Cierre independiente de código, publicación y evidencia CI sin MUST/SHOULD. Cinco artefactos oficiales cotejados; sin despliegue Vercel del ref ni Preview Supabase nueva. El merge sintético tiene el mismo árbol que la fuente revisada.
+- Para conservar esa condición al incorporar la corrección, se añade la exclusión literal Vercel de `chore/supabase-preview-baseline-fix`, junto a la del origen. Main conserva su comportamiento. No cambian arnés, migraciones, runtime, workflows, recibos ni lockfile. El nuevo commit requiere revisión antes de push y CI propia antes de incorporar en #145; no autoriza su merge a main ni operaciones DB.
+
+## 2026-11-18 — PG17 local y preparación de CI sin preview
+
+- La revisión independiente de `314532d835cd2e1124d6d701b7ec05e9534c7a37` cerró el MUST y SHOULD anteriores: cero hallazgos abiertos en ese delta. El arnés real pasó dos veces en PostgreSQL17.12 temporal del Mac, con14 migraciones y recibos equivalentes salvo timestamp. Ajustes heredados de redirección y un archivo de inicio de psql adversos quedaron sin efecto. Clúster limitado a loopback, detenido y eliminado. Esto no acredita rollback E2, captura cloud ni CI.
+- Codex añade únicamente la exclusión Git de Vercel para `fix/wms-orphan-guard-local-20261117` en la raíz del repositorio. Los otros refs conservan su comportamiento. Las raíces de ambos proyectos Vercel son `./`, verificadas en los paneles por Fran; Supabase tiene directorio `.`, producción solo desde `main` y branching automático no disponible en la organización Free según la lectura autenticada del17-nov. No se cambian ajustes de los servicios.
+- Destino previsto de la PR: `chore/supabase-preview-baseline-fix` (#145), HEAD comprobado `cc3dfec37e164612238bd395616d061f341cefcf`, base/main `2941a800735adc78af45340cd1931847ee91e829`. El workflow existente se activa por PR y conserva todos sus jobs y recibos. Pendiente revisión independiente del nuevo commit antes del primer push y CI del SHA publicado. #145 continúa borrador y no se fusiona a main ni se aplica E2.
+
+
+
+## 2026-11-18 — Destino efectivo del arnés de recuperación
+
+- La inspección independiente de `20fe22a` detectó un MUST de destino efectivo y un SHOULD de cobertura. Codex corrigió ambos dentro del alcance local autorizado: el entorno del subproceso excluye ajustes heredados que puedan redirigir la conexión y psql omite los archivos de inicio. La guarda sigue siendo anterior al primer SQL.
+- La regresión por la entrada normal reprodujo el fallo en la versión anterior y pasa tras la corrección, con psql interceptado en memoria. Comprueba los seis pares admitidos, argumentos, entorno hijo y conservación del entorno padre. Suite web460/460, focales33/33, tipos/build PASS y lint0 errores/11 avisos ajenos al delta.
+- Rama local `fix/wms-orphan-guard-local-20261117`, sobre `20fe22a`. Pendiente de reinspección independiente del nuevo commit. PG17 real, CI propia y publicación siguen pendientes. El rollout mantiene sus demás bloqueos y los workflows y controles de recibos se conservan.
+
+## 2026-11-17 — Guardas del arnés de recuperación, validación local
+
+- Por autorización directa de Fran, Codex recupera las guardas de aislamiento preparadas por Claude sobre `cc3dfec37e164612238bd395616d061f341cefcf`. Rama local `fix/wms-orphan-guard-local-20261117`. Cada llamada SQL del arnés exige host loopback y una base desechable de la allowlist antes de lanzar psql.
+- Verificación local en el Mac: suite web459/459, focales32/32, cuatro rechazos por la entrada normal antes de ejecutar SQL, tipos y build PASS. Lint sin errores y11 avisos en archivos ajenos al delta. La primera suite quedó en456/459 por sockets loopback denegados por el sandbox; con sockets locales habilitados pasó459/459. Los cambios conservan la comprobación de recibos de ambos jobs PG17.
+- Preparación local pendiente de revisión independiente del commit resultante y de CI propia antes de publicar. El ensayo real del arnés en PG17 sigue pendiente. El siguiente responsable debe revisar los destinos permitidos, el rechazo anterior al primer SQL y la compatibilidad de CI. Runtime E2 continúa apagado en producción y siguen abiertos recuperación de HUs, restauración C3, captura certificada, rol/atomicidad y fase de datos.
 
 ## 2026-11-17 — Cierre de separación y despliegue apagado
 
