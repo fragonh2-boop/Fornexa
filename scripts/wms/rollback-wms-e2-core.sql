@@ -23,14 +23,17 @@
 --    movement → task → proposal → approving operator is never lost (MUST-G4).
 -- 6. Single transaction: either everything above happens or nothing does.
 --
--- KNOWN LIMITATION (documented, not hidden): if the E2 RPC migration was applied, the
--- E2 version of public.fornexa_wms_action stays in place. Its pre-E2 actions keep working;
--- its E2-only actions fail with an error because their tables are gone. Restoring the exact
--- C3 body requires re-applying the C3 function definition from
--- supabase/migrations/20261019120000_wms_c3_server_load_controls.sql.
+-- Build the complete atomic bundle with build-e2-recovery.mjs ROLLBACK. It restores
+-- only the pinned C3 action/ACL, without replaying C3 migration data backfills.
+-- This core-only script refuses a non-C3 action before modifying anything.
+-- With HU collisions use the explicit PRESERVE_HU forward recovery instead;
+-- the strict inverse still refuses to merge or delete physical stock.
 -- ============================================================================
 
 begin;
+
+lock table public.inventory_quants, public.stock_reservations, public.warehouse_tasks
+  in share row exclusive mode;
 
 -- 0. Pre-flight checks. Nothing is modified until all of them pass.
 do $$
@@ -38,7 +41,16 @@ declare
   v_executed bigint := 0;
   v_collisions bigint := 0;
 begin
+  if not exists (
+    select 1 from pg_proc
+     where oid = to_regprocedure('public.fornexa_wms_action(uuid,uuid,text,jsonb,text)')
+       and encode(sha256(convert_to(prosrc, 'UTF8')), 'hex') = '45b5ac3b4132e408d46d5b39bd6c39b2e7abcc4dd56eaa3629f1692e90dd0c64'
+       and prosecdef and proconfig = array['search_path=""']
+  ) then
+    raise exception 'E2_RECOVERY_C3_RESTORE_REQUIRED';
+  end if;
   if to_regclass('public.wms_proposals') is not null then
+    lock table public.wms_proposals in share row exclusive mode;
     execute 'select count(*) from public.wms_proposals where status = ''EXECUTED''' into v_executed;
   end if;
 
@@ -69,6 +81,9 @@ create table if not exists private.wms_e2_rollback_archive (
   row_data jsonb not null
 );
 revoke all on table private.wms_e2_rollback_archive from public;
+revoke all on table private.wms_e2_rollback_archive from anon, authenticated, service_role;
+revoke all on sequence private.wms_e2_rollback_archive_id_seq from public, anon, authenticated, service_role;
+alter table private.wms_e2_rollback_archive enable row level security;
 
 do $$
 begin
@@ -95,7 +110,11 @@ begin
   end if;
 end $$;
 
--- 2. Remove the E2-only RPC functions (20261024120100). fornexa_wms_action stays: see header.
+-- 2. Remove E2-only RPCs. The bundle has already restored the exact C3 action.
+drop trigger if exists trg_wms_e2_frozen_task on public.warehouse_tasks;
+drop trigger if exists trg_wms_e2_frozen_reservation on public.stock_reservations;
+drop trigger if exists trg_wms_e2_frozen_task_truncate on public.warehouse_tasks;
+drop trigger if exists trg_wms_e2_frozen_reservation_truncate on public.stock_reservations;
 drop function if exists public.fornexa_wms_evaluate_replenishment(uuid, uuid, uuid, uuid, uuid, uuid, uuid, numeric);
 drop function if exists public.fornexa_wms_approve_proposal(uuid, uuid, uuid);
 drop function if exists public.fornexa_wms_reject_proposal(uuid, uuid, uuid, text);
@@ -120,18 +139,24 @@ alter table if exists public.stock_reservations
 drop trigger if exists trg_protect_inventory_quants_received_at on public.inventory_quants;
 drop function if exists public.fornexa_protect_quant_received_at();
 
-drop trigger if exists trg_cascade_rule_deactivation on public.replenishment_rules;
+do $$ begin
+  if to_regclass('public.replenishment_rules') is not null then
+    drop trigger if exists trg_cascade_rule_deactivation on public.replenishment_rules;
+    drop trigger if exists trg_replenishment_rules_updated_at on public.replenishment_rules;
+  end if;
+  if to_regclass('public.wms_proposals') is not null then
+    drop trigger if exists trg_validate_proposal_bins on public.wms_proposals;
+    drop trigger if exists trg_wms_proposals_updated_at on public.wms_proposals;
+  end if;
+end $$;
 drop function if exists public.fornexa_wms_cascade_rule_deactivation();
 
-drop trigger if exists trg_validate_proposal_bins on public.wms_proposals;
 drop function if exists public.fornexa_validate_proposal_bins();
-
-drop trigger if exists trg_wms_proposals_updated_at on public.wms_proposals;
-drop trigger if exists trg_replenishment_rules_updated_at on public.replenishment_rules;
 
 -- 6. E2 tables (already archived in step 1).
 drop table if exists public.wms_proposals cascade;
 drop table if exists public.replenishment_rules cascade;
+drop function if exists public.fornexa_wms_e2_frozen_link_guard();
 
 -- 7. inventory_quants: E2 added ONLY received_at and the rotation index. flow_state and hu_id stay.
 drop index if exists public.inventory_quants_rotation_idx;

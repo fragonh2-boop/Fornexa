@@ -2,6 +2,25 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-11-18 — HU/C3, cierre léxico del generador en preparación
+
+- Reinspección independiente de `d36e8be`: MUST TRUNCATE/RLS y SHOULD del recibo cerrados. Quedó un SHOULD del scanner: dollar dentro de identificadores, escapes E y continuidad de cadenas con salto de línea podían ocultar un COMMIT interior en templates distintos a los empaquetados.
+- Codex corrige fronteras de identificador/tags Unicode y escapes E, incluida su herencia en continuaciones; añade los tres casos rojos/verdes del revisor y literales válidos. Fuente primaria: PostgreSQL17, SQL lexical structure. No cambia los scripts operativos ni C3 respecto al candidato anterior.
+- Suite465/465, focales14/14, lint0/11previos y build/tipos PASS tras regenerar .next (había tipos generados duplicados byteidénticos). PG17.12 final2veces PASS, fuentes cotejadas y cleanup completo. Pendientes SHA estable y reinspección exacta; no publicar la versión anterior como cierre del SHOULD. Ensayos sintéticos/secuenciales y gates de producción siguen separados.
+
+## 2026-11-18 — HU/C3, corrección del dictamen independiente
+
+- El revisor local independiente bloqueó `813b05d` con1MUST: RLS ocultaba vínculos al guard SECURITY INVOKER y podía permitir TRUNCATE. La regresión real PG17 reprodujo ese fallo; tras rechazar TRUNCATE incondicionalmente en las tablas congeladas pasa, también como authenticated con RLS adversa. No se añadió SECURITY DEFINER.
+- Se atienden además sus dos SHOULD: generador valida sentencias y rechaza controles transaccionales interiores, con regresión roja/verde del COMMIT en línea; recibo exige el bundle completo ROLLBACK. Scanner existente extraído a módulo puro compartido, fuentes/hashes del recibo ampliados.
+- Dos ensayos finales PG17.12 pasan y se limpiaron completamente; la evidencia es sintética y secuencial, sin acreditar carreras entre sesiones ni todos los recorridos C3/UI/API. Suite464/464, focales13/13, tipos/build PASS y lint0 errores/11 avisos previos. Pendientes nuevo commit estable y reinspección del mismo revisor antes de publicar para CI. No ejecución productiva.
+
+## 2026-11-18 — Recuperación HU/C3 local autorizada
+
+- Fran autorizó directamente a Codex como autor local de HU/C3 y al mismo revisor independiente, con PG17 desechable y sin ejecución productiva. Base de esta rama `c9ecd5685952e7c41a5295c254ad440d3cd49c75`: PR #154 ya incorporada únicamente en #145, CI644 SUCCESS y guardas cerradas. #145 sigue borrador hacia main `2941a800`; producción mantiene E2 apagado.
+- Rama `fix/wms-hu-c3-recovery-local-20261118`. El inverso estricto conserva sus abortos ante colisión/ejecución sin confirmar y restaura C3. La vía explícita `PRESERVE_HU` conserva el esquema y todos los registros, archiva trazabilidad, congela las entradas y vínculos E2 y restaura solo la función/ACL C3 fijadas, sin reejecutar backfills. Operación y restauración son una transacción. Documento: `docs/verification/wms-e2-hu-c3-recovery.md`.
+- Dos ensayos reales locales PG17.12 de la versión ampliada pasan: colisión con ambos HUs presentes, C3 exacta, otro tenant/archivo previo conservados, repetición, denegaciones y fallo atómico. La prueba de confirmación indirecta C3→tarea E2 falló antes de añadir su guarda y pasa con ella; las tareas C3 sin vínculo E2 siguen operativas. Clústeres detenidos/eliminados y runtime desmontado al terminar.
+- Tipos y build de producción PASS. Ensayo final ampliado repetido dos veces en PG17.12: también bloquea cambios de propietario y TRUNCATE de los objetos congelados. Suite web463/463 y lint PASS (0 errores/11 avisos previos). Pendientes commit estable, revisión independiente y CI del SHA nuevo antes de incorporar en #145. La rama incluye exclusión Vercel específica antes de su primer push; workflows, lockfile y migraciones existentes se conservan. Sin SQL cloud, captura, seed, COMMITTED ni activación E2. El ensayo no cierra la captura/rol/atomicidad ni la validación funcional productiva del charter.
+
 ## 2026-11-18 — Protección del destino de integración
 
 - PR #154 publicada como borrador hacia #145 con HEAD `3a568e1`, base `cc3dfec` y CI642/run44203202876 SUCCESS en los tres jobs. Cierre independiente de código, publicación y evidencia CI sin MUST/SHOULD. Cinco artefactos oficiales cotejados; sin despliegue Vercel del ref ni Preview Supabase nueva. El merge sintético tiene el mismo árbol que la fuente revisada.

@@ -12,7 +12,6 @@ import {
   runContingencyHarness,
   DESTRUCTIVE_CONFIRM_ENV,
   DESTRUCTIVE_CONFIRM_TOKEN,
-  // @ts-expect-error - import from local .mjs harness script
 } from "../scripts/wms/verify-e2-dbfirst-contingency.mjs";
 
 const ROOT = resolve(import.meta.dirname, "..");

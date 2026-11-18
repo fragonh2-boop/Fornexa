@@ -6,6 +6,10 @@
 // Emits durable receipt: docs/verification/receipt-e2-dbfirst-contingency-pg17.json
 
 import assert from "node:assert/strict";
+import { splitSqlStatements } from "./sql-statements.mjs";
+export { splitSqlStatements } from "./sql-statements.mjs";
+import { buildE2RecoverySql } from "./build-e2-recovery.mjs";
+import { c3ActionSnapshot, verifyHuC3Recovery } from "./verify-e2-hu-c3-recovery.mjs";
 import crypto from "node:crypto";
 import { readFile, writeFile, readdir } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
@@ -17,110 +21,6 @@ const ROOT = resolve(__dirname, "../..");
 
 export function sha256(content) {
   return crypto.createHash("sha256").update(content, "utf8").digest("hex");
-}
-
-function dollarTagAt(sql, offset) {
-  return sql.slice(offset).match(/^\$[A-Za-z_][A-Za-z0-9_]*\$|^\$\$/)?.[0] ?? null;
-}
-
-function consumeSingleQuoted(sql, offset, escapeBackslash = false) {
-  let cursor = offset + 1;
-  while (cursor < sql.length) {
-    if (sql[cursor] === "'" && sql[cursor + 1] === "'") {
-      cursor += 2;
-      continue;
-    }
-    if (escapeBackslash && sql[cursor] === "\\") {
-      cursor += Math.min(2, sql.length - cursor);
-      continue;
-    }
-    if (sql[cursor] === "'") return cursor + 1;
-    cursor += 1;
-  }
-  throw new SyntaxError(`Unterminated single-quoted SQL literal at offset ${offset}`);
-}
-
-function consumeDoubleQuoted(sql, offset) {
-  let cursor = offset + 1;
-  while (cursor < sql.length) {
-    if (sql[cursor] === '"' && sql[cursor + 1] === '"') {
-      cursor += 2;
-      continue;
-    }
-    if (sql[cursor] === '"') return cursor + 1;
-    cursor += 1;
-  }
-  throw new SyntaxError(`Unterminated quoted SQL identifier at offset ${offset}`);
-}
-
-function consumeDollarQuoted(sql, offset, tag) {
-  const end = sql.indexOf(tag, offset + tag.length);
-  if (end < 0) throw new SyntaxError(`Unterminated dollar-quoted SQL value at offset ${offset}`);
-  return end + tag.length;
-}
-
-function consumeBlockComment(sql, offset) {
-  let cursor = offset + 2;
-  let depth = 1;
-  while (cursor < sql.length && depth > 0) {
-    if (sql[cursor] === "/" && sql[cursor + 1] === "*") {
-      depth += 1;
-      cursor += 2;
-      continue;
-    }
-    if (sql[cursor] === "*" && sql[cursor + 1] === "/") {
-      depth -= 1;
-      cursor += 2;
-      continue;
-    }
-    cursor += 1;
-  }
-  if (depth > 0) throw new SyntaxError(`Unterminated SQL block comment at offset ${offset}`);
-  return cursor;
-}
-
-export function splitSqlStatements(sql) {
-  const statements = [];
-  let cursor = 0;
-  let start = 0;
-
-  while (cursor < sql.length) {
-    const character = sql[cursor];
-    const next = sql[cursor + 1];
-
-    if (character === "-" && next === "-") {
-      cursor += 2;
-      while (cursor < sql.length && !/[\r\n]/.test(sql[cursor])) cursor += 1;
-      continue;
-    }
-    if (character === "/" && next === "*") {
-      cursor = consumeBlockComment(sql, cursor);
-      continue;
-    }
-    if (character === "'") {
-      cursor = consumeSingleQuoted(sql, cursor);
-      continue;
-    }
-    if (character === '"') {
-      cursor = consumeDoubleQuoted(sql, cursor);
-      continue;
-    }
-    if (character === "$") {
-      const tag = dollarTagAt(sql, cursor);
-      if (tag) {
-        cursor = consumeDollarQuoted(sql, cursor, tag);
-        continue;
-      }
-    }
-    if (character === ";") {
-      statements.push(sql.slice(start, cursor));
-      start = cursor + 1;
-    }
-    cursor += 1;
-  }
-
-  statements.push(sql.slice(start));
-  return statements.filter((statement) => statement.trim().length > 0);
 }
 
 export function stripExteriorTx(sql) {
@@ -476,6 +376,7 @@ export async function runContingencyHarness(options = {}) {
     return res.rows.map((r) => `${r.table_name}.${r.column_name}`);
   }
   const preE2Columns = await columnSnapshot();
+  const c3Before = await c3ActionSnapshot(runSql);
   assert.ok(preE2Columns.includes("warehouse_tasks.source_bin_id"), "pre-E2 warehouse_tasks.source_bin_id must exist before E2");
   assert.ok(preE2Columns.includes("inventory_quants.flow_state"), "pre-E2 inventory_quants.flow_state must exist before E2");
 
@@ -651,8 +552,12 @@ export async function runContingencyHarness(options = {}) {
   // ── 9. Contingency Path B: Safe Non-Destructive Rollback ──
   console.log("[E2 Contingency] 9. Testing Contingency Path B (Safe Non-Destructive Rollback)...");
   const rollbackSqlPath = resolve(ROOT, "scripts/wms/rollback-wms-e2-core.sql");
-  const rollbackSql = await readFile(rollbackSqlPath, "utf8");
-  const rollbackSha = sha256(rollbackSql);
+  const rollbackSource = await readFile(rollbackSqlPath, "utf8");
+  const c3Source = await readFile(resolve(migrationsDir, "20261019120000_wms_c3_server_load_controls.sql"), "utf8");
+  const recoverySource = await readFile(resolve(ROOT, "scripts/wms/recover-wms-e2-compatible.sql"), "utf8");
+  const rollbackBundle = buildE2RecoverySql({ mode: "ROLLBACK", c3Source, rollbackSource });
+  const rollbackSql = rollbackBundle.sql;
+  const rollbackSha = sha256(rollbackSource);
   console.log(` -> Rollback script SHA-256: ${rollbackSha}`);
 
   // MUST-G3: two pallets of the same lot in one bin (allowed by the E2 key, which includes hu_id)
@@ -731,6 +636,7 @@ export async function runContingencyHarness(options = {}) {
   console.log(" -> MUST-G4: executed proposal archived with executed_by before drop.");
 
   const postRollbackColumns = await columnSnapshot();
+  assert.deepEqual(await c3ActionSnapshot(runSql), c3Before, "Strict rollback must restore exact C3 definition, signature, owner, configuration and ACL");
   assert.deepEqual(postRollbackColumns, preE2Columns, "Rollback must restore the exact pre-E2 columns (no pre-E2 loss, no E2 residue)");
   console.log(" -> MUST-G1/G2: post-rollback schema of altered tables equals the pre-E2 snapshot.");
 
@@ -775,6 +681,10 @@ export async function runContingencyHarness(options = {}) {
   assert.equal(postRollbackKeyRes.rows[0]?.conname, "inventory_quants_bin_id_product_id_owner_party_id_batch_num_key", "Canonical pre-E2 unique key must be restored");
   console.log(" -> Contingency Path B (Safe Non-Destructive Rollback) CERTIFIED.");
 
+  const huC3Recovery = await verifyHuC3Recovery({ runSql, c3Before, c3Source, rollbackSource, recoverySource,
+    coreSql: coreRawSql, rpcSql: rpcRawSql, tenantId, warehouseId, binId, productId, partyId, operatorUserId });
+  console.log(" -> Contingency Path C: both colliding HUs conserved, exact C3 restored, repeated recovery and failure atomicity verified.");
+
   // ── 10. Emit Durable Receipt ──
   const receipt = {
     receipt_version: "1.0.0",
@@ -783,6 +693,9 @@ export async function runContingencyHarness(options = {}) {
     platform: clientType === "pg-socket" ? "disposable-ci-postgresql-17" : "pglite-wasm-sandbox",
     timestamp: new Date().toISOString(),
     status: "SUCCESS",
+    execution_sha: process.env.GITHUB_SHA || null,
+    github_run_id: process.env.GITHUB_RUN_ID || null,
+    github_ref: process.env.GITHUB_REF || null,
     contingency_target: "WMS E2 DB-First Split-Transaction Failure & Rollback Reversibility",
     source_artifacts: {
       core: {
@@ -802,7 +715,14 @@ export async function runContingencyHarness(options = {}) {
       rollback_script: {
         file: "scripts/wms/rollback-wms-e2-core.sql",
         sha256: rollbackSha,
+        c3_source_sha256: rollbackBundle.c3SourceSha256,
+        effective_bundle_sha256: rollbackBundle.effectiveSqlSha256,
       },
+      recovery_script: { file: "scripts/wms/recover-wms-e2-compatible.sql", sha256: sha256(recoverySource) },
+      sql_statement_scanner: { file: "scripts/wms/sql-statements.mjs", sha256: sha256(await readFile(resolve(ROOT, "scripts/wms/sql-statements.mjs"), "utf8")) },
+      recovery_builder: { file: "scripts/wms/build-e2-recovery.mjs", sha256: sha256(await readFile(resolve(ROOT, "scripts/wms/build-e2-recovery.mjs"), "utf8")) },
+      recovery_harness: { file: "scripts/wms/verify-e2-hu-c3-recovery.mjs", sha256: sha256(await readFile(resolve(ROOT, "scripts/wms/verify-e2-hu-c3-recovery.mjs"), "utf8")) },
+      contingency_harness: { file: "scripts/wms/verify-e2-dbfirst-contingency.mjs", sha256: sha256(await readFile(__filename, "utf8")) },
     },
     pre_state_baseline: {
       tenant_id: tenantId,
@@ -845,12 +765,14 @@ export async function runContingencyHarness(options = {}) {
         movements_preserved: true,
         canonical_unique_key_restored: true,
         c3_actions_continue_working: true,
+        c3_definition_and_acl_restored_exactly: true,
       },
+      path_c_preserve_hu_forward_recovery: huC3Recovery,
     },
     operational_criteria: {
       primary_recommendation: "PAUSE_AND_ROLLFORWARD",
       rationale: "Split-state (core applied, rpc absent) is strictly non-destructive for app c948; C3 continues functioning and stock is 100% conserved. Pausing to resolve transient RPC execution and rolling forward avoids table lifecycle churn.",
-      rollback_condition: "Execute rollback-wms-e2-core.sql ONLY if Core DDL itself requires schema restructuring before re-attempting.",
+      rollback_condition: "Build and review the ROLLBACK bundle with build-e2-recovery.mjs; apply only the full bundle on an authorized target. Keep the strict collision abort; use the separately confirmed PRESERVE_HU bundle when preserving the HU-aware schema is required.",
       cloud_role_status: "PENDING_ACCREDITATION (effective cloud SQL role and version must be accredited in cloud environment; this harness certifies relational PG17 semantics).",
     },
   };

@@ -42,12 +42,27 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-11-18 — HU/C3: último SHOULD léxico en reinspección
+
+- Revisor cerró MUST y SHOULD del recibo en `d36e8be`; detectó variantes léxicas del COMMIT interior. Corrección local con tres regresiones del revisor y pruebas válidas, suite465/465, focales14/14, tipos/build PASS, lint0/11 y PG17x2 finales PASS; pendientes SHA/reinspección antes de publicar. No DONE ni ejecución productiva.
+
+### 2026-11-18 — HU/C3: reinspección tras corregir1MUST y2SHOULD
+
+- `813b05d` quedó bloqueado por bypass TRUNCATE/RLS confirmado. Corregido localmente con regresión roja/verde en PG17 y rechazo incondicional de TRUNCATE, conservando operaciones C3 normales.
+- También corregidos controles transaccionales interiores del generador e instrucción raw del recibo. Dos ensayos finales PG17.12 PASS, suite464/464, focales13/13, tipos/build PASS y lint0/11previos; pendientes nuevo SHA, reinspección independiente y CI antes de incorporar. No DONE, producción ni carreras concurrentes acreditadas.
+
+### 2026-11-18 — Recuperación HU/C3 preparada y ensayada localmente
+
+- Codex, con autorización directa de Fran, prepara un inverso estricto con restauración C3 y una recuperación compatible que conserva HU/stock y congela E2. Rama `fix/wms-hu-c3-recovery-local-20261118` desde `c9ecd568`; sin ejecución productiva.
+- Dos corridas PG17.12 reales pasan los casos ampliados, incluida colisión persistente, archivo previo, segundo tenant, repetición, fallo atómico y protección de vínculos E2 frente a la función C3 restaurada. Fuentes C3/migraciones originales intactas; no se repiten backfills. Guía en `docs/verification/wms-e2-hu-c3-recovery.md`.
+- Tipos/build PASS y ensayo final PG17.12 repetido con guardas contra TRUNCATE. Suite web463/463 y lint0 errores/11 avisos previos. Pendientes SHA estable, dictamen independiente, CI y controles de integración. No es DONE ni desplegado. #145 sigue DRAFT; captura/rol/atomicidad, entorno de pruebas Supabase, DATA150-WMS y E2E mantienen sus gates.
+
 ### 2026-11-18 — Guardas del arnés de recuperación preparadas localmente
 
 - Codex aplicó la corrección recuperada de Claude en `fix/wms-orphan-guard-local-20261117`, sobre `cc3dfec37e164612238bd395616d061f341cefcf`, con autorización directa de Fran. Se exige host loopback y base desechable antes de cada llamada SQL del arnés.
 - La inspección de `20fe22a` detectó un MUST de destino efectivo y un SHOULD de cobertura. Se corrigió el entorno heredado del subproceso y se desactivaron sus archivos de inicio. La nueva regresión por la entrada normal falla antes de la corrección y pasa después; comprueba los seis pares admitidos mediante mocks, sin conexión SQL.
 - Suite web460/460, focales33/33, tipos y build PASS. Lint0 errores/11 avisos fuera del delta. Los cuatro rechazos anteriores a SQL y los controles de recibos se conservan.
-- Pendiente de revisión independiente sobre el commit exacto y CI propia antes de publicar. El ensayo de integración PG17 queda pendiente. Conservar el control de recibos de ambos jobs y los demás bloqueos del rollout.
+- Actualización: esas guardas se revisaron, ensayaron en PG17 e incorporaron como PR #154 exclusivamente en la candidata #145 (`c9ecd568`, CI644 SUCCESS). No repetir la corrección. La entrega productiva sigue supeditada al resto del rollout; conservar los controles de recibos de ambos jobs.
 
 ### 2026-11-12 — Contingencia E2: paquetes G reconciliados sobre PR #151
 
