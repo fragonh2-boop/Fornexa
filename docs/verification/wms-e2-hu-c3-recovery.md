@@ -94,3 +94,7 @@ esas fuentes con el preestado autorizado, además de respaldo, rol y ejecutor.
 
 Los ensayos son secuenciales: no certifican carreras entre sesiones ni todos
 los recorridos C3/UI/API. Esas verificaciones conservan su gate funcional.
+
+El generador rechaza controles transaccionales interiores y distingue comentarios,
+identificadores con dólar, dollar quotes, escapes E y sus continuaciones.
+Referencia léxica: [PostgreSQL17, SQL lexical structure](https://www.postgresql.org/docs/17/sql-syntax-lexical.html).

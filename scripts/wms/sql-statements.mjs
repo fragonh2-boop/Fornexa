@@ -1,6 +1,10 @@
 // Pure SQL statement scanner shared by the rehearsal and recovery builder.
+const WORD_PART = /[A-Za-z0-9_$\u0080-\uFFFF]/;
+
 function dollarTagAt(sql, offset) {
-  return sql.slice(offset).match(/^\$[A-Za-z_][A-Za-z0-9_]*\$|^\$\$/)?.[0] ?? null;
+  // PostgreSQL consumes a dollar tag adjacent to an identifier as part of it.
+  if (offset > 0 && WORD_PART.test(sql[offset - 1])) return null;
+  return sql.slice(offset).match(/^\$(?:[A-Za-z_\u0080-\uFFFF][A-Za-z0-9_\u0080-\uFFFF]*)?\$/)?.[0] ?? null;
 }
 
 function consumeSingleQuoted(sql, offset, escapeBackslash = false) {
@@ -63,6 +67,7 @@ export function splitSqlStatements(sql) {
   const statements = [];
   let cursor = 0;
   let start = 0;
+  let previousString = null;
 
   while (cursor < sql.length) {
     const character = sql[cursor];
@@ -78,7 +83,15 @@ export function splitSqlStatements(sql) {
       continue;
     }
     if (character === "'") {
-      cursor = consumeSingleQuoted(sql, cursor);
+      const explicitEscape = cursor > 0 && /[eE]/.test(sql[cursor - 1])
+        && (cursor === 1 || !WORD_PART.test(sql[cursor - 2]));
+      const gap = previousString ? sql.slice(previousString.end, cursor) : "";
+      // A newline continuation inherits E escaping even without another E.
+      const continuedEscape = previousString?.escaped && /[\r\n]/.test(gap)
+        && sqlStatementCommand(gap) === "";
+      const escaped = Boolean(explicitEscape || continuedEscape);
+      cursor = consumeSingleQuoted(sql, cursor, escaped);
+      previousString = { end: cursor, escaped };
       continue;
     }
     if (character === '"') {

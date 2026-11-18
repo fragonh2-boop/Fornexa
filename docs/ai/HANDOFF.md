@@ -2,6 +2,12 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-11-18 — HU/C3, cierre léxico del generador en preparación
+
+- Reinspección independiente de `d36e8be`: MUST TRUNCATE/RLS y SHOULD del recibo cerrados. Quedó un SHOULD del scanner: dollar dentro de identificadores, escapes E y continuidad de cadenas con salto de línea podían ocultar un COMMIT interior en templates distintos a los empaquetados.
+- Codex corrige fronteras de identificador/tags Unicode y escapes E, incluida su herencia en continuaciones; añade los tres casos rojos/verdes del revisor y literales válidos. Fuente primaria: PostgreSQL17, SQL lexical structure. No cambia los scripts operativos ni C3 respecto al candidato anterior.
+- Suite465/465, focales14/14, lint0/11previos y build/tipos PASS tras regenerar .next (había tipos generados duplicados byteidénticos). PG17.12 final2veces PASS, fuentes cotejadas y cleanup completo. Pendientes SHA estable y reinspección exacta; no publicar la versión anterior como cierre del SHOULD. Ensayos sintéticos/secuenciales y gates de producción siguen separados.
+
 ## 2026-11-18 — HU/C3, corrección del dictamen independiente
 
 - El revisor local independiente bloqueó `813b05d` con1MUST: RLS ocultaba vínculos al guard SECURITY INVOKER y podía permitir TRUNCATE. La regresión real PG17 reprodujo ese fallo; tras rechazar TRUNCATE incondicionalmente en las tablas congeladas pasa, también como authenticated con RLS adversa. No se añadió SECURITY DEFINER.

@@ -42,6 +42,10 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-11-18 — HU/C3: último SHOULD léxico en reinspección
+
+- Revisor cerró MUST y SHOULD del recibo en `d36e8be`; detectó variantes léxicas del COMMIT interior. Corrección local con tres regresiones del revisor y pruebas válidas, suite465/465, focales14/14, tipos/build PASS, lint0/11 y PG17x2 finales PASS; pendientes SHA/reinspección antes de publicar. No DONE ni ejecución productiva.
+
 ### 2026-11-18 — HU/C3: reinspección tras corregir1MUST y2SHOULD
 
 - `813b05d` quedó bloqueado por bypass TRUNCATE/RLS confirmado. Corregido localmente con regresión roja/verde en PG17 y rechazo incondicional de TRUNCATE, conservando operaciones C3 normales.

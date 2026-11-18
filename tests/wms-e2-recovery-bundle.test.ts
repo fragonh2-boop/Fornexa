@@ -52,4 +52,23 @@ test("recovery accepts comments and transaction words confined to SQL literals a
   const source = "/* preamble */ BEGIN; select 'commit; begin;', \"commit;\"; DO $safe$ BEGIN PERFORM 'rollback;'; END $safe$; COMMIT; -- tail";
   const bundle = buildE2RecoverySql({ ...inputs, mode: "ROLLBACK", rollbackSource: source });
   assert.ok(bundle.sql.includes("DO $safe$ BEGIN PERFORM 'rollback;'; END $safe$;"));
+  const escaped = String.raw`begin; select E'quote \' and commit;'; select $é$rollback; ' untouched$é$; commit;`;
+  assert.ok(buildE2RecoverySql({ ...inputs, mode: "ROLLBACK", rollbackSource: escaped }).sql.includes("$é$rollback;"));
+});
+
+test("recovery rejects transaction boundaries hidden by identifiers, escape strings and continuations", () => {
+  const sources = [
+    "begin; insert into probe values (1) returning 1 as a$x$; commit; select 1/0 as b$x$; commit;",
+    String.raw`begin; insert into probe values (1) returning E'\''; commit; select 1/0, E'\''; commit;`,
+    String.raw`begin;
+insert into probe values (1) returning E''
+'\'';
+commit;
+select 1/0, E''
+'\'';
+commit;`,
+  ];
+  for (const source of sources) {
+    assert.throws(() => buildE2RecoverySql({ ...inputs, mode: "ROLLBACK", rollbackSource: source }), /RECOVERY_TRANSACTION_INVALID/);
+  }
 });
