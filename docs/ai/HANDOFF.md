@@ -2,6 +2,11 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-11-18 — Protección del destino de integración
+
+- PR #154 publicada como borrador hacia #145 con HEAD `3a568e1`, base `cc3dfec` y CI642/run44203202876 SUCCESS en los tres jobs. Cierre independiente de código, publicación y evidencia CI sin MUST/SHOULD. Cinco artefactos oficiales cotejados; sin despliegue Vercel del ref ni Preview Supabase nueva. El merge sintético tiene el mismo árbol que la fuente revisada.
+- Para conservar esa condición al incorporar la corrección, se añade la exclusión literal Vercel de `chore/supabase-preview-baseline-fix`, junto a la del origen. Main conserva su comportamiento. No cambian arnés, migraciones, runtime, workflows, recibos ni lockfile. El nuevo commit requiere revisión antes de push y CI propia antes de incorporar en #145; no autoriza su merge a main ni operaciones DB.
+
 ## 2026-11-18 — PG17 local y preparación de CI sin preview
 
 - La revisión independiente de `314532d835cd2e1124d6d701b7ec05e9534c7a37` cerró el MUST y SHOULD anteriores: cero hallazgos abiertos en ese delta. El arnés real pasó dos veces en PostgreSQL17.12 temporal del Mac, con14 migraciones y recibos equivalentes salvo timestamp. Ajustes heredados de redirección y un archivo de inicio de psql adversos quedaron sin efecto. Clúster limitado a loopback, detenido y eliminado. Esto no acredita rollback E2, captura cloud ni CI.

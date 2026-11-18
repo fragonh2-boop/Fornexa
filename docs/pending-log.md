@@ -2,6 +2,11 @@
 
 Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Supabase, Vercel y Slack antes de actuar. El historial detallado anterior permanece en Git; este archivo prioriza el estado operativo vigente.
 
+## 2026-11-18 — Incorporación de las guardas en la candidata
+
+- PR #154 en `3a568e1` tiene CI642 y revisión independiente cerradas. La exclusión del origen evitó un despliegue Vercel al publicar. Se prepara la misma protección literal para el ref destino de #145 antes de incorporar la corrección; main conserva su configuración.
+- Pendientes revisión y CI del nuevo SHA, decisión de incorporación con HEAD/base vigentes y verificación posterior de #145. Este trabajo no fusiona la candidata a main ni ejecuta migraciones cloud. Los otros gates WMS siguen abiertos.
+
 ## 2026-11-18 — Guardas: ensayo PG17 cerrado, publicación de CI pendiente
 
 - La corrección local `314532d` tiene revisión independiente favorable, cero MUST/SHOULD, web460/460 y ensayo real PG17.12 repetido:14 migraciones por ejecución con aislamiento de tenant y mismo postestado. Clúster temporal detenido y eliminado; producción no intervenida.

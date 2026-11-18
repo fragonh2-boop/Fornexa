@@ -2,7 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "git": {
     "deploymentEnabled": {
-      "fix/wms-orphan-guard-local-20261117": false
+      "fix/wms-orphan-guard-local-20261117": false,
+      "chore/supabase-preview-baseline-fix": false
     }
   }
 }
