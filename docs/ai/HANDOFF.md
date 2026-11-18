@@ -2,6 +2,13 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-11-18 — Recuperación HU/C3 local autorizada
+
+- Fran autorizó directamente a Codex como autor local de HU/C3 y al mismo revisor independiente, con PG17 desechable y sin ejecución productiva. Base de esta rama `c9ecd5685952e7c41a5295c254ad440d3cd49c75`: PR #154 ya incorporada únicamente en #145, CI644 SUCCESS y guardas cerradas. #145 sigue borrador hacia main `2941a800`; producción mantiene E2 apagado.
+- Rama `fix/wms-hu-c3-recovery-local-20261118`. El inverso estricto conserva sus abortos ante colisión/ejecución sin confirmar y restaura C3. La vía explícita `PRESERVE_HU` conserva el esquema y todos los registros, archiva trazabilidad, congela las entradas y vínculos E2 y restaura solo la función/ACL C3 fijadas, sin reejecutar backfills. Operación y restauración son una transacción. Documento: `docs/verification/wms-e2-hu-c3-recovery.md`.
+- Dos ensayos reales locales PG17.12 de la versión ampliada pasan: colisión con ambos HUs presentes, C3 exacta, otro tenant/archivo previo conservados, repetición, denegaciones y fallo atómico. La prueba de confirmación indirecta C3→tarea E2 falló antes de añadir su guarda y pasa con ella; las tareas C3 sin vínculo E2 siguen operativas. Clústeres detenidos/eliminados y runtime desmontado al terminar.
+- Tipos y build de producción PASS. Ensayo final ampliado repetido dos veces en PG17.12: también bloquea cambios de propietario y TRUNCATE de los objetos congelados. Suite web463/463 y lint PASS (0 errores/11 avisos previos). Pendientes commit estable, revisión independiente y CI del SHA nuevo antes de incorporar en #145. La rama incluye exclusión Vercel específica antes de su primer push; workflows, lockfile y migraciones existentes se conservan. Sin SQL cloud, captura, seed, COMMITTED ni activación E2. El ensayo no cierra la captura/rol/atomicidad ni la validación funcional productiva del charter.
+
 ## 2026-11-18 — Protección del destino de integración
 
 - PR #154 publicada como borrador hacia #145 con HEAD `3a568e1`, base `cc3dfec` y CI642/run44203202876 SUCCESS en los tres jobs. Cierre independiente de código, publicación y evidencia CI sin MUST/SHOULD. Cinco artefactos oficiales cotejados; sin despliegue Vercel del ref ni Preview Supabase nueva. El merge sintético tiene el mismo árbol que la fuente revisada.
