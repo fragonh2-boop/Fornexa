@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "classification": "UNVERIFIED_HISTORICAL_IMPORT",
+  "certifies_live_database": false,
+  "capture_workflow_run_id": null,
+  "capture_artifact_id": null,
+  "import_commit": "489bae4a582d01d7fe8dc847a0e26fa2e0eb0a17",
+  "reported_capture_time": "2026-10-24T18:46:52.847Z",
+  "git_comparison_baseline": "d449f50903da77459cd61ccce624dfd2edf13793",
+  "files": [
+    {
+      "path": "docs/verification/supabase-migration-content-audit-20261024.json",
+      "bytes": 188702,
+      "sha256": "74a08bb4bbf2470b074e53ec39cfca17ea824d658b5725fb54de71493ad169a5"
+    },
+    {
+      "path": "docs/verification/supabase-audit-preflight-evidence-20261024.json",
+      "bytes": 4575,
+      "sha256": "78a55e001cc9e8adb58df0260a3b7b994c0c61b46f387e4eaa1c0b2ff8999f51"
+    }
+  ],
+  "limitations": [
+    "Import commit and file integrity are verifiable; capture source and live database provenance remain unverified.",
+    "Offline tests validate historical Git digest arrays and metadata only, not a database capture.",
+    "Do not use these snapshots as a production or migration GO. A fresh hardened capture or independently verified original artifact is required.",
+    "A fresh 29-Oct read-only primary-source digest observation corroborates all 41 historical paired payload fingerprints; it does not retroactively prove the original timestamp or preflight."
+  ],
+  "ledger_content_corroboration": {
+    "source": "docs/verification/supabase-ledger-fingerprints-20261029.json",
+    "matched_historical_pairs": 41,
+    "observed_remote_migrations": 42,
+    "certifies_original_capture_time": false,
+    "certifies_original_capture_transport": false,
+    "certifies_preflight_data": false
+  }
+}

@@ -2,6 +2,33 @@
 
 Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Supabase, Vercel y Slack antes de actuar. El historial detallado anterior permanece en Git; este archivo prioriza el estado operativo vigente.
 
+## 2026-11-18 — Incorporación de las guardas en la candidata
+
+- PR #154 en `3a568e1` tiene CI642 y revisión independiente cerradas. La exclusión del origen evitó un despliegue Vercel al publicar. Se prepara la misma protección literal para el ref destino de #145 antes de incorporar la corrección; main conserva su configuración.
+- Pendientes revisión y CI del nuevo SHA, decisión de incorporación con HEAD/base vigentes y verificación posterior de #145. Este trabajo no fusiona la candidata a main ni ejecuta migraciones cloud. Los otros gates WMS siguen abiertos.
+
+## 2026-11-18 — Guardas: ensayo PG17 cerrado, publicación de CI pendiente
+
+- La corrección local `314532d` tiene revisión independiente favorable, cero MUST/SHOULD, web460/460 y ensayo real PG17.12 repetido:14 migraciones por ejecución con aislamiento de tenant y mismo postestado. Clúster temporal detenido y eliminado; producción no intervenida.
+- Se prepara la exclusión Vercel de `fix/wms-orphan-guard-local-20261117` para publicar una PR de CI hacia #145 conservando workflows y recibos. Pendientes dictamen del commit completo, publicación y CI exacta; no se considera DONE ni desplegado. No fusionar #145 ni ejecutar migraciones cloud por este resultado.
+- Recuperación/rollback E2, restauración C3, captura certificada, rol/atomicidad, DATA150-WMS y E2E autenticado conservan sus propios gates.
+
+
+
+
+## 2026-11-17 — Cierre de separación y despliegue apagado
+
+- #152 fusionada en main `2941a800735adc78af45340cd1931847ee91e829`. CI PR44078515402 y main44079078596 SUCCESS:412/412 web,39/39 C3, tipos/lint/build/Mobile y ensayo PG17.
+- Producción canónica READY en ese SHA y alias fornexasc.com comprobado. Smoke: Memorandum200 con nota de entrada por fases; API WMS401 sin sesión; ruta de reposiciones exige login. Logs del despliegue15min: ningún error/fatal encontrado. Esto no certifica el recorrido autenticado de operador.
+- Lectura Supabase posterior: ledger42, última20261019120000, tablas E2 ausentes. Sin SQL remoto de escritura ni activación E2. El interruptor de servidor no está configurado en Vercel y queda apagado por defecto.
+- #153 fusionada exclusivamente en esta candidata como `a203bb0`; árbol9754c4f idéntico al fuente `eeed595` probado por CI44079421038 SUCCESS:457/457 web,39/39 C3, verify-e2-pg17/rehearse-c3-apply-pg17, tipos/lint/build/Mobile. Preview canónica del fuente READY. Conflictos resueltos preservando runtime idéntico a main.
+- Bloqueos para continuar la fase de datos: elección de organización para el Supabase de pruebas (pregunta obligatoria del conector enviada a Fran); acceso interactivo al Mac para renovar el token del revisor (no hay herramienta de control Mac en esta sesión). Recuperación de HUs incompatibles y restauración C3 exacta siguen pendientes antes de activar; el rollback actual aborta antes de alterar stock ante colisiones. #145 permanece DRAFT; no aplicar E2 ni fabricar sesión operativa.
+
+## 2026-11-17 — Reconciliación de candidata tras separar runtime
+
+- #152 fusionada en main2941a80 tras CI44078515402 SUCCESS y Preview exacta READY. E2 continúa apagado; no SQL remoto.
+- Se incorpora ese main en la candidata conservando sus migraciones, pruebas y defensas de auditoría. API, UI y dominio WMS son idénticos a main, incluido el interruptor y la compatibilidad C3. No se extienden aprobaciones históricas al merge nuevo.
+- Pendiente CI propia y publicación de esta reconciliación antes de integrar en #145. No fusionar #145 a main ni activar/aplicar E2 sin ensayo aislado y recuperación.
 
 ## 2026-11-17 — Runtime E2 separado, apagado por defecto
 
@@ -14,6 +41,88 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 - Validación local: suite web412/412; focales API/loader/interruptor23/23; tipos PASS y lint sin errores (10 avisos). Build PASS. CI/Preview del HEAD final pendientes; no declarar entrega productiva hasta verificarlos.
 
 ## OPEN
+
+### 2026-11-18 — HU/C3: último SHOULD léxico en reinspección
+
+- Revisor cerró MUST y SHOULD del recibo en `d36e8be`; detectó variantes léxicas del COMMIT interior. Corrección local con tres regresiones del revisor y pruebas válidas, suite465/465, focales14/14, tipos/build PASS, lint0/11 y PG17x2 finales PASS; pendientes SHA/reinspección antes de publicar. No DONE ni ejecución productiva.
+
+### 2026-11-18 — HU/C3: reinspección tras corregir1MUST y2SHOULD
+
+- `813b05d` quedó bloqueado por bypass TRUNCATE/RLS confirmado. Corregido localmente con regresión roja/verde en PG17 y rechazo incondicional de TRUNCATE, conservando operaciones C3 normales.
+- También corregidos controles transaccionales interiores del generador e instrucción raw del recibo. Dos ensayos finales PG17.12 PASS, suite464/464, focales13/13, tipos/build PASS y lint0/11previos; pendientes nuevo SHA, reinspección independiente y CI antes de incorporar. No DONE, producción ni carreras concurrentes acreditadas.
+
+### 2026-11-18 — Recuperación HU/C3 preparada y ensayada localmente
+
+- Codex, con autorización directa de Fran, prepara un inverso estricto con restauración C3 y una recuperación compatible que conserva HU/stock y congela E2. Rama `fix/wms-hu-c3-recovery-local-20261118` desde `c9ecd568`; sin ejecución productiva.
+- Dos corridas PG17.12 reales pasan los casos ampliados, incluida colisión persistente, archivo previo, segundo tenant, repetición, fallo atómico y protección de vínculos E2 frente a la función C3 restaurada. Fuentes C3/migraciones originales intactas; no se repiten backfills. Guía en `docs/verification/wms-e2-hu-c3-recovery.md`.
+- Tipos/build PASS y ensayo final PG17.12 repetido con guardas contra TRUNCATE. Suite web463/463 y lint0 errores/11 avisos previos. Pendientes SHA estable, dictamen independiente, CI y controles de integración. No es DONE ni desplegado. #145 sigue DRAFT; captura/rol/atomicidad, entorno de pruebas Supabase, DATA150-WMS y E2E mantienen sus gates.
+
+### 2026-11-18 — Guardas del arnés de recuperación preparadas localmente
+
+- Codex aplicó la corrección recuperada de Claude en `fix/wms-orphan-guard-local-20261117`, sobre `cc3dfec37e164612238bd395616d061f341cefcf`, con autorización directa de Fran. Se exige host loopback y base desechable antes de cada llamada SQL del arnés.
+- La inspección de `20fe22a` detectó un MUST de destino efectivo y un SHOULD de cobertura. Se corrigió el entorno heredado del subproceso y se desactivaron sus archivos de inicio. La nueva regresión por la entrada normal falla antes de la corrección y pasa después; comprueba los seis pares admitidos mediante mocks, sin conexión SQL.
+- Suite web460/460, focales33/33, tipos y build PASS. Lint0 errores/11 avisos fuera del delta. Los cuatro rechazos anteriores a SQL y los controles de recibos se conservan.
+- Actualización: esas guardas se revisaron, ensayaron en PG17 e incorporaron como PR #154 exclusivamente en la candidata #145 (`c9ecd568`, CI644 SUCCESS). No repetir la corrección. La entrega productiva sigue supeditada al resto del rollout; conservar los controles de recibos de ambos jobs.
+
+### 2026-11-12 — Contingencia E2: paquetes G reconciliados sobre PR #151
+
+- PR #151 incorpora ya la rama de #145 (`2e0249e3`) con los conflictos resueltos a favor de su rollback, arnés y tests, más la tercera capa G5 en servidor. Pendiente: CI propia en PG17 sobre el HEAD nuevo y fusión en la rama de #145 (decisión de Fran).
+- Sigue abierto en ambos paquetes: con palés del mismo lote partidos por HU el rollback se niega (correcto) pero no ofrece vía de vuelta; y el cuerpo C3 de `fornexa_wms_action` no se restaura si la RPC E2 llegó a aplicarse.
+
+### 2026-11-05 — Contingencia E2: G1..G5 cerrados en PR contra #145; nueva estrategia de entrada
+
+- PR desde `fix/e2-harness-guard-g5` hacia `chore/supabase-preview-baseline-fix`: guarda MUST-G5, rollback G1..G4, correcciones del seed y del arnés que causaban el rojo de `verify-e2-pg17`. Pendiente: CI propia en PG17 y revisión independiente antes de integrarla en #145.
+- Pendiente de decisión: restaurar el cuerpo C3 de `fornexa_wms_action` en el rollback cuando la RPC E2 ya se aplicó (hoy queda la versión E2; acciones pre-E2 operativas, E2 con error).
+- Siguientes pasos de la estrategia acordada con Fran: partir #145; runtime E2 detrás de interruptor apagado; ensayo en Supabase de pruebas (plan gratuito); apply productivo con copia previa y solo aditivo; activación final. Restablecer acceso de Claude a Vercel (403 desde 26-oct) para verificar y revertir despliegues.
+
+### 2026-10-30 — #145: corregir-y-mergear autorizado con MUST documental
+
+- Dictamen Claude6526750979 sobre09086aaa: integración conforme; acepta corregir-y-mergear una vez eliminada la certificación pública indebida del snapshot24-oct. MUST-145F-1 corregido en candidata: snapshot histórico importado, sin run y sin procedencia certificada; regresión pública contra manifiesto no certificado. Cobertura vigente714; referencias712 históricas aclaradas.
+- Pendientes validación/publicación del delta, DB-first E2 controlado y verificación de ledger/post-estado antes de merge/appdeploy. Producción sigue en c948368, sin aplicación E2 ni captura manual. Mantener pendiente la verificación funcional con operador real; no fabricar sesión.
+
+### 2026-10-30 — CI propia y dictamen final tras retirar caché agotada
+
+- Main618 SUCCESS (408/408) y #150/c948368 en producción canónica READY. La API secundaria fornexa-app403 no permite certificar ese proyecto; API móvil configurada sobre el dominio canónico comprobado. Captura oficial no ejecutada.
+- CI619 de2ce05e2 se retrasó en Setup Node por cuota de transferencia de la caché; log main618 acredita el mismo fallo. Nuevo delta retira solo opciones de caché en CI/captura, preservando validaciones y frozen-lockfile. YAML comparado estructuralmente; nueva CI y dictamen requeridos. No ampliar cuotas ni repetir capturas.
+- Preflight READ ONLY: ledger42, E2 no aplicado; customs tenant_id cumple UUID/NOT NULL/FK RESTRICT;150 quants/0HUs y clave aún sin HU. DB-first pendiente del dictamen del conjunto y de su procedimiento explícito. Sin cambios cloud ni despliegue E2.
+
+### 2026-10-30 — #145 alineada con #150 ya fusionada
+
+- #150 aprobada en `1bfb534` por Claude (6522812458), fusionada a main `c948368`, árbol idéntico al revisado. Producción canónica READY, alias fornexasc.com comprobado y /memorandum200. CI main618 pendiente al preparar esta nota; captura oficial no ejecutada.
+- #145 combina padre `eb8d27c` con main nuevo, resuelve los tres conflictos documentales, conserva historial/alcance0912 y alinea Memorandum/test con fecha30-oct/cobertura712 en el checkpoint 2ce05e2 (histórica; cobertura vigente714). Añade guarda negativa de NODE_TLS_REJECT_UNAUTHORIZED=0, test y repin del runner, candidata de cierre del SHOULD menor de Claude.
+- Local77/77 focales, tipos/lint global y build PASS; pendientes publicación, CI propia y dictamen del nuevo HEAD. No reutilizar aprobaciones de padres para el conjunto. Sin merge #145 a main ni cambios de base productiva.
+
+### 2026-10-30 — #145: validación del conjunto tras integrar #149
+
+- #149 aprobada a `ab7e044` por Claude (6521556938): cero MUST, autorización para integrar el delta en #145. Fusionada en `6524a5b`, árbol idéntico al revisado y ensayado por CI #614 (432/432 web, PG16/17). #145 permanece draft; no hay aprobación de merge a main ni GO productivo.
+- Checkpoint añade alcance explícito HISTORICAL_BASELINE_ONLY al resumen/arrays históricos 0912, comparación Git actual recalculada y manifiesto con hash/tamaño/baseline; bytes históricos intactos. Candidata de cierre de SHOULD-2c, pendiente de dictamen sobre el conjunto. Memorandum fecha/cobertura actualizadas.
+- Checkpoint local: 25/25 focales, tipos/lint focal y build PASS. #150 en `1bfb534`, CI #615 SUCCESS (408/408 web), revisión TLS pendiente. Pendientes publicación/CI del checkpoint, revisión #145, revisión #150 y alineación con main antes de DB-first/deploy. Sin escritura remota, captura manual ni despliegue.
+
+### 2026-10-29 — PR #149: último MUST del arnés tras revisión Claude
+
+- Dictamen 6501121250 sobre `62b3ef1`: nueve hallazgos cerrados; MUST-H-1 mantiene CODE_READY/MERGE/DB_READY NO. CI #612 verde corresponde al SHA anterior al delta.
+- Candidata: retirar shim de tenant_id customs, comprobar UUID/NOT NULL/default/FK RESTRICT después del replay y exigir search_path vacío exacto. Pruebas negativas verifican rechazo de definiciones debilitadas. Auditoría de merma incorpora estado previo y alcance del quant completo; documentación declara impacto multiorden y límite de evidencia HU sintética.
+- Local: 37/37 focales, tipos/lint focal y build PASS; suite completa 431/432 por el timeout DATA150 preexistente del lock vacío. Pendientes publicación, CI del nuevo SHA, nueva revisión y posterior integración/revalidación #145. #150 tiene CI #613 verde y revisión pendiente. No desplegar ni modificar base remota antes del cierre independiente.
+
+### 2026-10-29 — E2 #145: candidata correctiva tras dictamen Claude
+
+- Estado: PREPARADA, sin merge/deploy. Rama `codex/e2-claude-remediation-20261029` sobre `2f890c7`; el nuevo dictamen independiente y CI PG17 son obligatorios antes de integrar.
+- Se proponen arreglos MUST-E2-1/2/3, tratamiento de RESERVED, evidencia de cancelación sin perder reservas ajenas, aislamiento de HUs, carrera en destino, limpieza de recibos por job y aserciones RLS. Ver checkpoint actual de HANDOFF y nota `docs/verification/wms-e2-remediation-20261029.md`.
+- Auditoría: el import 24-oct continúa como histórico de procedencia no verificada. Sus 41 huellas emparejadas están corroboradas mediante observación primaria read-only nueva del ledger de 42 migraciones (29-oct). Esto no certifica la captura original ni sus métricas preflight. Claude debe valorar si esta evidencia cierra el alcance exigido de MUST-145-1.
+- SHOULD-12 C3 YA integrado en main; los textos inferiores de «solo local» son históricos. La variante E2 se corrige en su propio job porque validate no comparte disco.
+- Pendiente: CI del SHA publicado, revisión delta por Claude, integración y revalidación #145, procedimiento DB-first y comprobaciones funcionales. El ejecutor #146 se corrige en una PR separada. No declarar CODE_READY/MERGE/DB_READY/DEPLOY_READY por el verde local.
+
+
+### 2026-10-24 — E2 #139: subsanación de revisión Argon (MUST-1..3 y SHOULD-1 cerrados); contrato implementable
+
+- **Estado:** PR #139 OPEN/draft, rebasada sobre `main` `d149789c4c73bb68eb259da3230a53c8c6366b27`. Árbol limpio con únicamente los 3 documentos de arquitectura y seguimiento.
+- **Subsanación de revisión Argon4 (`REVIEW-E2-9fc-ARGON.md`):**
+  - **MUST-1 (Alcanzabilidad de E2-146 bajo CHECK y erradicación de STOCK_DISCREPANCY):** Erradicado estado inexistente `STOCK_DISCREPANCY` (válidos en E1: `'AVAILABLE'`, `'QUARANTINE'`, `'DAMAGED'`, `'INSPECTION'`, `'BLOCKED'`). Demostrada la imposibilidad en PostgreSQL de `quantity_on_hand < suggested_quantity` con reserva `HELD` activa bajo `CHECK (quantity_reserved <= quantity_on_hand)`. Paso 4 de `fornexa_wms_action(REPLENISH)` se alcanza deterministamente cuando el quant pasa a `stock_status IN ('INSPECTION','BLOCKED','DAMAGED','QUARANTINE')` sin violar el `CHECK` o cuando el operario reporta merma física en piso. La RPC cancela atómicamente propuesta, tarea y reserva `HELD`, decrementa `quantity_reserved`, aisla el quant en `'INSPECTION'` para conciliación del planificador y retorna `WMS_SOURCE_STOCK_DEPLETED` sin `RAISE` no controlado.
+  - **MUST-2 (Columna target_hu_id en DDL de wms_proposals):** Incorporada formalmente en `§2.2` la columna `target_hu_id uuid` en `public.wms_proposals` con FK `fk_proposal_target_hu` hacia `handling_units`, sincronizando la fórmula de deduplicación de plazas de palé entrantes de S4 (§3.1) con el esquema.
+  - **MUST-3 (Eliminación de contradicciones internas sobre S4/N3/E2-146):** Eliminadas menciones obsoletas en `§4.4` y `§5` que afirmaban que S4, N3 o E2-146 permanecían abiertos. Todo el contrato sostiene de manera coherente el cierre de los puntos.
+  - **SHOULD-1 (Deslinde de fuentes primarias humanas y diseño técnico):** Deslindadas claramente las decisiones primarias literales de Fran (dato SGA editable sin pesaje forzado y concurrencia multi-orden por capacidad agregada) de las formulaciones algorítmicas de ingeniería de software (deduplicación por `target_hu_id` y Paso 4 de RPC con aislamiento en `INSPECTION`).
+- **Gobernanza y límites:** Amparado en la autorización humana de Fran (`FRAN-PRIMARY-CIERRE-TOTAL-20261024.md` y `FRAN-PRIMARY-WMS-20261021-DECISIONES-SGA-RESERVAS.md`). Contrato 100% completo, coherente e implementable. CERO implementación de código runtime E2 en esta PR, CERO SQL remoto contra producción, CERO F4/seed/COMMITTED/merge/deploy.
+
 
 ### 2026-10-30 — #150: cierre independiente de conexión y publicación
 

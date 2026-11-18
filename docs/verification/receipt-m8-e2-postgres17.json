@@ -1,0 +1,463 @@
+{
+  "certification_target": "WMS E2 Replenishment Runtime & RPC",
+  "engine": "pg-socket",
+  "pg_version": "PostgreSQL 17.11 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit",
+  "executed_at_utc": "2026-10-26T23:16:17.594Z",
+  "git_head_sha": "696453a9938322082d4c143e5628d6bb426e7072",
+  "certification_scope": "Candidate Git migration chain through E2 core & RPC with disposable PostgreSQL 17 relational execution",
+  "rls_certified": true,
+  "security_evidence": {
+    "setup_role": "postgres (superuser)",
+    "execution_role": "authenticated (non-superuser with request.jwt.claim.sub and request.jwt.claim.role)",
+    "cross_tenant_tested": "Tenant A vs Tenant B rejection WMS_FORBIDDEN",
+    "anon_rejected": true,
+    "privilege_separation": "PLANNER (evaluate/approve/reject/cancel) vs OPERATOR (replenish execute)"
+  },
+  "migrations_applied": [
+    {
+      "file": "20260807_customs_core.sql",
+      "sha256": "1c6d74fbbfca2681b62ff16afdb41cd7aa2c189e78d2940a2b02119869f4d51c",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260808_mobile_cmr.sql",
+      "sha256": "3e3827e3c7735492b4f557f67c9daee7df3c5201cef33893afc89600f76a29c3",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260812_fornexa_operational_core.sql",
+      "sha256": "19babd0890582eb1733f507e78ab0e36ba8bd4983ea758a4e563014030a168e3",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260817_expedition_order_link.sql",
+      "sha256": "11040df2a9d7904cf2607622a5b56c2a2924fb3f7ae075a7b4052f5a2839ffa4",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260814_cmr_canonical_model.sql",
+      "sha256": "c4b72dde6b41a8633212dd692a815a71e4d16ad8acf2960f788e1df90901f6c3",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260817_cmr_expeditions_bridge.sql",
+      "sha256": "7c8c761e61b47771b721b6b614e2a3cbce8b39a4a0ed8df3d4a1b59eff75a5c9",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260817_expeditions_order_id_unique.sql",
+      "sha256": "bc3b17531b7a03f4f058a9aa3f88158a6ea915a362012bfb00ef80e0f4bf80fd",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260818_restore_order_expedition_1to1.sql",
+      "sha256": "37281ba739851cd7a2ee149b434cb727d8e1d9e6cb0f06c8b1732a70da7695bf",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260819_harden_tenant_access_function.sql",
+      "sha256": "5324296160e5bf7c6d9b95d3128626fcce01f47b33b97970bf5a7b0a483b694a",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260819_restrict_tenant_members_writes.sql",
+      "sha256": "32c59b75f7d2e5c1cd5c752d738c069946b915ed5883ec44526cff8abbaeb80c",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260819_cmr_access_key_lifecycle.sql",
+      "sha256": "67c399578f7cc7225e09362b5ddb77f482dddf8936c08d00729319e69041e2e0",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260819_review_access_token_registry.sql",
+      "sha256": "2cdd3dd11a0d651d017d0f6328f7bfdf66f0c0948d5dacb8aa5fc9d300a85cfe",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260819_harden_review_token_rpc.sql",
+      "sha256": "a247c66d80f5a83a233153196f1a4016aa50f3f2426eb6c8c05936392f53d2a0",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260819_cmr_view_sessions.sql",
+      "sha256": "56d508477a74965a4425404d52d563a1abe113765827a2c4e47a021f8e8b4378",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260819_mobile_trip_access.sql",
+      "sha256": "7488793bc65cfeeb43efa174c2c933573c154bde469f75ee290c99cc4dfeaf64",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260821181001_enable_private_review_access_tokens_rls.sql",
+      "sha256": "87a08b003443cd75516d909bb3a51d22b4663c0d97eff4b0c7b8a0a8acd30496",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260822224945_adr_classification_foundation.sql",
+      "sha256": "8deb00f7cf778ec9b48a23bb0097b68f9d1d7947393a5c2d51e49818344338bf",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260822231225_adr_foundation_indexes.sql",
+      "sha256": "6405e181f940ab51b0c5caae0a4ac1b76548b8e585b7b626b5e74b0d7ff5a8a9",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260823074500_shared_party_addresses.sql",
+      "sha256": "9ed5cd95605423023371be5570c188c5a6aabfc046dc0be81bed61433a410c6e",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260823081000_shared_party_address_indexes.sql",
+      "sha256": "7701561839b842868eacf041bb6d76772afe2ef3915db365227f6c396d0169c9",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260825101500_remove_legacy_route_service.sql",
+      "sha256": "6cf740eff5f0fa5ced632ecca6adff92265c7df9ca8c91b7b611e2c7ded89518",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260825150000_address_subdivision_key.sql",
+      "sha256": "d9fb9ce23bf7957d25f9de2fa0b38783a230bbb1bc840866f574e7652a2ab63a",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260825163000_allow_party_review_status.sql",
+      "sha256": "fbb421d7cc1b7b24d6285081a82a514d157024a30b9705a1883f2abb420918e8",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260825203000_customer_master_foundation.sql",
+      "sha256": "3d37826892f3a0dcdb57e3eb905ab194c379194287c954ca89c7632fddc7ce5d",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260827164000_tariff_engine_foundation.sql",
+      "sha256": "7a22cea176d44e250ea8ac2f8268c3806a26a3a295cb51b962aa232eea4ccea4",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260901_platform_telemetry.sql",
+      "sha256": "d26f716cdbb5a952e445442eeb542298fb2481365146340b6f1cd612e3c53cf6",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260903003000_t1_append_only_events.sql",
+      "sha256": "30defff764670a1ff5baa44e5c08cf2783de1441d304cdf9b4ffdef4e8b2be77",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260903062500_deca_regulatory_document_foundation.sql",
+      "sha256": "edf287f4c18c2e8b70a11756b676e44df362318226cd84411c9cbe40c52218a4",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260905054500_deca_regulatory_storage.sql",
+      "sha256": "510d3b878b37d80671c21015b6a1ea881987d05282805b52531d86a1e710d87b",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260906143000_deca_public_url_lifecycle.sql",
+      "sha256": "107d81c6b01a48669a15cd867f44e850abf1d6d30fea31943453b0819ee35975",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260907175000_deca_native_atomic_issuance.sql",
+      "sha256": "9f0eaac4b2c457e07a8caa99b42f1dbb46934d441b330469bbdd7546b1a54bd4",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260910084703_canonical_fiscal_address.sql",
+      "sha256": "d5b693aef611cf45d489f05a9a3ea90c6f7beec1840db27736924e1987e75d91",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20261002233000_master_data_foundation.sql",
+      "sha256": "56a349ce2a5c1a33526b78e7ac5b24a2961549a8b849e34bc491c2b267172263",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20261002234000_harden_movement_duration_execute.sql",
+      "sha256": "76b835cdb1cae13d8eac8af59ae3699ff7c9d577f6c7257ba19b79d8b4996dfc",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20261007160000_products_tenant_scoped_references.sql",
+      "sha256": "4103e1db70e53c9148b0efc59066380ebf15546d15652c0a43f629b94c54722a",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20261009090000_traceability_lookup_indexes.sql",
+      "sha256": "1e262d5fd53c5536ba3d75d3422d265da61d779ac9a2223cb70f9fd953c9f945",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20261014090324_muelles_v1_core.sql",
+      "sha256": "78af531b8f1203e22155618718f8bd412c29f1ad58a7cd6d5f0040db8967a00c",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20261014094551_muelles_v1_portal.sql",
+      "sha256": "09c594898e7c1ee322fdd0a57b0238d91a7738e86b132193043006d131869ca5",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20261014103035_muelles_calendar_normalization.sql",
+      "sha256": "c61865885ecb022059fe4dc88bb0bb7f57fc9fc3ffa3bc48c58a5236f23823eb",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20261017110000_wms_e1_core.sql",
+      "sha256": "91c25fb49f7f4df1d14dbf6c41d56c2b8771d75fc41a82296bc03ab0f7038d8a",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20261019120000_wms_c3_server_load_controls.sql",
+      "sha256": "deb9cb2f2f375084d01985785ce59b485b8c0a8887d3f445d8d7ab311d907f46",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260812_local_storage_import.sql",
+      "sha256": "9652adcb8d095cee5b6fe7bdfe54cb54f01c62aac7d465be3b20a6bb00fa5199",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20260818_cmr_number_sequence_resync.sql",
+      "sha256": "b8741a86c2b5439bbccc57cf27ff34af8d89761085891a542d6679f73f1a1058",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20261024120000_wms_e2_replenishment_core.sql",
+      "sha256": "55afcabdb752dcda2dd13956511c1f0d1780341334f4dcdef22b4fb9bcfac0db",
+      "status": "APPLIED"
+    },
+    {
+      "file": "20261024120100_wms_e2_replenishment_rpc.sql",
+      "sha256": "87194316085abae1b42d43a890c2aa9f6a831c96396b4376180d1e29479d3d8e",
+      "status": "APPLIED"
+    }
+  ],
+  "full_chain_applied": true,
+  "case_registry": [
+    {
+      "case": "E2-130",
+      "title": "Ciclo nominal completo (DRAFT -> APPROVED -> EXECUTED): reserva HELD, tarea READY, quant destino, received_at inmutable, movimiento COMPLETED y replay idempotente"
+    },
+    {
+      "case": "E2-131",
+      "title": "Disparo por stock bajo mínimo: genera propuesta DRAFT con déficit determinista ajustado a múltiplo"
+    },
+    {
+      "case": "E2-132",
+      "title": "No disparo cuando stock >= mínimo: stock destino 12 > min 10 genera 0 propuestas"
+    },
+    {
+      "case": "E2-133",
+      "title": "Deducción de reposición en tránsito: stock físico 5 + en tránsito 40 = 45 > min 10 evita propuesta redundante"
+    },
+    {
+      "case": "E2-134",
+      "title": "Rotación determinista FIFO vs FEFO y preservación de inmutabilidad de received_at"
+    },
+    {
+      "case": "E2-135",
+      "title": "Consolidación NO: rechazo determinista en bin ocupado con otro SKU (WMS_CONSOLIDATION_CONFLICT)"
+    },
+    {
+      "case": "E2-136",
+      "title": "Consolidación NO: aceptación en bin limpio"
+    },
+    {
+      "case": "E2-137",
+      "title": "Consolidación YES: permite adición de multilote del mismo producto"
+    },
+    {
+      "case": "E2-138",
+      "title": "Rechazo determinista por sobrecapacidad física (WMS_BIN_CAPACITY) con peso editable SGA"
+    },
+    {
+      "case": "E2-139",
+      "title": "Consolidación BY_BATCH: acepta mismo lote"
+    },
+    {
+      "case": "E2-140",
+      "title": "Consolidación BY_BATCH: rechaza lote dispar (WMS_LOT_MIX_FORBIDDEN)"
+    },
+    {
+      "case": "E2-141",
+      "title": "Exclusión de stock en QUARANTINE (WMS_NO_SOURCE_STOCK)"
+    },
+    {
+      "case": "E2-142",
+      "title": "Exclusión de stock en DAMAGED (WMS_NO_SOURCE_STOCK)"
+    },
+    {
+      "case": "E2-143",
+      "title": "Concurrencia de reservas en origen: stock 100 admite 60+40 y rechaza 60+60 fail-closed con lock FOR UPDATE"
+    },
+    {
+      "case": "E2-144",
+      "title": "Ciclo de vida: DRAFT a APPROVED crea reserva HELD y tarea READY"
+    },
+    {
+      "case": "E2-145",
+      "title": "Ciclo de vida: Rechazo de propuesta registra motivo en rejection_reason"
+    },
+    {
+      "case": "E2-146",
+      "title": "Cancelación atómica Paso 4 por merma/indisponibilidad sin unhandled RAISE"
+    },
+    {
+      "case": "E2-147",
+      "title": "Reposición de HU completa vs suelto vincula target_hu_id"
+    },
+    {
+      "case": "E2-148",
+      "title": "Aislamiento multi-tenant y RBAC fail-closed bajo RLS real (Tenant B aislado de Tenant A con WMS_FORBIDDEN)"
+    },
+    {
+      "case": "E2-149",
+      "title": "Concurrencia hacia mismo destino y control de capacidad multi-orden"
+    },
+    {
+      "case": "E2-150",
+      "title": "Atomicidad y Rollback transaccional ante fallo simulado durante movimiento (sin marcas huérfanas)"
+    }
+  ],
+  "case_results": [
+    {
+      "case": "E2-130",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-131",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-132",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-133",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-134",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-135",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-136",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-137",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-138",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-139",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-140",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-141",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-142",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-143",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-144",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-145",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-146",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-147",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-148",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-149",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    },
+    {
+      "case": "E2-150",
+      "status": "PASS",
+      "role": "authenticated",
+      "rls_applied": true
+    }
+  ],
+  "summary": {
+    "total": 21,
+    "passed": 21,
+    "failed": 0
+  }
+}
