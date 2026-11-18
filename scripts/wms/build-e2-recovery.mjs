@@ -1,5 +1,6 @@
 // Builds an atomic operator bundle; never connects to a database.
 import { createHash } from "node:crypto";
+import { splitSqlStatements, sqlStatementCommand } from "./sql-statements.mjs";
 import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,13 +26,14 @@ export function extractC3Restore(source) {
 }
 
 function transactionBody(source) {
-  const begins = [...source.matchAll(/^begin;[ \t]*$/gim)];
-  const commits = [...source.matchAll(/^commit;[ \t]*$/gim)];
-  if (begins.length !== 1 || commits.length !== 1 || begins[0].index >= commits[0].index
-      || source.slice(commits[0].index + commits[0][0].length).trim()) {
+  const statements = splitSqlStatements(source).filter((sql) => sqlStatementCommand(sql));
+  const commands = statements.map(sqlStatementCommand);
+  const control = /^(?:begin|start|commit|end|rollback|abort|savepoint|release|prepare)\b/i;
+  if (commands.length < 2 || !/^begin$/i.test(commands[0]) || !/^commit$/i.test(commands.at(-1))
+      || commands.slice(1, -1).some((sql) => control.test(sql))) {
     throw new Error("RECOVERY_TRANSACTION_INVALID");
   }
-  return source.slice(begins[0].index + begins[0][0].length, commits[0].index).trim();
+  return statements.slice(1, -1).map((sql) => sql.trim() + ";").join("\n\n");
 }
 
 export function buildE2RecoverySql({ mode, c3Source, rollbackSource, recoverySource }) {

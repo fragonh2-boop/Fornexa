@@ -186,6 +186,20 @@ export async function verifyHuC3Recovery({ runSql, c3Before, c3Source, rollbackS
   await expectSqlFailure(runSql, c3(tenantId, operatorUserId, "RESERVE", { quant_id: quantA, quantity: 1, batch_number: "WRONG" }, "recovery-wrong-lot"), /WMS_LOT_MISMATCH/);
   await expectSqlFailure(runSql, c3(tenantId, operatorUserId, "APPROVE_PROPOSAL", { proposal_id: proposal }, "recovery-e2-action"), /WMS_FORBIDDEN/);
   await expectSqlFailure(runSql, c3(tenantId, operatorUserId, "CONFIRM_TASK", { task_id: task }, "recovery-frozen-e2-task"), /WMS_E2_FROZEN/);
+  // TRUNCATE ignores RLS. A guard must reject it even when its invoker cannot
+  // see a single E2 row. Keep the adversarial grants/policies in a rolled-back
+  // transaction so this probe never changes the application role's final ACL.
+  for (const table of ["stock_reservations", "warehouse_tasks"]) {
+    const hidden = await runSql(`begin;
+      create policy recovery_hide_e2_rows on public.${table} as restrictive
+        for select to authenticated using (false);
+      grant select, truncate on public.${table}, public.wms_proposals to authenticated;
+      set local role authenticated;
+      select count(*)::int as visible from public.${table};`);
+    assert.equal(hidden.rows[0].visible, 0, "Adversarial RLS must hide the existing E2 links");
+    await expectSqlFailure(runSql, `truncate public.${table} cascade;`, /WMS_E2_FROZEN/);
+    assert.deepEqual(await dataSnapshot(runSql), before, "RLS-hidden links must survive the rejected TRUNCATE");
+  }
   await expectSqlFailure(runSql, `update public.stock_reservations set status='ALLOCATED' where id='${reservation}';`, /WMS_E2_FROZEN/);
   await expectSqlFailure(runSql, `begin; update public.wms_proposals set status='REJECTED' where id='${proposal}';`, /WMS_E2_FROZEN/);
   await expectSqlFailure(runSql, "begin; truncate public.warehouse_tasks cascade;", /WMS_E2_FROZEN/);
@@ -218,6 +232,7 @@ export async function verifyHuC3Recovery({ runSql, c3Before, c3Source, rollbackS
     e2_rpc_and_direct_mutation_denied: true, c3_real_reservation_preserves_both_hus: true,
     c3_cannot_mutate_frozen_e2_links: true, c3_legacy_task_confirmation_operational: true,
     owner_mutation_and_truncate_of_e2_links_blocked: true,
+    rls_hidden_links_truncate_blocked: true,
     prior_archive_and_failed_recovery_acl_preserved: true, other_tenant_stock_preserved: true,
     tenant_actor_lot_and_e2_rejections_nonmutating: true };
 }

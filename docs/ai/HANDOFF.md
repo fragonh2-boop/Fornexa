@@ -2,6 +2,12 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+## 2026-11-18 — HU/C3, corrección del dictamen independiente
+
+- El revisor local independiente bloqueó `813b05d` con1MUST: RLS ocultaba vínculos al guard SECURITY INVOKER y podía permitir TRUNCATE. La regresión real PG17 reprodujo ese fallo; tras rechazar TRUNCATE incondicionalmente en las tablas congeladas pasa, también como authenticated con RLS adversa. No se añadió SECURITY DEFINER.
+- Se atienden además sus dos SHOULD: generador valida sentencias y rechaza controles transaccionales interiores, con regresión roja/verde del COMMIT en línea; recibo exige el bundle completo ROLLBACK. Scanner existente extraído a módulo puro compartido, fuentes/hashes del recibo ampliados.
+- Dos ensayos finales PG17.12 pasan y se limpiaron completamente; la evidencia es sintética y secuencial, sin acreditar carreras entre sesiones ni todos los recorridos C3/UI/API. Suite464/464, focales13/13, tipos/build PASS y lint0 errores/11 avisos previos. Pendientes nuevo commit estable y reinspección del mismo revisor antes de publicar para CI. No ejecución productiva.
+
 ## 2026-11-18 — Recuperación HU/C3 local autorizada
 
 - Fran autorizó directamente a Codex como autor local de HU/C3 y al mismo revisor independiente, con PG17 desechable y sin ejecución productiva. Base de esta rama `c9ecd5685952e7c41a5295c254ad440d3cd49c75`: PR #154 ya incorporada únicamente en #145, CI644 SUCCESS y guardas cerradas. #145 sigue borrador hacia main `2941a800`; producción mantiene E2 apagado.

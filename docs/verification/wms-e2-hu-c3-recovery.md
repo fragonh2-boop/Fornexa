@@ -25,7 +25,7 @@ No se liberan reservas ni se cancelan tareas/propuestas automáticamente. La
 operación conserva ese estado para su recuperación posterior. Reactivar E2
 exige otro paquete revisado que retire explícitamente las guardas
 `trg_wms_e2_frozen_*` de tareas, reservas, propuestas y reglas (incluidas las de
-TRUNCATE) y su función, restituya
+TRUNCATE, siempre rechazado aunque RLS oculte las filas) y su función, restituya
 los permisos previstos y pruebe el postestado. Reaplicar únicamente la RPC E2
 no constituye esa reactivación. El interruptor de la aplicación debe seguir OFF
 hasta completar los gates de datos y validación funcional.
@@ -83,6 +83,7 @@ de recibos se conservan. La evidencia adicional incluye:
   al estado anterior.
 - Denegación de lectura/escritura del archivo para anon, authenticated y
   service_role, incluso con permisos por defecto adversos en el esquema.
+- Rechazo de TRUNCATE también con rol authenticated y RLS que oculta los vínculos.
 - Bloqueo de RPC E2, escritura directa y confirmación de tareas E2 a través de
   C3. Reserva real sobre un solo HU y confirmación de una tarea C3 sin vínculo
   E2 operativas; rechazo de tenant, actor y lote incorrectos sin cambios.
@@ -90,3 +91,6 @@ de recibos se conservan. La evidencia adicional incluye:
 La igualdad con el preestado C3 del ensayo no es una captura certificada del
 cuerpo instalado en producción. Antes de una operación real deben contrastarse
 esas fuentes con el preestado autorizado, además de respaldo, rol y ejecutor.
+
+Los ensayos son secuenciales: no certifican carreras entre sesiones ni todos
+los recorridos C3/UI/API. Esas verificaciones conservan su gate funcional.

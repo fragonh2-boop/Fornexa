@@ -6,6 +6,8 @@
 // Emits durable receipt: docs/verification/receipt-e2-dbfirst-contingency-pg17.json
 
 import assert from "node:assert/strict";
+import { splitSqlStatements } from "./sql-statements.mjs";
+export { splitSqlStatements } from "./sql-statements.mjs";
 import { buildE2RecoverySql } from "./build-e2-recovery.mjs";
 import { c3ActionSnapshot, verifyHuC3Recovery } from "./verify-e2-hu-c3-recovery.mjs";
 import crypto from "node:crypto";
@@ -19,110 +21,6 @@ const ROOT = resolve(__dirname, "../..");
 
 export function sha256(content) {
   return crypto.createHash("sha256").update(content, "utf8").digest("hex");
-}
-
-function dollarTagAt(sql, offset) {
-  return sql.slice(offset).match(/^\$[A-Za-z_][A-Za-z0-9_]*\$|^\$\$/)?.[0] ?? null;
-}
-
-function consumeSingleQuoted(sql, offset, escapeBackslash = false) {
-  let cursor = offset + 1;
-  while (cursor < sql.length) {
-    if (sql[cursor] === "'" && sql[cursor + 1] === "'") {
-      cursor += 2;
-      continue;
-    }
-    if (escapeBackslash && sql[cursor] === "\\") {
-      cursor += Math.min(2, sql.length - cursor);
-      continue;
-    }
-    if (sql[cursor] === "'") return cursor + 1;
-    cursor += 1;
-  }
-  throw new SyntaxError(`Unterminated single-quoted SQL literal at offset ${offset}`);
-}
-
-function consumeDoubleQuoted(sql, offset) {
-  let cursor = offset + 1;
-  while (cursor < sql.length) {
-    if (sql[cursor] === '"' && sql[cursor + 1] === '"') {
-      cursor += 2;
-      continue;
-    }
-    if (sql[cursor] === '"') return cursor + 1;
-    cursor += 1;
-  }
-  throw new SyntaxError(`Unterminated quoted SQL identifier at offset ${offset}`);
-}
-
-function consumeDollarQuoted(sql, offset, tag) {
-  const end = sql.indexOf(tag, offset + tag.length);
-  if (end < 0) throw new SyntaxError(`Unterminated dollar-quoted SQL value at offset ${offset}`);
-  return end + tag.length;
-}
-
-function consumeBlockComment(sql, offset) {
-  let cursor = offset + 2;
-  let depth = 1;
-  while (cursor < sql.length && depth > 0) {
-    if (sql[cursor] === "/" && sql[cursor + 1] === "*") {
-      depth += 1;
-      cursor += 2;
-      continue;
-    }
-    if (sql[cursor] === "*" && sql[cursor + 1] === "/") {
-      depth -= 1;
-      cursor += 2;
-      continue;
-    }
-    cursor += 1;
-  }
-  if (depth > 0) throw new SyntaxError(`Unterminated SQL block comment at offset ${offset}`);
-  return cursor;
-}
-
-export function splitSqlStatements(sql) {
-  const statements = [];
-  let cursor = 0;
-  let start = 0;
-
-  while (cursor < sql.length) {
-    const character = sql[cursor];
-    const next = sql[cursor + 1];
-
-    if (character === "-" && next === "-") {
-      cursor += 2;
-      while (cursor < sql.length && !/[\r\n]/.test(sql[cursor])) cursor += 1;
-      continue;
-    }
-    if (character === "/" && next === "*") {
-      cursor = consumeBlockComment(sql, cursor);
-      continue;
-    }
-    if (character === "'") {
-      cursor = consumeSingleQuoted(sql, cursor);
-      continue;
-    }
-    if (character === '"') {
-      cursor = consumeDoubleQuoted(sql, cursor);
-      continue;
-    }
-    if (character === "$") {
-      const tag = dollarTagAt(sql, cursor);
-      if (tag) {
-        cursor = consumeDollarQuoted(sql, cursor, tag);
-        continue;
-      }
-    }
-    if (character === ";") {
-      statements.push(sql.slice(start, cursor));
-      start = cursor + 1;
-    }
-    cursor += 1;
-  }
-
-  statements.push(sql.slice(start));
-  return statements.filter((statement) => statement.trim().length > 0);
 }
 
 export function stripExteriorTx(sql) {
@@ -821,6 +719,7 @@ export async function runContingencyHarness(options = {}) {
         effective_bundle_sha256: rollbackBundle.effectiveSqlSha256,
       },
       recovery_script: { file: "scripts/wms/recover-wms-e2-compatible.sql", sha256: sha256(recoverySource) },
+      sql_statement_scanner: { file: "scripts/wms/sql-statements.mjs", sha256: sha256(await readFile(resolve(ROOT, "scripts/wms/sql-statements.mjs"), "utf8")) },
       recovery_builder: { file: "scripts/wms/build-e2-recovery.mjs", sha256: sha256(await readFile(resolve(ROOT, "scripts/wms/build-e2-recovery.mjs"), "utf8")) },
       recovery_harness: { file: "scripts/wms/verify-e2-hu-c3-recovery.mjs", sha256: sha256(await readFile(resolve(ROOT, "scripts/wms/verify-e2-hu-c3-recovery.mjs"), "utf8")) },
       contingency_harness: { file: "scripts/wms/verify-e2-dbfirst-contingency.mjs", sha256: sha256(await readFile(__filename, "utf8")) },
@@ -873,7 +772,7 @@ export async function runContingencyHarness(options = {}) {
     operational_criteria: {
       primary_recommendation: "PAUSE_AND_ROLLFORWARD",
       rationale: "Split-state (core applied, rpc absent) is strictly non-destructive for app c948; C3 continues functioning and stock is 100% conserved. Pausing to resolve transient RPC execution and rolling forward avoids table lifecycle churn.",
-      rollback_condition: "Execute rollback-wms-e2-core.sql ONLY if Core DDL itself requires schema restructuring before re-attempting.",
+      rollback_condition: "Build and review the ROLLBACK bundle with build-e2-recovery.mjs; apply only the full bundle on an authorized target. Keep the strict collision abort; use the separately confirmed PRESERVE_HU bundle when preserving the HU-aware schema is required.",
       cloud_role_status: "PENDING_ACCREDITATION (effective cloud SQL role and version must be accredited in cloud environment; this harness certifies relational PG17 semantics).",
     },
   };

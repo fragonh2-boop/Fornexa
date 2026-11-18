@@ -85,19 +85,9 @@ begin
   if tg_table_name in ('wms_proposals', 'replenishment_rules') then
     raise exception 'WMS_E2_FROZEN';
   end if;
-  if tg_op = 'TRUNCATE' then
-    if tg_table_name = 'warehouse_tasks' then
-      if exists (select 1 from public.warehouse_tasks where proposal_id is not null) then
-        raise exception 'WMS_E2_FROZEN';
-      end if;
-    elsif tg_table_name = 'stock_reservations' then
-      if exists (select 1 from public.stock_reservations where reference_id is not null
-                  or reference_type in ('REPLENISHMENT_PROPOSAL', 'MANUAL')) then
-        raise exception 'WMS_E2_FROZEN';
-      end if;
-    end if;
-    return null;
-  end if;
+  -- TRUNCATE bypasses RLS. Never decide whether it is safe by counting
+  -- rows visible to SECURITY INVOKER; frozen tables reject it unconditionally.
+  if tg_op = 'TRUNCATE' then raise exception 'WMS_E2_FROZEN'; end if;
   if tg_table_name = 'warehouse_tasks' then
     if tg_op <> 'INSERT' then
       if old.proposal_id is not null then raise exception 'WMS_E2_FROZEN'; end if;

@@ -42,6 +42,11 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-11-18 — HU/C3: reinspección tras corregir1MUST y2SHOULD
+
+- `813b05d` quedó bloqueado por bypass TRUNCATE/RLS confirmado. Corregido localmente con regresión roja/verde en PG17 y rechazo incondicional de TRUNCATE, conservando operaciones C3 normales.
+- También corregidos controles transaccionales interiores del generador e instrucción raw del recibo. Dos ensayos finales PG17.12 PASS, suite464/464, focales13/13, tipos/build PASS y lint0/11previos; pendientes nuevo SHA, reinspección independiente y CI antes de incorporar. No DONE, producción ni carreras concurrentes acreditadas.
+
 ### 2026-11-18 — Recuperación HU/C3 preparada y ensayada localmente
 
 - Codex, con autorización directa de Fran, prepara un inverso estricto con restauración C3 y una recuperación compatible que conserva HU/stock y congela E2. Rama `fix/wms-hu-c3-recovery-local-20261118` desde `c9ecd568`; sin ejecución productiva.

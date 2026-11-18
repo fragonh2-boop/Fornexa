@@ -39,7 +39,17 @@ test("both bundles restore only the pinned C3 function and ACL in their operatio
 });
 
 test("recovery refuses operation templates that can escape the atomic transaction", () => {
-  for (const source of ["select 1;", "begin;\ncommit;\nselect 1;", "begin;\ncommit;\ncommit;"]) {
+  for (const source of ["select 1;", "begin;\ncommit;\nselect 1;", "begin;\ncommit;\ncommit;",
+    "begin;\nselect 1; commit; select 2;\ncommit;", "begin; select 1; /* hidden boundary */ COMMIT AND CHAIN; commit;",
+    "begin; -- comment\nrollback; commit;", "begin; /* outer /* nested */ comment */ END; commit;",
+    "begin; savepoint partial; commit;", "begin; start transaction; commit;",
+    "begin; prepare/* comment */transaction 'escaped'; commit;"]) {
     assert.throws(() => buildE2RecoverySql({ ...inputs, mode: "ROLLBACK", rollbackSource: source }), /RECOVERY_TRANSACTION_INVALID/);
   }
+});
+
+test("recovery accepts comments and transaction words confined to SQL literals and bodies", () => {
+  const source = "/* preamble */ BEGIN; select 'commit; begin;', \"commit;\"; DO $safe$ BEGIN PERFORM 'rollback;'; END $safe$; COMMIT; -- tail";
+  const bundle = buildE2RecoverySql({ ...inputs, mode: "ROLLBACK", rollbackSource: source });
+  assert.ok(bundle.sql.includes("DO $safe$ BEGIN PERFORM 'rollback;'; END $safe$;"));
 });
