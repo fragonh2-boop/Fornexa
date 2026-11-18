@@ -18,8 +18,8 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "17 nov 2026";
-export const memorandumCommitCoverage = 682;
+export const memorandumUpdatedAt = "18 nov 2026";
+export const memorandumCommitCoverage = 684;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -32,7 +32,7 @@ export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
     title: "Verificación y publicación de evidencias de auditoría",
-    summary: "La candidata amplía las comprobaciones de conexión y de publicación de evidencias, con pruebas de aceptación y rechazo. Sigue pendiente de revisión independiente; su preparación no acredita una nueva auditoría de producción.",
+    summary: "La separación de las comprobaciones de auditoría y recuperación histórica se prepara y verifica en un entorno local desechable, manteniendo las operaciones actuales de almacén. Sigue pendiente de revisión independiente y publicación. Esta preparación no acredita una nueva captura de producción ni activa la reposición automática.",
     priority: "Ahora",
     state: "En seguimiento",
   },
@@ -207,6 +207,15 @@ export const memorandumPending: MemorandumPending[] = [
 ];
 
 export const memorandumReleases: MemorandumRelease[] = [
+  {
+    version: "2026.10.23-4",
+    date: "23 oct 2026",
+    surface: ["Plataforma"],
+    title: "Auditoría histórica de migraciones — fuentes y procedencia",
+    purpose: "Preparar la recuperación de fuentes históricas y su contraste de contenido, manteniendo separado el estado registrado del estado actual de producción.",
+    outcome: "La preparación incorpora el snapshot histórico importado del 24-oct-2026, sin run identificado y con procedencia de captura sin certificar. El contraste conserva las diferencias conocidas del contenido y del orden histórico; no acredita una nueva auditoría de producción ni autoriza aplicar migraciones.",
+    status: "Preproducción",
+  },
   {
     version: "2026.10.23-3",
     date: "23 oct 2026",

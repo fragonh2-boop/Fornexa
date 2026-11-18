@@ -15,6 +15,13 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-11-18 — Corte CI/auditoría actual: preparación local autorizada
+
+- Base main2941a800, fuente aca95b1, rama `chore/wms-ci-audit-current-local-20261118`. Runtime apagado ya integrado por #152 y conservado sin cambios. Este corte excluye esquema/arneses E2 y conserva guardas actuales de recuperación histórica.
+- Preparación local validada: web429/429, focales42/42, tipos web/build PASS y lint0/11previos. PG17.12 C3/huérfanas PASS,14migraciones repetidas con postestado idéntico, clúster detenido/eliminado. Los adaptadores GNU/macOS se limitaron al entorno temporal del ensayo C3. Mobile no reejecutado localmente; fuentes/job conservados. Revisión independiente por SHA y autorización de publicación se acreditan por separado; sin push, CI remota, integración o despliegue. Los renombrados/fuentes históricos mantienen gates DB/GitHub/Supabase antes de publicar.
+- Captura previamente rechazada, rol/atomicidad cloud, entorno Supabase, DATA150-WMS y E2E UI/API siguen abiertos con sus responsables y gates; no se repite seed general/Muelles.
+
+
 ### 2026-10-30 — #150: cierre independiente de conexión y publicación
 
 - Claude (6520568428) cierra MUST-146-1 y los tres puntos de publicación en `5f283f5`; mantiene MERGE/DISPATCH NO por MUST-150-1. Candidata: conexión verificada con pg sin override por sslmode, negativos TLS y positivo real local, positivo de publicación generado, grafo local de imports, comentario preflight y retirada fallback PG. No cambia SQL ni runtime WMS.

@@ -3,6 +3,15 @@
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
 
+## 2026-11-18 — Corte CI/auditoría local sobre el runtime apagado ya integrado
+
+- Fran autorizó a Codex como único autor local y a un revisor Codex local independiente para preparar/probar este objeto, sin publicación ni producción. Rama `chore/wms-ci-audit-current-local-20261118`, base main `2941a800`, fuentes de la candidata `aca95b1`; el D1 antiguo se preserva sin republicar.
+- El runtime web E2 ya se integró por #152. Se conservan byte a byte API, loader, dominio WMS, workspace y ruta de reposiciones. E2 continúa apagado y no se añaden sus migraciones/arneses, recibos M8 o notas de entrega E2.
+- Se extraen las fuentes y comprobaciones de auditoría histórica y recuperación huérfana actuales. CI conserva el job `validate` de main y amplía únicamente el job C3/PG17 con limpieza temprana y recuperación huérfana. La CI completa E2 de #145 queda intacta. La rama local lleva exclusión Vercel específica, conservando las exclusiones de la fuente.
+- Los renombrados y reparaciones de migraciones históricas siguen siendo un cambio de fuentes: no certifican el estado remoto y requieren sus gates antes de publicar/integrar. La captura anteriormente rechazada y la garantía de rol/atomicidad cloud permanecen separadas. Ensayo Supabase aún no creado por cuota/visibilidad; ningún SQL cloud, seed, F4, COMMITTED ni activación.
+- Verificación local: web429/429, focales42/42, tipos web/build PASS y lint0errores/11avisos heredados. PG17.12: ensamblado/reconciliación C3 y recuperación huérfana de14migraciones dos veces, postestado repetido idéntico; clúster propio loopback detenido/eliminado y recibos temporales restaurados. El shell C3 sin cambios usó adaptadores temporales de sintaxis GNU para macOS; esto no certifica ejecución Linux/Actions ni la cadena productiva completa. Mobile no se reejecutó localmente por falta de dependencias; sus fuentes y su paso de CI se conservan sin cambios.
+- La extracción añade una38ªruta auxiliar: fecha del test de Memorandum alineada con18-nov. No se copian notas E2 ni se altera ese runtime. La revisión independiente se registra por SHA en los artefactos de coordinación y no se hereda de #145. No hay push/PR/CI remota ni despliegue de este corte. Guardas #154 y HU/C3 #155 siguen cerrados únicamente en #145; no se declaran desplegados por esta rama.
+
 ## 2026-11-17 — Runtime E2 separado, apagado por defecto
 
 - Evidencia fresca: #151 fusionada en #145 el 13-nov (`e0ae443`); CI635 SUCCESS. #145 sigue draft. Main `c948368`.
