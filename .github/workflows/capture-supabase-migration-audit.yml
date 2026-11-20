@@ -53,8 +53,8 @@ jobs:
       EXPECTED_REGISTER_SHA256: 706a611ec2cb44dc9af1364104aa40f1e6c4284580332c0de83f6e966f571253
       EXPECTED_SQL_SHA256: 14934a1f9d7af8e4521e79415a29c46810f79ef4a7b0a4965a6d6fdd595bc932
       EXPECTED_SQL_BYTES: 6606
-      EXPECTED_RUNNER_SHA256: 151b7708cef39ff426f256c73e9fba66e9a172198c941968d3eb418fc11ab7dd
-      EXPECTED_RUNNER_BYTES: 20133
+      EXPECTED_RUNNER_SHA256: 7e2171c36e8df720b165e6fda7dfe3035297ba557e6385b94b07cbc01e5bc785
+      EXPECTED_RUNNER_BYTES: 20275
       EXPECTED_GENERATOR_SHA256: 98ac78ffa90049efeecea4750f9e13f921cc18e7407f978918d1e4e543cb83da
       EXPECTED_GENERATOR_BYTES: 26569
 
@@ -105,7 +105,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
 
       - name: Install web dependencies
         run: pnpm install --frozen-lockfile

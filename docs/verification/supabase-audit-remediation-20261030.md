@@ -1,5 +1,7 @@
 # PR #150: subsanación de conexión y pruebas — 30 octubre 2026
 
+Actualización de integración: Claude aprobó `1bfb534` en 6522812458 (CODE_READY/MERGE SÍ, cero MUST), y #150 se fusionó a main `c948368`, árbol idéntico al revisado. Vercel canónico READY en ese SHA, dominio y smoke200 comprobados. Sin dispatch de captura. La candidata #145 incorpora después defensa en profundidad ante NODE_TLS_REJECT_UNAUTHORIZED=0, prueba negativa y repin: requiere su propio SHA/CI/dictamen; la aprobación de #150 no cubre automáticamente ese delta.
+
 Base revisada: `5f283f5fefe7a8e04470f1756eb8d9b38c566d9b`.
 Dictamen independiente: [Claude, 6520568428](https://github.com/fragonh2-boop/Fornexa/pull/150#issuecomment-6520568428).
 El dictamen cerró MUST-146-1 y los tres puntos de publicación. Mantiene MERGE y DISPATCH NO por MUST-150-1. Este documento describe una candidata, no una aprobación.
