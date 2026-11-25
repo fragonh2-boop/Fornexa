@@ -18,10 +18,17 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "17 nov 2026";
-export const memorandumCommitCoverage = 682;
+export const memorandumUpdatedAt = "25 nov 2026";
+export const memorandumCommitCoverage = 683;
 
 export const memorandumPending: MemorandumPending[] = [
+  {
+    area: "Funcional",
+    title: "Soporte de usuarios",
+    summary: "Preparado el módulo web para registrar y seguir incidencias, consultas y mejoras. Su puesta en servicio queda pendiente de la verificación del flujo autenticado y de la migración de base de datos.",
+    priority: "Siguiente",
+    state: "En seguimiento",
+  },
   {
     area: "Funcional",
     title: "Reposición automática — entrada por fases",

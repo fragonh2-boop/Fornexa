@@ -3,6 +3,12 @@
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
 
+## 2026-11-25 — Tickets de usuario
+
+- Rama `codex/fornexa-user-tickets`, sobre main `2941a80`. Nueva entrada Soporte con alta, adjunto, búsqueda, filtros, paginación, ficha y actividad. Los miembros activos ven sus tickets y OWNER/ADMIN gestionan la bandeja de su organización, se asignan tickets y actualizan estado y prioridad.
+- Migración `20261125100000` validada en PGlite con aislamiento por solicitante y organización, permisos de escritura, descarga autorizada y actividad de gestión. Suite web 413/413, tipos y build de producción locales, lint sin errores (10 avisos preexistentes). Sonda HTTP local con API simulada validó redirección sin sesión, listado, bandeja, alta con adjunto, descarga, comentario y gestión.
+- El cambio está en un commit local pendiente de publicar. Supabase sólo muestra el proyecto productivo. Sigue abierto el ensayo con una instancia de pruebas y sesiones reales, incluida la creación y descarga de adjuntos, antes de aplicar la migración y verificar el despliegue productivo. Ver OPEN en el registro pendiente.
+
 ## 2026-11-17 — Runtime E2 separado, apagado por defecto
 
 - Evidencia fresca: #151 fusionada en #145 el 13-nov (`e0ae443`); CI635 SUCCESS. #145 sigue draft. Main `c948368`.

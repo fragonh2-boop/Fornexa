@@ -6,7 +6,7 @@ import styles from "../dashboard/layout.module.css";
 import DashboardSidebarView from "./DashboardSidebarView";
 import { createClient } from "@/lib/supabase/client";
 
-export default function DashboardSidebar() {
+export default function DashboardSidebar({ showTickets = false }: { showTickets?: boolean }) {
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
 
@@ -28,6 +28,6 @@ export default function DashboardSidebar() {
         <button type="button" className={styles.signOut} onClick={handleSignOut} disabled={signingOut}>
           {signingOut ? "Cerrando sesión…" : "Cerrar sesión"}
         </button>
-    } />
+    } showTickets={showTickets} />
   );
 }

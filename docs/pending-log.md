@@ -15,6 +15,11 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-11-25 — Tickets de usuario
+
+- Implementación en `codex/fornexa-user-tickets`: alta con referencia operativa y adjunto, bandeja filtrable, ficha, comentarios e historial. Roles de soporte iniciales OWNER y ADMIN.
+- Pendiente: ensayo de migración y flujo autenticado con solicitante y administrador en Supabase de pruebas, revisión, aplicación de la base de datos antes del despliegue y comprobación del dominio productivo sobre el commit integrado.
+
 ### 2026-10-30 — #150: cierre independiente de conexión y publicación
 
 - Claude (6520568428) cierra MUST-146-1 y los tres puntos de publicación en `5f283f5`; mantiene MERGE/DISPATCH NO por MUST-150-1. Candidata: conexión verificada con pg sin override por sslmode, negativos TLS y positivo real local, positivo de publicación generado, grafo local de imports, comentario preflight y retirada fallback PG. No cambia SQL ni runtime WMS.
