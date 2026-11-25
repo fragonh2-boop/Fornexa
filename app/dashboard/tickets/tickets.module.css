@@ -1,0 +1,132 @@
+.page {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: clamp(14px, 3vw, 36px);
+  color: #152944;
+}
+
+.page a { color: #18558e; }
+.page a:focus-visible, .page button:focus-visible, .page input:focus-visible,
+.page select:focus-visible, .page textarea:focus-visible {
+  outline: 2px solid #2574bd;
+  outline-offset: 3px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 16px 0 22px;
+  overflow-wrap: anywhere;
+}
+
+.header h1 { margin: 0; font-size: clamp(1.5rem, 3vw, 2.4rem); }
+.header p { margin: 5px 0; color: #52637a; }
+.page h2 { margin: 0 0 14px; font-size: 1.05rem; }
+
+.card {
+  min-width: 0;
+  background: #fff;
+  border: 1px solid #dbe4ee;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px #172a4410;
+}
+.content { padding: clamp(14px, 2vw, 24px); }
+.newTicket { max-width: 780px; }
+
+.primary, .secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid #1f4d7e;
+  border-radius: 7px;
+  font: inherit;
+  font-weight: 650;
+  text-decoration: none;
+  cursor: pointer;
+}
+.page .primary { background: #1f4d7e; color: #fff; }
+.primary:disabled { opacity: .65; cursor: wait; }
+.secondary { color: #1f4d7e; background: #fff; }
+
+.tabs { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.tabs a { padding: 7px 0; text-decoration: none; }
+.tabs a[aria-current="page"] { border-bottom: 2px solid #1f4d7e; font-weight: 700; }
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid #dbe4ee;
+}
+.filters label:first-of-type { flex: 1 1 210px; }
+.filters a { align-self: end; padding: 10px 0; }
+.page label { display: grid; min-width: 0; gap: 6px; font-size: .88rem; font-weight: 650; }
+.page label small { color: #52637a; font-weight: 400; }
+.page input:not([type="hidden"]), .page select, .page textarea {
+  min-width: 0;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid #bccbdc;
+  border-radius: 6px;
+  color: inherit;
+  background: #fff;
+  font: inherit;
+  font-weight: 400;
+}
+.page textarea { resize: vertical; }
+
+.listHeading, .pagination {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 14px 16px;
+}
+.listHeading h2 { margin: 0; }
+.listHeading span, .pagination span { color: #52637a; }
+.tableWrap { overflow-x: auto; }
+.table { border-collapse: collapse; width: 100%; text-align: left; font-size: .9rem; }
+.table th, .table td { padding: 12px 16px; border-top: 1px solid #e7edf4; }
+.table th { background: #f3f7fb; }
+.table td:first-child { min-width: 165px; overflow-wrap: anywhere; }
+.table td a { font-weight: 650; }
+.table td small { display: block; margin-top: 4px; color: #52637a; }
+.notice { padding: 0 16px 16px; }
+.status {
+  display: inline-block;
+  padding: 4px 9px;
+  border-radius: 16px;
+  background: #e9edf2;
+  color: #324864;
+  font-size: .83rem;
+  font-weight: 650;
+}
+.status[data-status="Nuevo"] { background: #e0edff; color: #16497b; }
+.status[data-status="En curso"] { background: #eee7fb; color: #523382; }
+.status[data-status="Pendiente del usuario"] { background: #fff1ce; color: #694500; }
+.status[data-status="Resuelto"] { background: #dcf3e9; color: #205841; }
+
+.form, .stack { display: grid; gap: 16px; align-content: start; min-width: 0; }
+.fields, .detailGrid { display: grid; gap: 16px; }
+.fields { grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); }
+.detailGrid { grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr); }
+.error { margin: 0; color: #9e241c; }
+.copy { white-space: pre-wrap; overflow-wrap: anywhere; }
+.content a { overflow-wrap: anywhere; }
+.meta { display: grid; grid-template-columns: auto 1fr; gap: 9px 14px; margin: 0; }
+.meta dt { color: #52637a; }
+.meta dd { margin: 0; overflow-wrap: anywhere; }
+.activity { list-style: none; padding: 0; margin: 20px 0 0; }
+.activity li { border-top: 1px solid #e7edf4; padding-top: 12px; }
+.activity li div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; }
+.activity time { font-size: .85rem; color: #52637a; }
+
+@media (max-width: 900px) { .detailGrid { grid-template-columns: minmax(0, 1fr); } }
