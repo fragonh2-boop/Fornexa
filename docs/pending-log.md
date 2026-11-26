@@ -3,54 +3,37 @@
 Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Supabase, Vercel y Slack antes de actuar. El historial detallado anterior permanece en Git; este archivo prioriza el estado operativo vigente.
 
 
-## 2026-11-17 — Runtime E2 separado, apagado por defecto
-
-- Evidencia fresca: #151 fusionada en #145 el 13-nov (`e0ae443`); CI635 SUCCESS. #145 sigue draft. Main `c948368`.
-- Lectura Supabase: ledger42, última versión20261019120000; `wms_proposals` y `replenishment_rules` ausentes. Sin escritura remota.
-- Rama `codex/wms-e2-runtime-gated`, basada en main: extrae exclusivamente runtime web de #145 con interruptor de servidor apagado por defecto. API omite consultas E2 y rechaza acciones de propuestas antes de RPC; C3 REPLENISH por tarea se conserva. UI oculta la pestaña y la ruta directa devuelve404 mientras está apagado.
-- Se porta de la candidata la retirada ya revisada de caché pnpm en setup-node: el primer run volvió a quedarse en restauración de caché; comandos, frozen-lockfile y verificaciones se conservan.
-- No incluye migraciones, cambios de ledger, carga ni activación E2. La candidata #145 conserva SQL/ensayos y debe reconciliarse después de esta separación.
-- Pendiente: ensayo en Supabase de pruebas, copia previa y verificación DB antes de activar; recuperación con HUs incompatibles y restauración C3 exacta aún abiertas. Creación del proyecto de pruebas pendiente de organización elegida por Fran (requisito del conector).
-- Validación local: suite web412/412; focales API/loader/interruptor23/23; tipos PASS y lint sin errores (10 avisos). Build PASS. CI/Preview del HEAD final pendientes; no declarar entrega productiva hasta verificarlos.
-
 ## OPEN
 
-### 2026-11-26 — Aviso de tickets por correo
+### 2026-11-26 — Soporte: verificación autenticada
 
-- Los avisos de tickets nuevos y sus respuestas se dirigen al buzón de soporte. Queda por comprobar con una sesión real la recepción del aviso de Resend, con número, título, fecha de Madrid y archivos.
+- Con el buzón nuevo ya desplegado, falta crear un ticket con una sesión real y confirmar que el aviso de Resend llega con número, título, hora de Madrid y archivos. Comprobar también la lectura y descarga por solicitante y soporte y la denegación a usuarios sin acceso.
 
-### 2026-11-26 — Verificación autenticada de soporte
+### 2026-11-26 — Almacenes: activación E2
 
-- Pendiente comprobar con sesiones reales el alta con varios documentos y una captura pegada, su lectura y descarga por solicitante y soporte, y la denegación a usuarios sin acceso.
+- El runtime apagado se integró en #152 (`2941a80`). La candidata #145 sigue en borrador y el SQL de E2 queda pendiente. Supabase Production carece de `replenishment_rules` y `wms_proposals`.
+- Antes de activar, queda pendiente ensayar las migraciones en Supabase aislado y verificar copia, recuperación ante HUs incompatibles, restauración C3 y recorrido autenticado. Supabase solo muestra su rama histórica en `MIGRATIONS_FAILED`.
 
-### 2026-10-30 — #150: cierre independiente de conexión y publicación
+### 2026-11-26 — A2: reconciliación del historial de migraciones
 
-- Claude (6520568428) cierra MUST-146-1 y los tres puntos de publicación en `5f283f5`; mantiene MERGE/DISPATCH NO por MUST-150-1. Candidata: conexión verificada con pg sin override por sslmode, negativos TLS y positivo real local, positivo de publicación generado, grafo local de imports, comentario preflight y retirada fallback PG. No cambia SQL ni runtime WMS.
-- Local: 39/39 focales, tipos/lint/build PASS; suite general 407/408 por timeout DATA150 del lock vacío preexistente. Pendientes publicación del delta, CI y dictamen sobre el nuevo SHA. No disparar captura hasta cierre independiente. Ver nota de verificación de 30-oct.
-- #149 mantiene `ab7e044`, CI #614 SUCCESS (432/432 web y PG16/17); pendiente dictamen sobre ese SHA y posterior integración/revalidación #145. Las notas inferiores de CI/publicación pendiente son históricas.
+- #156 y #148 siguen en borrador. #156 tiene abierto MUST-156-1: el recibo marca como reproducida la cadena productiva completa cuando el ensayo cubrió 14 migraciones. El resultado de CI acredita ese subconjunto. Corregir y volver a verificar el recibo en la candidata que se someta a revisión. #150 ya está integrado y la nueva captura productiva queda pendiente de su revisión y autorización específicas.
 
-### 2026-10-29 — Ejecutador de auditoría: candidata correctiva de MUST-146-1
+### 2026-11-26 — CMR: validación compartida de emisión
 
-- Rama aislada `codex/audit-loader-hardening-20261029` sobre main `f55f1e9`; pendientes CI y revisión independiente antes de integrar.
-- Verificación de contenido de los dos loaders y del módulo local de procedencia antes de Node con conexión; esquema cerrado antes de persistir ambos JSON; retirada de salidas heredadas; publicación preflight condicionada a éxito.
-- 15 pruebas focales PASS. Sin dispatch manual ni captura productiva por esta candidata. El contraste primario de huellas del ledger del 29-oct pertenece a #149 y no se hace pasar por una ejecución del workflow corregido.
-- E2: #149/62b3ef1, CI612 SUCCESS (422/422 web, 21/21 E2 + 7 regresiones en PG17, 46 migraciones); revisión de Claude pendiente. SHOULD-12 C3 ya está integrado; las notas inferiores que lo describen solo local son históricas.
+- El formulario real ya comienza vacío y el ejemplo se carga en modo simulación. #81 sigue en borrador para la validación compartida entre formulario y API, incluidos los requisitos operativos y ADR. Evaluar el delta sobre main actual y obtener los dictámenes independientes requeridos por la PR antes de integrar.
 
+### 2026-11-26 — Verificación funcional de WMS C3 y DeCA
 
-### 2026-10-23 — SHOULD-12: retirada temprana y orden de pruebas
-
-- **Estado:** PREPARADO SOLO EN LOCAL, NO INTEGRADO NI DESPLEGADO. Rama `codex/ci-receipt-cleanup-stacked-20261023`, padre #142 exacto `3da0e6db2d730817b64bde83193210686d13e352`. Limpieza inmediatamente después de Checkout; solo `Test web` se mueve detrás de arnés + certificación estricta y antes de Upload. Comandos, pruebas, recibos y controles permanecen intactos.
-- **Corrección necesaria:** simple retirada (`27b3bf5`, baseline `47e81a1`) fallaba 36/39 con tres ENOENT antes del arnés; no publicar esos commits. Se conserva el requisito de emitir evidencia nueva antes de sus consumidores, sin saltar pruebas ni fabricar fixtures.
-- **Validación local:** ruta roja real PASS (gate Memo exit1 y ningún recibo publicable); consumidores con recibo auténtico histórico 3/3 PASS; replay estricto histórico 3/3 PASS, ausencia y run ajeno rechazados; Memorandum3/3 y lint PASS. El replay histórico no certifica este run ni PostgreSQL nuevo. Build de producción del delta corregido PASS; no hay PG local disponible, sin instalaciones ni credenciales.
-- **Aceptación pendiente:** CI real del HEAD final debe acreditar emisión PG16/TCP, certificación estricta del run/SHA/ref actual, suite web completa después del arnés y el ensayo PG17 existente. No declarar PASS global, nuevo READY ni cierre WMS por las comprobaciones locales.
-- **Dependencia e integración:** #142 intacta (relevo HEAD `3da0e6db`, CI569 SUCCESS), sin duplicar revisión. Conserva su cierre23-1Producción y test semántico; añade hito distinto Preproducción. Cobertura677 por linaje676+1; integrar solo el delta final tras cerrar142 y recalcular si cambia el linaje. Root integra; sin publicación, merge, deploy, SQL remoto, seed ni smoke productivo.
-
-- **Verificación funcional C3 pendiente:** aplicación #138 ya fusionada y READY en `3572cf420a82f1ddfd43298850a1a725e1e9b30a`; CI main568 SUCCESS, dominio exacto y smoke público correctos. Falta POST 400 con sesión operativa legítima, RLS/aislamiento funcional y recorrido WMS/E2/DATA150. No simular sesión/roles ni declarar WMS cerrado.
-- **SHOULD-12 (siguiente delta separado):** mover retirada del recibo heredado al paso posterior inmediato a Checkout; hoy un fallo previo al arnés puede subir el recibo versionado como artefacto de un run fallido. No modificó ni invalidó el gate ejercitado en verde de #138.
-- **Deudas de revisión:** S3/S11 es deuda de auth previa, no regresión; primero cubrir getAuthenticatedContext real, después diferenciar 401/503. S13 clasificación de esquema y S15 observabilidad se mantienen como SHOULD. PG16 TCP20/20 y ensayo PG17 parcial no certifican todo en PG17 ni la cadena completa de migraciones.
-- Mantener como seguimiento S7 (limit antes del filtro por almacén), S8 (roles duplicados), S10 (mapeo por subcadena), observabilidad y pruebas reales de autenticación/aislamiento. Mocks de contexto no certifican getUser, cookies ni RLS. El smoke 400 exige sesión operativa legítima; sin sesión debe ser 401. Sin seed/F4 ni ensayo de movimientos productivos por esta preparación.
+- WMS C3 está desplegado. Quedan el POST 400 con sesión operativa, aislamiento y recorrido de controles de carga. Las deudas de revisión S3/S11, S7/S8/S10, S13 y S15 siguen abiertas en las notas históricas de C3.
+- DeCA está desplegado y queda pendiente el E2E HTTP con una sesión OWNER/ADMIN legítima y un fixture CMR sintético completo.
 
 ## DONE
+
+### 2026-11-26 — Entregas reconciliadas con GitHub y producción
+
+- Aviso por correo y destino del nuevo buzón integrados en #159 y #160. CI de main en verde y Vercel READY sirviendo `28407d7` en fornexasc.com. La recepción real sigue en OPEN.
+- Auditoría #150 integrada en main como `c948368`. Cerrada la integración de código; la reconciliación A2 y una captura nueva siguen en OPEN.
+- Retirada temprana del recibo C3 y orden de la suite integrados en main en #142. El workflow activo retira el recibo heredado antes de las pruebas y ejecuta la suite web tras certificar el recibo relacional. La verificación operativa C3 sigue en OPEN.
 
 ### 2026-11-26 — Publicación de tickets y adjuntos múltiples
 

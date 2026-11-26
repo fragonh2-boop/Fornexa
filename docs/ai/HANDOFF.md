@@ -3,6 +3,12 @@
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
 
+## 2026-11-26 — Reconciliación de pendientes de despliegue
+
+- Base `28407d7`, confirmada en GitHub main, CI verde y Vercel Production READY en fornexasc.com. Se registra el cierre de despliegue de soporte #159/#160, la integración de auditoría #150 y el cambio de flujo CI de C3 #142. Permanecen pendientes la recepción real del correo, las pruebas de soporte y C3 con sesión y la nueva captura de auditoría.
+- Consulta de solo lectura: las tablas E2 siguen ausentes en producción y Supabase muestra la rama histórica en `MIGRATIONS_FAILED`. #145, #148 y #156 conservan sus dependencias y revisiones. #81 se conserva para la validación compartida de CMR porque main ya cubre el formulario vacío, pero mantiene validaciones separadas.
+- Rama `codex/reconcile-release-backlog`. Reconciliación exclusivamente documental; no aplica SQL, activa funcionalidades ni modifica controles de emisión.
+
 ## 2026-11-26 — Buzón de avisos de soporte
 
 - `codex/ticket-support-inbox` sobre `b6ff3c4`. El destinatario y la dirección de respuesta de los avisos de tickets nuevos pasan al buzón de soporte habilitado por el titular. Resend conserva su remitente configurado. Sin migración ni reenvío de tickets existentes.
