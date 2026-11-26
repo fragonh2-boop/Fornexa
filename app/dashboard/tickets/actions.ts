@@ -1,5 +1,7 @@
 "use server";
 
+import { after } from "next/server";
+import { sendTicketEmail } from "@/lib/ticket-email";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getAuthenticatedContext } from "@/lib/auth-context";
@@ -66,9 +68,25 @@ export async function createTicket(_: ActionResult, form: FormData): Promise<Act
   const { data, error } = await supabase.from("user_tickets").insert({
     tenant_id: auth.tenantId, category, area, title, description, reference,
     ...(attachments.length ? { attachments, attachment_payloads: attachmentPayloads } : {}),
-  }).select("id").single();
+  }).select("id,number,created_at").single();
 
   if (error) return { error: "No se ha podido crear el ticket. Vuelve a intentarlo." };
+  after(async () => {
+    const files = attachments.map(({ id, name, imageType }) => ({
+      filename: name,
+      content: attachmentPayloads[id],
+      contentType: imageType,
+    }));
+    try {
+      await sendTicketEmail({ ...data, category, area, title, description, reference }, files);
+    } catch {
+      try {
+        await sendTicketEmail({ ...data, category, area, title, description, reference }, files);
+      } catch {
+        console.error("No se pudo notificar a soporte el ticket", data.number);
+      }
+    }
+  });
   revalidatePath(ticketsPath);
   redirect(`${ticketsPath}/${data.id}`);
 }

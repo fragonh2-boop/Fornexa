@@ -15,6 +15,10 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-11-26 — Aviso de tickets por correo
+
+- Preparado el envío a soporte con Resend al crear un ticket, con su número, título, fecha de Madrid y archivos. Queda por comprobar el aviso con una sesión real y confirmar su recepción.
+
 ### 2026-11-26 — Verificación autenticada de soporte
 
 - Pendiente comprobar con sesiones reales el alta con varios documentos y una captura pegada, su lectura y descarga por solicitante y soporte, y la denegación a usuarios sin acceso.
