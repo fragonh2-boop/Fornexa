@@ -18,8 +18,8 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "18 nov 2026";
-export const memorandumCommitCoverage = 684;
+export const memorandumUpdatedAt = "26 nov 2026";
+export const memorandumCommitCoverage = 685;
 
 export const memorandumPending: MemorandumPending[] = [
   {
@@ -74,7 +74,7 @@ export const memorandumPending: MemorandumPending[] = [
   {
     area: "Técnico",
     title: "A2 — reproducibilidad de migraciones",
-    summary: "La fuente versionada ya recuperó el requisito de unicidad que existe en producción. Un contraste que preserva literales y cuerpos de funciones clasificó los 32 pares compartidos en la captura registrada. Los tests reproducen el lado Git, pero no verifican de nuevo el SQL remoto ni el estado vivo de producción. A2 sigue abierto: faltan preparar la reconciliación no productiva y ejecutar un replay controlado antes de plantear cualquier alineación del historial.",
+    summary: "La fuente versionada ya recuperó el requisito de unicidad que existe en producción. Un contraste que preserva literales y cuerpos de funciones clasificó los 32 pares compartidos en la captura registrada. Los tests reproducen el lado Git, pero no verifican de nuevo el SQL remoto ni el estado vivo de producción. En PostgreSQL aislado se ensayó un tramo de 14 migraciones históricas. La reconciliación del historial y el ensayo de la cadena completa siguen pendientes.",
     priority: "Ahora",
     state: "En seguimiento",
   },

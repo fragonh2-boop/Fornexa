@@ -15,6 +15,11 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-11-26 — A2: nueva prueba del recibo y seguimiento de E2
+
+- La corrección de MUST-156-1 y de la unidad de bytes pasa en PostgreSQL 17 local. La revisión y la nueva CI de la candidata siguen pendientes. El recibo antiguo queda como evidencia histórica y el ensayo de la cadena completa sigue abierto.
+- El ensayo PostgreSQL 17 de #145 acredita los escenarios E2 y la recuperación HU/C3 con datos sintéticos. Pendiente Supabase aislado y validación operativa antes de activar.
+
 ### 2026-11-18 — Corte CI/auditoría actual: preparación local autorizada
 
 - Base main2941a800, fuente aca95b1, rama `chore/wms-ci-audit-current-local-20261118`. Runtime apagado ya integrado por #152 y conservado sin cambios. Este corte excluye esquema/arneses E2 y conserva guardas actuales de recuperación histórica.
