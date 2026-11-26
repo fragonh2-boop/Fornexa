@@ -14,6 +14,7 @@ export type SendEmailInput = {
   html: string;
   replyTo?: string;
   attachments?: EmailAttachment[];
+  idempotencyKey?: string;
   tags?: { name: string; value: string }[];
 };
 
@@ -41,7 +42,11 @@ export async function sendEmail(input: SendEmailInput) {
   const replyTo = input.replyTo || process.env.EMAIL_REPLY_TO || process.env.OFFERS_REPLY_TO || "fragonh2@gmail.com";
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      ...(input.idempotencyKey ? { "Idempotency-Key": input.idempotencyKey } : {}),
+    },
     body: JSON.stringify({
       from,
       to: input.to,

@@ -7,7 +7,7 @@ import styles from "../dashboard/layout.module.css";
 import FornexaLogo from "./FornexaLogo";
 import { activeDashboardHref, createDashboardHref, dashboardHref, dashboardNavigation, isPlusShortcut, type DashboardBasePath } from "./DashboardNavigation";
 
-export default function DashboardSidebarView({ basePath = "/dashboard", sessionAction }: { basePath?: DashboardBasePath; sessionAction: ReactNode }) {
+export default function DashboardSidebarView({ basePath = "/dashboard", sessionAction, showTickets = false }: { basePath?: DashboardBasePath; sessionAction: ReactNode; showTickets?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const currentHref = activeDashboardHref(pathname, basePath);
@@ -32,7 +32,7 @@ export default function DashboardSidebarView({ basePath = "/dashboard", sessionA
     <aside className={styles.sidebar}>
       <Link href={basePath} prefetch={demo ? false : undefined} className={styles.brand}><FornexaLogo className={styles.brandLogo} /></Link>
       <nav className={styles.nav} aria-label="Navegación principal">
-        {dashboardNavigation.map(([label, suffix]) => {
+        {(showTickets ? [...dashboardNavigation, ["Soporte", "/tickets"]] : dashboardNavigation).map(([label, suffix]) => {
           const href = dashboardHref(basePath, suffix);
           const active = href === currentHref;
           return <Link key={href} href={href} prefetch={demo ? false : undefined} scroll className={active ? styles.active : ""} aria-current={active ? "page" : undefined} onClick={() => window.scrollTo(0, 0)}>{label}</Link>;
