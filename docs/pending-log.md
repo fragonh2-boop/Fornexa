@@ -15,15 +15,9 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
-### 2026-11-26 — Varios adjuntos y capturas en soporte
+### 2026-11-26 — Verificación autenticada de soporte
 
-- En `codex/ticket-multiple-attachments`, ampliación del alta y detalle de tickets con varios documentos, capturas pegadas y descargas compatibles con adjuntos anteriores.
-- Pendiente: CI de la candidata, ensayo autenticado, migración de base de datos antes del despliegue y verificación del dominio productivo sobre el commit integrado.
-
-### 2026-11-25 — Tickets de usuario
-
-- Implementación en `codex/fornexa-user-tickets`: alta con referencia operativa y adjunto, bandeja filtrable, ficha, comentarios e historial. Roles de soporte iniciales OWNER y ADMIN.
-- Pendiente: ensayo de migración y flujo autenticado con solicitante y administrador en Supabase de pruebas, revisión, aplicación de la base de datos antes del despliegue y comprobación del dominio productivo sobre el commit integrado.
+- Pendiente comprobar con sesiones reales el alta con varios documentos y una captura pegada, su lectura y descarga por solicitante y soporte, y la denegación a usuarios sin acceso.
 
 ### 2026-10-30 — #150: cierre independiente de conexión y publicación
 
@@ -53,6 +47,11 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 - Mantener como seguimiento S7 (limit antes del filtro por almacén), S8 (roles duplicados), S10 (mapeo por subcadena), observabilidad y pruebas reales de autenticación/aislamiento. Mocks de contexto no certifican getUser, cookies ni RLS. El smoke 400 exige sesión operativa legítima; sin sesión debe ser 401. Sin seed/F4 ni ensayo de movimientos productivos por esta preparación.
 
 ## DONE
+
+### 2026-11-26 — Publicación de tickets y adjuntos múltiples
+
+- El alta y la gestión inicial llegaron en #157. La selección de varios adjuntos y el pegado de capturas llegaron en #158, commit `8993ccf`. Migración aditiva aplicada antes del despliegue; verificación de RLS y validación en Supabase Production. Vercel READY con fornexasc.com en el commit integrado.
+
 
 - **2026-10-23 — entrega de aplicación #138:** squash `3572cf4`, CI567/568 SUCCESS, Vercel `fornexa` READY y `fornexasc.com` en ese SHA. Smoke 200 público, 307 a login, GET/POST WMS401 sin sesión. Claude MERGE YES / cero MUST en comentario6361091640. Datos C3 aplicados previamente por workflow39819461511 y ledger de 73022bytes verificado; no repetido SQL. Cierre de entrega de aplicación, no de verificación funcional WMS.
 - **2026-10-23 — #141:** cerrada como transporte superado por #140; candidato y rama conservados. Workflow activo difiere por el `psql -qAt` revisado; no afirmar identidad byte a byte del candidato original.

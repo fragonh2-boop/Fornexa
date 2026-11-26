@@ -7,13 +7,13 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 
 - Rama `codex/ticket-multiple-attachments`, base `96c1dbf` confirmada en origin/main. Alta con hasta 10 documentos y capturas por ticket y 3 MB en total. Chromium confirmó pegado desde portapapeles, vista previa, retirada, guardado, imagen en su posición en la ficha y descarga de dos documentos con API simulada.
 - Migración aditiva `20261126090600`. PGlite verificó lectura para solicitante y soporte, aislamiento entre miembros y organizaciones, adjunto anterior a la migración y rechazo de datos incompletos o inválidos. Suite web 413/413, TypeScript, compilación de producción y lint sin errores (10 avisos previos).
-- Supabase muestra solo producción y ninguna rama de pruebas. Queda pendiente el ensayo autenticado con Supabase, aplicar la migración antes del despliegue de la aplicación y verificar producción. Ver OPEN en el registro pendiente.
+- 11:06 CET. Por indicación de publicación directa, Supabase Production recibió primero la migración y confirmó columnas, permisos, RLS, restricción activa y validación de datos válidos e incompletos. CI de #158 en verde y PR integrada como `8993ccf`. Vercel Production READY sirviendo ese commit en fornexasc.com. Sonda HTTP: inicio y Memorandum 200, y Nuevo ticket 307 a inicio de sesión. Falta verificar alta y descarga con una sesión real.
 
 ## 2026-11-25 — Tickets de usuario
 
 - Rama `codex/fornexa-user-tickets`, sobre main `2941a80`. Nueva entrada Soporte con alta, adjunto, búsqueda, filtros, paginación, ficha y actividad. Los miembros activos ven sus tickets y OWNER/ADMIN gestionan la bandeja de su organización, se asignan tickets y actualizan estado y prioridad.
 - Migración `20261125100000` validada en PGlite con aislamiento por solicitante y organización, permisos de escritura, descarga autorizada y actividad de gestión. Suite web 413/413, tipos y build de producción locales, lint sin errores (10 avisos preexistentes). Sonda HTTP local con API simulada validó redirección sin sesión, listado, bandeja, alta con adjunto, descarga, comentario y gestión.
-- El cambio está en un commit local pendiente de publicar. Supabase sólo muestra el proyecto productivo. Sigue abierto el ensayo con una instancia de pruebas y sesiones reales, incluida la creación y descarga de adjuntos, antes de aplicar la migración y verificar el despliegue productivo. Ver OPEN en el registro pendiente.
+- Entrega inicial integrada en #157 (`96c1dbf`) y migración confirmada en producción. El recorrido con sesiones reales sigue en OPEN.
 
 ## 2026-11-17 — Runtime E2 separado, apagado por defecto
 
