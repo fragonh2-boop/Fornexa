@@ -18,10 +18,17 @@ export type MemorandumPending = {
   state: "Por definir" | "Pendiente" | "En seguimiento";
 };
 
-export const memorandumUpdatedAt = "18 nov 2026";
-export const memorandumCommitCoverage = 742;
+export const memorandumUpdatedAt = "26 nov 2026";
+export const memorandumCommitCoverage = 750;
 
 export const memorandumPending: MemorandumPending[] = [
+  {
+    area: "Funcional",
+    title: "Soporte de usuarios",
+    summary: "El formulario de soporte admite varios adjuntos y capturas pegadas en la descripción. Los tickets nuevos se notifican al buzón de soporte con sus datos y archivos.",
+    priority: "Siguiente",
+    state: "En seguimiento",
+  },
   {
     area: "Funcional",
     title: "Reposición automática — entrada por fases",

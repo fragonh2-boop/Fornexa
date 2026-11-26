@@ -14,7 +14,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   return (
     <div className={styles.frame}>
       {!auth.isReview && <LocalStorageMigrator />}
-      <DashboardSidebar />
+      <DashboardSidebar showTickets={!auth.isReview} />
       <div className={styles.stage}>{children}</div>
     </div>
   );

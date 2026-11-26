@@ -173,14 +173,14 @@ async function main() {
     const fullPath = join(migDir, filename);
     assert.ok(existsSync(fullPath), `Migration file must exist: ${filename}`);
 
-    const sql = readFileSync(fullPath, "utf8");
-    const fileSha = sha256(sql);
-    console.log(` -> Replaying ${filename} (${sql.length} bytes, sha: ${fileSha.slice(0, 12)}...)`);
-    runPsql(sql, targetDb);
+    const source = readFileSync(fullPath);
+    const fileSha = sha256(source);
+    console.log(` -> Replaying ${filename} (${source.length} bytes, sha: ${fileSha.slice(0, 12)}...)`);
+    runPsql(source.toString("utf8"), targetDb);
     appliedMigrations.push({
       file: filename,
       sha256: fileSha,
-      bytes: sql.length,
+      bytes: source.length,
       status: "APPLIED"
     });
   }
@@ -341,14 +341,15 @@ async function main() {
   const receiptPath = join(receiptDir, "receipt-orphan-recovery-pg17.json");
 
   const receipt = {
-    receipt_version: "1.0.0",
+    receipt_version: "1.1.0",
     engine: rawVersion.split("\n")[0],
     platform: "disposable-ci-postgresql-17",
     target_database: targetDb,
     harness: "scripts/audit/verify-orphan-recovery-pg17.mjs",
     timestamp: new Date().toISOString(),
     status: "SUCCESS",
-    production_migration_chain_replayed: true,
+    replay_scope: "historical_migration_slice",
+    production_migration_chain_replayed: false,
     natural_directory_order: true,
     slice_start: "20260807_customs_core.sql",
     slice_end: "20260819123105_harden_review_token_rpc.sql",

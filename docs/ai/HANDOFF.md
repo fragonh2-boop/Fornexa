@@ -2,6 +2,12 @@
 
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
+
+## 2026-11-26 — Reconciliación E2 sobre main actual
+
+- `codex/e2-current-main` incorpora `80fe5c9` a la candidata #145 `aca95b1`. Conserva las migraciones y recuperación E2/HU/C3 e incorpora las dos migraciones de soporte, sin cambiar el interruptor E2.
+- Se traslada la corrección de alcance y bytes de #162 al arnés histórico que también ejecuta la candidata E2. El despliegue automático de la rama queda inhabilitado. Pendientes ensayo en Supabase aislado y revisión del conjunto. Sin escritura cloud.
+
 ## 2026-11-18 — HU/C3, cierre léxico del generador en preparación
 
 - Reinspección independiente de `d36e8be`: MUST TRUNCATE/RLS y SHOULD del recibo cerrados. Quedó un SHOULD del scanner: dollar dentro de identificadores, escapes E y continuidad de cadenas con salto de línea podían ocultar un COMMIT interior en templates distintos a los empaquetados.
@@ -59,6 +65,35 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 - #152 fusionada en main2941a80 tras CI44078515402 SUCCESS y Preview exacta READY. E2 continúa apagado; no SQL remoto.
 - Se incorpora ese main en la candidata conservando sus migraciones, pruebas y defensas de auditoría. API, UI y dominio WMS son idénticos a main, incluido el interruptor y la compatibilidad C3. No se extienden aprobaciones históricas al merge nuevo.
 - Pendiente CI propia y publicación de esta reconciliación antes de integrar en #145. No fusionar #145 a main ni activar/aplicar E2 sin ensayo aislado y recuperación.
+
+## 2026-11-26 — Reconciliación de pendientes de despliegue
+
+- Base `28407d7`, confirmada en GitHub main, CI verde y Vercel Production READY en fornexasc.com. Se registra el cierre de despliegue de soporte #159/#160, la integración de auditoría #150 y el cambio de flujo CI de C3 #142. Permanecen pendientes la recepción real del correo, las pruebas de soporte y C3 con sesión y la nueva captura de auditoría.
+- Consulta de solo lectura: las tablas E2 siguen ausentes en producción y Supabase muestra la rama histórica en `MIGRATIONS_FAILED`. #145, #148 y #156 conservan sus dependencias y revisiones. #81 se conserva para la validación compartida de CMR porque main ya cubre el formulario vacío, pero mantiene validaciones separadas.
+- Rama `codex/reconcile-release-backlog`. Reconciliación exclusivamente documental; no aplica SQL, activa funcionalidades ni modifica controles de emisión.
+
+## 2026-11-26 — Buzón de avisos de soporte
+
+- `codex/ticket-support-inbox` sobre `b6ff3c4`. El destinatario y la dirección de respuesta de los avisos de tickets nuevos pasan al buzón de soporte habilitado por el titular. Resend conserva su remitente configurado. Sin migración ni reenvío de tickets existentes.
+- El cambio de destinatario se verifica en la solicitud de envío simulada. La recepción real se mantiene como comprobación operativa pendiente en el registro.
+
+## 2026-11-26 — Notificación de tickets por correo
+
+- `codex/ticket-email-notifications` sobre `e478907`. El alta guarda el ticket y envía a soporte por Resend con la fecha original en hora de Madrid, su descripción y todos los adjuntos. Un reintento usa la misma clave de idempotencia. Las incidencias de entrega se registran en logs y el ticket queda guardado.
+- Reenvío puntual de los tres tickets abiertos autorizado y confirmado en enviados, con cinco archivos en total. Recepción por el buzón de soporte pendiente de confirmación.
+- Suite web 413/413, tipos y build de producción PASS, lint sin errores (10 avisos anteriores). Chromium con Supabase y Resend simulados verificó el alta, el asunto, el cuerpo y los adjuntos emitidos. La PR #159 se integró como `b6ff3c4` con CI en verde y Vercel Production READY. Sin migración.
+
+## 2026-11-26 — Varios adjuntos y capturas en soporte
+
+- Rama `codex/ticket-multiple-attachments`, base `96c1dbf` confirmada en origin/main. Alta con hasta 10 documentos y capturas por ticket y 3 MB en total. Chromium confirmó pegado desde portapapeles, vista previa, retirada, guardado, imagen en su posición en la ficha y descarga de dos documentos con API simulada.
+- Migración aditiva `20261126090600`. PGlite verificó lectura para solicitante y soporte, aislamiento entre miembros y organizaciones, adjunto anterior a la migración y rechazo de datos incompletos o inválidos. Suite web 413/413, TypeScript, compilación de producción y lint sin errores (10 avisos previos).
+- 11:06 CET. Por indicación de publicación directa, Supabase Production recibió primero la migración y confirmó columnas, permisos, RLS, restricción activa y validación de datos válidos e incompletos. CI de #158 en verde y PR integrada como `8993ccf`. Vercel Production READY sirviendo ese commit en fornexasc.com. Sonda HTTP: inicio y Memorandum 200, y Nuevo ticket 307 a inicio de sesión. Falta verificar alta y descarga con una sesión real.
+
+## 2026-11-25 — Tickets de usuario
+
+- Rama `codex/fornexa-user-tickets`, sobre main `2941a80`. Nueva entrada Soporte con alta, adjunto, búsqueda, filtros, paginación, ficha y actividad. Los miembros activos ven sus tickets y OWNER/ADMIN gestionan la bandeja de su organización, se asignan tickets y actualizan estado y prioridad.
+- Migración `20261125100000` validada en PGlite con aislamiento por solicitante y organización, permisos de escritura, descarga autorizada y actividad de gestión. Suite web 413/413, tipos y build de producción locales, lint sin errores (10 avisos preexistentes). Sonda HTTP local con API simulada validó redirección sin sesión, listado, bandeja, alta con adjunto, descarga, comentario y gestión.
+- Entrega inicial integrada en #157 (`96c1dbf`) y migración confirmada en producción. El recorrido con sesiones reales sigue en OPEN.
 
 ## 2026-11-17 — Runtime E2 separado, apagado por defecto
 

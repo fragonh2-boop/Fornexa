@@ -19,9 +19,10 @@ test("demo and authenticated layouts retain the same shell without importing aut
   assert.match(source("app/components/DashboardSidebar.tsx"), /<DashboardSidebarView sessionAction=/);
   const demoSidebar = source("app/demo/DemoSidebar.tsx");
   assert.match(demoSidebar, /<DashboardSidebarView basePath="\/demo"/);
+  assert.doesNotMatch(demoSidebar, /showTickets/);
   assert.doesNotMatch(demoSidebar, /supabase|createClient|signOut\(|\/dashboard["'`]/);
   const common = source("app/components/DashboardSidebarView.tsx");
-  assert.match(common, /dashboardNavigation\.map\(/);
+  assert.match(common, /showTickets \? \[\.\.\.dashboardNavigation, \["Soporte", "\/tickets"\]\] : dashboardNavigation/);
   assert.match(common, /const demo = basePath === "\/demo";/);
   assert.match(common, /prefetch=\{demo \? false : undefined\}/);
   assert.doesNotMatch(common, /supabase|auth-context|createClient|signOut\(/);
@@ -56,6 +57,8 @@ test("production and demo use the same sixteen-module navigation hierarchy (Deci
 });
 
 test("nested records and creation routes retain the correct active module in both namespaces", () => {
+  assert.equal(activeDashboardHref("/dashboard/tickets/nuevo", "/dashboard"), "/dashboard/tickets");
+  assert.equal(activeDashboardHref("/demo/tickets/nuevo", "/demo"), "/demo");
   for (const basePath of ["/dashboard", "/demo"] as const) {
     for (const [path, active] of [["/registros/clientes/DEMO-001", "/clientes"], ["/registros/ofertas-tarifas/nuevo", "/ofertas-tarifas"], ["/nuevo/partida", "/partidas"], ["/nuevo/expedicion", "/expediciones"], ["/nuevo/viaje", "/viajes"], ["/viajes/DEMO-001", "/viajes"], ["/epod-cmr/nuevo", "/epod-cmr"], ["/articulos", "/articulos"], ["/trazabilidad", "/trazabilidad"]]) {
       assert.equal(activeDashboardHref(`${basePath}${path}`, basePath), `${basePath}${active}`);

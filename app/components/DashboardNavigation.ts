@@ -51,6 +51,7 @@ function relativePath(pathname: string, basePath: DashboardBasePath) {
 
 export function activeDashboardHref(pathname: string, basePath: DashboardBasePath) {
   const path = relativePath(pathname, basePath);
+  if (basePath === "/dashboard" && (path === "/tickets" || path.startsWith("/tickets/"))) return dashboardHref(basePath, "/tickets");
   const recordModule = path.match(/^\/registros\/([^/]+)/)?.[1];
   if (recordModule && recordModules[recordModule]) return dashboardHref(basePath, recordModules[recordModule]);
   const newModule = path.match(/^\/nuevo\/([^/]+)/)?.[1];

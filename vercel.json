@@ -4,7 +4,8 @@
     "deploymentEnabled": {
       "fix/wms-orphan-guard-local-20261117": false,
       "chore/supabase-preview-baseline-fix": false,
-      "fix/wms-hu-c3-recovery-local-20261118": false
+      "fix/wms-hu-c3-recovery-local-20261118": false,
+      "codex/e2-current-main": false
     }
   }
 }
