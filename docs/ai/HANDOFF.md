@@ -3,6 +3,12 @@
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
 
+## 2026-11-26 — Notificación de tickets por correo
+
+- `codex/ticket-email-notifications` sobre `e478907`. El alta guarda el ticket y envía a soporte por Resend con la fecha original en hora de Madrid, su descripción y todos los adjuntos. Un reintento usa la misma clave de idempotencia. Las incidencias de entrega se registran en logs y el ticket queda guardado.
+- Reenvío puntual de los tres tickets abiertos autorizado y confirmado en enviados, con cinco archivos en total. Recepción por el buzón de soporte pendiente de confirmación.
+- Suite web 413/413, tipos y build de producción PASS, lint sin errores (10 avisos anteriores). Chromium con Supabase y Resend simulados verificó el alta, el asunto, el cuerpo y los adjuntos emitidos. La rama queda pendiente de integración y verificación de Vercel Production. Sin migración.
+
 ## 2026-11-26 — Varios adjuntos y capturas en soporte
 
 - Rama `codex/ticket-multiple-attachments`, base `96c1dbf` confirmada en origin/main. Alta con hasta 10 documentos y capturas por ticket y 3 MB en total. Chromium confirmó pegado desde portapapeles, vista previa, retirada, guardado, imagen en su posición en la ficha y descarga de dos documentos con API simulada.
