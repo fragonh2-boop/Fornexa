@@ -15,6 +15,11 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-11-26 — Varios adjuntos y capturas en soporte
+
+- En `codex/ticket-multiple-attachments`, ampliación del alta y detalle de tickets con varios documentos, capturas pegadas y descargas compatibles con adjuntos anteriores.
+- Pendiente: CI de la candidata, ensayo autenticado, migración de base de datos antes del despliegue y verificación del dominio productivo sobre el commit integrado.
+
 ### 2026-11-25 — Tickets de usuario
 
 - Implementación en `codex/fornexa-user-tickets`: alta con referencia operativa y adjunto, bandeja filtrable, ficha, comentarios e historial. Roles de soporte iniciales OWNER y ADMIN.

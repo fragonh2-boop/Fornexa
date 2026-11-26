@@ -1,8 +1,10 @@
+import Image from "next/image";
+import { Fragment } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getAuthenticatedContext } from "@/lib/auth-context";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { canManageTickets, ticketCode, ticketDate, ticketIdPattern, ticketsPath } from "@/lib/user-tickets";
+import { canManageTickets, ticketCode, ticketDate, ticketIdPattern, ticketScreenshotMarker, ticketsPath, type TicketAttachment } from "@/lib/user-tickets";
 import { TicketCommentForm, TicketManagementForm } from "../TicketForms";
 import styles from "../tickets.module.css";
 
@@ -14,7 +16,7 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
 
   const supabase = await createServerSupabaseClient();
   const { data: ticket, error } = await supabase.from("user_tickets")
-    .select("id,number,title,description,reference,category,area,status,priority,reporter_id,assignee_id,attachment_name,created_at,updated_at")
+    .select("id,number,title,description,reference,category,area,status,priority,reporter_id,assignee_id,attachment_name,attachments,created_at,updated_at")
     .eq("tenant_id", auth.tenantId).eq("id", id).maybeSingle();
   if (error) return <p role="alert">No se ha podido cargar el ticket.</p>;
   if (!ticket) notFound();
@@ -22,6 +24,13 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
   const { data: activity, error: activityError } = await supabase.from("user_ticket_activity")
     .select("id,author_id,kind,body,created_at").eq("ticket_id", id)
     .order("created_at", { ascending: false }).order("id").limit(100);
+
+  const attachments = (ticket.attachments ?? []) as TicketAttachment[];
+  const screenshots = new Map(attachments.filter((file) => file.imageType)
+    .map((file) => [ticketScreenshotMarker(file.id), file]));
+  const description = screenshots.size ? ticket.description.split(/(\[Captura [1-9][0-9]{0,5}\])/g) : [ticket.description];
+  const documents = attachments.filter((file) => !file.imageType);
+  const attachmentUrl = (fileId: string) => `${ticketsPath}/${id}/adjunto?archivo=${fileId}`;
 
   return (
     <>
@@ -34,7 +43,16 @@ export default async function TicketDetailPage({ params }: { params: Promise<{ i
         <div className={styles.stack}>
           <section className={`${styles.card} ${styles.content}`} aria-labelledby="ticket-description">
             <h2 id="ticket-description">Descripción</h2>
-            <p className={styles.copy}>{ticket.description}</p>
+            <div className={styles.copy}>{description.map((part: string, index: number) => {
+              const screenshot = screenshots.get(part);
+              return screenshot
+                ? <Image key={index} className={styles.screenshot} src={attachmentUrl(screenshot.id)}
+                    alt={`Captura ${screenshot.id.slice(1)}`} width={640} height={360} unoptimized />
+                : <Fragment key={index}>{part}</Fragment>;
+            })}</div>
+            {documents.length > 0 && <ul className={styles.attachments}>
+              {documents.map((file) => <li key={file.id}><a href={attachmentUrl(file.id)} download>{file.name}</a></li>)}
+            </ul>}
             {ticket.attachment_name && <a href={`${ticketsPath}/${id}/adjunto`} download>Descargar {ticket.attachment_name}</a>}
           </section>
           <section className={`${styles.card} ${styles.content}`} aria-labelledby="ticket-activity">

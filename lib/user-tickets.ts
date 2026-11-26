@@ -20,3 +20,19 @@ export function ticketDate(value: string) {
     dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Madrid",
   }).format(new Date(value));
 }
+
+export const ticketAttachmentIdPattern = /^f[1-9][0-9]{0,5}$/;
+export const ticketAttachmentCount = 10;
+export const ticketAttachmentError = "Puedes añadir hasta 10 archivos, con un máximo de 3 MB en total.";
+export const ticketScreenshotTypes = ["image/png", "image/jpeg", "image/webp"] as const;
+export type TicketScreenshotType = typeof ticketScreenshotTypes[number];
+
+export type TicketAttachment = {
+  id: string;
+  name: string;
+  imageType?: TicketScreenshotType;
+};
+
+export function ticketScreenshotMarker(id: string) {
+  return `[Captura ${id.slice(1)}]`;
+}
