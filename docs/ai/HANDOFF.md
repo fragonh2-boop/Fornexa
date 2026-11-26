@@ -3,11 +3,16 @@
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
 
+## 2026-11-26 — Buzón de avisos de soporte
+
+- `codex/ticket-support-inbox` sobre `b6ff3c4`. El destinatario y la dirección de respuesta de los avisos de tickets nuevos pasan al buzón de soporte habilitado por el titular. Resend conserva su remitente configurado. Sin migración ni reenvío de tickets existentes.
+- El cambio de destinatario se verifica en la solicitud de envío simulada. La recepción real se mantiene como comprobación operativa pendiente en el registro.
+
 ## 2026-11-26 — Notificación de tickets por correo
 
 - `codex/ticket-email-notifications` sobre `e478907`. El alta guarda el ticket y envía a soporte por Resend con la fecha original en hora de Madrid, su descripción y todos los adjuntos. Un reintento usa la misma clave de idempotencia. Las incidencias de entrega se registran en logs y el ticket queda guardado.
 - Reenvío puntual de los tres tickets abiertos autorizado y confirmado en enviados, con cinco archivos en total. Recepción por el buzón de soporte pendiente de confirmación.
-- Suite web 413/413, tipos y build de producción PASS, lint sin errores (10 avisos anteriores). Chromium con Supabase y Resend simulados verificó el alta, el asunto, el cuerpo y los adjuntos emitidos. La rama queda pendiente de integración y verificación de Vercel Production. Sin migración.
+- Suite web 413/413, tipos y build de producción PASS, lint sin errores (10 avisos anteriores). Chromium con Supabase y Resend simulados verificó el alta, el asunto, el cuerpo y los adjuntos emitidos. La PR #159 se integró como `b6ff3c4` con CI en verde y Vercel Production READY. Sin migración.
 
 ## 2026-11-26 — Varios adjuntos y capturas en soporte
 

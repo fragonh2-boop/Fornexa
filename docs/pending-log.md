@@ -17,7 +17,7 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ### 2026-11-26 — Aviso de tickets por correo
 
-- Preparado el envío a soporte con Resend al crear un ticket, con su número, título, fecha de Madrid y archivos. Queda por comprobar el aviso con una sesión real y confirmar su recepción.
+- Los avisos de tickets nuevos y sus respuestas se dirigen al buzón de soporte. Queda por comprobar con una sesión real la recepción del aviso de Resend, con número, título, fecha de Madrid y archivos.
 
 ### 2026-11-26 — Verificación autenticada de soporte
 
