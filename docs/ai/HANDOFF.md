@@ -3,6 +3,12 @@
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
 
+## 2026-11-26 — Varios adjuntos y capturas en soporte
+
+- Rama `codex/ticket-multiple-attachments`, base `96c1dbf` confirmada en origin/main. Alta con hasta 10 documentos y capturas por ticket y 3 MB en total. Chromium confirmó pegado desde portapapeles, vista previa, retirada, guardado, imagen en su posición en la ficha y descarga de dos documentos con API simulada.
+- Migración aditiva `20261126090600`. PGlite verificó lectura para solicitante y soporte, aislamiento entre miembros y organizaciones, adjunto anterior a la migración y rechazo de datos incompletos o inválidos. Suite web 413/413, TypeScript, compilación de producción y lint sin errores (10 avisos previos).
+- Supabase muestra solo producción y ninguna rama de pruebas. Queda pendiente el ensayo autenticado con Supabase, aplicar la migración antes del despliegue de la aplicación y verificar producción. Ver OPEN en el registro pendiente.
+
 ## 2026-11-25 — Tickets de usuario
 
 - Rama `codex/fornexa-user-tickets`, sobre main `2941a80`. Nueva entrada Soporte con alta, adjunto, búsqueda, filtros, paginación, ficha y actividad. Los miembros activos ven sus tickets y OWNER/ADMIN gestionan la bandeja de su organización, se asignan tickets y actualizan estado y prioridad.

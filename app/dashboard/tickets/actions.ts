@@ -5,8 +5,9 @@ import { revalidatePath } from "next/cache";
 import { getAuthenticatedContext } from "@/lib/auth-context";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import {
-  canManageTickets, ticketAreas, ticketAttachmentLimit, ticketCategories,
-  ticketIdPattern, ticketPriorities, ticketStatuses, ticketsPath,
+  canManageTickets, ticketAreas, ticketAttachmentCount, ticketAttachmentError, ticketAttachmentIdPattern, ticketAttachmentLimit, ticketCategories,
+  ticketIdPattern, ticketPriorities, ticketScreenshotMarker, ticketScreenshotTypes, ticketStatuses, ticketsPath,
+  type TicketAttachment,
 } from "@/lib/user-tickets";
 
 type ActionResult = { error: string };
@@ -25,23 +26,46 @@ export async function createTicket(_: ActionResult, form: FormData): Promise<Act
   const title = field(form, "title");
   const description = field(form, "description");
   const reference = field(form, "reference");
-  const file = form.get("attachment");
 
   if (!category || !area || !title || title.length > 160 || !description || description.length > 6000 || reference.length > 100) {
     return { error: "Revisa los campos obligatorios y sus límites de longitud." };
   }
-  const attachment = file instanceof File && file.size > 0 ? file : null;
-  if (attachment && (attachment.size > ticketAttachmentLimit || attachment.name.length > 180)) {
-    return { error: "El adjunto debe pesar como máximo 3 MB y su nombre debe tener hasta 180 caracteres." };
+  const standardFiles = form.getAll("attachment").filter((file) => !(file instanceof File && !file.name && !file.size));
+  const files: [string, FormDataEntryValue][] = [
+    ...standardFiles.map((file, index): [string, FormDataEntryValue] => [`attachment:f${index + 1}`, file]),
+    ...[...form.entries()].filter(([key]) => /^(attachment|screenshot):/.test(key)),
+  ];
+  const attachments: TicketAttachment[] = [];
+  const attachmentPayloads: Record<string, string> = {};
+  let totalSize = 0;
+  if (files.length > ticketAttachmentCount) return { error: ticketAttachmentError };
+
+  for (const [key, file] of files) {
+    if (!(file instanceof File) || !file.size || !file.name || file.name.length > 180) {
+      return { error: "Revisa los archivos y sus nombres (hasta 180 caracteres)." };
+    }
+    const id = key.slice(key.indexOf(":") + 1);
+    if (!ticketAttachmentIdPattern.test(id) || Object.hasOwn(attachmentPayloads, id)) {
+      return { error: "Revisa los adjuntos del ticket." };
+    }
+
+    totalSize += file.size;
+    if (totalSize > ticketAttachmentLimit) return { error: ticketAttachmentError };
+
+    const bytes = Buffer.from(await file.arrayBuffer());
+    const screenshot = key.startsWith("screenshot:");
+    const imageType = screenshot ? ticketScreenshotTypes.find((type) => type === file.type) : undefined;
+    if (screenshot && (!imageType || !description.includes(ticketScreenshotMarker(id)))) {
+      return { error: "Revisa las capturas pegadas en la descripción." };
+    }
+    attachments.push({ id, name: file.name, ...(imageType ? { imageType } : {}) });
+    attachmentPayloads[id] = bytes.toString("base64");
   }
 
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase.from("user_tickets").insert({
     tenant_id: auth.tenantId, category, area, title, description, reference,
-    ...(attachment ? {
-      attachment_name: attachment.name,
-      attachment_data: "\\x" + Buffer.from(await attachment.arrayBuffer()).toString("hex"),
-    } : {}),
+    ...(attachments.length ? { attachments, attachment_payloads: attachmentPayloads } : {}),
   }).select("id").single();
 
   if (error) return { error: "No se ha podido crear el ticket. Vuelve a intentarlo." };
