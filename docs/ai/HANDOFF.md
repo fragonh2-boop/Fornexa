@@ -3,6 +3,14 @@
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
 
+
+## 2026-11-26 — A2: alcance y bytes del recibo de migraciones
+
+- Rama `codex/a2-receipt-scope` sobre #156 `b7413e5`. El recibo v1.1.0 identifica el tramo histórico y marca la cadena productiva completa como no ensayada. Los bytes y SHA-256 salen del fichero original. Los recibos históricos y el SQL permanecen intactos.
+- PostgreSQL 17 local desechable: 14 migraciones, poscondiciones y aislamiento CMR correctos. Se contrastaron los 14 tamaños y SHA-256, incluidos tres ficheros con Unicode. Publicación para revisión de la candidata y sin despliegue automático de la rama.
+- WMS E2: #145 `aca95b1` pasó 21/21 escenarios en un PostgreSQL 17 desechable y los ensayos de continuación, rollback y recuperación de dos HUs con restauración exacta de C3. Esto deja pendiente el ensayo en Supabase aislado, copia y verificación operativa antes de activar. Sin escritura cloud.
+
+
 ## 2026-11-18 — Corte CI/auditoría local sobre el runtime apagado ya integrado
 
 - Fran autorizó a Codex como único autor local y a un revisor Codex local independiente para preparar/probar este objeto, sin publicación ni producción. Rama `chore/wms-ci-audit-current-local-20261118`, base main `2941a800`, fuentes de la candidata `aca95b1`; el D1 antiguo se preserva sin republicar.
