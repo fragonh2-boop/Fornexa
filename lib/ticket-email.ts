@@ -3,7 +3,7 @@ import "server-only";
 import { escapeEmailHtml, sendEmail, type EmailAttachment } from "./email-service";
 import { ticketCode, ticketsPath } from "./user-tickets";
 
-const supportRecipient = "fornexa@fornexasc.com";
+const supportRecipient = "support@fornexasc.com";
 
 type TicketEmail = {
   id: string;
