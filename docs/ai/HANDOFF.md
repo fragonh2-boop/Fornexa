@@ -5,6 +5,12 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 
 
 
+## 2026-11-27 — Contraste de contenido de A2 en solo lectura
+
+- La consulta canónica de huellas se ejecutó en modo de solo lectura. Producción registra 44 entradas. Las 42 huellas de octubre permanecen idénticas. Ante las 48 fuentes candidatas, 23 entradas coinciden byte a byte y 18 son equivalentes por tokens; se conservaron literales y cuerpos de funciones.
+- La fuente CMR histórica recuperada coincide en sus ocho sentencias. Las tres divergencias de contenido pendientes corresponden al núcleo operativo, WMS E1 y WMS C3. La definición C3 activa ya había coincidido con la huella del paquete de recuperación; la divergencia aquí es del historial SQL de la migración completa.
+- Las dos fuentes E2 y los dos archivos históricos sin entrada homónima siguen documentados en el seguimiento A2. Sin cambios en SQL, historial, datos o despliegue de producción.
+
 ## 2026-11-27 — Recuperación HU en Supabase y contraste A2
 
 - En Supabase aislado se ejecutó la recuperación `PRESERVE_HU` dentro de una transacción. Dos unidades con la misma clave anterior a E2 conservaron sus vínculos y cantidades de 10 y 5. La recuperación conservó acceso de servicio a C3 y deshabilitó la aprobación E2. La reversión retiró los datos y el archivo sintéticos y devolvió el permiso E2. REST devolvió 401 a consultas anónimas de reglas y propuestas.
