@@ -9,7 +9,8 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 
 - En Supabase aislado se ejecutó la recuperación `PRESERVE_HU` dentro de una transacción. Dos unidades con la misma clave anterior a E2 conservaron sus vínculos y cantidades de 10 y 5. La recuperación conservó acceso de servicio a C3 y deshabilitó la aprobación E2. La reversión retiró los datos y el archivo sintéticos y devolvió el permiso E2. REST devolvió 401 a consultas anónimas de reglas y propuestas.
 - Contraste de solo lectura: 44 nombres del historial productivo están en la candidata de 48 fuentes. Las dos E2 aún no están en producción. El importador local carece de entrada homónima Supabase pero figura en el registro de aplicación y su DDL existe. La resincronización CMR carece de entrada homónima en ambos historiales productivos; la secuencia está al día en la comprobación de solo lectura. La comparación por nombre no demuestra identidad SQL.
-- Pendientes recorrido HTTP autenticado con usuario sintético habilitado en Supabase de pruebas, conciliación SQL exacta y decisión de rollout. El proyecto aislado tiene confirmación de correo activa para altas. Sin modificaciones productivas.
+- HTTP nativo en Supabase de pruebas: Auth emitió una sesión para un operador sintético y REST mostró su regla, filtró la de otra organización y rechazó la actualización directa. Cierre de sesión 204. Cuenta y datos sintéticos retirados y verificados. Esto prueba Auth y PostgREST, queda pendiente el flujo completo de la interfaz y API de Fornexa.
+- Preflight de producción de solo lectura: E2 ausente, 150 quants y 0 HU, clave pre-E2 presente y huella y permisos de C3 coincidentes con el paquete de recuperación. Pendientes la conciliación SQL de A2 y la revisión del paso a producción. Sin escritura productiva.
 
 ## 2026-11-27 — Ensayo A2/E2 en Supabase aislado
 
