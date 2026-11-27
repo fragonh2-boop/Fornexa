@@ -3,6 +3,90 @@
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
 
+
+
+## 2026-11-27 — Contraste de contenido de A2 en solo lectura
+
+- La consulta canónica de huellas se ejecutó en modo de solo lectura. Producción registra 44 entradas. Las 42 huellas de octubre permanecen idénticas. Ante las 48 fuentes candidatas, 23 entradas coinciden byte a byte y 18 son equivalentes por tokens; se conservaron literales y cuerpos de funciones.
+- La fuente CMR histórica recuperada coincide en sus ocho sentencias. Se inspeccionaron las tres diferencias con el comparador de tokens y cotejo inicial de huellas: núcleo operativo comparte las 83 sentencias registradas y añade dos columnas de tenant; ambas existen en producción con UUID, NOT NULL y FK RESTRICT. C3 comparte sus 24 sentencias, con BEGIN y COMMIT adicionales en Git. E1 conserva en el ledger únicamente el nombre del fichero. La ejecución productiva de GitHub Actions 39058667435 aporta evidencia independiente: validó un fichero de 60.299 bytes con SHA-256 coincidente con el blob candidato y completó la aplicación atómica y sus poscondiciones.
+- Las dos fuentes E2 y los dos archivos históricos sin entrada homónima siguen documentados en el seguimiento A2. Sin cambios en SQL, historial, datos o despliegue de producción.
+
+## 2026-11-27 — Recuperación HU en Supabase y contraste A2
+
+- En Supabase aislado se ejecutó la recuperación `PRESERVE_HU` dentro de una transacción. Dos unidades con la misma clave anterior a E2 conservaron sus vínculos y cantidades de 10 y 5. La recuperación conservó acceso de servicio a C3 y deshabilitó la aprobación E2. La reversión retiró los datos y el archivo sintéticos y devolvió el permiso E2. REST devolvió 401 a consultas anónimas de reglas y propuestas.
+- Contraste de solo lectura: 44 nombres del historial productivo están en la candidata de 48 fuentes. Las dos E2 aún no están en producción. El importador local carece de entrada homónima Supabase pero figura en el registro de aplicación y su DDL existe. La resincronización CMR carece de entrada homónima en ambos historiales productivos; la secuencia está al día en la comprobación de solo lectura. La comparación por nombre no demuestra identidad SQL.
+- HTTP nativo en Supabase de pruebas: Auth emitió una sesión para un operador sintético y REST mostró su regla, filtró la de otra organización y rechazó la actualización directa. Cierre de sesión 204. Cuenta y datos sintéticos retirados y verificados. Esto prueba Auth y PostgREST, queda pendiente el flujo completo de la interfaz y API de Fornexa.
+- Preflight de producción de solo lectura: E2 ausente, 150 quants y 0 HU, clave pre-E2 presente y huella y permisos de C3 coincidentes con el paquete de recuperación. Pendientes la conciliación SQL de A2 y la revisión del paso a producción. Sin escritura productiva.
+
+## 2026-11-27 — Ensayo A2/E2 en Supabase aislado
+
+- Proyecto gratuito `fornexa-a2-e2-test` en Forexa, activo y separado de producción. PostgreSQL 17.12 con Auth y Storage nativos y esquema público inicialmente vacío. Se aplicaron las 48 fuentes de la candidata `87d15f9`: 26 por separado y las 22 restantes en una operación, con Soporte y C3 ya presentes al aplicar E2. El historial de pruebas tiene 27 entradas por la agrupación y no reproduce las versiones del ledger productivo.
+- Postestado: cero tickets, reglas y propuestas; RLS en las tres tablas, lectura autenticada de E2 y escritura directa denegada. Las seis RPC clave conservan ejecución exclusiva de service_role. Se ensayó el rollback E2 dentro de una transacción revertida: la huella SHA-256 y permisos de C3 coincidieron con la fuente original, Soporte permaneció y E2 volvió al estado de partida.
+- El ensayo de colisión HU con datos sintéticos sigue acreditado en PostgreSQL 17 local y CI de #163. Pendientes el recorrido autenticado y la colisión HU en Supabase aislado, la reconciliación del historial productivo y la revisión antes de activar. Producción siguió en `80fe5c9` sin tablas E2.
+
+## 2026-11-26 — Reconciliación E2 sobre main actual
+
+- `codex/e2-current-main` incorpora `80fe5c9` a la candidata #145 `aca95b1`. Conserva las migraciones y recuperación E2/HU/C3 e incorpora las dos migraciones de soporte, sin cambiar el interruptor E2.
+- Se traslada la corrección de alcance y bytes de #162 al arnés histórico que también ejecuta la candidata E2. El despliegue automático de la rama queda inhabilitado. Pendientes ensayo en Supabase aislado y revisión del conjunto. Sin escritura cloud.
+
+## 2026-11-18 — HU/C3, cierre léxico del generador en preparación
+
+- Reinspección independiente de `d36e8be`: MUST TRUNCATE/RLS y SHOULD del recibo cerrados. Quedó un SHOULD del scanner: dollar dentro de identificadores, escapes E y continuidad de cadenas con salto de línea podían ocultar un COMMIT interior en templates distintos a los empaquetados.
+- Codex corrige fronteras de identificador/tags Unicode y escapes E, incluida su herencia en continuaciones; añade los tres casos rojos/verdes del revisor y literales válidos. Fuente primaria: PostgreSQL17, SQL lexical structure. No cambia los scripts operativos ni C3 respecto al candidato anterior.
+- Suite465/465, focales14/14, lint0/11previos y build/tipos PASS tras regenerar .next (había tipos generados duplicados byteidénticos). PG17.12 final2veces PASS, fuentes cotejadas y cleanup completo. Pendientes SHA estable y reinspección exacta; no publicar la versión anterior como cierre del SHOULD. Ensayos sintéticos/secuenciales y gates de producción siguen separados.
+
+## 2026-11-18 — HU/C3, corrección del dictamen independiente
+
+- El revisor local independiente bloqueó `813b05d` con1MUST: RLS ocultaba vínculos al guard SECURITY INVOKER y podía permitir TRUNCATE. La regresión real PG17 reprodujo ese fallo; tras rechazar TRUNCATE incondicionalmente en las tablas congeladas pasa, también como authenticated con RLS adversa. No se añadió SECURITY DEFINER.
+- Se atienden además sus dos SHOULD: generador valida sentencias y rechaza controles transaccionales interiores, con regresión roja/verde del COMMIT en línea; recibo exige el bundle completo ROLLBACK. Scanner existente extraído a módulo puro compartido, fuentes/hashes del recibo ampliados.
+- Dos ensayos finales PG17.12 pasan y se limpiaron completamente; la evidencia es sintética y secuencial, sin acreditar carreras entre sesiones ni todos los recorridos C3/UI/API. Suite464/464, focales13/13, tipos/build PASS y lint0 errores/11 avisos previos. Pendientes nuevo commit estable y reinspección del mismo revisor antes de publicar para CI. No ejecución productiva.
+
+## 2026-11-18 — Recuperación HU/C3 local autorizada
+
+- Fran autorizó directamente a Codex como autor local de HU/C3 y al mismo revisor independiente, con PG17 desechable y sin ejecución productiva. Base de esta rama `c9ecd5685952e7c41a5295c254ad440d3cd49c75`: PR #154 ya incorporada únicamente en #145, CI644 SUCCESS y guardas cerradas. #145 sigue borrador hacia main `2941a800`; producción mantiene E2 apagado.
+- Rama `fix/wms-hu-c3-recovery-local-20261118`. El inverso estricto conserva sus abortos ante colisión/ejecución sin confirmar y restaura C3. La vía explícita `PRESERVE_HU` conserva el esquema y todos los registros, archiva trazabilidad, congela las entradas y vínculos E2 y restaura solo la función/ACL C3 fijadas, sin reejecutar backfills. Operación y restauración son una transacción. Documento: `docs/verification/wms-e2-hu-c3-recovery.md`.
+- Dos ensayos reales locales PG17.12 de la versión ampliada pasan: colisión con ambos HUs presentes, C3 exacta, otro tenant/archivo previo conservados, repetición, denegaciones y fallo atómico. La prueba de confirmación indirecta C3→tarea E2 falló antes de añadir su guarda y pasa con ella; las tareas C3 sin vínculo E2 siguen operativas. Clústeres detenidos/eliminados y runtime desmontado al terminar.
+- Tipos y build de producción PASS. Ensayo final ampliado repetido dos veces en PG17.12: también bloquea cambios de propietario y TRUNCATE de los objetos congelados. Suite web463/463 y lint PASS (0 errores/11 avisos previos). Pendientes commit estable, revisión independiente y CI del SHA nuevo antes de incorporar en #145. La rama incluye exclusión Vercel específica antes de su primer push; workflows, lockfile y migraciones existentes se conservan. Sin SQL cloud, captura, seed, COMMITTED ni activación E2. El ensayo no cierra la captura/rol/atomicidad ni la validación funcional productiva del charter.
+
+## 2026-11-18 — Protección del destino de integración
+
+- PR #154 publicada como borrador hacia #145 con HEAD `3a568e1`, base `cc3dfec` y CI642/run44203202876 SUCCESS en los tres jobs. Cierre independiente de código, publicación y evidencia CI sin MUST/SHOULD. Cinco artefactos oficiales cotejados; sin despliegue Vercel del ref ni Preview Supabase nueva. El merge sintético tiene el mismo árbol que la fuente revisada.
+- Para conservar esa condición al incorporar la corrección, se añade la exclusión literal Vercel de `chore/supabase-preview-baseline-fix`, junto a la del origen. Main conserva su comportamiento. No cambian arnés, migraciones, runtime, workflows, recibos ni lockfile. El nuevo commit requiere revisión antes de push y CI propia antes de incorporar en #145; no autoriza su merge a main ni operaciones DB.
+
+## 2026-11-18 — PG17 local y preparación de CI sin preview
+
+- La revisión independiente de `314532d835cd2e1124d6d701b7ec05e9534c7a37` cerró el MUST y SHOULD anteriores: cero hallazgos abiertos en ese delta. El arnés real pasó dos veces en PostgreSQL17.12 temporal del Mac, con14 migraciones y recibos equivalentes salvo timestamp. Ajustes heredados de redirección y un archivo de inicio de psql adversos quedaron sin efecto. Clúster limitado a loopback, detenido y eliminado. Esto no acredita rollback E2, captura cloud ni CI.
+- Codex añade únicamente la exclusión Git de Vercel para `fix/wms-orphan-guard-local-20261117` en la raíz del repositorio. Los otros refs conservan su comportamiento. Las raíces de ambos proyectos Vercel son `./`, verificadas en los paneles por Fran; Supabase tiene directorio `.`, producción solo desde `main` y branching automático no disponible en la organización Free según la lectura autenticada del17-nov. No se cambian ajustes de los servicios.
+- Destino previsto de la PR: `chore/supabase-preview-baseline-fix` (#145), HEAD comprobado `cc3dfec37e164612238bd395616d061f341cefcf`, base/main `2941a800735adc78af45340cd1931847ee91e829`. El workflow existente se activa por PR y conserva todos sus jobs y recibos. Pendiente revisión independiente del nuevo commit antes del primer push y CI del SHA publicado. #145 continúa borrador y no se fusiona a main ni se aplica E2.
+
+
+
+## 2026-11-18 — Destino efectivo del arnés de recuperación
+
+- La inspección independiente de `20fe22a` detectó un MUST de destino efectivo y un SHOULD de cobertura. Codex corrigió ambos dentro del alcance local autorizado: el entorno del subproceso excluye ajustes heredados que puedan redirigir la conexión y psql omite los archivos de inicio. La guarda sigue siendo anterior al primer SQL.
+- La regresión por la entrada normal reprodujo el fallo en la versión anterior y pasa tras la corrección, con psql interceptado en memoria. Comprueba los seis pares admitidos, argumentos, entorno hijo y conservación del entorno padre. Suite web460/460, focales33/33, tipos/build PASS y lint0 errores/11 avisos ajenos al delta.
+- Rama local `fix/wms-orphan-guard-local-20261117`, sobre `20fe22a`. Pendiente de reinspección independiente del nuevo commit. PG17 real, CI propia y publicación siguen pendientes. El rollout mantiene sus demás bloqueos y los workflows y controles de recibos se conservan.
+
+## 2026-11-17 — Guardas del arnés de recuperación, validación local
+
+- Por autorización directa de Fran, Codex recupera las guardas de aislamiento preparadas por Claude sobre `cc3dfec37e164612238bd395616d061f341cefcf`. Rama local `fix/wms-orphan-guard-local-20261117`. Cada llamada SQL del arnés exige host loopback y una base desechable de la allowlist antes de lanzar psql.
+- Verificación local en el Mac: suite web459/459, focales32/32, cuatro rechazos por la entrada normal antes de ejecutar SQL, tipos y build PASS. Lint sin errores y11 avisos en archivos ajenos al delta. La primera suite quedó en456/459 por sockets loopback denegados por el sandbox; con sockets locales habilitados pasó459/459. Los cambios conservan la comprobación de recibos de ambos jobs PG17.
+- Preparación local pendiente de revisión independiente del commit resultante y de CI propia antes de publicar. El ensayo real del arnés en PG17 sigue pendiente. El siguiente responsable debe revisar los destinos permitidos, el rechazo anterior al primer SQL y la compatibilidad de CI. Runtime E2 continúa apagado en producción y siguen abiertos recuperación de HUs, restauración C3, captura certificada, rol/atomicidad y fase de datos.
+
+## 2026-11-17 — Cierre de separación y despliegue apagado
+
+- #152 fusionada en main `2941a800735adc78af45340cd1931847ee91e829`. CI PR44078515402 y main44079078596 SUCCESS:412/412 web,39/39 C3, tipos/lint/build/Mobile y ensayo PG17.
+- Producción canónica READY en ese SHA y alias fornexasc.com comprobado. Smoke: Memorandum200 con nota de entrada por fases; API WMS401 sin sesión; ruta de reposiciones exige login. Logs del despliegue15min: ningún error/fatal encontrado. Esto no certifica el recorrido autenticado de operador.
+- Lectura Supabase posterior: ledger42, última20261019120000, tablas E2 ausentes. Sin SQL remoto de escritura ni activación E2. El interruptor de servidor no está configurado en Vercel y queda apagado por defecto.
+- #153 fusionada exclusivamente en esta candidata como `a203bb0`; árbol9754c4f idéntico al fuente `eeed595` probado por CI44079421038 SUCCESS:457/457 web,39/39 C3, verify-e2-pg17/rehearse-c3-apply-pg17, tipos/lint/build/Mobile. Preview canónica del fuente READY. Conflictos resueltos preservando runtime idéntico a main.
+- Bloqueos para continuar la fase de datos: elección de organización para el Supabase de pruebas (pregunta obligatoria del conector enviada a Fran); acceso interactivo al Mac para renovar el token del revisor (no hay herramienta de control Mac en esta sesión). Recuperación de HUs incompatibles y restauración C3 exacta siguen pendientes antes de activar; el rollback actual aborta antes de alterar stock ante colisiones. #145 permanece DRAFT; no aplicar E2 ni fabricar sesión operativa.
+
+## 2026-11-17 — Reconciliación de candidata tras separar runtime
+
+- #152 fusionada en main2941a80 tras CI44078515402 SUCCESS y Preview exacta READY. E2 continúa apagado; no SQL remoto.
+- Se incorpora ese main en la candidata conservando sus migraciones, pruebas y defensas de auditoría. API, UI y dominio WMS son idénticos a main, incluido el interruptor y la compatibilidad C3. No se extienden aprobaciones históricas al merge nuevo.
+- Pendiente CI propia y publicación de esta reconciliación antes de integrar en #145. No fusionar #145 a main ni activar/aplicar E2 sin ensayo aislado y recuperación.
+
 ## 2026-11-26 — Reconciliación de pendientes de despliegue
 
 - Base `28407d7`, confirmada en GitHub main, CI verde y Vercel Production READY en fornexasc.com. Se registra el cierre de despliegue de soporte #159/#160, la integración de auditoría #150 y el cambio de flujo CI de C3 #142. Permanecen pendientes la recepción real del correo, las pruebas de soporte y C3 con sesión y la nueva captura de auditoría.
@@ -41,6 +125,84 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 - No incluye migraciones, cambios de ledger, carga ni activación E2. La candidata #145 conserva SQL/ensayos y debe reconciliarse después de esta separación.
 - Pendiente: ensayo en Supabase de pruebas, copia previa y verificación DB antes de activar; recuperación con HUs incompatibles y restauración C3 exacta aún abiertas. Creación del proyecto de pruebas pendiente de organización elegida por Fran (requisito del conector).
 - Validación local: suite web412/412; focales API/loader/interruptor23/23; tipos PASS y lint sin errores (10 avisos). Build PASS. CI/Preview del HEAD final pendientes; no declarar entrega productiva hasta verificarlos.
+
+
+## 2026-11-12 — Contingencia E2: reconciliados los dos paquetes G; base PR #151
+
+- La rama de #145 recibió el 05-nov cinco commits directos (hasta `2e0249e3`) con una segunda reescritura, incompatible, de los mismos ficheros que PR #151 (rollback, arnés, tests, `ci.yml`). Decisión de Fran (12-nov, en sesión): prevalece el paquete de PR #151.
+- Motivo, verificado por Claude: la variante de la rama archivaba en `public` mediante `create table as` (sin RLS y con los privilegios por defecto de `public` para `anon`/`authenticated`), solo archivaba propuestas EXECUTED y solo bajo override, no archivaba el vínculo tarea→propuesta, dejaba las cinco RPC solo-E2 sin retirar, y su arnés solo recorría el camino limpio (el verde no probaba las guardas G3/G4).
+- Reconciliación: merge de `chore/supabase-preview-baseline-fix` en `fix/e2-harness-guard-g5` conservando rollback, arnés y tests de #151 y un único token (`FORNEXA_DISPOSABLE_DB_CONFIRM`). De la variante de la rama se porta su tercera capa G5: el bloque que elimina los esquemas vuelve a comprobar `current_database()` en el servidor (solo en socket real; sin excepción por nombre «pglite»). Se retira de `ci.yml` la variable `CONFIRM_DISPOSABLE_RUN`, que ya no lee ningún script.
+- Verificación local: tests de contingencia 9/9; guarda SQL ejecutada en PostgreSQL 16 desechable (rechaza en `postgres`, pasa en `fornexa_e2_test`). Tipos, lint, build y PG17 NO ejecutados localmente (registro npm inalcanzable): los certifica la CI de la PR.
+- Sin escritura cloud, merge a `main`, despliegue ni migración. Producción sigue en `c948368`.
+
+## 2026-11-05 — Paquete de contingencia E2: MUST-G1..G5 cerrados y causa del rojo de verify-e2-pg17
+
+- Decisión de Fran (05-nov): no fusionar #145 tal como está; nueva estrategia sin riesgo para producción (anunciada en #fornexa): 1) cerrar G1–G5 y dejar CI verde; 2) partir #145 y llevar el runtime E2 detrás de un interruptor apagado; 3) ensayar E2 en un Supabase de pruebas; 4) apply productivo solo con copia previa y migraciones aditivas; 5) encender al final.
+- Causa medida del FAILURE de `verify-e2-pg17` en `da3c1ff4` (log del job): el seed del arnés de contingencia usaba `products.uom`, inexistente (`uom_base`). Al corregirlo aparecieron, uno tras otro, más supuestos falsos del arnés: `warehouse_zones.code/name` (son `zone_code/zone_name`), actor OPERATOR sin permiso para UPSERT_RESOURCE y sin `warehouse_id` en el payload, una columna `inventory_quants.allocated_reference_id` que E2 no añade y un retorno de `fornexa_wms_evaluate_replenishment` tratado como array cuando es `{ok, proposals, count}`. Corregidos sin relajar ninguna aserción de negocio.
+- MUST-G5: el arnés exige host loopback, base en allowlist desechable, token explícito en entorno y confirmación de `current_database()` en el servidor antes del primer drop. CI pasa el token solo en ese paso.
+- MUST-G1..G4: rollback reescrito como inverso exacto de E2 core (no toca columnas pre-E2; retira `reference_type/reference_id`, su check e índice; pre-flight que aborta antes de cambiar nada si la clave pre-E2 colisionaría; aborta con propuestas EXECUTED salvo confirmación explícita y archiva propuestas, reglas y vínculos en `private.wms_e2_rollback_archive` antes de borrar). Retira también las cinco funciones RPC solo-E2.
+- Nuevo hallazgo (limitación documentada en la cabecera del rollback): si se aplicó la RPC E2, `fornexa_wms_action` queda en su versión E2; las acciones pre-E2 funcionan (probado), las E2 fallan con error. Restaurar el cuerpo C3 exacto exige reaplicar su definición desde la migración C3. Decisión pendiente.
+- Verificación local (PostgreSQL 16 desechable, sesión psql persistente como sustituto de `pg` por registro npm inalcanzable desde la sesión): arnés completo HARNESS OK, incluidos G3 (colisión rechazada sin cambios), G4 (bloqueo y archivo con `executed_by`), G1/G2 (columnas post-rollback = instantánea pre-E2) y acción C3 tras rollback. El rollback anterior falla el mismo arnés y los dos tests nuevos. Tests de contingencia 8/8; suite completa local con las mismas 12 fallas preexistentes antes y después (dependencias no instaladas). Tipos, lint y build NO ejecutados localmente: los certifica la CI de la PR. PG17 solo en CI.
+- Sin escritura cloud, merge, despliegue ni migración. Producción sigue en `c948368`.
+
+## 2026-10-30 — Dictamen final #145 y corrección MUST-145F-1
+
+- Claude revisó 09086aaa en 6526750979: composición, conflictos, SHOULD-2c, guarda TLS/repin y retirada de caché conformes. Acepta corregir-y-mergear, condicionado a retirar del Memorandum la afirmación de captura real auditada del import histórico. No exige otra auditoría global del mismo conjunto. DEPLOY_READY no firmado por su403.
+- Se corrige esa cadena pública: snapshot histórico importado del24-oct, sin run identificado y procedencia de captura sin certificar. Se elimina la hora sin cualificar y el SHA del relato público. El test de snapshot exige coherencia de esa release pública con el manifiesto no certificado; bytes históricos intactos. Cobertura vigente714; referencias712 calificadas como checkpoints históricos.
+- CI620 del padre:444/444 web,39/39 C3 y todos los checks, fuente revisada09086aaa. Delta documental validado localmente:25/25 focales, tipos, lint focal y build PASS; pendientes publicación y CI propia antes de DB-first. Producción actual sigue en c948368 (#150), sin cambios de esquema productivo ni captura manual.
+- DB-first: pendientes comprobaciones frescas, aplicación controlada únicamente de core/RPC E2 y lectura del ledger/post-estado antes de merge de app. Confirmar el mecanismo de versión del aplicador para no introducir divergencia Git/ledger ni dobles dueños de transacción. No reejecutar el historial ni fabricar sesión de operador para cerrar E2E.
+
+## 2026-10-30 — CI: caché pnpm bloqueada por cuota de transferencia
+
+- CI main618/run41056988612 finalmente SUCCESS: 408/408 web, 39/39 C3, tipos/lint/build/Mobile y ensayo PG17. Main `c948368` y producción canónica READY/dominio/smoke200 comprobados; consulta runtime15min sin errores. La API del proyecto secundario fornexa-app dio403 y no hay CLI; no se certifica ese proyecto. La app móvil configurada usa fornexasc.com como API, dominio canónico sí comprobado.
+- Causa medida de los diez minutos en Setup Node: log main618 `2026-10-30T12:40:39.424Z`, «Failed to restore: Egress is over the account limit». Caché de234MB dejó de progresar y Setup Node solo terminó a12:50. No era fallo de código; instalar después desde lockfile tardó segundos.
+- Se retira únicamente cache/cache-dependency-path de setup-node en los dos jobs CI y en captura manual, cuyo timeout10min podía consumirse antes de capturar. Node22, pnpm, frozen-lockfile, comandos de validación, pines, secretos, aislamiento y artefactos se conservan. Comparación estructural YAML antes/después confirma ese delta exacto. No se dispara captura ni se cambian cuotas/costes.
+- El nuevo HEAD sustituye a `2ce05e2`/CI619, que estaba aún descargando esa caché. Requiere anuncio, CI propia y dictamen de integración; no se reutilizan CI617/619 ni aprobación de otro SHA. Cobertura Memo713. Checkpoints inferiores conservan el estado anterior a esta corrección.
+- Preflight primario READ ONLY/ROLLBACK de30-oct: ledger42, última20261019120000, E2 ausente (reglas/propuestas no existen y versiones E2 no registradas). Customs tenant_id UUID NOT NULL con FK RESTRICT en ambas tablas; quant unique sigue sin HU,150 quants y0HUs. Sin mutación cloud. Preparar DB-first tras dictamen, sin reejecutar indiscriminadamente el historial.
+
+## 2026-10-30 — #150 en main y despliegue READY; candidata #145 alineada
+
+- Claude aprobó #150 `1bfb534` en 6522812458: cero MUST, MERGE SÍ; retiró reserva técnica al dispatch sin autorizarlo. PR fusionada con expected HEAD por squash en main `c94836839993a74f1873644ea0eccdbc7fc29624`, árbol `8869ea8057279f5a4307a7b3f07f3a03bf11c890` idéntico al revisado. CI615 acreditó 408/408 web y todos los checks; CI main618/run41056988612 pendiente al preparar esta nota. Captura manual NO ejecutada.
+- Vercel accesible desde Work: proyecto canónico fornexa, producción `dpl_BYmRRuUFvvs1AUtKZGh94T8tFyuL` READY en `c948368`; API de alias confirma fornexasc.com apuntando a ese despliegue. GET /memorandum HTTP200 y título correcto. El 403 de Claude es una limitación de su sesión. Esto entrega la corrección de auditoría, no WMS E2 productivo ni una captura oficial.
+- Merge de main `c948368` hacia la candidata #145 (padre `eb8d27c`), conservando seguimientos de ambas ramas. Conflictos limitados a HANDOFF/pending/Memorandum, resueltos con fecha30-oct y cobertura712 en el checkpoint 2ce05e2 (histórica; cobertura vigente714); el test de fecha coincide. Se preserva la anotación SHOULD-2c y el snapshot0912 intacto.
+- Delta adicional de defensa en profundidad solicitado por Claude: createAuditClient aborta si NODE_TLS_REJECT_UNAUTHORIZED=0, con prueba negativa y runner repinado. No modifica SQL, migraciones ni comportamiento WMS. La aprobación de #150 no se traslada automáticamente a este ajuste ni al conjunto #145.
+- Combinación local: 77/77 focales, tipos, lint global (0 errores/11 avisos) y build PASS. Publicación/CI del nuevo SHA pendientes. #145 permanece draft, sin merge a main, escritura cloud ni despliegue E2. Anunciar el HEAD exacto y pedir dictamen de integración sobre ese SHA; CI617 del padre eb8d27c no certifica el nuevo conjunto. Los bloques inferiores son checkpoints históricos.
+
+## 2026-10-30 — #149 aprobada e integrada en la candidata #145
+
+- Claude revalidó `ab7e044` en comentario 6521556938: MUST-H-1 y los tres SHOULD del delta cerrados, CODE_READY SÍ, MERGE a la rama de #145 SÍ. Aprobación limitada al delta; #145 a main todavía NO. CI #614/run 40916563772 SUCCESS: 432/432 web, 39/39 C3, tipos/lint/build/Mobile, PG16/17, 46 migraciones E2 y siete regresiones.
+- #149 pasó de draft a ready y se fusionó con expected HEAD exacto. Merge `6524a5bc20128fcb424d8f2926e31f3e7cd2d6b5` en `chore/supabase-preview-baseline-fix`, árbol `6f1938b10c4061eb7418cb19006430603800014b`, idéntico a `ab7e044`. No se fusionó a main ni se escribió en Supabase. Main contrastado `f55f1e9`.
+- Checkpoint de integración: fecha/cobertura del Memorandum actualizadas y anotación de alcance del snapshot 0912 para SHOULD-2c. Los tests de resumen y arrays muestran junto al true histórico la comparación recalculada del Git actual (false para operational_core), con scope HISTORICAL_BASELINE_ONLY. Manifiesto enlaza hash/tamaño/baseline; JSON histórico intacto. Este ajuste adicional necesita dictamen en el HEAD final de #145.
+- #150 sigue en `1bfb534`, CI #615 verde (408/408 web, 39/39 C3 y demás checks), pendiente de revalidación TLS por Claude. No integra su código este checkpoint. Las notas inferiores sobre revisión, publicación y CI pendientes de #149 son históricas y quedan superadas por este bloque.
+- Checkpoint local: 25/25 focales PASS (auditoría/snapshot/Memorandum/fecha), tipos PASS, lint focal sin errores (un aviso preexistente) y build de producción PASS. Pendientes publicación del checkpoint, CI y revisión del conjunto #145; revisión #150 y alineación posterior con main. DB_READY solo con alcance PG17 desechable, no ledger cloud. Sin captura manual, merge a main ni despliegue.
+
+## 2026-10-29 — PR #149: subsanación MUST-H-1 tras revisión independiente
+
+- Claude revisó HEAD `62b3ef1` (comentario 6501121250), cerró nueve hallazgos y mantuvo MERGE NO por el shim de tenant_id en el arnés. CI #612/run 40897585435 SUCCESS: 422/422 web, 39/39 C3, PG16 y PG17 (46 migraciones E2 y siete regresiones); ese resultado no certifica este nuevo delta.
+- Se retira la creación anticipada de columnas customs del arnés: la migración original debe crear UUID NOT NULL/default/FK RESTRICT. Comprobaciones de catálogo posteriores y pruebas de mutación rechazan columnas debilitadas. Search_path exige exactamente vacío en las dos funciones verificadas.
+- Auditoría de merma conserva estado de flujo/stock previo y alcance de retención del quant completo; se documenta el efecto sobre otras órdenes, sin liberar sus reservas al retener. Se amplía la regresión 60+40. La evidencia de dos HUs sigue siendo sintética, sin acreditación funcional productiva.
+- Validación local del delta: 37/37 focales (incluye ocho mutaciones de catálogo), tipos y lint focal PASS; build de producción PASS. Suite completa 431/432: persiste el timeout DATA150 del lock vacío ya observado antes del delta, sin cambios en ese código. Pendientes publicación, nueva CI PG17 y revisión Claude. #150 (`5f283f5`) conserva CI #613 verde y revisión independiente pendiente. Sin merge, despliegue ni escrituras remotas.
+
+## 2026-10-29 — E2: subsanación de Claude preparada en rama aislada
+
+- Rama `codex/e2-claude-remediation-20261029`, base exacta de #145 `2f890c7fd8e6b80ff0fef003e4d3e2452df471b7`; conserva la corrección M3 del token pair. `origin/main` contrastado en `f55f1e9`. Relevo comunicado por Slack; Claude conserva revisión independiente.
+- Candidata: capacidad de palés `> 0` (0 ilimitado), clave de quant incluye HU con NULLS NOT DISTINCT y conserva material suelto agregado, cancelación de la orden afectada con retención por `flow_state=QUARANTINE` sin fusionar quants/stock ni liberar reservas ajenas. `RESERVED` con reserva propia es ejecutable; indisponibilidad se distingue de merma declarada. El destino se bloquea antes de buscar/crear quant.
+- Regresiones compartidas entre suplemento PGlite y CI PG17: ilimitado/límite positivo, colisión con INSPECTION, dos HUs del mismo lote en destino, replay idempotente, RESERVED y ejecución 60+40 al mismo destino. Se añade carrera real de dos conexiones sobre un destino aún inexistente (INSERT retrasado para forzar solapamiento). Esta última solo se acredita cuando pase CI PG17.
+- Recibos PG17 eliminados en cada job inmediatamente tras Checkout; pruebas negativas ejecutan ese paso y un fallo posterior. Se comprueba RLS en las seis hijas CMR; el SQL recuperado se preserva fiel a la fuente. El tramo de 14 migraciones/46 en E2 utiliza ahora el orden natural de ficheros corregido por 2f890c7, no una curación oculta del ledger.
+- Evidencia primaria fresca: consulta de solo lectura del ledger a las 14:50 UTC del 29-oct, 42 migraciones; SHA256 de arrays base64 y MD5 de arrays originales coinciden en las 41 entradas emparejadas del JSON 24-oct. No se exportó DDL ni filas operativas. Se conserva el JSON histórico byte a byte: origen/fecha/ejecución original NO certificados. Nuevo manifiesto y tests verifican su árbol Git histórico y el contraste de huellas, no fingen un run de Actions ni certifican el preflight histórico.
+- Validación local: 39 pruebas focales PASS, tipos PASS, lint focal sin errores, build de producción PASS. La suite general inicial dio 420/422: timeout preexistente DATA150 de lock vacío y fecha fija del Memorandum; la fecha se actualizó y su suite focal pasó. No se alteró DATA150. CI del nuevo SHA debe certificar suite completa, PG16 y PG17 antes de integrar.
+- Sin merge a main, despliegue, escritura de base remota ni seed productivo. Ejecutar revisión independiente sobre la nueva PR apilada, luego integrar el delta en #145 y revalidar el conjunto. La corrección del ejecutor de auditoría de #146 va separada; el gate de producción continúa pendiente.
+
+
+## 2026-10-24 — E2 #139: subsanación de revisión Argon (MUST-1..3 y SHOULD-1 cerrados); contrato implementable
+
+- **Estado:** PR #139 DRAFT, rama `docs/wms-e2-replenishment-contract`, rebasada limpiamente sobre `main` `d149789c4c73bb68eb259da3230a53c8c6366b27`. Conserva exactamente los 3 documentos de arquitectura y seguimiento (`docs/architecture/wms-e2-replenishment-technical-contract.md`, `docs/ai/HANDOFF.md`, `docs/pending-log.md`); todas las demás entradas del repositorio son idénticas a `main`.
+- **Subsanación de revisión Argon4 (`REVIEW-E2-9fc-ARGON.md`):**
+  - **MUST-1 (Alcanzabilidad de E2-146 bajo CHECK y erradicación de STOCK_DISCREPANCY):** Erradicado estado inexistente `STOCK_DISCREPANCY` (válidos en E1: `'AVAILABLE'`, `'QUARANTINE'`, `'DAMAGED'`, `'INSPECTION'`, `'BLOCKED'`). Demostrada la imposibilidad en PostgreSQL de `quantity_on_hand < suggested_quantity` con reserva `HELD` activa bajo `CHECK (quantity_reserved <= quantity_on_hand)`. Paso 4 de `fornexa_wms_action(REPLENISH)` se alcanza deterministamente cuando el quant pasa a `stock_status IN ('INSPECTION','BLOCKED','DAMAGED','QUARANTINE')` sin violar el `CHECK` o cuando el operario reporta merma física en piso. La RPC cancela atómicamente propuesta, tarea y reserva `HELD`, decrementa `quantity_reserved`, aisla el quant en `'INSPECTION'` para conciliación del planificador y retorna `WMS_SOURCE_STOCK_DEPLETED` sin `RAISE` no controlado.
+  - **MUST-2 (Columna target_hu_id en DDL de wms_proposals):** Incorporada formalmente en `§2.2` la columna `target_hu_id uuid` en `public.wms_proposals` con FK `fk_proposal_target_hu` hacia `handling_units`, sincronizando la fórmula de deduplicación de plazas de palé entrantes de S4 (§3.1) con el esquema.
+  - **MUST-3 (Eliminación de contradicciones internas sobre S4/N3/E2-146):** Eliminadas menciones obsoletas en `§4.4` y `§5` que afirmaban que S4, N3 o E2-146 permanecían abiertos. Todo el contrato sostiene de manera coherente el cierre de los puntos.
+  - **SHOULD-1 (Deslinde de fuentes primarias humanas y diseño técnico):** Deslindadas claramente las decisiones primarias literales de Fran (dato SGA editable sin pesaje forzado y concurrencia multi-orden por capacidad agregada) de las formulaciones algorítmicas de ingeniería de software (deduplicación por `target_hu_id` y Paso 4 de RPC con aislamiento en `INSPECTION`).
+- **Gobernanza y límites:** Amparado en la autorización humana de Fran (`FRAN-PRIMARY-CIERRE-TOTAL-20261024.md` y `FRAN-PRIMARY-WMS-20261021-DECISIONES-SGA-RESERVAS.md`). Contrato 100% completo, coherente e implementable. CERO implementación de código runtime E2 en esta PR, CERO SQL remoto contra producción, CERO F4/seed/COMMITTED/merge/deploy.
 
 ## 2026-10-30 — #150: candidata de subsanación tras nuevo dictamen Claude
 
