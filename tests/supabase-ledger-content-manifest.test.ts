@@ -55,6 +55,16 @@ function gitBlobSha1(path: string) {
     .digest("hex");
 }
 
+function noteFor(classification: string) {
+  assert.ok(
+    Object.prototype.hasOwnProperty.call(manifest.classification_notes, classification),
+    `${classification}: every classification present in the manifest must carry a note`,
+  );
+  const note = manifest.classification_notes[classification];
+  assert.ok(note.length > 0, `${classification}: the note must not be empty`);
+  return note;
+}
+
 test("the manifest names itself and declares its own scope", () => {
   assert.equal(manifest.artifact, manifestPath);
   assert.ok(manifest.limits.length >= 4, "the manifest must state its limits");
@@ -99,10 +109,7 @@ test("classifications are a closed set and agree with the recorded digests and s
     if (entry.classification === "differs_multi_element_array") {
       assert.ok(entry.ledger_statement_elements > 1, `${entry.ledger_name}: multi-element class implies more than one element`);
     }
-    assert.ok(
-      (manifest.classification_notes[entry.classification] ?? "").length > 0,
-      `${entry.classification}: every classification must carry a note`,
-    );
+    noteFor(entry.classification);
   }
 });
 
@@ -111,7 +118,7 @@ test("every differing classification carries an explicit non-claim", () => {
   for (const classification of used) {
     if (classification === "byte_identical") continue;
     assert.match(
-      manifest.classification_notes[classification] ?? "",
+      noteFor(classification),
       /not (?:prove|proven|expected|established|classif)|impossible/i,
       `${classification}: a differing classification must say what it does not establish`,
     );
@@ -130,9 +137,11 @@ test("counts in the summary match the entries actually present", () => {
     manifest.summary.git_sql_sources,
     "every Git source is either paired with a ledger entry or listed as Git-only",
   );
-  const counts: Record<string, number> = {};
-  for (const entry of manifest.entries) counts[entry.classification] = (counts[entry.classification] ?? 0) + 1;
-  assert.deepEqual(counts, manifest.summary.classification_counts);
+  const tally = new Map<string, number>();
+  for (const entry of manifest.entries) {
+    tally.set(entry.classification, (tally.get(entry.classification) ?? 0) + 1);
+  }
+  assert.deepEqual(Object.fromEntries(tally), manifest.summary.classification_counts);
   const paths = new Set(manifest.entries.map((entry) => entry.git_path));
   assert.equal(paths.size, manifest.entries.length, "no Git source may be paired twice");
   for (const source of manifest.git_only) {
