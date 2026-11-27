@@ -32,6 +32,11 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 
 ## OPEN
 
+### 2026-11-27 — Seguimiento del ensayo nativo A2/E2
+
+- Supabase de pruebas disponible y 48 fuentes aplicadas. Verificados el esquema, RLS, permisos y rollback reversible con restauración exacta de C3. Se agruparon 22 fuentes en una operación; la reconciliación exacta del historial productivo queda pendiente.
+- Quedan el recorrido autenticado y la recuperación HU con datos sintéticos en Supabase, la revisión de la candidata y los controles previos a cualquier activación productiva.
+
 ### 2026-11-26 — Soporte: verificación autenticada
 
 - Con el buzón nuevo ya desplegado, falta crear un ticket con una sesión real y confirmar que el aviso de Resend llega con número, título, hora de Madrid y archivos. Comprobar también la lectura y descarga por solicitante y soporte y la denegación a usuarios sin acceso.

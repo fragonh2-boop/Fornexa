@@ -3,6 +3,13 @@
 This file is the portable source of truth for resuming FORNEXA work. Verify live GitHub, CI, Supabase, Vercel and Slack state before acting. Historical detail remains available in Git history, `docs/pending-log.md`, verification notes and the public Memorandum.
 
 
+
+## 2026-11-27 — Ensayo A2/E2 en Supabase aislado
+
+- Proyecto gratuito `fornexa-a2-e2-test` en Forexa, activo y separado de producción. PostgreSQL 17.12 con Auth y Storage nativos y esquema público inicialmente vacío. Se aplicaron las 48 fuentes de la candidata `87d15f9`: 26 por separado y las 22 restantes en una operación, con Soporte y C3 ya presentes al aplicar E2. El historial de pruebas tiene 27 entradas por la agrupación y no reproduce las versiones del ledger productivo.
+- Postestado: cero tickets, reglas y propuestas; RLS en las tres tablas, lectura autenticada de E2 y escritura directa denegada. Las seis RPC clave conservan ejecución exclusiva de service_role. Se ensayó el rollback E2 dentro de una transacción revertida: la huella SHA-256 y permisos de C3 coincidieron con la fuente original, Soporte permaneció y E2 volvió al estado de partida.
+- El ensayo de colisión HU con datos sintéticos sigue acreditado en PostgreSQL 17 local y CI de #163. Pendientes el recorrido autenticado y la colisión HU en Supabase aislado, la reconciliación del historial productivo y la revisión antes de activar. Producción siguió en `80fe5c9` sin tablas E2.
+
 ## 2026-11-26 — Reconciliación E2 sobre main actual
 
 - `codex/e2-current-main` incorpora `80fe5c9` a la candidata #145 `aca95b1`. Conserva las migraciones y recuperación E2/HU/C3 e incorpora las dos migraciones de soporte, sin cambiar el interruptor E2.
