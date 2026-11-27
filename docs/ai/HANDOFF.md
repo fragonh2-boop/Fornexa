@@ -4,6 +4,13 @@ This file is the portable source of truth for resuming FORNEXA work. Verify live
 
 
 
+
+## 2026-11-27 — Recuperación HU en Supabase y contraste A2
+
+- En Supabase aislado se ejecutó la recuperación `PRESERVE_HU` dentro de una transacción. Dos unidades con la misma clave anterior a E2 conservaron sus vínculos y cantidades de 10 y 5. La recuperación conservó acceso de servicio a C3 y deshabilitó la aprobación E2. La reversión retiró los datos y el archivo sintéticos y devolvió el permiso E2. REST devolvió 401 a consultas anónimas de reglas y propuestas.
+- Contraste de solo lectura: 44 nombres del historial productivo están en la candidata de 48 fuentes. Las dos E2 aún no están en producción. El importador local carece de entrada homónima Supabase pero figura en el registro de aplicación y su DDL existe. La resincronización CMR carece de entrada homónima en ambos historiales productivos; la secuencia está al día en la comprobación de solo lectura. La comparación por nombre no demuestra identidad SQL.
+- Pendientes recorrido HTTP autenticado con usuario sintético habilitado en Supabase de pruebas, conciliación SQL exacta y decisión de rollout. El proyecto aislado tiene confirmación de correo activa para altas. Sin modificaciones productivas.
+
 ## 2026-11-27 — Ensayo A2/E2 en Supabase aislado
 
 - Proyecto gratuito `fornexa-a2-e2-test` en Forexa, activo y separado de producción. PostgreSQL 17.12 con Auth y Storage nativos y esquema público inicialmente vacío. Se aplicaron las 48 fuentes de la candidata `87d15f9`: 26 por separado y las 22 restantes en una operación, con Soporte y C3 ya presentes al aplicar E2. El historial de pruebas tiene 27 entradas por la agrupación y no reproduce las versiones del ledger productivo.

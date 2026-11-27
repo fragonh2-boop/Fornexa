@@ -35,7 +35,7 @@ Registro persistente de trabajo abierto. Verificar siempre contra GitHub, CI, Su
 ### 2026-11-27 — Seguimiento del ensayo nativo A2/E2
 
 - Supabase de pruebas disponible y 48 fuentes aplicadas. Verificados el esquema, RLS, permisos y rollback reversible con restauración exacta de C3. Se agruparon 22 fuentes en una operación; la reconciliación exacta del historial productivo queda pendiente.
-- Quedan el recorrido autenticado y la recuperación HU con datos sintéticos en Supabase, la revisión de la candidata y los controles previos a cualquier activación productiva.
+- La recuperación HU con datos sintéticos ya quedó verificada en Supabase. Quedan el recorrido HTTP autenticado, la revisión de la candidata y los controles previos a cualquier activación productiva. Para A2 quedan la conciliación de SQL y la atribución histórica de la resincronización CMR.
 
 ### 2026-11-26 — Soporte: verificación autenticada
 
